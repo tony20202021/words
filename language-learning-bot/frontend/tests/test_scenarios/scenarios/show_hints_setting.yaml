@@ -1,0 +1,93 @@
+name: Show Hints Setting Test
+user_id: 123456789
+api_mock: study
+auto_setup: true
+steps:
+  # Шаг 1-3: Стандартные шаги для выбора языка
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+
+  # Шаг 4: Открываем настройки
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      - type: keyboard_contains
+        button_text: "Отображать подсказки: Да"
+
+  # Шаг 5: Переключаем отображение подсказок (выключаем)
+  - type: callback
+    data: "settings_toggle_show_hints"
+    asserts:
+      - type: message_contains
+        text: "Настройки успешно обновлены"
+      - type: message_contains
+        text: "Отображать подсказки: Нет"
+      - type: state_contains
+        data: ["show_hints", false]
+      - type: keyboard_contains
+        button_text: "Отображать подсказки: Нет"
+
+  # Шаг 6: Запускаем изучение слов с выключенными подсказками
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      # Проверяем, что подсказки отсутствуют в клавиатуре
+      - type: keyboard_not_contains
+        button_text: "Фонетика"
+      - type: keyboard_not_contains
+        button_text: "Ассоциация"
+      - type: keyboard_button_count
+        count: 3  # Только 3 кнопки (Знаю/Показать/Пропустить) без подсказок
+
+  # Шаг 7: Возвращаемся к настройкам
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+
+  # Шаг 8: Переключаем отображение подсказок (включаем)
+  - type: callback
+    data: "settings_toggle_show_hints"
+    asserts:
+      - type: message_contains
+        text: "Настройки успешно обновлены"
+      - type: message_contains
+        text: "Отображать подсказки: Да"
+      - type: state_contains
+        data: ["show_hints", true]
+
+  # Шаг 9: Запускаем изучение слов с включенными подсказками
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      # Проверяем, что подсказки присутствуют в клавиатуре
+      - type: keyboard_contains
+        button_text: "Фонетика"
+      - type: keyboard_contains
+        button_text: "Ассоциация"
+      - type: keyboard_button_count
+        count: 7  # 4 кнопки подсказок + 3 основные кнопки

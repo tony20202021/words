@@ -1,0 +1,26 @@
+# Конфигурация базы данных
+# Этот файл должен быть сохранен как backend/conf/config/database.yaml
+
+# Тип базы данных
+type: "mongodb"
+
+# Настройки MongoDB
+mongodb:
+  # URL для подключения
+  url: "mongodb://localhost:27017"
+  # Имя базы данных
+  db_name: "language_learning_bot"
+  # Хост (если не указан, будет извлечен из URL)
+  host: "127.0.0.1"
+  # Порт (если не указан, будет извлечен из URL)
+  port: 27027
+  # Настройки подключения
+  min_pool_size: 5
+  max_pool_size: 10
+  connection_timeout_ms: 5000
+  # Настройки аутентификации (если необходимо)
+  auth:
+    enabled: false
+    username: ""
+    password: ""
+    auth_source: "admin"

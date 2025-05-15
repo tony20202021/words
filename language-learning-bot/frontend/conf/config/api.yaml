@@ -1,0 +1,52 @@
+# Конфигурация API-клиента
+# Этот файл должен быть сохранен как frontend/conf/config/api.yaml
+
+# Базовый URL бэкенда
+base_url: "http://localhost:8500"
+
+# Префикс API для запросов
+prefix: "/api"
+
+# Настройки запросов
+# Таймаут для запросов к API (в секундах)
+timeout: 5
+# Максимальное число повторных попыток при ошибке соединения
+retry_count: 3
+# Задержка между повторными попытками (в секундах)
+retry_delay: 1
+
+# Пути API эндпоинтов
+endpoints:
+  # Эндпоинты для работы с языками
+  languages:
+    list: "/api/languages"
+    get: "/api/languages/{id}"
+    create: "/api/languages"
+    update: "/api/languages/{id}"
+    delete: "/api/languages/{id}"
+  
+  # Эндпоинты для работы со словами
+  words:
+    list: "/api/words"
+    get: "/api/words/{id}"
+    by_language: "/api/languages/{language_id}/words"
+    create: "/api/words"
+    update: "/api/words/{id}"
+    delete: "/api/words/{id}"
+    upload: "/api/words/upload"
+  
+  # Эндпоинты для работы с пользователями
+  users:
+    list: "/api/users"
+    get: "/api/users/{id}"
+    create: "/api/users"
+    update: "/api/users/{id}"
+    delete: "/api/users/{id}"
+    stats: "/api/users/{id}/stats"
+    settings: "/api/users/{id}/settings"
+  
+  # Эндпоинты для работы со статистикой
+  statistics:
+    user: "/api/statistics/user/{user_id}"
+    language: "/api/statistics/language/{language_id}"
+    word: "/api/statistics/word/{word_id}"

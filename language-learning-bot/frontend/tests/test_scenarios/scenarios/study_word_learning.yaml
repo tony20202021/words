@@ -1,0 +1,74 @@
+name: Study Word Learning Scenario
+user_id: 123456789
+api_mock: common
+auto_setup: true
+steps:
+  # Шаг 1: Выбираем язык
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Шаг 2: Выбираем английский язык
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Ваши настройки для этого языка"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Шаг 3: Запускаем изучение слов
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+
+  # Шаг 4: Просматриваем подсказку
+  - type: callback
+    data: "hint_view_phoneticassociation_word123"
+    asserts:
+      # - type: message_contains
+      #   text: "Фонетическая подсказка"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+
+  # Шаг 5: Возвращаемся к слову
+  - type: callback
+    data: "back_to_word"
+    asserts:
+      # - type: message_contains
+      #   text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+
+  # Шаг 6: Отмечаем слово как известное
+  - type: callback
+    data: "word_know"
+    asserts:
+      - type: message_contains
+        text: "Отлично!"
+      - type: message_contains
+        text: "Вы знаете это слово"
+      # - type: state_contains
+      #   data: ["current_study_index", 1]
+
+  # Шаг 7: Пропускаем следующее слово
+  - type: callback
+    data: "toggle_word_skip"
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Статус изменен: слово теперь будет пропускаться в будущем"

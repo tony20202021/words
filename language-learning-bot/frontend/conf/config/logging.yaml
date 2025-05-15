@@ -1,0 +1,17 @@
+# Конфигурация логирования
+# Этот файл должен быть сохранен как frontend/conf/config/logging.yaml
+
+# Уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+level: "INFO"
+# Формат сообщений лога
+format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+# Записывать ли логи в файл
+log_to_file: true
+# Путь к файлу лога
+log_file: "logs/app.log"
+# Директория для хранения файлов логов
+log_dir: "logs"
+# Максимальный размер файла лога перед ротацией (в байтах)
+log_file_max_size: 5242880  # 5 MB
+# Количество сохраняемых файлов лога при ротации
+log_file_backup_count: 3

@@ -1,0 +1,23 @@
+# Основная конфигурация бэкенд-приложения
+# Этот файл должен быть сохранен как backend/conf/config/default.yaml
+
+# Подключение других конфигурационных файлов
+defaults:
+  - _self_
+  - api@api
+  - database@database
+  - logging@logging
+
+# Настройки приложения
+app:
+  # Название приложения
+  name: "Language Learning Bot"
+  # Окружение (development, production)
+  environment: "development"
+  
+# Настройки загрузки файлов
+upload:
+  # Директория для загруженных файлов
+  folder: "./uploads"
+  # Максимальный размер загружаемого файла в байтах
+  max_size: 10485760  # 10MB

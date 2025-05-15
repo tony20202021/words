@@ -1,0 +1,149 @@
+name: Create and Edit Hint Scenario
+user_id: 123456789
+api_mock: study
+auto_setup: true
+steps:
+  # Шаг 1-3: Стандартные шаги для выбора языка и начала изучения
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Ваши настройки для этого языка"
+      - type: state_contains
+        data: ["_state", None]
+
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      # Проверяем клавиатуру подсказок
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения слова на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для фонетики (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для написания (отсутствует)"
+
+  # Шаг 4: Создаем новую подсказку ассоциации
+  - type: callback
+    data: "hint_create_phoneticassociation_word123"
+    asserts:
+      - type: message_contains
+        text: "Создание подсказки типа «Ассоциация для фонетики»"
+      - type: state_contains
+        data: ["_state", "<State 'HintStates:creating'>"]
+
+  # Шаг 5: Отправляем текст подсказки
+  - type: message
+    text: "Моя тестовая ассоциация"
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Подсказка успешно создана"
+      - type: message_contains
+        position: -2
+        text: "«Ассоциация для фонетики»"
+      - type: state_contains
+        data: ["_state", "<State 'StudyStates:studying'>"]
+      # Проверяем клавиатуру подсказок
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения слова на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для фонетики: 👁️ Показать"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для написания (отсутствует)"
+      - type: keyboard_button_count
+        count: 8
+
+  # Шаг 6: Просмотр созданной подсказки
+  - type: callback
+    data: "hint_view_phoneticassociation_word123"
+    asserts:
+      - type: state_contains
+        data: ["_state", "<State 'StudyStates:studying'>"]
+      # Проверяем клавиатуру подсказок
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения слова на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для фонетики: 👁️ Показать"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для написания (отсутствует)"
+      - type: keyboard_button_count
+        count: 8
+
+  # Шаг 8: Редактируем созданную подсказку
+  - type: callback
+    data: "hint_edit_phoneticassociation_word123"
+    asserts:
+      - type: message_contains
+        position: -1
+        text: "Редактирование подсказки"
+      - type: message_contains
+        position: -1
+        text: "Ассоциация для фонетики"
+      - type: state_contains
+        data: ["_state", "<State 'HintStates:editing'>"]
+
+  # Шаг 9: Отправляем новый текст
+  - type: message
+    text: "Обновленная ассоциация"
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Подсказка «Ассоциация для фонетики» успешно обновлена"
+      - type: state_contains
+        data: ["_state", "<State 'StudyStates:studying'>"]
+      # Проверяем клавиатуру подсказок
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения слова на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для фонетики: 👁️ Показать"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для написания (отсутствует)"
+      - type: keyboard_button_count
+        count: 8
+
+  # Шаг 10: Просматриваем обновленную подсказку
+  - type: callback
+    data: "hint_view_phoneticassociation_word123"
+    asserts:
+      - type: state_contains
+        data: ["_state", "<State 'StudyStates:studying'>"]
+      # Проверяем клавиатуру подсказок
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения слова на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для фонетики: 👁️ Показать"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для написания (отсутствует)"
+      - type: keyboard_button_count
+        count: 8

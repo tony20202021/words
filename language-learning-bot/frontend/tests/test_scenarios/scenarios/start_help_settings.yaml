@@ -1,0 +1,89 @@
+name: Start-Help-Settings Scenario
+user_id: 123456789
+api_mock: common
+auto_setup: true
+steps:
+  - type: command
+    name: start
+    asserts:
+      - type: message_contains
+        text: "Здравствуйте"
+      # - type: state_contains
+      #   data: ["_state", None]
+  
+  - type: command
+    name: help
+    asserts:
+      - type: message_contains
+        text: "Справка по использованию бота"
+      # - type: state_contains
+      #   data: ["_state", None]
+
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Вы еще не выбрали язык для изучения"
+      - type: state_contains
+        data: ["_state", None]
+
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Шаг 3: Имитируем выбор языка через callback
+  # Вместо state_update используем прямой вызов колбэка
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык: <b>Английский (English)</b>"
+      - type: message_contains
+        text: "Ваши настройки для этого языка"
+      - type: message_contains
+        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+      - type: message_contains
+        text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Шаг 4: Открываем настройки снова
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      - type: message_contains
+        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+      - type: message_contains
+        text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
+      - type: state_contains
+        data: ["_state", None]
+      # - type: state_contains
+      #   data: ["skip_marked", true]
+
+  - type: callback
+    data: settings_start_word
+    asserts:
+      - type: message_contains
+        text: "Введите номер слова"
+      - type: state_contains
+        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+
+  - type: message
+    text: "50"
+    asserts:
+      - type: message_contains
+        text: "Настройки успешно обновлены"
+      - type: message_contains
+        text: "Начальное слово"
+      - type: state_contains
+        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
+      - type: state_contains
+        data: ["start_word", 50]

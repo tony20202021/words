@@ -1,0 +1,48 @@
+# Конфигурация бота Telegram
+# Этот файл должен быть сохранен как frontend/conf/config/bot.yaml
+
+# Настройки бота
+skip_updates: true
+polling_timeout: 30
+retry_timeout: 5
+
+# Настройки команд бота
+commands:
+  - command: "start"
+    description: "Начать работу с ботом"
+  - command: "help"
+    description: "Получить справку"
+  - command: "language"
+    description: "Выбрать язык для изучения"
+  - command: "study"
+    description: "Начать изучение слов"
+  - command: "settings"
+    description: "Настройки процесса обучения"
+  - command: "stats"
+    description: "Показать статистику"
+  - command: "hint"
+    description: "Информация о подсказках"
+  - command: "admin"
+    description: "Режим администратора"
+
+# Настройки для администраторов
+admin:
+  # Список ID администраторов (соответствует BOT_ADMIN_USER_IDS в .env)
+  admin_ids: "1234567,7654321"
+
+# Настройки распознавания речи
+voice_recognition:
+  # Включение/отключение распознавания голосовых сообщений
+  enabled: true
+  
+  # Путь к директории для временных файлов
+  temp_dir: "temp"
+  
+  # Размер модели Whisper ("tiny", "base", "small", "medium", "large")
+  model_size: "small"
+  
+  # Язык распознавания
+  language: "ru"
+  
+  # Максимальная длительность голосового сообщения в секундах
+  max_duration: 60

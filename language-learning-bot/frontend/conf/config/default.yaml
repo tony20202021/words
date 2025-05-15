@@ -1,0 +1,24 @@
+# Основная конфигурация приложения
+# Этот файл должен быть сохранен как frontend/conf/config/default.yaml
+
+# Подключение других конфигурационных файлов
+defaults:
+  - _self_
+  - bot@bot
+  - api@api
+  - logging@logging
+  - learning@learning
+
+# Настройки приложения
+app:
+  # Название приложения
+  name: "Language Learning Bot"
+  # Окружение (development, production)
+  environment: "development"
+  
+# Настройки загрузки файлов
+upload:
+  # Директория для загруженных файлов
+  folder: "./uploads"
+  # Максимальный размер загружаемого файла в байтах
+  max_size: 10485760  # 10MB
