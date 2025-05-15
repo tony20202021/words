@@ -1,0 +1,21 @@
+name: amikhalev_words
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - numpy
+  - pillow
+  - opencv
+  - pytesseract
+  - poppler
+  - tesseract
+  - pandas
+  - requests
+  - beautifulsoup4
+  - openpyxl
+  - xlrd>=2.0.1
+  - pip:
+    - pdf2image
+    - python-docx
