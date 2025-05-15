@@ -1,3 +1,4 @@
-# Radicals
-# Words
-# Language Learning Bot
+# набор мини-проектов для изучения иностранных языков
+## Radicals
+## Words
+## Language Learning Bot
