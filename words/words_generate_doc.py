@@ -317,9 +317,9 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
 
 if __name__ == "__main__":
     # Задаем параметры как константы
-    INPUT_FILE = "chinese_characters_0_1000.json"
-    OUTPUT_FILE_WORD = "chinese_characters_0_1000.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_0_1000.xlsx"
+    INPUT_FILE = "chinese_characters_0_10000.json"
+    OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
     
     # Размеры шрифтов
     CHARACTER_FONT_SIZE = 20
@@ -327,8 +327,8 @@ if __name__ == "__main__":
     DEFAULT_FONT_SIZE = 8
     
     # Лимит символов для описания
-    DESCRIPTION_LINES_COUNT = 3
-    DESCRIPTION_LIMIT = 85
+    DESCRIPTION_LINES_COUNT = 5
+    DESCRIPTION_LIMIT = 285
     # Лимит символов для транскрипции
     TRANSCRIPTION_LIMIT = 15
         
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         'character': 12,   # Иероглиф
         'transcription': 15, # Транскрипция
         'comments': 15,    # Комментарии
-        'description': 45  # Описание/перевод
+        'description': 145  # Описание/перевод
     }
         
     # Вызов функции генерации Word документа

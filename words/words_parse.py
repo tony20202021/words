@@ -503,7 +503,7 @@ if __name__ == "__main__":
     # parse_chinese_character(0, 30, delay=1)
     
     # To run with other parameters:
-    parse_chinese_character(start_index=0, end_index=1_000, delay=1)
+    parse_chinese_character(start_index=2_400, end_index=10_000, delay=1)
     
     # Reprocess errors from file
     # error_file = "chinese_characters_0_1000.errors.json"
