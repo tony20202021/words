@@ -26,7 +26,6 @@ router = APIRouter(tags=["user_language_settings"])
 # Configure logger
 logger = setup_logger(__name__)
 
-
 @router.get("/users/{user_id}/languages/{language_id}/settings", response_model=UserLanguageSettings)
 async def get_user_language_settings(
     user_id: str,
@@ -74,14 +73,26 @@ async def get_user_language_settings(
     # Get settings
     settings = await settings_service.get_settings(user_id, language_id)
     
-    # If settings not found, return default settings
+    # If settings not found, create default settings
     if not settings:
-        logger.info(f"No settings found for user id={user_id}, language id={language_id}, returning default values")
-        default_settings = await settings_service.get_default_settings()
-        return default_settings
+        logger.info(f"No settings found for user id={user_id}, language id={language_id}, creating defaults")
+        default_settings_data = UserLanguageSettingsCreate()
+        settings = await settings_service.create_settings(user_id, language_id, default_settings_data)
+        
+        # Если создание не удалось (например, из-за гонки условий), пробуем получить еще раз
+        if not settings:
+            logger.warning(f"Failed to create settings, trying to get again")
+            settings = await settings_service.get_settings(user_id, language_id)
+            
+            # Если снова не удалось получить, выбрасываем исключение
+            if not settings:
+                logger.error(f"Failed to get or create settings")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to get or create settings"
+                )
     
     return settings
-
 
 @router.put("/users/{user_id}/languages/{language_id}/settings", response_model=UserLanguageSettingsInDB)
 async def update_user_language_settings(

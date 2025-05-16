@@ -512,7 +512,7 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
             callback.bot,
             db_user_id,
             current_word_id,
-            score=1,  # Теперь устанавливаем оценку 1 здесь
+            score=1,
             word=current_word,
             message_obj=callback
         )

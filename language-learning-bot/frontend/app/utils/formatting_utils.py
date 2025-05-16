@@ -130,10 +130,10 @@ def format_study_word_message(
     """
     message = (
         f"📝 Переведите на \"{language_name_ru} ({language_name_foreign})\":\n\n"
-        f"слово номер: {word_number}\n\n" 
+        f"слово номер: <b>{word_number}</b>\n\n" 
     )
     
-    message += f"🔍 Перевод:\n <b>{translation}</b>\n\n"
+    message += f"Перевод:\n🔍  <b>{translation}</b>\n\n"
     
     # Добавляем информацию о статусе пропуска - исправлено условие
     if is_skipped:
@@ -147,10 +147,6 @@ def format_study_word_message(
         if next_check_date:
             formatted_date = format_date(next_check_date)
             message += f"🔄 Запланированное повторение: {formatted_date} \n\n" 
-    else:
-        message += f"score: {score}.\n"
-        message += f"check_interval: {check_interval}.\n"
-        message += f"next_check_date: {next_check_date} \n\n" 
     
     # Если нужно показать слово, добавляем его
     if show_word and word_foreign:
