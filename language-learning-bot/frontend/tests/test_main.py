@@ -66,8 +66,9 @@ class TestMain:
             mock_cfg.logging.level = "INFO"
             mock_cfg.logging.log_dir = "logs"
             
-            # Патчим создание объектов
-            with patch('app.main_frontend.Bot', return_value=mock_bot) as mock_bot_class, \
+            # Патчим загрузку секретов - новое
+            with patch('app.main_frontend.load_secrets', return_value=True) as mock_load_secrets, \
+                patch('app.main_frontend.Bot', return_value=mock_bot) as mock_bot_class, \
                 patch('app.main_frontend.Dispatcher', return_value=mock_dp) as mock_dp_class, \
                 patch('app.main_frontend.MemoryStorage', return_value=mock_storage) as mock_storage_class, \
                 patch('app.main_frontend.APIClient', return_value=mock_api_client) as mock_api_client_class, \
@@ -86,6 +87,9 @@ class TestMain:
                 
                 # Запускаем main
                 await app.main_frontend.main()
+                
+                # Проверяем вызов load_secrets
+                mock_load_secrets.assert_called_once_with(mock_cfg, "../../../../ssh/bot.yaml")
                 
                 # Проверяем, что все объекты созданы с правильными параметрами
                 mock_bot_class.assert_called_once_with(token='fake_token')
@@ -106,10 +110,10 @@ class TestMain:
                 # Проверяем, что обработчики запуска и остановки зарегистрированы
                 mock_dp.startup.register.assert_called_once()
                 mock_dp.shutdown.register.assert_called_once()
-
+                
                 # Проверяем, что start_polling был вызван
                 mock_start_polling.assert_awaited_once()
-
+                
     @pytest.mark.asyncio
     async def test_missing_bot_token(self):
         """
@@ -137,8 +141,13 @@ class TestMain:
             # Проверяем, что код выхода был 1
             assert exit_info.value.code == 1
             
-            # Проверяем, что ошибка залогирована
-            mock_logger_error.assert_called_once_with('Bot token is not set in configuration!')
+            assert mock_logger_error.call_count == 3
+            # Проверяем, что хотя бы один вызов был с нужным текстом
+            expected_message = 'Bot token is not set in configuration!'
+            assert any(
+                call(expected_message) == actual_call 
+                for actual_call in mock_logger_error.mock_calls
+            )
 
     @pytest.mark.asyncio
     async def test_setup_commands(self):

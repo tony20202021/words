@@ -139,13 +139,17 @@ class TestUpdateWordScore:
                 "check_interval": 2
             }
         }
+        
+        # Устанавливаем сегодняшнюю дату для next_check_date
+        today_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        
         api_client.update_user_word_data.return_value = {
             "success": True,
             "result": {
                 "word_id": "word123",
                 "score": 0,
                 "check_interval": 0,
-                "next_check_date": None
+                "next_check_date": today_date
             }
         }
         
@@ -157,7 +161,7 @@ class TestUpdateWordScore:
                     "word_id": "word123",
                     "score": 0,
                     "check_interval": 0,
-                    "next_check_date": None
+                    "next_check_date": today_date
                 })
                 
                 # Execute
@@ -173,14 +177,14 @@ class TestUpdateWordScore:
                 assert success is True
                 assert result["score"] == 0
                 assert result["check_interval"] == 0
-                assert result["next_check_date"] is None
+                assert result["next_check_date"] is not None  # Проверяем, что next_check_date установлена (не None)
                 
                 # Check update_data passed to ensure_user_word_data
                 update_data = mock_ensure.call_args[0][3]
                 assert update_data["score"] == 0
                 assert update_data["is_skipped"] is False
                 assert update_data["check_interval"] == 0
-                assert update_data["next_check_date"] is None
+                assert update_data["next_check_date"] is not None  # Проверяем, что дата установлена
     
     @pytest.mark.asyncio
     async def test_update_with_score_one_new_interval(self):

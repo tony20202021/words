@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 import app.bot.handlers.admin_handlers as admin_handlers
 from app.bot.handlers.admin.admin_language_handlers import (
     cmd_manage_languages, process_create_language, process_language_name,
-    process_language_native_name, process_view_languages, process_edit_language,
+    process_language_native_name, process_edit_language,
     process_edit_name_ru, process_edit_language_name, process_edit_name_foreign,
     process_edit_language_native_name, process_delete_language,
     process_confirm_delete_language, process_cancel_delete_language
@@ -269,48 +269,6 @@ class TestLanguageAdminHandlers:
             message.answer.assert_called_once()
             args, _ = message.answer.call_args
             assert "Язык успешно создан" in args[0]
-    
-    @pytest.mark.asyncio
-    async def test_process_view_languages(self, setup_mocks):
-        """Test the process_view_languages callback handler."""
-        _, state, api_client, callback = setup_mocks
-        
-        # Set callback data
-        callback.data = "view_languages"
-        
-        # Mock API responses - available languages
-        api_client.get_languages.return_value = {
-            "success": True,
-            "status": 200,
-            "result": [
-                {"id": "lang1", "name_ru": "Английский", "name_foreign": "English"},
-                {"id": "lang2", "name_ru": "Испанский", "name_foreign": "Español"}
-            ],
-            "error": None
-        }
-        
-        # Patch the logger, API client and keyboard functions
-        with patch('app.bot.handlers.admin.admin_language_handlers.get_api_client_from_bot', return_value=api_client), \
-             patch('app.bot.handlers.admin.admin_language_handlers.logger'), \
-             patch('app.bot.handlers.admin.admin_language_handlers.get_languages_keyboard') as mock_get_languages_keyboard:
-            
-            # Setup mock keyboard function
-            mock_get_languages_keyboard.return_value = MagicMock()
-            
-            # Call the handler
-            await process_view_languages(callback, state)
-            
-            # Verify API calls
-            api_client.get_languages.assert_called_once()
-            
-            # Check that the keyboard function was used
-            mock_get_languages_keyboard.assert_called_once()
-            
-            # Check that the bot sent a languages list
-            callback.message.answer.assert_called_once()
-            
-            # Check that callback.answer was called
-            callback.answer.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_edit_language(self, setup_mocks):

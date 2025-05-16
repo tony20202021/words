@@ -180,7 +180,6 @@ class TestStudyHintHandlers:
         
         # Check that all expected sub-routers are included
         assert hasattr(study_hint_handlers, 'create_router')
-        assert hasattr(study_hint_handlers, 'view_router')
         assert hasattr(study_hint_handlers, 'edit_router')
         assert hasattr(study_hint_handlers, 'toggle_router')
         assert hasattr(study_hint_handlers, 'cancel_router')
@@ -324,72 +323,6 @@ class TestStudyHintHandlers:
             
             # Проверяем, что callback.answer был вызван
             assert callback.answer.called
-    
-    @pytest.mark.asyncio
-    async def test_process_hint_view(self, setup_mocks):
-        """Test the process_hint_view handler when hint exists."""
-        _, state, api_client, callback, _, state_data = setup_mocks
-        
-        # Настраиваем edit_text как AsyncMock
-        callback.message.edit_text = AsyncMock()
-        
-        # Устанавливаем callback.data
-        callback.data = "hint_view_phonetic_word123"
-        
-        # Импортируем модуль, в котором используются функции
-        import app.bot.handlers.study.hint.view_handlers as view_handlers_module
-        
-        # Создаем моки для всех зависимостей, которые действительно импортируются
-        get_hint_text_mock = AsyncMock(return_value="х-ауз")
-        update_word_score_mock = AsyncMock(return_value=(True, {}))
-        get_show_hints_setting_mock = AsyncMock(return_value=True)
-        format_study_word_message_mock = MagicMock(return_value="Слово: дом")
-        create_word_keyboard_mock = MagicMock(return_value=MagicMock())
-        validate_state_data_mock = AsyncMock(return_value=(True, state_data))
-        get_all_hint_types_mock = MagicMock(return_value=["meaning", "association", "phonetic"])
-        
-        # Создаем мок для UserWordState
-        user_state_obj = MagicMock()
-        user_state_obj.is_valid.return_value = True
-        user_state_obj.get_flag = MagicMock(return_value=[])
-        user_state_obj.set_flag = MagicMock()
-        user_state_obj.save_to_state = AsyncMock()
-        MockUserWordState = AsyncMock(return_value=user_state_obj)
-        
-        # Используем patch.object для всех импортируемых функций
-        with patch.object(view_handlers_module, 'get_hint_text', get_hint_text_mock), \
-            patch.object(view_handlers_module, 'update_word_score', update_word_score_mock), \
-            patch.object(view_handlers_module, 'get_show_hints_setting', get_show_hints_setting_mock), \
-            patch.object(view_handlers_module, 'format_study_word_message', format_study_word_message_mock), \
-            patch.object(view_handlers_module, 'create_word_keyboard', create_word_keyboard_mock), \
-            patch.object(view_handlers_module, 'validate_state_data', validate_state_data_mock), \
-            patch.object(view_handlers_module, 'get_api_client_from_bot', return_value=api_client), \
-            patch.object(view_handlers_module, 'get_hint_key', return_value="hint_syllables"), \
-            patch.object(view_handlers_module, 'get_hint_name', return_value="Фонетика"), \
-            patch.object(view_handlers_module, 'get_hint_icon', return_value="🔤"), \
-            patch.object(view_handlers_module, 'get_all_hint_types', get_all_hint_types_mock), \
-            patch('app.utils.state_models.UserWordState.from_state', AsyncMock(return_value=user_state_obj)):
-            
-            # Вызываем функцию
-            await process_hint_view(callback, state)
-            
-            # Проверяем, что get_all_hint_types был вызван
-            assert get_all_hint_types_mock.called
-            
-            # Проверяем, что get_hint_text был вызван
-            assert get_hint_text_mock.called
-            
-            # Проверяем, что update_word_score был вызван
-            assert update_word_score_mock.called
-            
-            # Проверяем, что message.edit_text был вызван
-            assert callback.message.edit_text.called
-            
-            # Проверяем, что callback.answer был вызван (чтобы убрать уведомление)
-            assert callback.answer.called
-            
-            # Проверяем, что пользовательский state был сохранен
-            assert user_state_obj.save_to_state.called
 
     @pytest.mark.asyncio
     async def test_cmd_cancel_hint(self, setup_mocks):

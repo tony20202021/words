@@ -20,7 +20,6 @@ from app.bot.keyboards.admin_keyboards import (
 )
 from app.utils.formatting_utils import format_date_standard
 
-
 # Создаем роутер для обработчиков администрирования языками
 language_router = Router()
 
@@ -91,7 +90,6 @@ async def process_create_language(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-
 @language_router.message(AdminStates.creating_language_name)
 async def process_language_name(message: Message, state: FSMContext):
     """
@@ -111,7 +109,6 @@ async def process_language_name(message: Message, state: FSMContext):
     
     # Переходим к вводу оригинального названия
     await state.set_state(AdminStates.creating_language_native_name)
-
 
 @language_router.message(AdminStates.creating_language_native_name)
 async def process_language_native_name(message: Message, state: FSMContext):
@@ -288,7 +285,6 @@ async def process_edit_name_ru(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-
 @language_router.callback_query(F.data.startswith("edit_name_foreign_"))
 async def process_edit_name_foreign(callback: CallbackQuery, state: FSMContext):
     """
@@ -312,7 +308,6 @@ async def process_edit_name_foreign(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.editing_language_native_name)
     
     await callback.answer()
-
 
 @language_router.callback_query(F.data.startswith("delete_language_"))
 async def process_delete_language(callback: CallbackQuery, state: FSMContext):
@@ -367,7 +362,6 @@ async def process_delete_language(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-
 @language_router.callback_query(F.data.startswith("confirm_delete_"))
 async def process_confirm_delete_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -409,7 +403,6 @@ async def process_confirm_delete_language(callback: CallbackQuery, state: FSMCon
     
     await callback.answer()
 
-
 @language_router.callback_query(F.data.startswith("cancel_delete_"))
 async def process_cancel_delete_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -421,9 +414,6 @@ async def process_cancel_delete_language(callback: CallbackQuery, state: FSMCont
     """
     await callback.message.answer("🚫 Удаление языка отменено")
     await callback.answer()
-
-
-# Добавляем новые обработчики для поиска слова по номеру
 
 @language_router.callback_query(F.data.startswith("search_word_by_number_"))
 async def process_search_word_by_number(callback_query: CallbackQuery, state: FSMContext):
@@ -668,7 +658,6 @@ async def handle_language_management(message_or_callback, state: FSMContext, is_
     # Возвращаем True, чтобы показать, что обработка прошла успешно
     return True
 
-# Добавляем новый обработчик для back_to_admin
 @language_router.callback_query(F.data == "back_to_admin")
 async def process_back_to_admin_from_languages(callback: CallbackQuery, state: FSMContext):
     """
@@ -692,12 +681,6 @@ async def process_back_to_admin_from_languages(callback: CallbackQuery, state: F
     
     # Отвечаем на callback
     await callback.answer()
-
-"""
-Обработчик для возврата к списку языков
-"""
-
-# Добавьте этот код в admin_language_handlers.py
 
 @language_router.callback_query(F.data == "back_to_languages")
 async def process_back_to_languages(callback: CallbackQuery, state: FSMContext):
@@ -831,7 +814,6 @@ async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-# Обновляем функцию process_edit_language_after_update
 async def process_edit_language_after_update(message: Message, language_id: str):
     """
     Show language edit screen after update.

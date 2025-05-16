@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from app.bot.handlers.admin.admin_basic_handlers import cmd_admin, cmd_admin_stats
+from app.bot.handlers.admin.admin_basic_handlers import cmd_admin, cmd_bot_stats
 
 
 class TestBasicAdminHandlers:
@@ -199,8 +199,8 @@ class TestBasicAdminHandlers:
             message.answer.assert_called_once_with("У вас нет прав администратора.")
                 
     @pytest.mark.asyncio
-    async def test_cmd_admin_stats(self, setup_mocks):
-        """Test the cmd_admin_stats handler."""
+    async def test_cmd_bot_stats(self, setup_mocks):
+        """Test the cmd_bot_stats handler."""
         message, state, api_client = setup_mocks
         
         # Mock API responses - user is admin, languages available
@@ -236,7 +236,7 @@ class TestBasicAdminHandlers:
             api_client.get_user_by_telegram_id.reset_mock()
             
             # Call the handler
-            await cmd_admin_stats(message, state)
+            await cmd_bot_stats(message, state)
             
             # Verify API calls
             api_client.get_user_by_telegram_id.assert_called_once_with(message.from_user.id)

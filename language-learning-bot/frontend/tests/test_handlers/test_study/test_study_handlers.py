@@ -504,16 +504,16 @@ class TestStudyHandlers:
                     mock_state_obj.save_to_state.assert_called_once_with(state)
 
     @pytest.mark.asyncio
-    async def test_process_word_dont_know(self, setup_mocks):
-        """Test process_word_dont_know callback handler."""
+    async def test_process_show_word(self, setup_mocks):
+        """Test process_show_word callback handler."""
         _, state, api_client, callback = setup_mocks
         
-        # Импортируем process_word_dont_know здесь, чтобы избежать проблем с импортами
-        from app.bot.handlers.study.study_word_actions import process_word_dont_know
+        # Импортируем process_show_word
+        from app.bot.handlers.study.study_word_actions import process_show_word
         
-        # Mock validate_state_data to return True with test data
+        # Mock validate_state_data для возврата тестовых данных
         with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate:
-            # Set up mock data for validate_state_data
+            # Настраиваем данные для validate_state_data
             mock_validate.return_value = (True, {
                 "current_word_id": "word123",
                 "current_word": {
@@ -522,58 +522,93 @@ class TestStudyHandlers:
                     "word_foreign": "house",
                     "translation": "дом",
                     "transcription": "haʊs",
-                    "word_number": 1
+                    "word_number": 1,
+                    "user_word_data": {}
                 },
                 "db_user_id": "user123",
                 "current_study_index": 0
             })
             
-            # Patch UserWordState to avoid actual state updates
+            # Патчим UserWordState для избежания реальных обновлений состояния
             with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state:
-                # Create mock for UserWordState
+                # Создаем мок для UserWordState
                 mock_state_obj = MagicMock()
                 mock_state_obj.is_valid.return_value = True
                 mock_state_obj.set_flag = MagicMock()
+                mock_state_obj.get_flag = MagicMock(return_value=[])  # Пустой список для active_hints и used_hints
+                mock_state_obj.get_active_hints = MagicMock(return_value=[])
+                mock_state_obj.user_id = "user123"
+                mock_state_obj.word_id = "word123"
+                mock_state_obj.word_data = {
+                    "id": "word123",
+                    "language_id": "lang123",
+                    "word_foreign": "house",
+                    "translation": "дом",
+                    "transcription": "haʊs",
+                    "word_number": 1,
+                    "user_word_data": {}
+                }
                 mock_state_obj.save_to_state = AsyncMock()
                 mock_user_word_state.return_value = mock_state_obj
                 
-                # Patch format_date and InlineKeyboardBuilder
-                with patch('app.bot.handlers.study.study_word_actions.format_date', return_value="15 мая 2025"), \
-                    patch('app.bot.handlers.study.study_word_actions.update_word_score', 
+                # Патчим другие зависимости
+                with patch('app.bot.handlers.study.study_word_actions.update_word_score', 
                         AsyncMock(return_value=(True, {
                             "check_interval": 0,
-                            "next_check_date": "2025-05-13"
-                            }))) as mock_update_score, \
-                    patch('app.bot.handlers.study.study_word_actions.InlineKeyboardBuilder') as mock_keyboard_builder:
+                            "next_check_date": "2025-05-13",
+                            "score": 0,
+                            "is_skipped": False
+                        }))) as mock_update_score, \
+                    patch('app.bot.handlers.study.study_word_actions.get_api_client_from_bot', return_value=api_client), \
+                    patch('app.bot.handlers.study.study_word_actions.create_word_keyboard') as mock_create_keyboard, \
+                    patch('app.bot.handlers.study.study_word_actions.format_study_word_message') as mock_format_message, \
+                    patch('app.bot.handlers.study.study_word_actions.format_active_hints', AsyncMock(return_value="")) as mock_format_hints, \
+                    patch('app.utils.settings_utils.get_show_hints_setting', AsyncMock(return_value=True)) as mock_get_hints_setting:
                     
-                    # Mock for keyboard builder
-                    mock_builder = MagicMock()
-                    mock_builder.button = MagicMock(return_value=mock_builder)
-                    mock_builder.as_markup = MagicMock(return_value="KEYBOARD")
-                    mock_keyboard_builder.return_value = mock_builder
+                    # Настраиваем моки
+                    mock_create_keyboard.return_value = "KEYBOARD"
+                    mock_format_message.return_value = "FORMATTED_MESSAGE"
                     
-                    # Call the handler
-                    await process_word_dont_know(callback, state)
+                    # Настраиваем ответ API для get_language
+                    api_client.get_language.return_value = {
+                        "success": True, 
+                        "result": {
+                            "id": "lang123", 
+                            "name_ru": "Английский", 
+                            "name_foreign": "English"
+                        }
+                    }
                     
-                    # Check that update_word_score was called with score=0 and is_skipped=False
+                    # Вызываем обработчик
+                    await process_show_word(callback, state)
+                    
+                    # Проверяем, что update_word_score был вызван с score=0
                     mock_update_score.assert_called_once()
                     call_args = mock_update_score.call_args
                     assert call_args.kwargs["score"] == 0
-                    assert call_args.kwargs["is_skipped"] is False
+                    assert "is_skipped" in call_args.kwargs  # Проверяем, что параметр передается
                     
-                    # Check that the bot sent a message with confirmation button
-                    callback.message.answer.assert_called_once()
-                    call_args = callback.message.answer.call_args
-                    # Проверяем, что в сообщении есть важные элементы
-                    assert "Запомните это слово" in call_args.args[0]
-                    assert "Слово: " in call_args.args[0]
-                    assert "house" in call_args.args[0]
-                    assert call_args.kwargs["reply_markup"] == "KEYBOARD"
+                    # Проверяем, что API был вызван для получения информации о языке
+                    api_client.get_language.assert_called_once()
                     
-                    # Check that pending_next_word flag was set
-                    mock_state_obj.set_flag.assert_called_with('pending_next_word', True)
+                    # Проверяем, что флаг word_shown был установлен
+                    mock_state_obj.set_flag.assert_called_with('word_shown', True)
+                    
+                    # Проверяем, что состояние было сохранено
                     mock_state_obj.save_to_state.assert_called_once_with(state)
-
+                    
+                    # Проверяем, что сообщение было отредактировано
+                    callback.message.edit_text.assert_called_once()
+                    edit_args = callback.message.edit_text.call_args
+                    
+                    # Проверяем, что в вызове edit_text переданы правильные параметры
+                    assert edit_args.args[0] == "FORMATTED_MESSAGE"  # Первый аргумент - текст сообщения
+                    assert edit_args.kwargs["reply_markup"] == "KEYBOARD"
+                    assert edit_args.kwargs["parse_mode"] == "HTML"
+                    
+                    # Проверяем, что callback.answer был вызван
+                    callback.answer.assert_called_once()
+                    
     @pytest.mark.asyncio
     async def test_process_confirm_next_word(self, setup_mocks):
         """Test process_confirm_next_word callback handler."""

@@ -141,7 +141,7 @@ def format_study_word_message(
             message += f"⏱ Предыдущий интервал: {check_interval} (дней)\n"
         if next_check_date:
             formatted_date = format_date(next_check_date)
-            message += f"🔄 Следующее повторение: {formatted_date} \n\n" 
+            message += f"🔄 Запланированное повторение: {formatted_date} \n\n" 
     else:
         message += f"score: {score}.\n"
         message += f"check_interval: {check_interval}.\n"
