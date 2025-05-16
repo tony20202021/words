@@ -16,9 +16,9 @@ logger = setup_logger(__name__)
 # Значения настроек по умолчанию
 DEFAULT_SETTINGS = {
     "start_word": 1,
-    "skip_marked": False,
-    "use_check_date": False,
-    "show_hints": True  # Новый флаг для отображения подсказок
+    "skip_marked": True,
+    "use_check_date": True,
+    "show_hints": False  # Новый флаг для отображения подсказок
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:

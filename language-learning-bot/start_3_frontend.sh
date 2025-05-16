@@ -80,33 +80,3 @@ python -m app.main_frontend "$APP_NAME"
 echo "Процесс фронтенда завершился."
 cleanup_frontend_processes
 rm -f "$PID_FILE"
-
-
-# TODO в отдельном фйале - сделать скрипт для перезапуска сервиса после обновления файлов
-
-# pip install watchdog
-
-# from watchdog.observers import Observer
-# from watchdog.events import FileSystemEventHandler
-# import time
-# import subprocess
-# import os
-
-# class ReloadHandler(FileSystemEventHandler):
-#     def on_modified(self, event):
-#         print(f"Изменен файл: {event.src_path}")
-#         subprocess.Popen(["python", "your_script.py"])
-
-# if __name__ == "__main__":
-#     path = "."  # Текущая директория
-#     event_handler = ReloadHandler()
-#     observer = Observer()
-#     observer.schedule(event_handler, path, recursive=True)
-#     observer.start()
-
-#     try:
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         observer.stop()
-#     observer.join()

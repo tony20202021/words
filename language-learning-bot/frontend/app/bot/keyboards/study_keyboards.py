@@ -60,7 +60,7 @@ def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool 
         ))
 
         builder.add(InlineKeyboardButton(
-            text="❓ Не знаю это слово, показать",
+            text="❓ Не знаю  / не помню / не уверен, показать",
             callback_data="show_word"
         ))
         builder_adjust =(2, 1, 1, 1, 1, 1)
