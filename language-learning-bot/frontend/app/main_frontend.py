@@ -9,6 +9,7 @@ import argparse
 import logging
 import os
 import sys
+import yaml
 from pathlib import Path
 from typing import List
 
@@ -146,6 +147,28 @@ async def on_shutdown(dispatcher: Dispatcher) -> None:
     # В aiogram 3.x нет необходимости явно закрывать хранилище
     logger.info("Bot stopped successfully!")
 
+def load_secrets(cfg, path):
+    """
+    Загружает конфиденциальные данные из внешнего файла.
+    Обновляет конфигурацию Hydra с этими данными.
+    """
+    try:
+        if os.path.exists(path):
+            logger.info(f"Найден файл с секретами: {path}")
+            with open(path, 'r') as f:
+                secrets = yaml.safe_load(f)
+            
+            # Обновление токена бота, если он задан
+            if secrets and isinstance(secrets, dict) and 'bot' in secrets and 'token' in secrets['bot']:
+                # Обновляем токен в конфигурации
+                cfg.bot.token = secrets['bot']['token']
+                logger.info("Токен бота успешно загружен из внешнего файла")
+                return True
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке секретов из {path}: {e}")
+    
+    logger.error("Не удалось загрузить секреты из внешних файлов")
+    return False
 
 async def main() -> None:
     """
@@ -153,6 +176,8 @@ async def main() -> None:
     Асинхронная версия для aiogram 3.x
     """
     try:
+        load_secrets(cfg, "../../../../ssh/bot.yaml")
+
         # Get bot token from configuration
         bot_token = cfg.bot.token if hasattr(cfg, "bot") and hasattr(cfg.bot, "token") else None
         if not bot_token:

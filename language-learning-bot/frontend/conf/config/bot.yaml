@@ -1,6 +1,8 @@
 # Конфигурация бота Telegram
 # Этот файл должен быть сохранен как frontend/conf/config/bot.yaml
 
+token: ""
+
 # Настройки бота
 skip_updates: true
 polling_timeout: 30
