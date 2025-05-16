@@ -12,8 +12,6 @@ from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState
 from app.utils.word_data_utils import get_hint_text, update_word_score
 from app.utils.hint_constants import get_hint_key, get_hint_name, get_hint_icon
-from app.utils.settings_utils import get_show_hints_setting
-from app.utils.formatting_utils import format_study_word_message
 from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_study_word_message, format_active_hints
 
@@ -178,6 +176,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     is_skipped = user_word_data.get("is_skipped", False)
     check_interval = user_word_data.get("check_interval", 0)
     next_check_date = user_word_data.get("next_check_date")
+    score = user_word_data.get("score", 0)
     
     # Формируем основное сообщение
     message_text = format_study_word_message(
@@ -186,6 +185,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         word_number,
         translation,
         is_skipped,
+        score,
         check_interval,
         next_check_date,
         show_word=word_shown,

@@ -5,7 +5,7 @@ Keyboards for user
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def create_settings_keyboard(skip_marked, use_check_date, show_hints=True, show_debug=False):
+def create_settings_keyboard(skip_marked, use_check_date, show_hints, show_debug):
     """
     Create keyboard for settings menu.
     

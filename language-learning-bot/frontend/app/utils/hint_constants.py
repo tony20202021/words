@@ -32,6 +32,13 @@ HINT_ORDER: List[str] = [
     "writing"
 ]
 
+DB_FIELD_HINT_KEY_MAPPING = {
+    "hint_syllables": "phoneticsound",
+    "hint_association": "phoneticassociation",
+    "hint_meaning": "meaning",
+    "hint_writing": "writing"
+}
+
 # Логирование констант при загрузке модуля для отладки
 logger.info(f"Loaded hint types: {list(HINT_TYPE_MAP.keys())}")
 logger.info(f"Loaded hint icons: {HINT_ICONS}")

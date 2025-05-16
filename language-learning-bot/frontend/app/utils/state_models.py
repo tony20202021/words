@@ -4,7 +4,7 @@ State models for working with FSM state.
 
 from typing import Dict, List, Any, Optional, Union
 from aiogram.fsm.context import FSMContext
-
+from app.utils.hint_constants import DB_FIELD_HINT_KEY_MAPPING
 class UserWordState:
     """
     Класс для хранения и управления данными текущего слова и процесса изучения.
@@ -75,7 +75,8 @@ class UserWordState:
                 "start_word": state_data.get("start_word", 1),
                 "skip_marked": state_data.get("skip_marked", False),
                 "use_check_date": state_data.get("use_check_date", True),
-                "show_hints": state_data.get("show_hints", True)
+                "show_hints": state_data.get("show_hints", True),
+                "show_debug": state_data.get("show_debug", True),
             },
             flags=state_data.get("user_word_flags", {})
         )
@@ -284,10 +285,6 @@ class UserWordState:
         if flag_name in self.flags:
             del self.flags[flag_name]
 
-"""
-Добавьте в класс HintState метод get_hint_type(), который определяет тип подсказки на основе ключа подсказки.
-Этот метод необходимо добавить в файл state_models.py в модуле utils.
-"""
 
 class HintState:
     """
@@ -359,14 +356,8 @@ class HintState:
         Получить тип подсказки на основе ключа подсказки.
         
         Returns:
-            str: Тип подсказки (например, "phonetic_association", "meaning" и т.д.)
+            str: Тип подсказки (например, "meaning" и т.д.)
             или None, если тип не определен
         """
-        hint_key_mapping = {
-            "hint_syllables": "phonetic_syllables",
-            "hint_association": "phonetic_association",
-            "hint_meaning": "meaning",
-            "hint_writing": "writing"
-        }
         
-        return hint_key_mapping.get(self.hint_key)
+        return DB_FIELD_HINT_KEY_MAPPING.get(self.hint_key)

@@ -16,7 +16,6 @@ from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState
 from app.utils.word_data_utils import update_word_score
 from app.utils.formatting_utils import format_date
-from app.utils.formatting_utils import format_study_word_message
 from app.bot.handlers.study.study_words import show_study_word
 from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_date, format_study_word_message, format_active_hints

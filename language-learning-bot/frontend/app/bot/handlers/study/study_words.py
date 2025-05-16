@@ -10,9 +10,8 @@ from app.utils.logger import setup_logger
 from app.utils.error_utils import handle_api_error
 from app.utils.state_models import UserWordState
 from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.formatting_utils import format_study_word_message, format_date
+from app.utils.formatting_utils import format_date
 from app.utils.settings_utils import get_user_language_settings
-from app.utils.hint_constants import get_hint_key, get_hint_name, get_hint_icon
 from app.utils.formatting_utils import format_active_hints
 
 logger = setup_logger(__name__)

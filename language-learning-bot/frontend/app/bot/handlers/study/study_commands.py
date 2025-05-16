@@ -157,7 +157,7 @@ async def cmd_study(message: Message, state: FSMContext):
     start_word = settings.get("start_word", 1)
     skip_marked = settings.get("skip_marked", False)
     use_check_date = settings.get("use_check_date", True)
-    show_hints = settings.get("show_hints", True),
+    show_hints = settings.get("show_hints", True)
     show_debug = settings.get("show_debug", True)
     
     # Обновляем состояние FSM для совместимости со старым кодом
@@ -196,7 +196,8 @@ async def cmd_study(message: Message, state: FSMContext):
         "start_word": start_word,
         "skip_marked": skip_marked,
         "use_check_date": use_check_date,
-        "show_hints": show_hints  # Добавляем show_hints в study_settings
+        "show_hints": show_hints,
+        "show_debug": show_debug,
     }
     
     # Get words for study
