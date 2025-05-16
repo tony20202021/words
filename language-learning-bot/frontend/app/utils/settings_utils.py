@@ -18,8 +18,8 @@ DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
     "use_check_date": True,
-    "show_hints": False,  # Флаг для отображения подсказок
-    "show_debug": False   # Новый флаг для отображения отладочной информации
+    "show_hints": False,
+    "show_debug": False,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:

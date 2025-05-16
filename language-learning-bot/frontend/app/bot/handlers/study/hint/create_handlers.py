@@ -247,16 +247,7 @@ async def process_hint_text(message: Message, state: FSMContext):
         if hint_type and hint_type not in used_hints:
             used_hints.append(hint_type)
             user_word_state.set_flag("used_hints", used_hints)
-        
-        # Добавляем подсказку в список активных подсказок, чтобы она сразу отображалась 
-        # на экране изучения слова
-        active_hints = user_word_state.get_flag("active_hints", [])
-        if hint_type and hint_type not in active_hints:
-            active_hints.append(hint_type)
-            user_word_state.set_flag("active_hints", active_hints)
-                    # Save updated word data to state
-        await user_word_state.save_to_state(state)
-        
+                
     # Return to studying state
     await state.set_state(StudyStates.studying)
     await show_study_word(message, state)

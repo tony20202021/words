@@ -13,7 +13,7 @@ from app.utils.state_models import UserWordState
 from app.utils.word_data_utils import get_hint_text, update_word_score
 from app.utils.hint_constants import get_hint_key, get_hint_name, get_hint_icon
 from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.formatting_utils import format_study_word_message, format_active_hints
+from app.utils.formatting_utils import format_study_word_message, format_used_hints
 
 # Создаем вложенный роутер для обработчиков переключения подсказок
 toggle_router = Router()
@@ -98,51 +98,37 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     )
     
     if not hint_text:
+        logger.error(f"Подсказка не найдена")
         await callback.answer("Подсказка не найдена")
         return
     
     # Получаем текущий список активных подсказок из состояния
     user_word_state = await UserWordState.from_state(state)
-    active_hints = user_word_state.get_flag("active_hints", []) if user_word_state.is_valid() else []
     
     # Получаем список использованных подсказок
     used_hints = user_word_state.get_flag("used_hints", []) if user_word_state.is_valid() else []
     
     # Переключаем состояние подсказки
-    if hint_type in active_hints:
-        # Если подсказка активна, убираем её
-        active_hints.remove(hint_type)
-        # await callback.answer(f"Подсказка {hint_name} скрыта")
+    if hint_type in used_hints:
+        logger.error(f"Попытка скрыть подсказку {hint_type}")
     else:
         # Если подсказка не активна, добавляем её и устанавливаем оценку 0
-        active_hints.append(hint_type)
+        used_hints.append(hint_type)
         
         # Добавляем подсказку в список использованных
-        if hint_type not in used_hints:
-            used_hints.append(hint_type)
-            user_word_state.set_flag("used_hints", used_hints)
+        user_word_state.set_flag("used_hints", used_hints)
         
-        # await callback.answer(f"Подсказка {hint_name} показана")
-        
-        # Устанавливаем оценку 0 только при первом показе подсказки
-        if hint_type not in user_word_state.get_flag("seen_hints", []):
-            # Сохраняем эту подсказку как просмотренную
-            seen_hints = user_word_state.get_flag("seen_hints", [])
-            seen_hints.append(hint_type)
-            user_word_state.set_flag("seen_hints", seen_hints)
-            
-            # Устанавливаем оценку 0
-            await update_word_score(
-                callback.bot,
-                db_user_id,
-                word_id,
-                score=0,
-                word=current_word,
-                message_obj=callback
-            )
+        # Устанавливаем оценку 0
+        await update_word_score(
+            callback.bot,
+            db_user_id,
+            word_id,
+            score=0,
+            word=current_word,
+            message_obj=callback
+        )
     
-    # Сохраняем обновленный список активных подсказок и использованных подсказок
-    user_word_state.set_flag("active_hints", active_hints)
+    # Сохраняем обновленный список использованных подсказок
     user_word_state.set_flag("used_hints", used_hints)
     await user_word_state.save_to_state(state)
     
@@ -194,12 +180,12 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     )
     
     # Добавляем активные подсказки с помощью новой функции
-    hint_text = await format_active_hints(
+    hint_text = await format_used_hints(
         bot=callback.bot,
         user_id=db_user_id,
         word_id=word_id,
         current_word=current_word,
-        active_hints=active_hints,
+        used_hints=used_hints,
         include_header=True
     )
     
@@ -210,8 +196,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         current_word, 
         word_shown=word_shown, 
         show_hints=show_hints,
-        active_hints=active_hints,
-        used_hints=used_hints
+        used_hints=used_hints,
     )
     
     # Обновляем сообщение

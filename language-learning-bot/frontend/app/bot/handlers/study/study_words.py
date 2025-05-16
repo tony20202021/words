@@ -12,7 +12,7 @@ from app.utils.state_models import UserWordState
 from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_date
 from app.utils.settings_utils import get_user_language_settings
-from app.utils.formatting_utils import format_active_hints
+from app.utils.formatting_utils import format_used_hints
 
 logger = setup_logger(__name__)
 
@@ -185,16 +185,13 @@ async def show_study_word(message_obj, state: FSMContext):
     show_hints = settings.get("show_hints", True)
     show_debug = settings.get("show_debug", False)  # Получаем настройку отладочной информации
     
-    # Получаем список активных подсказок
-    active_hints = user_word_state.get_flag("active_hints", [])
-    
     # Получаем список использованных подсказок
     used_hints = user_word_state.get_flag("used_hints", [])
     
     # Проверяем, был ли это callback или сообщение
     is_callback = isinstance(message_obj, CallbackQuery)
     
-    # Определяем объект бота для использования в format_active_hints
+    # Определяем объект бота
     bot = message_obj.bot if hasattr(message_obj, 'bot') else message_obj.message.bot
     
     # Формируем сообщение для отображения слова
@@ -260,17 +257,16 @@ async def show_study_word(message_obj, state: FSMContext):
         message_text += f"🔍 <b>Отладочная информация:</b>\n"
         message_text += f"ID слова: {user_word_state.word_id}\n"
         message_text += f"ID языка: {user_word_state.language_id}\n"
-        message_text += f"Активные подсказки: {', '.join(active_hints) if active_hints else 'нет'}\n"
         message_text += f"Просмотренные подсказки: {', '.join(used_hints) if used_hints else 'нет'}\n"
         message_text += f"Слово показано: {'да' if word_shown else 'нет'}\n\n"
     
-    # Добавляем активные подсказки с помощью функции format_active_hints
-    hint_text = await format_active_hints(
+    # Добавляем подсказки
+    hint_text = await format_used_hints(
         bot=bot,
         user_id=user_word_state.user_id,
         word_id=user_word_state.word_id,
         current_word=current_word,
-        active_hints=active_hints,
+        used_hints=used_hints,
         include_header=True
     )
     
@@ -281,7 +277,6 @@ async def show_study_word(message_obj, state: FSMContext):
         current_word, 
         word_shown=word_shown, 
         show_hints=show_hints,
-        active_hints=active_hints,
         used_hints=used_hints
     )
     

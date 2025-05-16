@@ -168,12 +168,12 @@ from aiogram.client.bot import Bot
 from app.utils.hint_constants import HINT_ORDER, get_hint_key, get_hint_name, get_hint_icon
 from app.utils.word_data_utils import get_hint_text
 
-async def format_active_hints(
+async def format_used_hints(
     bot: Bot,
     user_id: str,
     word_id: str,
     current_word: Dict[str, Any],
-    active_hints: List[str],
+    used_hints: List[str],
     include_header: bool = True
 ) -> str:
     """
@@ -184,27 +184,27 @@ async def format_active_hints(
         user_id: ID пользователя
         word_id: ID слова
         current_word: Данные текущего слова
-        active_hints: Список активных подсказок
+        used_hints: Список подсказок
         include_header: Добавлять ли заголовок "Активные подсказки"
         
     Returns:
         str: Отформатированный текст с активными подсказками
     """
-    if not active_hints:
+    if not used_hints:
         return ""
     
-    result = "\n\n<b>Активные подсказки:</b>\n" if include_header else ""
+    result = "\n\n📌 Использованные подсказки:\n" if include_header else ""
     
     # Сортируем активные подсказки в соответствии с порядком HINT_ORDER
-    sorted_active_hints = [hint_type for hint_type in HINT_ORDER if hint_type in active_hints]
+    sorted_hints = [hint_type for hint_type in HINT_ORDER if hint_type in used_hints]
     
     # Добавляем оставшиеся активные подсказки, если они не включены в HINT_ORDER
-    for hint_type in active_hints:
-        if hint_type not in sorted_active_hints:
-            sorted_active_hints.append(hint_type)
+    for hint_type in used_hints:
+        if hint_type not in sorted_hints:
+            sorted_hints.append(hint_type)
     
     # Теперь перебираем отсортированный список активных подсказок
-    for active_hint_type in sorted_active_hints:
+    for active_hint_type in sorted_hints:
         active_hint_key = get_hint_key(active_hint_type)
         active_hint_name = get_hint_name(active_hint_type)
         active_hint_icon = get_hint_icon(active_hint_type)
@@ -218,6 +218,6 @@ async def format_active_hints(
         )
         
         if active_hint_text:
-            result += f"\n📌 <b>{active_hint_icon} {active_hint_name}:</b>\n{active_hint_text}\n"
+            result += f"\n\t<b>{active_hint_icon} {active_hint_name}:</b>\n\t\t\t{active_hint_text}\n"
     
     return result

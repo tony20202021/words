@@ -1,5 +1,5 @@
 #!/bin/bash
-# Скрипт для запуска автоматического перезапуска фронтенда при изменении файлов
+# Измененный скрипт для запуска автоматического перезапуска фронтенда
 
 # Обработчик сигналов для корректного завершения
 cleanup_and_exit() {
@@ -22,10 +22,13 @@ fi
 
 echo "Запуск автоматического перезапуска..."
 
-# Запускаем скрипт автоматического перезапуска
-python frontend/app/watch_and_reload.py \
-    --script frontend/app/main_frontend.py \
-    --paths frontend/app frontend/conf/config \
+# Переходим в директорию frontend перед запуском
+cd frontend
+
+# Запускаем скрипт автоматического перезапуска из каталога frontend
+python app/watch_and_reload.py \
+    --script app/main_frontend.py \
+    --paths app ../conf/config \
     --process-name frontend_autoreload \
     --extensions .py .yaml .yml .json \
     --ignore-dirs __pycache__ .git env venv .env .venv logs

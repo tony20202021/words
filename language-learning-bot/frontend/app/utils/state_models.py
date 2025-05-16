@@ -43,13 +43,9 @@ class UserWordState:
         self.study_settings = study_settings or {}
         self.flags = flags or {}
         
-        # Инициализируем флаги для активных подсказок, если их нет
-        if "active_hints" not in self.flags:
-            self.flags["active_hints"] = []
-        
         # Инициализируем флаги для просмотренных подсказок
-        if "seen_hints" not in self.flags:
-            self.flags["seen_hints"] = []
+        if "used_hints" not in self.flags:
+            self.flags["used_hints"] = []
     
     @classmethod
     async def from_state(cls, state):
@@ -153,8 +149,7 @@ class UserWordState:
         self.current_study_index += 1
         
         # Сбрасываем флаги активных подсказок при переходе к новому слову
-        self.flags["active_hints"] = []
-        self.flags["seen_hints"] = []
+        self.flags["used_hints"] = []
         
         # Сбрасываем флаг показа слова
         self.flags["word_shown"] = False
@@ -196,74 +191,29 @@ class UserWordState:
             any: Значение флага или default если флаг не найден
         """
         return self.flags.get(flag_name, default)
-    
-    def get_active_hints(self):
-        """
-        Получить список активных подсказок.
         
-        Returns:
-            List[str]: Список типов активных подсказок
-        """
-        return self.get_flag("active_hints", [])
-    
-    def add_active_hint(self, hint_type):
-        """
-        Добавить подсказку в список активных.
-        
-        Args:
-            hint_type: Тип подсказки
-        """
-        active_hints = self.get_active_hints()
-        if hint_type not in active_hints:
-            active_hints.append(hint_type)
-            self.set_flag("active_hints", active_hints)
-    
-    def remove_active_hint(self, hint_type):
-        """
-        Удалить подсказку из списка активных.
-        
-        Args:
-            hint_type: Тип подсказки
-        """
-        active_hints = self.get_active_hints()
-        if hint_type in active_hints:
-            active_hints.remove(hint_type)
-            self.set_flag("active_hints", active_hints)
-    
-    def is_hint_active(self, hint_type):
-        """
-        Проверить, активна ли подсказка.
-        
-        Args:
-            hint_type: Тип подсказки
-            
-        Returns:
-            bool: True если подсказка активна, иначе False
-        """
-        return hint_type in self.get_active_hints()
-    
-    def get_seen_hints(self):
+    def get_used_hints(self):
         """
         Получить список просмотренных подсказок.
         
         Returns:
             List[str]: Список типов просмотренных подсказок
         """
-        return self.get_flag("seen_hints", [])
+        return self.get_flag("used_hints", [])
     
-    def add_seen_hint(self, hint_type):
+    def add_used_hint(self, hint_type):
         """
         Добавить подсказку в список просмотренных.
         
         Args:
             hint_type: Тип подсказки
         """
-        seen_hints = self.get_seen_hints()
-        if hint_type not in seen_hints:
-            seen_hints.append(hint_type)
-            self.set_flag("seen_hints", seen_hints)
+        used_hints = self.get_used_hints()
+        if hint_type not in used_hints:
+            used_hints.append(hint_type)
+            self.set_flag("used_hints", used_hints)
     
-    def is_hint_seen(self, hint_type):
+    def is_hint_used(self, hint_type):
         """
         Проверить, была ли просмотрена подсказка.
         
@@ -273,7 +223,7 @@ class UserWordState:
         Returns:
             bool: True если подсказка была просмотрена, иначе False
         """
-        return hint_type in self.get_seen_hints()
+        return hint_type in self.get_used_hints()
     
     def remove_flag(self, flag_name):
         """

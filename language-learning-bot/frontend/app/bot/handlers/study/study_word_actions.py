@@ -18,7 +18,7 @@ from app.utils.word_data_utils import update_word_score
 from app.utils.formatting_utils import format_date
 from app.bot.handlers.study.study_words import show_study_word
 from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.formatting_utils import format_date, format_study_word_message, format_active_hints
+from app.utils.formatting_utils import format_date, format_study_word_message, format_used_hints
 from app.utils.settings_utils import get_user_language_settings
 
 
@@ -137,9 +137,6 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     # Save updated state
     await user_word_state.save_to_state(state)
     
-    # Get active hints
-    active_hints = user_word_state.get_active_hints()
-    
     # Get used hints
     used_hints = user_word_state.get_flag("used_hints", [])
     
@@ -163,12 +160,12 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     )
     
     # Добавляем активные подсказки с помощью новой функции
-    hint_text = await format_active_hints(
+    hint_text = await format_used_hints(
         bot=callback.bot,
         user_id=user_word_state.user_id,
         word_id=user_word_state.word_id,
         current_word=current_word,
-        active_hints=active_hints,
+        used_hints=used_hints,
         include_header=True
     )
     
@@ -179,7 +176,6 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
         current_word, 
         word_shown=True, 
         show_hints=show_hints,
-        active_hints=active_hints,
         used_hints=used_hints
     )
     
@@ -423,9 +419,6 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
     show_debug = settings.get("show_debug", False)
     
     try:
-        # Важно: УДАЛЯЕМ обновление score тут
-        # Теперь score будет обновляться только при подтверждении в confirm_next_word
-        
         # Show word information
         word_foreign = current_word.get("word_foreign")
         transcription = current_word.get("transcription", "")
@@ -450,8 +443,6 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
                 message_text += "🔄 Дата повторения пока не задана\n\n"
             
             message_text += "ℹ️ После подтверждения интервал будет увеличен\n\n"
-        
-        message_text += "Подтвердите знание слова или вернитесь к изучению."
         
         # Создаем клавиатуру с двумя кнопками
         keyboard = InlineKeyboardBuilder()

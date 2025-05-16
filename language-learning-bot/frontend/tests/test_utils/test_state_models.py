@@ -34,7 +34,7 @@ class TestUserWordState:
         # Verify
         assert user_word_state.word_id == "word123"
         assert user_word_state.word_data["word_foreign"] == "test"
-        
+
     @pytest.mark.asyncio
     async def test_from_state(self):
         """Test creating UserWordState from FSM state."""
@@ -99,11 +99,10 @@ class TestUserWordState:
         assert user_word_state.study_settings["show_hints"] is True
         
         # Verify flags are initialized
-        assert "active_hints" in user_word_state.flags
-        assert "seen_hints" in user_word_state.flags
-        assert isinstance(user_word_state.flags["active_hints"], list)
-        assert isinstance(user_word_state.flags["seen_hints"], list)
-        
+        # Исправлено: проверяем наличие used_hints вместо active_hints и seen_hints
+        assert "used_hints" in user_word_state.flags
+        assert isinstance(user_word_state.flags["used_hints"], list)
+                
     @pytest.mark.asyncio
     async def test_save_to_state(self):
         """Test saving UserWordState to FSM state."""
@@ -354,7 +353,7 @@ class TestUserWordState:
                 {"_id": "word1", "word_foreign": "first"},
                 {"_id": "word2", "word_foreign": "second", "language_id": "lang456"}
             ],
-            flags={"active_hints": ["phonetic"], "word_shown": True}  # Set some initial flags
+            flags={"used_hints": ["phonetic"], "word_shown": True}  # Set some initial flags
         )
         
         # Execute
@@ -370,8 +369,7 @@ class TestUserWordState:
         assert state.language_id == "lang123"  # Остается прежним
         
         # Verify flags are reset
-        assert state.flags["active_hints"] == []
-        assert state.flags["seen_hints"] == []
+        assert state.flags["used_hints"] == []
         assert state.flags["word_shown"] is False
         
         # Execute again - no more words
@@ -381,46 +379,35 @@ class TestUserWordState:
         assert result is False
         assert state.current_study_index == 2
         
-        def test_flag_methods(self):
-            """Test the flag-related methods of UserWordState."""
-            # Import the module being tested
-            import app.utils.state_models as state_models_module
-            
-            # Setup
-            state = UserWordState(
-                word_id="word1",
-                word_data={},
-                user_id="user123",
-                language_id="lang123"
-            )
-            
-            # Test set_flag and get_flag
-            state.set_flag("test_flag", "test_value")
-            assert state.get_flag("test_flag") == "test_value"
-            assert state.get_flag("non_existent_flag") is None
-            assert state.get_flag("non_existent_flag", "default") == "default"
-            
-            # Test hint-related flag methods
-            assert state.get_active_hints() == []
-            state.add_active_hint("phonetic")
-            assert state.get_active_hints() == ["phonetic"]
-            assert state.is_hint_active("phonetic") is True
-            assert state.is_hint_active("meaning") is False
-            
-            state.add_active_hint("meaning")
-            assert "meaning" in state.get_active_hints()
-            
-            state.remove_active_hint("phonetic")
-            assert state.is_hint_active("phonetic") is False
-            assert state.is_hint_active("meaning") is True
-            
-            # Test seen hints methods
-            assert state.get_seen_hints() == []
-            state.add_seen_hint("phonetic")
-            assert state.get_seen_hints() == ["phonetic"]
-            assert state.is_hint_seen("phonetic") is True
-            assert state.is_hint_seen("meaning") is False
-
+    def test_flag_methods(self):
+        """Test the flag-related methods of UserWordState."""
+        # Import the module being tested
+        import app.utils.state_models as state_models_module
+        
+        # Setup
+        state = UserWordState(
+            word_id="word1",
+            word_data={},
+            user_id="user123",
+            language_id="lang123"
+        )
+        
+        # Test set_flag and get_flag
+        state.set_flag("test_flag", "test_value")
+        assert state.get_flag("test_flag") == "test_value"
+        assert state.get_flag("non_existent_flag") is None
+        assert state.get_flag("non_existent_flag", "default") == "default"
+        
+        # Test hint-related flag methods
+        assert state.get_used_hints() == []
+        state.add_used_hint("phonetic")
+        assert state.get_used_hints() == ["phonetic"]
+        assert state.is_hint_used("phonetic") is True
+        assert state.is_hint_used("meaning") is False
+        
+        # Test removing flags
+        state.remove_flag("test_flag")
+        assert state.get_flag("test_flag") is None
 class TestHintState:
 
     @pytest.mark.asyncio
@@ -458,8 +445,9 @@ class TestHintState:
         assert hint_state.current_hint_text == "Test hint"
         
         # Verify get_hint_type returns the correct value
-        assert hint_state.get_hint_type() == "phonetic_syllables"
-
+        # Исправлено на фактическое значение из DB_FIELD_HINT_KEY_MAPPING
+        assert hint_state.get_hint_type() == "phoneticsound"
+                
     @pytest.mark.asyncio
     async def test_save_to_state(self):
         """Test saving HintState to FSM state."""
@@ -586,11 +574,10 @@ class TestHintState:
             hint_word_id="word123"
         )
         
-        # Verify all hint types are mapped correctly
-        assert syllables_hint.get_hint_type() == "phonetic_syllables"
-        assert association_hint.get_hint_type() == "phonetic_association"
+        # Verify all hint types are mapped correctly using the actual expected values
+        assert syllables_hint.get_hint_type() == "phoneticsound"
+        assert association_hint.get_hint_type() == "phoneticassociation"
         assert meaning_hint.get_hint_type() == "meaning"
         assert writing_hint.get_hint_type() == "writing"
         assert unknown_hint.get_hint_type() is None  # Unknown hint type should return None
-
         

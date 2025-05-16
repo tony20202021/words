@@ -499,7 +499,7 @@ class TestStudyHandlers:
                     
                     # Проверяем, что состояние было сохранено
                     mock_state_obj.save_to_state.assert_called_once_with(state)
-                    
+
     @pytest.mark.asyncio
     async def test_process_show_word(self, setup_mocks):
         """Test process_show_word callback handler."""
@@ -532,8 +532,9 @@ class TestStudyHandlers:
                 mock_state_obj = MagicMock()
                 mock_state_obj.is_valid.return_value = True
                 mock_state_obj.set_flag = MagicMock()
-                mock_state_obj.get_flag = MagicMock(return_value=[])  # Пустой список для active_hints и used_hints
-                mock_state_obj.get_active_hints = MagicMock(return_value=[])
+                mock_state_obj.get_flag = MagicMock(return_value=[])  # Пустой список для used_hints
+                # Заменяем get_active_hints, так как теперь используется get_used_hints
+                mock_state_obj.get_used_hints = MagicMock(return_value=[])
                 mock_state_obj.user_id = "user123"
                 mock_state_obj.word_id = "word123"
                 mock_state_obj.word_data = {
@@ -559,7 +560,7 @@ class TestStudyHandlers:
                     patch('app.bot.handlers.study.study_word_actions.get_api_client_from_bot', return_value=api_client), \
                     patch('app.bot.handlers.study.study_word_actions.create_word_keyboard') as mock_create_keyboard, \
                     patch('app.bot.handlers.study.study_word_actions.format_study_word_message') as mock_format_message, \
-                    patch('app.bot.handlers.study.study_word_actions.format_active_hints', AsyncMock(return_value="")) as mock_format_hints, \
+                    patch('app.bot.handlers.study.study_word_actions.format_used_hints', AsyncMock(return_value="")) as mock_format_used_hints, \
                     patch('app.utils.settings_utils.get_show_hints_setting', AsyncMock(return_value=True)) as mock_get_hints_setting:
                     
                     # Настраиваем моки
@@ -605,7 +606,7 @@ class TestStudyHandlers:
                     
                     # Проверяем, что callback.answer был вызван
                     callback.answer.assert_called_once()
-
+                    
     @pytest.mark.asyncio
     async def test_process_confirm_next_word(self, setup_mocks):
         """Test process_confirm_next_word callback handler."""

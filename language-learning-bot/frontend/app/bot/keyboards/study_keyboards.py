@@ -21,7 +21,7 @@ from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool = True, active_hints: List[str] = None, used_hints: List[str] = None) -> InlineKeyboardMarkup:
+def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool = True, used_hints: List[str] = None) -> InlineKeyboardMarkup:
     """
     Create an inline keyboard for word interaction during study process.
     Shows hint buttons based on settings and existing hints.
@@ -30,7 +30,6 @@ def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool 
         word: The word data
         word_shown: Whether the word has been shown to the user
         show_hints: Whether to show hint buttons
-        active_hints: List of currently active hint types
         used_hints: List of hints already used by the user
         
     Returns:
@@ -39,9 +38,6 @@ def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool 
     # Use InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     
-    # Initialize active_hints and used_hints if None
-    if active_hints is None:
-        active_hints = []
     if used_hints is None:
         used_hints = []
     
@@ -84,7 +80,7 @@ def create_word_keyboard(word: dict, word_shown: bool = False, show_hints: bool 
             hint_exists = has_hint(word, hint_type)
             
             # Проверяем, активна ли подсказка в данный момент
-            is_active = hint_type in active_hints
+            is_active = hint_type in used_hints
             
             # Формируем текст кнопки в зависимости от состояния
             button_text = format_hint_button(hint_type, hint_exists, is_active)
