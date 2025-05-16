@@ -18,7 +18,8 @@ DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
     "use_check_date": True,
-    "show_hints": False  # Новый флаг для отображения подсказок
+    "show_hints": False,  # Флаг для отображения подсказок
+    "show_debug": False   # Новый флаг для отображения отладочной информации
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
@@ -149,6 +150,7 @@ async def display_language_settings(message_or_callback, state: FSMContext, pref
     skip_marked = settings.get("skip_marked", DEFAULT_SETTINGS["skip_marked"])
     use_check_date = settings.get("use_check_date", DEFAULT_SETTINGS["use_check_date"])
     show_hints = settings.get("show_hints", DEFAULT_SETTINGS["show_hints"])
+    show_debug = settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])  # Получаем новую настройку
     
     # Получаем информацию о текущем языке из состояния
     state_data = await state.get_data()
@@ -167,8 +169,8 @@ async def display_language_settings(message_or_callback, state: FSMContext, pref
     # Импортируем функцию для создания клавиатуры настроек
     from app.bot.keyboards.user_keyboards import create_settings_keyboard
     
-    # Создаем клавиатуру настроек
-    keyboard = create_settings_keyboard(skip_marked, use_check_date, show_hints)
+    # Создаем клавиатуру настроек с учетом новой настройки
+    keyboard = create_settings_keyboard(skip_marked, use_check_date, show_hints, show_debug)
     
     # Если не указан суффикс, добавляем информацию о других доступных командах
     if not suffix:
@@ -182,9 +184,11 @@ async def display_language_settings(message_or_callback, state: FSMContext, pref
             "/start - Вернуться на главный экран"
         )
     
-    # Формируем текст настроек
-    settings_text = format_settings_text(start_word, skip_marked, use_check_date, show_hints,
-                                         prefix=language_prefix, suffix=suffix)
+    # Формируем текст настроек с учетом новой настройки
+    settings_text = format_settings_text(
+        start_word, skip_marked, use_check_date, show_hints, show_debug,
+        prefix=language_prefix, suffix=suffix
+    )
     
     # Отправляем сообщение с настройками
     if isinstance(message_or_callback, CallbackQuery):
@@ -227,3 +231,29 @@ async def get_show_hints_setting(state_or_message, state=None):
     
     # Fallback to state data
     return state_data.get("show_hints", True)
+
+async def get_show_debug_setting(state_or_message, state=None):
+    """
+    Get show_debug setting from user's state or settings.
+    
+    Args:
+        state_or_message: The state object or message/callback object
+        state: Optional state object if state_or_message is a message/callback
+        
+    Returns:
+        bool: True if debug info should be shown, False otherwise
+    """
+    if state is None:
+        # state_or_message is the state itself
+        state_data = await state_or_message.get_data()
+    else:
+        # state_or_message is a message/callback and state is provided separately
+        state_data = await state.get_data()
+    
+    # First try to get from user_language_settings
+    settings = await get_user_language_settings(state_or_message, state)
+    if settings is not None and "show_debug" in settings:
+        return settings.get("show_debug", False)
+    
+    # Fallback to state data
+    return state_data.get("show_debug", False)

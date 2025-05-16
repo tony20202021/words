@@ -97,7 +97,8 @@ class UserLanguageSettingsRepository:
             "start_word": settings_dict.get("start_word", 1),
             "skip_marked": settings_dict.get("skip_marked", False),
             "use_check_date": settings_dict.get("use_check_date", True),
-            "show_hints": settings_dict.get("show_hints", True),  # Добавить эту строку
+            "show_hints": settings_dict.get("show_hints", True),
+            "show_debug": settings_dict.get("show_debug", False),  # Добавлено поле show_debug
             "created_at": now,
             "updated_at": now
         }
@@ -241,3 +242,4 @@ class UserLanguageSettingsRepository:
             setting["language_id"] = str(setting["language_id"])
 
         return [UserLanguageSettingsInDB(**setting) for setting in settings]
+    

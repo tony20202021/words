@@ -5,7 +5,7 @@ Keyboards for user
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def create_settings_keyboard(skip_marked, use_check_date, show_hints=True):
+def create_settings_keyboard(skip_marked, use_check_date, show_hints=True, show_debug=False):
     """
     Create keyboard for settings menu.
     
@@ -13,6 +13,7 @@ def create_settings_keyboard(skip_marked, use_check_date, show_hints=True):
         skip_marked: Whether to skip marked words
         use_check_date: Whether to use check date
         show_hints: Whether to show hint buttons
+        show_debug: Whether to show debug information
         
     Returns:
         InlineKeyboardMarkup: Settings keyboard markup
@@ -39,6 +40,12 @@ def create_settings_keyboard(skip_marked, use_check_date, show_hints=True):
     builder.add(InlineKeyboardButton(
         text=f"💡 Подсказки: сменить на \"{'Пропускать' if show_hints else 'Придумывать'}\"",
         callback_data="settings_toggle_show_hints"
+    ))
+    
+    # Добавляем новую кнопку для отладочной информации
+    builder.add(InlineKeyboardButton(
+        text=f"🔍 Отладочная информация: сменить на \"{'Скрывать' if show_debug else 'Показывать'}\"",
+        callback_data="settings_toggle_show_debug"
     ))
     
     # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)

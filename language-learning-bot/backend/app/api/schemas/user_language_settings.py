@@ -13,7 +13,8 @@ class UserLanguageSettingsBase(BaseModel):
     start_word: int = Field(1, description="Word number to start learning from")
     skip_marked: bool = Field(False, description="Whether to skip marked words")
     use_check_date: bool = Field(True, description="Whether to use check date for spaced repetition")
-    show_hints: bool = True  # Добавить это поле, если его нет
+    show_hints: bool = Field(True, description="Whether to show hint buttons")
+    show_debug: bool = Field(False, description="Whether to show debug information")
 
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
@@ -26,7 +27,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     start_word: Optional[int] = None
     skip_marked: Optional[bool] = None
     use_check_date: Optional[bool] = None
-    show_hints: Optional[bool] = None  # Особенно убедитесь, что оно есть здесь
+    show_hints: Optional[bool] = None
+    show_debug: Optional[bool] = None
 
 
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):

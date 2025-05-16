@@ -14,14 +14,13 @@ from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState
-from app.utils.word_data_utils import update_word_score, get_hint_text  # Перемещаем импорт get_hint_text отсюда
+from app.utils.word_data_utils import update_word_score
 from app.utils.formatting_utils import format_date
 from app.utils.formatting_utils import format_study_word_message
 from app.bot.handlers.study.study_words import show_study_word
 from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.settings_utils import get_show_hints_setting
-from app.utils.hint_constants import get_hint_icon, get_hint_key, get_hint_name  # Убираем get_hint_text
 from app.utils.formatting_utils import format_date, format_study_word_message, format_active_hints
+from app.utils.settings_utils import get_user_language_settings
 
 
 # Создаем роутер для обработчиков действий со словами
@@ -302,6 +301,10 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
     current_word_id = state_data["current_word_id"]
     db_user_id = state_data["db_user_id"]
     
+    # Получаем настройку отображения отладочной информации
+    settings = await get_user_language_settings(callback, state)
+    show_debug = settings.get("show_debug", False)
+    
     # Проверяем текущее состояние флага пропуска
     user_word_data = current_word.get("user_word_data", {})
     current_skip_status = user_word_data.get("is_skipped", False)
@@ -336,6 +339,13 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
         
         if transcription:
             status_message += f"Транскрипция: <b>[{transcription}]</b>\n\n"
+        
+        # Добавляем отладочную информацию, если она включена
+        if show_debug:
+            status_message += f"🔍 <b>Отладочная информация:</b>\n"
+            status_message += f"ID слова: {current_word_id}\n"
+            status_message += f"Предыдущий статус пропуска: {current_skip_status}\n"
+            status_message += f"Новый статус пропуска: {new_skip_status}\n\n"
         
         await callback.message.answer(
             status_message,
@@ -409,6 +419,10 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
     current_word_id = state_data["current_word_id"]
     db_user_id = state_data["db_user_id"]
     
+    # Проверим, включена ли отладочная информация
+    settings = await get_user_language_settings(callback, state)
+    show_debug = settings.get("show_debug", False)
+    
     try:
         # Важно: УДАЛЯЕМ обновление score тут
         # Теперь score будет обновляться только при подтверждении в confirm_next_word
@@ -422,15 +436,28 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
         check_interval = user_word_data.get("check_interval", 0)
         next_check_date = user_word_data.get("next_check_date")
         
-        interval_message = ""
-        if check_interval and next_check_date:
-            formatted_date = format_date(next_check_date)
-            interval_message = f"Текущий интервал: {check_interval} дн. ({formatted_date})\n\n"
+        # Формируем сообщение, учитывая настройку отладочной информации
+        message_text = f"✅ Отлично! Вы знаете это слово.\n\n"
+        message_text += f"Слово: <code>{word_foreign}</code>\n\n"
+        message_text += f"Транскрипция: <b>[{transcription}]</b>\n\n"
+        
+        # Добавляем информацию об интервалах только если включен отладочный режим
+        if show_debug:
+            message_text += f"⏱ Текущий интервал: {check_interval} (дней)\n"
+            if next_check_date:
+                formatted_date = format_date(next_check_date)
+                message_text += f"🔄 Текущее запланированное повторение: {formatted_date}\n\n"
+            else:
+                message_text += "🔄 Дата повторения пока не задана\n\n"
+            
+            message_text += "ℹ️ После подтверждения интервал будет увеличен\n\n"
+        
+        message_text += "Подтвердите знание слова или вернитесь к изучению."
         
         # Создаем клавиатуру с двумя кнопками
         keyboard = InlineKeyboardBuilder()
         keyboard.button(
-            text="✅ Подтвердить, я знаю слово",
+            text="✅ К следующему слову",
             callback_data="confirm_next_word"
         )
         keyboard.button(
@@ -440,11 +467,7 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
         keyboard.adjust(1)  # Размещаем кнопки одну под другой
         
         await callback.message.answer(
-            f"✅ Отлично! Вы знаете это слово.\n\n"
-            f"Слово: <code>{word_foreign}</code>\n\n"
-            f"Транскрипция: <b>[{transcription}]</b>\n\n"
-            f"{interval_message}"
-            f"Подтвердите знание слова или вернитесь к изучению.",
+            message_text,
             parse_mode="HTML",
             reply_markup=keyboard.as_markup()
         )
@@ -485,6 +508,10 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
     current_word_id = state_data.get("current_word_id")
     db_user_id = state_data.get("db_user_id")
     
+    # Получаем настройку отображения отладочной информации
+    settings = await get_user_language_settings(callback, state)
+    show_debug = settings.get("show_debug", False)
+    
     # Получаем состояние слова
     user_word_state = await UserWordState.from_state(state)
     
@@ -504,6 +531,16 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
             logger.error(f"Failed to update word score")
             await callback.answer("Ошибка при обновлении оценки слова")
             return
+            
+        # Отправляем сообщение об успешном обновлении, если включен режим отладки
+        if show_debug:
+            debug_info = (
+                f"✅ Оценка слова обновлена успешно:\n"
+                f"Новая оценка: 1\n"
+                f"Новый интервал: {result.get('check_interval', 0)} дней\n"
+                f"Дата следующей проверки: {format_date(result.get('next_check_date', ''))}\n"
+            )
+            await callback.message.answer(debug_info)
             
         # Сбрасываем флаг ожидания обновления оценки
         user_word_state.remove_flag('pending_word_know')
@@ -544,3 +581,4 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
         await show_study_word(callback.message, state)
     
     await callback.answer()
+    

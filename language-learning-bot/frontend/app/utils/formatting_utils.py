@@ -54,7 +54,7 @@ def format_date(date_str):
 # Сохраняем совместимость со старым кодом
 format_date_standard = format_date
 
-def format_settings_text(start_word, skip_marked, use_check_date, show_hints, prefix="", suffix=""):
+def format_settings_text(start_word, skip_marked, use_check_date, show_hints, show_debug, prefix="", suffix=""):
     """
     Форматирует текст настроек обучения.
     
@@ -63,6 +63,7 @@ def format_settings_text(start_word, skip_marked, use_check_date, show_hints, pr
         skip_marked: Пропускать ли помеченные слова
         use_check_date: Учитывать ли дату проверки
         show_hints: Показывать ли кнопки подсказок
+        show_debug: Показывать ли отладочную информацию
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -84,7 +85,11 @@ def format_settings_text(start_word, skip_marked, use_check_date, show_hints, pr
     
     # Статус отображения кнопок подсказок
     hints_status = "Придумывать ✅" if show_hints else "Пропускать ❌"
-    settings_text += f"💡 Подсказки: <b>{hints_status}</b>"
+    settings_text += f"💡 Подсказки: <b>{hints_status}</b>\n"
+    
+    # Статус отображения отладочной информации
+    debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
+    settings_text += f"🔍 Отладочная информация: <b>{debug_status}</b>"
     
     # Добавляем суффикс
     if suffix:

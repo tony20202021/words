@@ -10,10 +10,10 @@ from app.utils.logger import setup_logger
 from app.utils.error_utils import handle_api_error
 from app.utils.state_models import UserWordState
 from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.formatting_utils import format_study_word_message
+from app.utils.formatting_utils import format_study_word_message, format_date
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.hint_constants import get_hint_key, get_hint_name, get_hint_icon
-from app.utils.formatting_utils import format_study_word_message, format_active_hints
+from app.utils.formatting_utils import format_active_hints
 
 logger = setup_logger(__name__)
 
@@ -44,14 +44,15 @@ async def get_words_for_study(message: Message, state: FSMContext, user_id: str,
     # Add limit to parameters
     limit = 100  # or other suitable value
     
-    # Save show_hints setting to state
+    # Save show_hints and show_debug settings to state
     show_hints = study_settings.get("show_hints", True)
-    await state.update_data(show_hints=show_hints)
+    show_debug = study_settings.get("show_debug", False)
+    await state.update_data(show_hints=show_hints, show_debug=show_debug)
     
     # Log request details
     logger.info(
         f"Requesting study words: user_id={user_id}, language_id={language_id}, " 
-        f"params={study_params}, limit={limit}, show_hints={show_hints}"
+        f"params={study_params}, limit={limit}, show_hints={show_hints}, show_debug={show_debug}"
     )
     
     try:
@@ -120,7 +121,7 @@ async def get_words_for_study(message: Message, state: FSMContext, user_id: str,
             language_id=language_id,
             current_study_index=0,
             study_words=study_words,
-            study_settings=study_settings  # Save full study settings including show_hints
+            study_settings=study_settings  # Save full study settings including show_hints and show_debug
         )
         
         # If we have words, set current word
@@ -180,9 +181,10 @@ async def show_study_word(message_obj, state: FSMContext):
     # Проверяем наличие флага показа слова
     word_shown = user_word_state.get_flag("word_shown", False)
     
-    # Получаем настройку отображения подсказок из состояния
+    # Получаем настройки отображения подсказок и отладочной информации из состояния
     settings = await get_user_language_settings(message_obj, state)
     show_hints = settings.get("show_hints", True)
+    show_debug = settings.get("show_debug", False)  # Получаем настройку отладочной информации
     
     # Получаем список активных подсказок
     active_hints = user_word_state.get_flag("active_hints", [])
@@ -192,6 +194,9 @@ async def show_study_word(message_obj, state: FSMContext):
     
     # Проверяем, был ли это callback или сообщение
     is_callback = isinstance(message_obj, CallbackQuery)
+    
+    # Определяем объект бота для использования в format_active_hints
+    bot = message_obj.bot if hasattr(message_obj, 'bot') else message_obj.message.bot
     
     # Формируем сообщение для отображения слова
     language_name_ru = current_word.get("language_name_ru", "")
@@ -217,22 +222,50 @@ async def show_study_word(message_obj, state: FSMContext):
     score = user_word_data.get("score", 0)
     
     # Формируем текст сообщения
-    message_text = format_study_word_message(
-        language_name_ru,
-        language_name_foreign,
-        word_number,
-        translation,
-        is_skipped,
-        score,
-        check_interval,
-        next_check_date,
-        show_word=word_shown,
-        word_foreign=word_foreign,
-        transcription=transcription
+    message_text = (
+        f"📝 Переведите на \"{language_name_ru} ({language_name_foreign})\":\n\n"
+        f"слово номер: {word_number}\n\n" 
     )
     
-    # Добавляем активные подсказки к сообщению 
-    bot = message_obj.bot if hasattr(message_obj, 'bot') else message_obj.message.bot
+    message_text += f"🔍 Перевод:\n <b>{translation}</b>\n\n"
+    
+    # Добавляем информацию о статусе пропуска
+    if is_skipped:
+        message_text += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n\n"
+    
+    # Добавляем информацию о периоде повторения только если включен отладочный режим
+    # или если у пользователя есть оценка 1 (знает слово)
+    if show_debug:
+        # Выводим расширенную информацию при включенном отладочном режиме
+        message_text += f"⏱ Оценка слова: {score}\n"
+        message_text += f"⏱ Интервал повторения: {check_interval} (дней)\n"
+        if next_check_date:
+            formatted_date = format_date(next_check_date)
+            message_text += f"🔄 Запланированное повторение: {formatted_date} \n\n"
+        else:
+            message_text += "🔄 Дата повторения не задана\n\n"
+    elif score == 1:
+        # Если отладка выключена, показываем только основную информацию при успешном изучении
+        message_text += f"⏱ Вы знали это слово\n\n"
+    
+    # Если нужно показать слово, добавляем его
+    if word_shown and word_foreign:
+        message_text += f"📝 Слово: <code>{word_foreign}</code>\n"
+        if transcription:
+            message_text += f"🔊 Транскрипция: <b>[{transcription}]</b>\n\n"
+        else:
+            message_text += "\n"
+    
+    # Добавляем отладочную информацию, если она включена
+    if show_debug:
+        message_text += f"🔍 <b>Отладочная информация:</b>\n"
+        message_text += f"ID слова: {user_word_state.word_id}\n"
+        message_text += f"ID языка: {user_word_state.language_id}\n"
+        message_text += f"Активные подсказки: {', '.join(active_hints) if active_hints else 'нет'}\n"
+        message_text += f"Просмотренные подсказки: {', '.join(used_hints) if used_hints else 'нет'}\n"
+        message_text += f"Слово показано: {'да' if word_shown else 'нет'}\n\n"
+    
+    # Добавляем активные подсказки с помощью функции format_active_hints
     hint_text = await format_active_hints(
         bot=bot,
         user_id=user_word_state.user_id,
@@ -244,7 +277,7 @@ async def show_study_word(message_obj, state: FSMContext):
     
     message_text += hint_text
     
-    # Создаем клавиатуру для действий со словом с учетом активных подсказок и использованных подсказок
+    # Create updated keyboard 
     keyboard = create_word_keyboard(
         current_word, 
         word_shown=word_shown, 
@@ -253,12 +286,12 @@ async def show_study_word(message_obj, state: FSMContext):
         used_hints=used_hints
     )
     
-    # Отправляем или обновляем сообщение
+    # Update current message instead of sending a new one
     if is_callback:
         # Если это callback, обновляем существующее сообщение
         try:
             await message_obj.message.edit_text(
-                text=message_text,
+                message_text,
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
@@ -266,14 +299,14 @@ async def show_study_word(message_obj, state: FSMContext):
             logger.error(f"Error editing message in show_study_word: {e}", exc_info=True)
             # Если не удалось обновить сообщение, отправляем новое
             await message_obj.message.answer(
-                text=message_text,
+                message_text,
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
     else:
         # Если это сообщение, отправляем новое
         await message_obj.answer(
-            text=message_text,
+            message_text,
             reply_markup=keyboard,
             parse_mode="HTML"
         )

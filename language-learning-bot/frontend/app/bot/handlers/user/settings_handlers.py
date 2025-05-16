@@ -363,7 +363,6 @@ async def process_settings_toggle_show_hints(callback: CallbackQuery, state: FSM
     
     # Получаем настройки пользователя с помощью функции
     settings = await get_user_language_settings(callback, state)
-    print(settings)
     
     # Инвертируем настройку отображения кнопок подсказок
     settings["show_hints"] = not settings.get("show_hints", True)
@@ -374,6 +373,44 @@ async def process_settings_toggle_show_hints(callback: CallbackQuery, state: FSM
     if success:
         # Обновляем состояние FSM для совместимости со старым кодом
         await state.update_data(show_hints=settings["show_hints"])
+        
+        # Используем функцию для отображения настроек
+        await display_language_settings(callback, state, 
+                                       prefix="✅ Настройки успешно обновлены!\n\n", 
+                                       is_callback=True)
+    else:
+        # В случае ошибки сообщаем пользователю
+        await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
+    
+    await callback.answer()
+
+@settings_router.callback_query(F.data == "settings_toggle_show_debug")
+async def process_settings_toggle_show_debug(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to toggle showing debug information.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    user_id = callback.from_user.id
+    username = callback.from_user.username
+    full_name = callback.from_user.full_name
+
+    logger.info(f"'settings_toggle_show_debug' callback from {full_name} ({username})")
+    
+    # Получаем настройки пользователя с помощью функции
+    settings = await get_user_language_settings(callback, state)
+    
+    # Инвертируем настройку отображения отладочной информации
+    settings["show_debug"] = not settings.get("show_debug", False)
+    
+    # Сохраняем обновленные настройки
+    success = await save_user_language_settings(callback, state, settings)
+    
+    if success:
+        # Обновляем состояние FSM для совместимости со старым кодом
+        await state.update_data(show_debug=settings["show_debug"])
         
         # Используем функцию для отображения настроек
         await display_language_settings(callback, state, 

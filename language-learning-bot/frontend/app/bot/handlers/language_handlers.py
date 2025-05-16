@@ -12,7 +12,6 @@ from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.formatting_utils import format_settings_text
-from app.utils.settings_utils import get_user_language_settings
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -315,7 +314,8 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         start_word=settings.get("start_word", 1),
         skip_marked=settings.get("skip_marked", False),
         use_check_date=settings.get("use_check_date", True),
-        show_hints=settings.get("show_hints", True)  # Добавляем настройку подсказок
+        show_hints=settings.get("show_hints", True),
+        show_debug=settings.get("show_debug", True),
     )
 
     # Форматируем текст настроек
@@ -325,6 +325,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         skip_marked=settings.get("skip_marked", False),
         use_check_date=settings.get("use_check_date", True),
         show_hints=settings.get("show_hints", True),
+        show_debug=settings.get("show_debug", True),
         prefix=settings_prefix
     )
 

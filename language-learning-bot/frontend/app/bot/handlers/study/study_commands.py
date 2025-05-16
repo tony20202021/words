@@ -157,22 +157,25 @@ async def cmd_study(message: Message, state: FSMContext):
     start_word = settings.get("start_word", 1)
     skip_marked = settings.get("skip_marked", False)
     use_check_date = settings.get("use_check_date", True)
-    show_hints = settings.get("show_hints", True)  # Добавляем параметр show_hints
+    show_hints = settings.get("show_hints", True),
+    show_debug = settings.get("show_debug", True)
     
     # Обновляем состояние FSM для совместимости со старым кодом
     await state.update_data(
         start_word=start_word,
         skip_marked=skip_marked,
         use_check_date=use_check_date,
-        show_hints=show_hints  # Сохраняем show_hints в состоянии
+        show_hints=show_hints,
+        show_debug=show_debug,
     )
     
-    # Show start message с информацией о настройке show_hints
+    # Show start message с информацией о настройке
     settings_text = format_settings_text(
         start_word=start_word, 
         skip_marked=skip_marked, 
         use_check_date=use_check_date,
-        show_hints=show_hints,  # Передаем show_hints
+        show_hints=show_hints,
+        show_debug=show_debug,
         prefix=f"📚 Начинаем изучение слов языка: {language.get('name_ru')} ({language.get('name_foreign')})\n\n",
         suffix="\n\n🔄 Получаю список слов..."
     )
