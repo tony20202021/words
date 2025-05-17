@@ -341,3 +341,161 @@ class TestLanguageHandlers:
         
         # Check that include_router was called with the language_router
         dp.include_router.assert_called_once_with(language_handlers.language_router)
+
+    @pytest.mark.asyncio
+    async def test_cmd_language_keyboard_creation(self, setup_mocks):
+        """Test that cmd_language creates proper keyboard with language buttons."""
+        message, state, api_client, _ = setup_mocks
+        
+        # Настраиваем возвращаемое значение для get_languages
+        api_client.get_languages = AsyncMock(return_value={
+            "success": True,
+            "status": 200,
+            "result": [
+                {"id": "lang1", "name_ru": "Английский", "name_foreign": "English"},
+                {"id": "lang2", "name_ru": "Испанский", "name_foreign": "Español"}
+            ],
+            "error": None
+        })
+        
+        # Мокируем get_user_by_telegram_id
+        api_client.get_user_by_telegram_id = AsyncMock(return_value={
+            "success": True,
+            "status": 200,
+            "result": [{"id": "user123"}],
+            "error": None
+        })
+        
+        # Создаем мок для InlineKeyboardBuilder
+        mock_keyboard_builder = MagicMock()
+        mock_keyboard_builder.button = MagicMock()
+        mock_keyboard_builder.adjust = MagicMock()
+        mock_keyboard_builder.as_markup = MagicMock(return_value="mock_markup")
+        
+        # Импортируем модуль, где определена тестируемая функция
+        import app.bot.handlers.language_handlers as language_handlers_module
+        
+        # Патчим все зависимости с помощью patch.object
+        with patch.object(language_handlers_module, 'get_api_client_from_bot', return_value=api_client), \
+            patch.object(language_handlers_module, 'logger'), \
+            patch.object(language_handlers_module, 'InlineKeyboardBuilder', return_value=mock_keyboard_builder):
+            
+            # Вызываем тестируемую функцию
+            await language_handlers_module.cmd_language(message, state)
+            
+            # Проверяем, что был создан InlineKeyboardBuilder
+            assert mock_keyboard_builder.button.call_count == 2
+            
+            # Проверяем, что кнопки были созданы для обоих языков
+            mock_keyboard_builder.button.assert_any_call(
+                text=mock_keyboard_builder.button.call_args_list[0].kwargs['text'],
+                callback_data=f"lang_select_lang1"
+            )
+            mock_keyboard_builder.button.assert_any_call(
+                text=mock_keyboard_builder.button.call_args_list[1].kwargs['text'],
+                callback_data=f"lang_select_lang2"
+            )
+            
+            # Проверяем, что был вызван adjust для настройки расположения кнопок
+            mock_keyboard_builder.adjust.assert_called_once_with(1)
+            
+            # Проверяем, что был вызван as_markup для получения разметки
+            mock_keyboard_builder.as_markup.assert_called_once()
+            
+            # Проверяем, что сообщение было отправлено с клавиатурой
+            message.answer.assert_called_once_with(
+                message.answer.call_args.args[0],
+                reply_markup="mock_markup"
+            )
+
+    @pytest.mark.asyncio
+    async def test_process_language_selection_user_progress(self, setup_mocks):
+        """Test that process_language_selection correctly handles user progress."""
+        _, state, api_client, callback = setup_mocks
+        
+        # Настраиваем callback.data
+        callback.data = "lang_select_lang1"
+        
+        # Мокируем get_language для возврата данных о языке
+        api_client.get_language = AsyncMock(return_value={
+            "success": True,
+            "status": 200,
+            "result": {
+                "id": "lang1", 
+                "name_ru": "Английский",
+                "name_foreign": "English"
+            },
+            "error": None
+        })
+        
+        # Мокируем get_user_by_telegram_id для возврата данных о пользователе
+        api_client.get_user_by_telegram_id = AsyncMock(return_value={
+            "success": True,
+            "status": 200,
+            "result": [{"id": "user123"}],
+            "error": None
+        })
+        
+        # Мокируем get_user_progress для возврата данных о прогрессе
+        api_client.get_user_progress = AsyncMock(return_value={
+            "success": True,
+            "status": 200,
+            "result": {
+                "words_studied": 100,
+                "words_known": 80,
+                "words_skipped": 10,
+                "total_words": 1000,
+                "progress_percentage": 8.0
+            },
+            "error": None
+        })
+        
+        # Импортируем модуль, где определена тестируемая функция
+        import app.bot.handlers.language_handlers as language_handlers_module
+        
+        # Патчим все зависимости с помощью patch.object
+        with patch.object(language_handlers_module, 'get_api_client_from_bot', return_value=api_client), \
+            patch.object(language_handlers_module, 'logger'), \
+            patch.object(language_handlers_module, 'get_user_language_settings', 
+                        AsyncMock(return_value={
+                            "start_word": 1,
+                            "skip_marked": False,
+                            "use_check_date": True,
+                            "show_hints": True
+                        })), \
+            patch.object(language_handlers_module, 'get_language_by_id', 
+                        AsyncMock(return_value=api_client.get_language.return_value)), \
+            patch.object(language_handlers_module, 'format_settings_text', 
+                        return_value="Formatted settings text"):
+            
+            # Вызываем тестируемую функцию
+            await language_handlers_module.process_language_selection(callback, state)
+            
+            # Проверяем, что данные пользователя и прогресс были получены
+            api_client.get_user_by_telegram_id.assert_called_once()
+            api_client.get_user_progress.assert_called_once()
+            
+            # Проверяем, что были получены настройки пользователя
+            language_handlers_module.get_user_language_settings.assert_called_once()
+            
+            # Проверяем, что состояние было обновлено с информацией о настройках
+            state.update_data.assert_any_call(
+                start_word=1,
+                skip_marked=False,
+                use_check_date=True,
+                show_hints=True,
+                show_debug=True,
+            )
+            
+            # Проверяем, что было отправлено сообщение с информацией о языке и прогрессе
+            callback.message.answer.assert_called_once()
+            sent_message = callback.message.answer.call_args.args[0]
+            assert "Вы выбрали язык: <b>Английский (English)</b>" in sent_message
+            assert "Изучено слов: 100" in sent_message
+            assert "Известно слов: 80" in sent_message
+            assert "Пропущено слов: 10" in sent_message
+            assert "Всего слов: 1000" in sent_message
+            assert "Прогресс: 8.0%" in sent_message
+            
+            # Проверяем, что callback.answer был вызван для скрытия уведомления
+            callback.answer.assert_called_once()

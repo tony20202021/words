@@ -4,6 +4,8 @@ Unit tests for language management admin handlers.
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
+
 from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -513,3 +515,251 @@ class TestLanguageAdminHandlers:
             
             # Check that callback.answer was called
             callback.answer.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_language_management(self, setup_mocks):
+        """Test the handle_language_management function."""
+        message, state, api_client, _ = setup_mocks
+        
+        # Mock API responses - user is admin, languages available
+        api_client.get_user_by_telegram_id.return_value = {
+            "success": True,
+            "status": 200,
+            "result": [{
+                "id": "user123", 
+                "telegram_id": 12345, 
+                "is_admin": True
+            }],
+            "error": None
+        }
+        
+        api_client.get_languages.return_value = {
+            "success": True,
+            "status": 200,
+            "result": [
+                {"id": "lang1", "name_ru": "Английский", "name_foreign": "English"}
+            ],
+            "error": None
+        }
+        
+        # Patch the logger, API client and keyboard function
+        with patch('app.bot.handlers.admin.admin_language_handlers.get_api_client_from_bot', return_value=api_client), \
+            patch('app.bot.handlers.admin.admin_language_handlers.logger'), \
+            patch('app.bot.handlers.admin.admin_language_handlers.get_languages_keyboard') as mock_keyboard:
+            
+            # Setup mock keyboard function
+            mock_keyboard.return_value = MagicMock()
+            
+            # Call the function
+            from app.bot.handlers.admin.admin_language_handlers import handle_language_management
+            result = await handle_language_management(message, state)
+            
+            # Check result
+            assert result is True
+            
+            # Verify API calls
+            api_client.get_user_by_telegram_id.assert_called_once_with(message.from_user.id)
+            api_client.get_languages.assert_called_once()
+            
+            # Check that keyboard function was called
+            mock_keyboard.assert_called_once()
+            
+            # Check that message was sent with language management info
+            message.answer.assert_called_once()
+            args, kwargs = message.answer.call_args
+            assert "Управление языками" in args[0]
+            assert kwargs["reply_markup"] == mock_keyboard.return_value
+
+    @pytest.mark.asyncio
+    async def test_process_back_to_admin_from_languages(self, setup_mocks):
+        """Test the process_back_to_admin_from_languages callback handler."""
+        _, state, _, callback = setup_mocks
+        
+        # Вместо патча handle_admin_mode в admin_language_handlers, 
+        # патчим его по правильному пути - admin_basic_handlers
+        with patch('app.bot.handlers.admin.admin_basic_handlers.handle_admin_mode', AsyncMock(return_value=True)) as mock_handle_admin:
+            
+            # Call the function
+            from app.bot.handlers.admin.admin_language_handlers import process_back_to_admin_from_languages
+            await process_back_to_admin_from_languages(callback, state)
+            
+            # Check that handle_admin_mode was called with correct parameters
+            mock_handle_admin.assert_called_once_with(callback, state, is_callback=True)
+            
+            # Check that callback.answer was called
+            callback.answer.assert_called_once()
+            
+    @pytest.mark.asyncio
+    async def test_process_back_to_languages(self, setup_mocks):
+        """Test the process_back_to_languages callback handler."""
+        _, state, _, callback = setup_mocks
+        
+        # Patch the handle_language_management function to avoid duplicate testing
+        with patch('app.bot.handlers.admin.admin_language_handlers.handle_language_management', AsyncMock(return_value=True)) as mock_handle_languages:
+            
+            # Call the function
+            from app.bot.handlers.admin.admin_language_handlers import process_back_to_languages
+            await process_back_to_languages(callback, state)
+            
+            # Check that handle_language_management was called with correct parameters
+            mock_handle_languages.assert_called_once_with(callback, state, is_callback=True)
+            
+            # Check that callback.answer was called
+            callback.answer.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_show_language_edit_screen(self, setup_mocks):
+        """Test the show_language_edit_screen function."""
+        message, _, api_client, _ = setup_mocks
+        
+        # Mock API responses - language found
+        api_client.get_language.return_value = {
+            "success": True,
+            "status": 200,
+            "result": {
+                "id": "lang1", 
+                "name_ru": "Английский", 
+                "name_foreign": "English", 
+                "created_at": "2023-01-01T00:00:00Z",
+                "updated_at": "2023-01-01T00:00:00Z"
+            },
+            "error": None
+        }
+        
+        api_client.get_word_count_by_language.return_value = {
+            "success": True,
+            "status": 200,
+            "result": {"count": 100},
+            "error": None
+        }
+        
+        # Patch the required functions and logger
+        with patch('app.bot.handlers.admin.admin_language_handlers.get_api_client_from_bot', return_value=api_client), \
+            patch('app.bot.handlers.admin.admin_language_handlers.logger'), \
+            patch('app.bot.handlers.admin.admin_language_handlers.format_date_standard', return_value="1 января 2023"), \
+            patch('app.bot.handlers.admin.admin_language_handlers.get_edit_language_keyboard') as mock_keyboard:
+            
+            # Setup mock keyboard function
+            mock_keyboard.return_value = MagicMock()
+            
+            # Call the function
+            from app.bot.handlers.admin.admin_language_handlers import show_language_edit_screen
+            await show_language_edit_screen(message, "lang1")
+            
+            # Verify API calls
+            api_client.get_language.assert_called_once_with("lang1")
+            api_client.get_word_count_by_language.assert_called_once_with("lang1")
+            
+            # Check that keyboard function was called
+            mock_keyboard.assert_called_once_with("lang1")
+            
+            # Check that message was sent with language edit info
+            message.answer.assert_called_once()
+            args, kwargs = message.answer.call_args
+            assert "Редактирование языка" in args[0]
+            assert "Английский" in args[0]
+            assert "English" in args[0]
+            assert "100" in args[0]  # word count
+            assert kwargs["parse_mode"] == "HTML"
+            assert kwargs["reply_markup"] == mock_keyboard.return_value
+                                                
+    @pytest.mark.asyncio
+    async def test_process_edit_language_after_update(self, setup_mocks):
+        """Test the process_edit_language_after_update function."""
+        message, _, _, _ = setup_mocks
+        
+        # Patch the show_language_edit_screen function to avoid duplicate testing
+        with patch('app.bot.handlers.admin.admin_language_handlers.show_language_edit_screen', AsyncMock()) as mock_show_screen:
+            
+            # Call the function
+            from app.bot.handlers.admin.admin_language_handlers import process_edit_language_after_update
+            await process_edit_language_after_update(message, "lang1")
+            
+            # Check that show_language_edit_screen was called with correct parameters
+            mock_show_screen.assert_called_once_with(message, "lang1", is_callback=False)
+
+    @pytest.mark.asyncio
+    async def test_process_word_number_input(self, setup_mocks):
+        """Test the process_word_number_input handler."""
+        message, state, api_client, _ = setup_mocks
+        
+        # Set message text with word number
+        message.text = "5"
+        
+        # Set state data
+        state.get_data.return_value = {
+            "language_id": "lang1",
+            "db_user_id": "user123"
+        }
+        
+        # ВАЖНО: Установить reply как AsyncMock
+        message.reply = AsyncMock()
+        
+        # Mock API responses
+        api_client.get_word_by_number.return_value = {
+            "success": True,
+            "status": 200,
+            "result": [{
+                "id": "word5", 
+                "word_foreign": "apple", 
+                "translation": "яблоко", 
+                "transcription": "æpl", 
+                "word_number": 5
+            }],
+            "error": None
+        }
+        
+        api_client.get_language.return_value = {
+            "success": True,
+            "status": 200,
+            "result": {
+                "id": "lang1", 
+                "name_ru": "Английский"
+            },
+            "error": None
+        }
+        
+        api_client.get_user_word_data.return_value = {
+            "success": True,
+            "status": 200,
+            "result": {
+                "is_skipped": False,
+                "check_interval": 2,
+                "next_check_date": "2023-01-03T00:00:00Z"
+            },
+            "error": None
+        }
+        
+        # Patch required functions
+        with patch('app.bot.handlers.admin.admin_language_handlers.get_api_client_from_bot', return_value=api_client), \
+            patch('app.bot.handlers.admin.admin_language_handlers.logger'), \
+            patch('app.bot.handlers.admin.admin_language_handlers.format_date_standard', return_value="3 января 2023"), \
+            patch('app.bot.handlers.admin.admin_language_handlers.get_word_actions_keyboard') as mock_keyboard, \
+            patch('app.bot.handlers.admin.admin_language_handlers.show_language_edit_screen', AsyncMock()):
+            
+            # Setup mock keyboard function
+            mock_keyboard.return_value = MagicMock()
+            
+            # Call the handler
+            from app.bot.handlers.admin.admin_language_handlers import process_word_number_input
+            await process_word_number_input(message, state)
+            
+            # Verify API calls
+            api_client.get_word_by_number.assert_called_once_with("lang1", 5)
+            api_client.get_language.assert_called_once_with("lang1")
+            api_client.get_user_word_data.assert_called_once()
+            
+            # Check that state was cleared
+            state.clear.assert_called_once()
+            
+            # Check that message was sent with word info
+            message.reply.assert_called_once()
+            args, kwargs = message.reply.call_args
+            assert "Информация о слове" in args[0]
+            assert "apple" in args[0]
+            assert "яблоко" in args[0]
+            assert "æpl" in args[0]
+            assert "Английский" in args[0]
+            assert "3 января 2023" in args[0]  # next check date
+            assert kwargs["parse_mode"] == "HTML"
+            assert kwargs["reply_markup"] == mock_keyboard.return_value

@@ -759,16 +759,6 @@ async def show_language_edit_screen(message_or_callback, language_id: str, is_ca
         reply_markup=keyboard
     )
     
-    # Если это часть обработки команды, установим состояние на просмотр
-    # чтобы предотвратить захват команды в текст ответа
-    if not is_callback:
-        # Импортируем нужные классы в верхней части файла
-        from app.bot.handlers.admin.admin_states import AdminStates
-        from aiogram.fsm.context import FSMContext
-        
-        if hasattr(message, 'bot') and hasattr(message.bot, 'fsm'):
-            await message.bot.fsm.set_state(message.from_user.id, AdminStates.viewing_language)
-
 @language_router.callback_query(F.data.startswith("edit_language_"))
 async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     """

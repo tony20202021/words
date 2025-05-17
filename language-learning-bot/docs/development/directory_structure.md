@@ -274,3 +274,23 @@ scripts/
 ├── admin_manager.py          # Управление администраторами
 └── create_user_language_settings_collection.py  # Создание коллекции настроек
 ```
+
+
+## Обновление для файла directory_structure.md
+
+Можно обновить раздел о структуре тестов, чтобы отразить новые тесты:
+
+```markdown
+frontend/
+├── tests/
+│   ├── test_bot_commands.py            # Тесты команд бота
+│   ├── test_handlers/                  # Тесты обработчиков
+│   │   ├── test_user/                   # Тесты обработчиков пользователя
+│   │   │   ├── test_user_handlers.py       # Тесты основных обработчиков пользователя
+│   │   │   └── [другие тесты пользовательских обработчиков]
+│   │   └── test_admin/                  # Тесты обработчиков администратора
+│   │       ├── test_admin_basic_handlers.py    # Тесты базовых обработчиков администратора
+│   │       ├── test_admin_language_handlers.py # Тесты обработчиков управления языками
+│   │       ├── test_admin_upload_handlers.py   # Тесты обработчиков загрузки файлов
+│   │       ├── test_admin_upload_column_handlers.py   # Тесты обработчиков настройки колонок
+│   │       └── test_admin_upload_routers.py    # Тесты структуры роутеров загрузки

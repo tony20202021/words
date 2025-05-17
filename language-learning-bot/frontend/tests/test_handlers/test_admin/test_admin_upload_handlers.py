@@ -547,3 +547,64 @@ class TestUploadAdminHandlers:
             
             # Check that callback.answer was called
             callback.answer.assert_called_once()
+        
+    @pytest.mark.asyncio
+    async def test_process_column_template(self, setup_mocks):
+        """Test the process_column_template handler."""
+        _, state, api_client, callback, _ = setup_mocks
+        
+        # Set callback data for column template
+        callback.data = "upload_columns:0,1,2,3:lang1"
+        
+        # Mock message edit_text
+        callback.message.edit_text = AsyncMock()
+        
+        # Set AdminStates.configuring_columns
+        await state.set_state(AdminStates.configuring_columns)
+        
+        # Patch necessary modules
+        with patch('app.bot.handlers.admin.file_upload.template_processing.logger'), \
+            patch('app.bot.handlers.admin.file_upload.template_processing.InlineKeyboardBuilder') as mock_builder, \
+            patch('app.bot.handlers.admin.file_upload.template_processing.InlineKeyboardButton') as mock_button:
+            
+            # Setup mock builder
+            mock_instance = MagicMock()
+            mock_builder.return_value = mock_instance
+            mock_instance.add.return_value = mock_instance
+            mock_instance.adjust.return_value = mock_instance
+            mock_instance.as_markup.return_value = MagicMock()
+            
+            # Setup mock button
+            mock_button.return_value = MagicMock()
+            
+            # Call the handler
+            await process_column_template(callback, state)
+            
+            # Check state updates - column indices were saved
+            state.update_data.assert_called_once_with({
+                "column_number": 0,
+                "column_word": 1,
+                "column_transcription": 2,
+                "column_translation": 3
+            })
+            
+            # Check that the keyboard builder was used correctly
+            mock_builder.assert_called_once()
+            # At least 3 buttons should be added (upload, configure manually, back)
+            assert mock_instance.add.call_count >= 3
+            mock_instance.adjust.assert_called_once_with(1)  # One button per row
+            mock_instance.as_markup.assert_called_once()
+            
+            # Check that edit_text was called with template info
+            callback.message.edit_text.assert_called_once()
+            args, kwargs = callback.message.edit_text.call_args
+            assert "Выбран шаблон" in args[0]
+            assert "Колонка номера: 0" in args[0]
+            assert "Колонка слова: 1" in args[0]
+            assert "Колонка транскрипции: 2" in args[0]
+            assert "Колонка перевода: 3" in args[0]
+            assert kwargs["reply_markup"] == mock_instance.as_markup.return_value
+            
+            # Check that callback.answer was called
+            callback.answer.assert_called_once()
+
