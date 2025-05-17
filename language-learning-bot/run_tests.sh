@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Script to run tests for the Language Learning Bot project.
-Allows running tests for frontend, backend, or both components.
+Allows running tests for frontend, backend, or common components.
 """
 
 import argparse
@@ -17,6 +17,7 @@ SCRIPT_DIR = Path(__file__).absolute().parent
 PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "scripts" else SCRIPT_DIR
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 BACKEND_DIR = PROJECT_ROOT / "backend"
+COMMON_DIR = PROJECT_ROOT / "common"
 
 def setup_parser():
     """Set up command line argument parser."""
@@ -24,7 +25,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["frontend", "backend", "all"],
+        choices=["frontend", "backend", "common", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -168,6 +169,70 @@ def run_backend_tests(args):
     return result.returncode
 
 
+def run_common_tests(args):
+    """Run common module tests."""
+    print("\n🔍 Running common module tests...\n")
+    
+    # Проверяем существование директории common
+    if not COMMON_DIR.exists():
+        print("⚠️ Common directory not found!")
+        print("✅ Common tests: No tests to run!")
+        return 0
+        
+    os.chdir(COMMON_DIR)
+    
+    # Проверяем наличие директории с тестами
+    tests_dir = Path("tests")
+    if not tests_dir.exists():
+        # Создаем директорию для тестов, если ее нет
+        tests_dir.mkdir(exist_ok=True)
+        print(f"📁 Created tests directory: {tests_dir}")
+    
+    if not list(tests_dir.glob("test_*.py")):
+        print("⚠️ No test files found in common/tests directory!")
+        print("✅ Common tests: No tests to run!")
+        return 0
+    
+    cmd = ["pytest"]
+    
+    if args.verbose:
+        cmd.append("-v")
+    
+    if args.coverage:
+        cmd.extend(["--cov=.", "--cov-report=term"])
+        if args.html:
+            cmd.append("--cov-report=html")
+    
+    if args.specific:
+        cmd.append(args.specific)
+    
+    # Добавляем дополнительные аргументы pytest
+    if args.pytest_args:
+        cmd.extend(args.pytest_args)
+    
+    print(f"Running command: {' '.join(cmd)}")
+    result = subprocess.run(cmd)
+    
+    # Проверяем код возврата
+    if result.returncode != 0:
+        # Проверяем, могла ли быть ошибка из-за отсутствия тестов
+        try:
+            # Запускаем pytest с минимальными параметрами для проверки сбора тестов
+            check_cmd = ["pytest", "--collect-only", "-q"]
+            output = subprocess.check_output(check_cmd, stderr=subprocess.STDOUT, text=True)
+            
+            # Если в выводе есть "no tests", значит тестов просто нет
+            if "no tests" in output.lower():
+                print("⚠️ Pytest found no tests in common directory")
+                print("✅ Common tests: No tests to run!")
+                return 0
+        except subprocess.CalledProcessError:
+            # Если сбор тестов тоже дал ошибку, вернем оригинальный код ошибки
+            pass
+    
+    return result.returncode
+
+
 def main():
     """Main function to run tests."""
     parser = setup_parser()
@@ -178,6 +243,7 @@ def main():
     
     frontend_exit_code = 0
     backend_exit_code = 0
+    common_exit_code = 0
     
     if args.component in ["frontend", "all"]:
         frontend_exit_code = run_frontend_tests(args)
@@ -192,9 +258,16 @@ def main():
             print("\n❌ Backend tests failed!")
         else:
             print("\n✅ Backend tests passed or no tests found!")
+            
+    if args.component in ["common", "all"]:
+        common_exit_code = run_common_tests(args)
+        if common_exit_code != 0:
+            print("\n❌ Common module tests failed!")
+        else:
+            print("\n✅ Common module tests passed or no tests found!")
     
     # Return non-zero if any test suite failed
-    if frontend_exit_code != 0 or backend_exit_code != 0:
+    if frontend_exit_code != 0 or backend_exit_code != 0 or common_exit_code != 0:
         print("\n❌ Some tests failed!")
         return 1
     
@@ -204,3 +277,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+    

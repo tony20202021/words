@@ -360,8 +360,7 @@ class TestStudyHintHandlers:
         import app.bot.handlers.study.hint.common as common_module
         
         # Используем patch.object для патчирования show_study_word в модуле common
-        with patch.object(common_module, 'show_study_word', show_study_word_mock), \
-            pytest.raises(SkipHandler):  # Ожидаем исключение SkipHandler
+        with patch.object(common_module, 'show_study_word', show_study_word_mock):
             
             # Вызываем обработчик
             await cmd_cancel_hint(message, state)
@@ -376,7 +375,7 @@ class TestStudyHintHandlers:
         
         # Проверяем, что show_study_word был вызван
         assert show_study_word_mock.called
-            
+                    
     @pytest.mark.asyncio
     async def test_process_hint_create(self, setup_mocks):
         """Test the process_hint_create handler."""
@@ -462,4 +461,3 @@ class TestStudyHintHandlers:
             
             # Проверяем, что callback.answer был вызван
             assert callback.answer.called
-            

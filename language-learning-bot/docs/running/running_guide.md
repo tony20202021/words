@@ -332,3 +332,25 @@ top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- 
 4. Проверьте переменные окружения:
    ```bash
    source
+
+
+### Проблемы с обработкой команд в aiogram 3.x
+
+**Симптомы**: Команды (например, `/cancel`) не обрабатываются в определенных состояниях FSM.
+
+**Решения**:
+1. Проверьте порядок включения роутеров:
+   ```python
+   # Правильный порядок роутеров: специфические команды перед общими обработчиками
+   hint_router.include_router(cancel_router)  # Сначала проверяем команду /cancel
+   hint_router.include_router(create_router)
+   hint_router.include_router(edit_router)
+
+Используйте приоритеты для важных команд:
+python@router.message(Command("cancel"), SomeState, flags={"priority": 100})
+
+Проверьте регистрацию команд в Telegram:
+pythonBOT_COMMANDS = [
+    # Другие команды...
+    {"command": "cancel", "description": "Отменить текущее действие"}
+]

@@ -24,8 +24,12 @@
 - **development/bot_test_framework.md** - Фреймворк для тестирования бота
 - **development/configuration.md** - Конфигурация с помощью Hydra
 - **development/directory_structure.md** - Структура каталогов и файлов проекта
+router_organization.md    # Организация роутеров и обработчиков
 
 ## Функциональность бота
 - **functionality/bot_commands.md** - Команды и действия бота
 - **functionality/admin_tools.md** - Инструменты администрирования
 - **functionality/learning_system.md** - Система изучения слов
+
+## Общие модули (Common)
+- **common/utils/logger.py** - Унифицированный модуль логирования

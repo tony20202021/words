@@ -15,7 +15,7 @@ from app.bot.handlers.study.hint.toggle_handlers import toggle_router
 from app.bot.handlers.study.hint.common import cancel_router
 
 # Включаем вложенные роутеры в основной роутер
+hint_router.include_router(cancel_router)
 hint_router.include_router(create_router)
 hint_router.include_router(edit_router)
 hint_router.include_router(toggle_router)
-hint_router.include_router(cancel_router)

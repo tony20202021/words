@@ -14,6 +14,7 @@ from app.utils.word_data_utils import get_hint_text, update_word_score
 from app.utils.hint_constants import get_hint_key, get_hint_name, get_hint_icon
 from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
+from app.utils.settings_utils import get_show_hints_setting
 
 # Создаем вложенный роутер для обработчиков переключения подсказок
 toggle_router = Router()
@@ -134,7 +135,6 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     
     # Получаем данные для обновления сообщения
     word_shown = user_word_state.get_flag("word_shown", False)
-    from app.utils.settings_utils import get_show_hints_setting
     show_hints = await get_show_hints_setting(callback, state)
     
     # Формируем базовое сообщение

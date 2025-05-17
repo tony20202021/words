@@ -10,6 +10,7 @@ from aiogram.types import Message, CallbackQuery
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.error_utils import handle_api_error
 from app.utils.logger import setup_logger
+from app.utils.settings_utils import get_user_language_settings
 
 logger = setup_logger(__name__)
 

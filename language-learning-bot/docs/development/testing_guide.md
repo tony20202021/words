@@ -29,6 +29,7 @@
 - `frontend/tests/utils/` - тесты утилит фронтенда
 - `backend/tests/services/` - тесты сервисов бэкенда
 - `backend/tests/repositories/` - тесты репозиториев бэкенда
+- `common/tests/` - тесты общих утилит
 
 ### 2. Интеграционные тесты
 
@@ -75,6 +76,9 @@ chmod +x run_tests.sh
 
 # Запуск только тестов бэкенда
 ./run_tests.sh --component backend
+
+# Запуск только тестов общих модулей
+./run_tests.sh --component common
 ```
 
 ### Запуск с отчетом о покрытии кода
@@ -191,6 +195,19 @@ async def test_with_patched_client(mock_client):
     mock_client.return_value.get_languages.assert_called_once()
 ```
 
+### Патчинг импортируемых модулей
+
+Важно учитывать путь импорта при патчинге модулей. Патчить нужно путь, по которому импортируется функция, а не где она определена:
+
+```python
+# Для функции, импортированной из общего модуля:
+with patch('common.utils.logger.setup_logger', return_value=mock_logger):
+    # Код теста
+
+# Для функции, импортированной локально:
+with patch('app.utils.error_utils.handle_api_error'):
+    # Код теста
+```
 ## Тестирование бота
 
 ### Фреймворк для тестирования бота
