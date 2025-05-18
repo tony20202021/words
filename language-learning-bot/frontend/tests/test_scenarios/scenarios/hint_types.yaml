@@ -4,6 +4,7 @@ api_mock: study
 auto_setup: true
 steps:
   # Стандартные шаги для выбора языка и начала изучения слов
+# Дополнительные проверки для первого шага
   - type: command
     name: language
     asserts:
@@ -11,6 +12,10 @@ steps:
         text: "Доступные языки для изучения"
       - type: state_contains
         data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский (English)"
+      - type: keyboard_contains
+        button_text: "Французский (Français)"
 
   - type: callback
     data: "lang_select_eng"

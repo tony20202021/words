@@ -1,0 +1,181 @@
+name: Skip Words Test
+user_id: 123456789
+api_mock: study
+auto_setup: true
+steps:
+  # Подготовка: выбираем язык
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Начать изучение с помощью команды /study"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Включаем пропуск помеченных слов в настройках
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      - type: message_contains
+        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>" # TODO исправить мок - сначала должно быть "показывать""
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация"
+      - type: keyboard_button_count
+        count: 5
+
+  - type: callback
+    data: settings_toggle_skip_marked
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения" # TODO долдно быть "Настройки успешно обновлены"
+      - type: message_contains
+        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+      # - type: state_contains
+      #   data: ["skip_marked", true] # TODO 'skip_marked': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140545132086704'>
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация"
+      - type: keyboard_button_count
+        count: 5
+
+  # Начинаем изучение
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов языка"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Помечаем слово для пропуска
+  - type: callback
+    data: "toggle_word_skip"
+    asserts:
+      - type: message_contains
+        text: "Статус: это слово помечено для пропуска"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Завершаем текущую сессию
+  - type: command
+    name: start
+    asserts:
+      - type: message_contains
+        text: "Здравствуйте"
+      # - type: state_contains
+      #   data: ["_state", None] # TODO Очистка состояния
+
+  # Запускаем новую сессию и проверяем, что помеченное слово пропускается
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Вы еще не выбрали язык для изучения"
+      - type: message_contains
+        position: -2
+        text: "Сейчас я помогу вам выбрать язык"
+      - type: message_contains
+        position: -1
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Ваши настройки для этого языка"
+      - type: message_contains
+        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+      - type: message_contains
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Начать изучение с помощью команды /study"
+      - type: state_contains
+        data: ["_state", None]
+
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов языка"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      # TODO Здесь должна быть проверка, что текущее слово - не то, которое мы пометили
+      # Это требует настройки мока API клиента
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+      

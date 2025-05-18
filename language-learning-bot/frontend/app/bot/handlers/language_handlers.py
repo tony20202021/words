@@ -72,7 +72,14 @@ async def cmd_language(message: Message, state: FSMContext):
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(message.bot)
-    
+
+    if not api_client:
+        logger.error(f"Ошибка при получении списка языков: (API client not found in bot or dispatcher)")
+        await message.answer(
+            f"Ошибка при получении списка языков: (API client not found in bot or dispatcher)"
+        )
+        return
+
     # Получение данных состояния
     user_data = await state.get_data()
     logger.debug("User data: %s", user_data)
@@ -81,6 +88,7 @@ async def cmd_language(message: Message, state: FSMContext):
     api_response = await get_available_languages(api_client)
 
     if not api_response['success']:
+        logger.error(f"Ошибка при получении списка языков: (status={api_response['status']}) error={api_response['error']}")
         await message.answer(
             f"Ошибка при получении списка языков: (status={api_response['status']}) error={api_response['error']}"
         )

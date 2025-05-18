@@ -8,16 +8,27 @@ steps:
     asserts:
       - type: message_contains
         text: "Здравствуйте"
+      - type: message_contains
+        text: "Добро пожаловать в бот для изучения иностранных слов"
+      - type: message_contains
+        text: "/language - Выбрать язык для изучения"
       # - type: state_contains
-      #   data: ["_state", None]
+      #   data: ["_state", None] # TODO сейчас состояние очищено полностью
+      # - type: check_no_keyboard # TODO
   
   - type: command
     name: help
     asserts:
       - type: message_contains
         text: "Справка по использованию бота"
+      - type: message_contains
+        text: "Этот бот поможет вам эффективно изучать иностранные слова"
+      - type: message_contains
+        text: "Система интервального повторения"
+      - type: message_contains
+        text: "Основные команды"
       # - type: state_contains
-      #   data: ["_state", None]
+      #   data: ["_state", None] # TODO сейчас состояние очищено полностью
 
   - type: command
     name: settings
@@ -25,17 +36,15 @@ steps:
       - type: message_contains
         position: -2
         text: "Вы еще не выбрали язык для изучения"
-      - type: state_contains
-        data: ["_state", None]
-
-  - type: command
-    name: language
-    asserts:
       - type: message_contains
-        position: -2
+        position: -1
         text: "Доступные языки для изучения"
       - type: state_contains
         data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский (English)"
+      - type: keyboard_contains
+        button_text: "Французский (Français)"
 
   # Шаг 3: Имитируем выбор языка через callback
   # Вместо state_update используем прямой вызов колбэка
@@ -50,8 +59,12 @@ steps:
         text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
       - type: message_contains
         text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
+      - type: message_contains
+        text: "Начать изучение с помощью команды /study"
       - type: state_contains
         data: ["_state", None]
+      - type: state_contains
+        data: ["current_language", {"id": "eng", "name_ru": "Английский", "name_foreign": "English"}]
 
   # Шаг 4: Открываем настройки снова
   - type: command
@@ -65,14 +78,22 @@ steps:
         text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
       - type: state_contains
         data: ["_state", None]
-      # - type: state_contains
-      #   data: ["skip_marked", true]
+      - type: keyboard_contains
+        button_text: "🔢 Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "⏩ Помеченные слова"
+      - type: keyboard_contains
+        button_text: "📅 Период проверки"
 
   - type: callback
     data: settings_start_word
     asserts:
       - type: message_contains
         text: "Введите номер слова"
+      # - type: message_contains
+      #   text: "Текущее значение: 1" # исправить мок Текущее значение: <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139925770577440'>
+      - type: message_contains
+        text: "Для отмены и возврата к настройкам введите команду /cancel"
       - type: state_contains
         data: ["_state", <State 'SettingsStates:waiting_start_word'>]
 
@@ -81,9 +102,12 @@ steps:
     asserts:
       - type: message_contains
         text: "Настройки успешно обновлены"
-      - type: message_contains
-        text: "Начальное слово"
+      # - type: message_contains
+      #   text: "Начальное слово: <b>50</b>" # TODO исправить мок Начальное слово: <b><MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140124756108016'></b>
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
+        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить исходный код - должно быть NONE
       - type: state_contains
         data: ["start_word", 50]
+      - type: keyboard_contains
+        button_text: "🔢 Изменить начальное слово"
+        

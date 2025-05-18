@@ -65,35 +65,7 @@ class CallbackHandler:
         """
         handler_found = False
         
-        # Прямой поиск обработчика колбэка по его данным (ключевое исправление)
-        if callback_data == "settings_toggle_skip_marked":
-            try:
-                from app.bot.handlers.user_handlers import process_settings_toggle_skip_marked
-                print(f"Найден прямой обработчик для settings_toggle_skip_marked")
-                await process_settings_toggle_skip_marked(callback, self.context.state)
-                handler_found = True
-            except Exception as e:
-                print(f"Ошибка при прямом вызове process_settings_toggle_skip_marked: {e}")
-                traceback.print_exc()
-        elif callback_data == "settings_toggle_check_date":
-            try:
-                from app.bot.handlers.user_handlers import process_settings_toggle_check_date
-                print(f"Найден прямой обработчик для settings_toggle_check_date")
-                await process_settings_toggle_check_date(callback, self.context.state)
-                handler_found = True
-            except Exception as e:
-                print(f"Ошибка при прямом вызове process_settings_toggle_check_date: {e}")
-                traceback.print_exc()
-        elif callback_data == "settings_start_word":
-            try:
-                from app.bot.handlers.user_handlers import process_settings_start_word
-                print(f"Найден прямой обработчик для settings_start_word")
-                await process_settings_start_word(callback, self.context.state)
-                handler_found = True
-            except Exception as e:
-                print(f"Ошибка при прямом вызове process_settings_start_word: {e}")
-                traceback.print_exc()
-        elif hasattr(self.context, 'callback_handlers') and callback_data in self.context.callback_handlers:
+        if hasattr(self.context, 'callback_handlers') and callback_data in self.context.callback_handlers:
             handler = self.context.callback_handlers[callback_data]
             print(f"Найден обработчик из сохраненных callback_handlers: {handler}")
             try:

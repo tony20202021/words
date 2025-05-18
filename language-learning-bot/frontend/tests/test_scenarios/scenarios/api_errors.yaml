@@ -1,0 +1,28 @@
+name: API Error Handling Test
+user_id: 123456789
+api_mock: error
+auto_setup: true
+steps:
+  # Тест 1: Ошибка при получении списка языков
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Ошибка при получении списка языков"
+      - type: message_contains
+        text: "API client not found in bot or dispatcher"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Тест 2: Ошибка при получении слов для изучения
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        text: "Ошибка"
+      - type: message_contains
+        text: "API client not found in bot or dispatcher"
+      - type: state_contains
+        data: ["_state", None]
+
+  

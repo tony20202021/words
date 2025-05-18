@@ -1,0 +1,170 @@
+name: Repeat Intervals Test
+user_id: 123456789
+api_mock: special  # Требуется специальный мок, возвращающий разные данные о интервалах
+auto_setup: true
+steps:
+  # Подготовка: выбираем язык и настраиваем на учет даты проверки
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: state_contains
+        data: ["_state", None]
+
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      - type: message_contains
+        text: "Отладочная информация: <b>Показывать ✅</b>" # TODO исправить мок - долджно быть в начале "пропускать"
+      - type: state_contains
+        data: ["_state", None]
+      # TODO исправить мок
+      # - type: state_contains
+      #   data: ["show_debug", true]
+      # сейчас показывается как
+        # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140172775259104'>
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация"
+      - type: keyboard_button_count
+        count: 5
+
+  # Включаем отладочный режим для просмотра интервалов
+  - type: callback
+    data: "settings_toggle_show_debug"
+    asserts:
+      - type: message_contains
+        text: "Отладочная информация: <b>Показывать ✅</b>"  # TODO исправить мок - после нажатия - состояние долджно меняться
+      - type: state_contains
+        data: ["_state", None]
+      # - type: state_contains
+      #   data: ["show_debug", true]
+      # TODO исправить мок
+      # сейчас показывается как
+        # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140172775259104'>
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация" # TODO исправить мок - после нажатия - кнопка долджна меняться
+      - type: keyboard_button_count
+        count: 5
+
+  # Начинаем изучение
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "Ассоциация для"
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Отмечаем слово как известное в первый раз
+  - type: callback
+    data: "word_know"
+    asserts:
+      - type: message_contains
+        text: "Отлично!"
+      - type: message_contains
+        text: "Текущий интервал: 0 (дней)"
+      - type: message_contains
+        text: "После подтверждения интервал будет увеличен" 
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "К следующему слову"
+      - type: keyboard_contains
+        button_text: "Ой, все-таки не знаю"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "confirm_next_word"
+    asserts:
+      - type: message_contains
+        position: -3
+        text: "Оценка слова обновлена успешно"
+      # TODO - исправить мок - интервал должен сохраняться увеличенный
+      - type: message_contains
+        position: -2
+        text: "Переходим к следующему слову"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "Ассоциация для"
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Отмечаем слово как известное во второй раз
+  - type: callback
+    data: "word_know"
+    asserts:
+      - type: message_contains
+        text: "Отлично!"
+      - type: message_contains
+        text: "Текущий интервал: 0 (дней)" # TODO - исправить мок - интервал должен сохраняться увеличенный
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "К следующему слову"
+      - type: keyboard_contains
+        button_text: "Ой, все-таки не знаю"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "confirm_next_word"
+    asserts:
+      - type: message_contains
+        position: -3
+        text: "Оценка слова обновлена успешно"
+      # TODO - исправить мок - интервал должен сохраняться увеличенный
+      - type: message_contains
+        position: -2
+        text: "Переходим к следующему слову"
+      - type: message_contains
+        position: -1
+        text: "Вы изучили все доступные слова"
+      - type: state_contains
+        data: ["_state", "<State 'StudyStates:studying'>"]

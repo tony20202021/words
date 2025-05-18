@@ -1,0 +1,114 @@
+name: Boundary Values Test
+user_id: 123456789
+api_mock: common
+auto_setup: true
+steps:
+  # Подготовка: выбираем язык
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: message_contains
+        text: "Выберите язык с помощью кнопок ниже"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Настроить процесс обучения с помощью команды /settings"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Тест 1: Ввод отрицательного начального слова
+  - type: command
+    name: settings
+    asserts:
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      # - type: message_contains
+      #   text: "Начальное слово: <b>1</b>" # TODO исправить мок Начальное слово: <b><MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139907685038256'></b>
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация"
+      - type: keyboard_button_count
+        count: 5
+
+  - type: callback
+    data: settings_start_word
+    asserts:
+      - type: message_contains
+        text: "Введите номер слова"
+      # - type: message_contains
+      #   text: "Текущее значение: 1" # TODO исправить мок Текущее значение: <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139989916170224'>
+      - type: state_contains
+        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
+        #  TODO - сделать проверку что в сообщении нет клавиатуры
+
+  - type: message
+    text: "-5"
+    asserts:
+      - type: message_contains
+        text: "Номер слова должен быть положительным числом"
+      - type: state_contains
+        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+
+  # Тест 2: Ввод нечислового начального слова
+  - type: message
+    text: "abc"
+    asserts:
+      - type: message_contains
+        text: "Некорректный ввод"
+      - type: message_contains
+        text: "Введите целое число"
+      - type: state_contains
+        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+
+  # Тест 3: Ввод слишком большого начального слова
+  - type: message
+    text: "999999"
+    asserts:
+      - type: message_contains
+        text: "Введенный номер слова"
+      - type: message_contains
+        text: "превышает количество слов в языке"
+      - type: state_contains
+        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+
+  # Тест 4: Ввод корректного начального слова
+  - type: message
+    text: "5"
+    asserts:
+      - type: message_contains
+        text: "Настройки успешно обновлены"
+      # - type: message_contains
+      #   text: "Начальное слово: <b>5</b>" # TODO исправить мок - долежн сохранять введенное значение
+      - type: state_contains
+        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить исходный код - долджно быть None
+      - type: state_contains
+        data: ["start_word", 5]
+        

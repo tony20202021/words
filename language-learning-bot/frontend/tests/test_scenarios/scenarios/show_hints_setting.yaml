@@ -3,78 +3,59 @@ user_id: 123456789
 api_mock: study
 auto_setup: true
 steps:
-  # Шаг 1-3: Стандартные шаги для выбора языка
+  # Шаг 1: Выбираем язык
   - type: command
     name: language
     asserts:
       - type: message_contains
         text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский (English)"
 
+  # Шаг 2: Выбираем английский язык
   - type: callback
     data: "lang_select_eng"
     asserts:
       - type: message_contains
         text: "Вы выбрали язык"
-
-  # Шаг 4: Открываем настройки
-  - type: command
-    name: settings
-    asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
-      - type: keyboard_contains
-        button_text: "Отображать подсказки: Да"
-
-  # Шаг 5: Переключаем отображение подсказок (выключаем)
-  - type: callback
-    data: "settings_toggle_show_hints"
-    asserts:
-      - type: message_contains
-        text: "Настройки успешно обновлены"
-      - type: message_contains
-        text: "Отображать подсказки: Нет"
+        text: "Английский"
       - type: state_contains
-        data: ["show_hints", false]
-      - type: keyboard_contains
-        button_text: "Отображать подсказки: Нет"
+        data: ["_state", None]
+      - type: state_contains
+        data: ["current_language", {"id": "eng", "name_ru": "Английский", "name_foreign": "English"}]
 
-  # Шаг 6: Запускаем изучение слов с выключенными подсказками
-  - type: command
-    name: study
-    asserts:
-      - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов"
-      - type: message_contains
-        position: -1
-        text: "Переведите на"
-      # Проверяем, что подсказки отсутствуют в клавиатуре
-      - type: keyboard_not_contains
-        button_text: "Фонетика"
-      - type: keyboard_not_contains
-        button_text: "Ассоциация"
-      - type: keyboard_button_count
-        count: 3  # Только 3 кнопки (Знаю/Показать/Пропустить) без подсказок
-
-  # Шаг 7: Возвращаемся к настройкам
+  # Шаг 3: Открываем настройки
   - type: command
     name: settings
     asserts:
       - type: message_contains
         text: "Настройки процесса обучения"
-
-  # Шаг 8: Переключаем отображение подсказок (включаем)
-  - type: callback
-    data: "settings_toggle_show_hints"
-    asserts:
       - type: message_contains
-        text: "Настройки успешно обновлены"
-      - type: message_contains
-        text: "Отображать подсказки: Да"
+        text: "Отображать подсказки: <b>Да ✅</b>"
+      - type: keyboard_contains
+        button_text: "💡 Подсказки: сменить на \"Пропускать\""
+      - type: state_contains
+        data: ["_state", None]
       - type: state_contains
         data: ["show_hints", true]
 
-  # Шаг 9: Запускаем изучение слов с включенными подсказками
+  # Шаг 4: Переключаем отображение подсказок (выключаем)
+  - type: callback
+    data: "settings_toggle_show_hints"
+    asserts:
+      - type: message_contains
+        text: "✅ Настройки успешно обновлены"
+      - type: message_contains
+        text: "Отображать подсказки: <b>Нет ❌</b>"
+      - type: keyboard_contains
+        button_text: "💡 Подсказки: сменить на \"Придумывать\""
+      - type: state_contains
+        data: ["show_hints", false]
+
+  # Шаг 5: Запускаем изучение слов с выключенными подсказками
   - type: command
     name: study
     asserts:
@@ -84,10 +65,63 @@ steps:
       - type: message_contains
         position: -1
         text: "Переведите на"
-      # Проверяем, что подсказки присутствуют в клавиатуре
-      - type: keyboard_contains
+      - type: keyboard_not_contains
         button_text: "Фонетика"
-      - type: keyboard_contains
+      - type: keyboard_not_contains
         button_text: "Ассоциация"
+      - type: keyboard_contains
+        button_text: "✅ Я знаю это слово"
+      - type: keyboard_contains
+        button_text: "❓ Не знаю"
+      - type: keyboard_contains
+        button_text: "⏩ Флаг: сменить на"
+      - type: keyboard_button_count
+        count: 3  # Только 3 кнопки без подсказок
+
+  # Шаг 6: Возвращаемся к настройкам
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      - type: message_contains
+        text: "Отображать подсказки: <b>Нет ❌</b>"
+      - type: keyboard_contains
+        button_text: "💡 Подсказки: сменить на \"Придумывать\""
+      - type: state_contains
+        data: ["show_hints", false]
+
+  # Шаг 7: Переключаем отображение подсказок (включаем)
+  - type: callback
+    data: "settings_toggle_show_hints"
+    asserts:
+      - type: message_contains
+        text: "✅ Настройки успешно обновлены"
+      - type: message_contains
+        text: "Отображать подсказки: <b>Да ✅</b>"
+      - type: keyboard_contains
+        button_text: "💡 Подсказки: сменить на \"Пропускать\""
+      - type: state_contains
+        data: ["show_hints", true]
+
+  # Шаг 8: Запускаем изучение слов с включенными подсказками
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: keyboard_contains
+        button_text: "Фонетическое звучание (отсутствует)"
+      - type: keyboard_contains
+        button_text: "Ассоциация для значения на русском (отсутствует)"
+      - type: keyboard_contains
+        button_text: "✅ Я знаю это слово"
+      - type: keyboard_contains
+        button_text: "❓ Не знаю"
       - type: keyboard_button_count
         count: 7  # 4 кнопки подсказок + 3 основные кнопки
+        

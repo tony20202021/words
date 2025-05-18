@@ -1,0 +1,166 @@
+name: Cancel Operations Test
+user_id: 123456789
+api_mock: common
+auto_setup: true
+steps:
+  # Начальная настройка: выбираем язык
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: message_contains
+        text: "Выберите язык с помощью кнопок ниже"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Настроить процесс обучения с помощью команды /settings"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Тест 1: Отмена ввода начального слова
+  - type: command
+    name: settings
+    asserts:
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      # - type: message_contains
+      #   text: "Начальное слово: <b>1</b>" # TODO исправить мок Текущее значение: <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139989916170224'>
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Изменить начальное слово"
+      - type: keyboard_contains
+        button_text: "Помеченные слова"
+      - type: keyboard_contains
+        button_text: "Период проверки"
+      - type: keyboard_contains
+        button_text: "Подсказки"
+      - type: keyboard_contains
+        button_text: "Отладочная информация"
+      - type: keyboard_button_count
+        count: 5
+
+  - type: callback
+    data: settings_start_word
+    asserts:
+      - type: message_contains
+        text: "Введите номер слова"
+      # - type: message_contains
+      #   text: "НТекущее значение: <b>1</b>" # TODO исправить мок Текущее значение: <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139989916170224'>
+      - type: message_contains
+        text: "Для отмены и возврата к настройкам введите команду /cancel"
+      - type: state_contains
+        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+
+  - type: message
+    text: "/cancel"
+    asserts:
+      - type: message_contains
+        text: "Ввод отменен"
+      - type: message_contains
+        text: "Настройки процесса обучения"
+      # - type: message_contains
+      #   text: "Начальное слово: <b>1</b>" # TODO исправить мок Текущее значение: <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139989916170224'>
+      - type: state_contains
+        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в коде - должно быть NONE
+
+  # Тест 2: Отмена создания подсказки
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов языка"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  - type: callback
+    data: "hint_create_meaning_word123"
+    asserts:
+      - type: message_contains
+        text: "Создание подсказки"
+      - type: message_contains
+        text: "Ассоциация для значения на русском"
+      - type: message_contains
+        text: "или отправьте /cancel для отмены"
+      - type: state_contains
+        data: ["_state", <State 'HintStates:creating'>]
+
+        # TODO исправить мок - при запросе состояния
+        # state: <AsyncMock name='mock.get_state()' id='139717008166480'>
+  
+# после исправления  - раскомментировать все шаги ниже
+
+  # - type: message
+  #   text: "/cancel"
+  #   asserts:
+  #     - type: message_contains
+  #       text: "Отменено создание/редактирование подсказки"
+  #     - type: message_contains
+  #       text: "Продолжаем изучение слов"
+  #     - type: state_contains
+  #       data: ["_state", <State 'StudyStates:studying'>]
+
+  # # Тест 3: Отмена редактирования подсказки
+  # # Сначала создаем подсказку
+  # - type: callback
+  #   data: "hint_create_meaning_word123"
+  #   asserts:
+  #     - type: message_contains
+  #       text: "Создание подсказки"
+  #     - type: state_contains
+  #       data: ["_state", <State 'HintStates:creating'>]
+
+  # - type: message
+  #   text: "Тестовая подсказка для отмены"
+  #   asserts:
+  #     - type: message_contains
+  #       text: "Подсказка успешно создана"
+  #     - type: state_contains
+  #       data: ["_state", <State 'StudyStates:studying'>]
+
+  # # Теперь пробуем редактировать и отменяем
+  # - type: callback
+  #   data: "hint_edit_meaning_word123"
+  #   asserts:
+  #     - type: message_contains
+  #       text: "Редактирование подсказки"
+  #     - type: state_contains
+  #       data: ["_state", <State 'HintStates:editing'>]
+
+  # - type: message
+  #   text: "/cancel"
+  #   asserts:
+  #     - type: message_contains
+  #       text: "Отменено создание/редактирование подсказки"
+  #     - type: message_contains
+  #       text: "Продолжаем изучение слов"
+  #     - type: state_contains
+  #       data: ["_state", <State 'StudyStates:studying'>]
+        

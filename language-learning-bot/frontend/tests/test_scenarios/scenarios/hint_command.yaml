@@ -1,0 +1,24 @@
+name: Hint Command Test
+user_id: 123456789
+api_mock: common
+auto_setup: true
+steps:
+  # Проверка команды /hint
+  - type: command
+    name: hint
+    asserts:
+      - type: message_contains
+        text: "Подсказки помогают вам запоминать слова"
+      - type: message_contains
+        text: "Фонетическое разложение на слоги"
+      - type: message_contains
+        text: "Ассоциации"
+      - type: message_contains
+        text: "Значение слова на русском"
+      - type: message_contains
+        text: "Подсказка по написанию"
+      - type: message_contains
+        text: "использование подсказки автоматически устанавливает оценку 0"
+      - type: state_contains
+        data: ["_state", None]
+        

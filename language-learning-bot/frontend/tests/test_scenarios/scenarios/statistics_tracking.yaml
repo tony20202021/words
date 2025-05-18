@@ -1,0 +1,134 @@
+name: Statistics Tracking Test
+user_id: 123456789
+api_mock: study
+auto_setup: true
+steps:
+  # Подготовка: выбираем язык
+  - type: command
+    name: language
+    asserts:
+      - type: message_contains
+        text: "Доступные языки для изучения"
+      - type: state_contains
+        data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "lang_select_eng"
+    asserts:
+      - type: message_contains
+        text: "Вы выбрали язык"
+      - type: message_contains
+        text: "Английский"
+      - type: message_contains
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Начать изучение с помощью команды /study"
+      - type: state_contains
+        data: ["_state", None]
+
+  # Проверяем начальную статистику
+  - type: command
+    name: stats
+    asserts:
+      - type: message_contains
+        text: "Статистика по изучению языков"
+      - type: message_contains
+        text: "Доступные языки без статистики"
+      - type: message_contains
+        text: "Английский (English) - 1000 слов"
+
+  # Изучаем несколько слов
+  - type: command
+    name: study
+    asserts:
+      - type: message_contains
+        position: -2
+        text: "Начинаем изучение слов языка"
+      - type: message_contains
+        position: -2
+        text: "Получаю список слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Отмечаем слово как известное
+  - type: callback
+    data: "word_know"
+    asserts:
+      - type: message_contains
+        text: "Отлично!"
+      - type: message_contains
+        text: "Текущий интервал: 0 (дней)"
+      - type: message_contains
+        text: "После подтверждения интервал будет увеличен" 
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "К следующему слову"
+      - type: keyboard_contains
+        button_text: "Ой, все-таки не знаю"
+      - type: keyboard_button_count
+        count: 2
+
+  - type: callback
+    data: "confirm_next_word"
+    asserts:
+      - type: message_contains
+        position: -3
+        text: "Оценка слова обновлена успешно"
+      # TODO - исправить мок - интервал должен сохраняться увеличенный
+      - type: message_contains
+        position: -2
+        text: "Переходим к следующему слову"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "Ассоциация для"
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Отмечаем второе слово как неизвестное
+  - type: callback
+    data: "word_dont_know"
+    asserts:
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: message_contains
+        text: "Оценка слова: 0"
+      - type: state_contains
+        data: ["_state", <State 'StudyStates:studying'>]
+      - type: keyboard_contains
+        button_text: "Ассоциация для"
+        #  TODO перечислить все кнопки
+      - type: keyboard_button_count
+        count: 7
+
+  # Проверяем обновленную статистику
+  - type: command
+    name: stats
+    asserts:
+      - type: message_contains
+        text: "Статистика по изучению языков"
+      - type: message_contains
+        text: "Английский (English):"
+      - type: message_contains
+        text: "Изучено слов: 1" # TODO испраивть мок - количество должно обновляться
+      - type: message_contains
+        text: "Известно слов: 1"
+        

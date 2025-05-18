@@ -44,7 +44,14 @@ async def cmd_study(message: Message, state: FSMContext):
     
     # Get API client
     api_client = get_api_client_from_bot(message.bot)
-    
+
+    if not api_client:
+        logger.error(f"Ошибка: (API client not found in bot or dispatcher)")
+        await message.answer(
+            f"Ошибка: (API client not found in bot or dispatcher)"
+        )
+        return
+
     state_data = await state.get_data()
     is_valid = ("current_language" in state_data)
     

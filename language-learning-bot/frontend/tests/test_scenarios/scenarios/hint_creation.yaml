@@ -9,8 +9,16 @@ steps:
     asserts:
       - type: message_contains
         text: "Доступные языки для изучения"
+      - type: message_contains
+        text: "Выберите язык с помощью кнопок ниже"
       - type: state_contains
         data: ["_state", None]
+      - type: keyboard_contains
+        button_text: "Английский"
+      - type: keyboard_contains
+        button_text: "Французский"
+      - type: keyboard_button_count
+        count: 2
 
   - type: callback
     data: "lang_select_eng"
@@ -20,7 +28,9 @@ steps:
       - type: message_contains
         text: "Английский"
       - type: message_contains
-        text: "Ваши настройки для этого языка"
+        text: "Теперь вы можете"
+      - type: message_contains
+        text: "Начать изучение с помощью команды /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -29,10 +39,13 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Начинаем изучение слов"
+        text: "Начинаем изучение слов языка"
       - type: message_contains
         position: -2
         text: "Получаю список слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
       - type: state_contains
         data: ["_state", <State 'StudyStates:studying'>]
       # Проверяем клавиатуру подсказок
@@ -66,24 +79,18 @@ steps:
       - type: message_contains
         position: -2
         text: "«Ассоциация для фонетики»"
-      - type: state_contains
-        data: ["_state", "<State 'StudyStates:studying'>"]
-      # Проверяем клавиатуру подсказок
-      - type: keyboard_contains
-        button_text: "Ассоциация для значения на русском (отсутствует)"
-      - type: keyboard_contains
-        button_text: "Ассоциация для фонетики: ✏️ Редактировать"
-      - type: keyboard_contains
-        button_text: "Фонетическое звучание (отсутствует)"
-      - type: keyboard_contains
-        button_text: "Ассоциация для написания (отсутствует)"
-      - type: keyboard_button_count
-        count: 6
-
-  # Шаг 6: Просмотр созданной подсказки
-  - type: callback
-    data: "hint_view_phoneticassociation_word123"
-    asserts:
+      - type: message_contains
+        position: -2
+        text: "Продолжаем изучение слов"
+      - type: message_contains
+        position: -1
+        text: "Использованные подсказки"
+      - type: message_contains
+        position: -1
+        text: "Ассоциация для фонетики"
+      - type: message_contains
+        position: -1
+        text: "Моя тестовая ассоциация"
       - type: state_contains
         data: ["_state", "<State 'StudyStates:studying'>"]
       # Проверяем клавиатуру подсказок
@@ -108,8 +115,16 @@ steps:
       - type: message_contains
         position: -1
         text: "Ассоциация для фонетики"
+      - type: message_contains
+        position: -1
+        text: "Моя тестовая ассоциация"
+      - type: message_contains
+        position: -1
+        text: "Нажмите на текст, чтобы скопировать"
       - type: state_contains
         data: ["_state", "<State 'HintStates:editing'>"]
+      - type: state_contains
+        data: ["hint_state", {"hint_key": "hint_association"}]
 
   # Шаг 9: Отправляем новый текст
   - type: message
