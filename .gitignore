@@ -1,6 +1,7 @@
 output_cells/
 output_images/
 sample_images/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,0 +1,27 @@
+name: amikhalev_translation_summary
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip=23.1.2
+  - pytorch=2.1.0  # Обновленная версия PyTorch
+  - pytorch-cuda=11.8
+  - numpy<2  # Сохраняем numpy < 2 для совместимости
+  - sacremoses  # Перенесено из pip для лучшей совместимости
+  - pip:
+    - transformers>=4.36.0  # Более новая версия для поддержки Qwen2
+    - tqdm>=4.66.0
+    - tabulate>=0.9.0
+    - bitsandbytes>=0.40.0  # Для квантизации больших моделей
+    - accelerate>=0.22.0    # Для оптимизации загрузки моделей
+    - sentencepiece         # Для токенизации
+    - protobuf              # Для работы с некоторыми моделями
+    - einops                # Для операций с тензорами
+    - huggingface-hub>=0.16.4  # Для работы с Hugging Face Hub
+    - safetensors>=0.3.3    # Для безопасной загрузки весов моделей
+    - tensorboardX>=2.6     # Для логирования (опционально)
+    - colorama>=0.4.6       # Для цветного вывода в терминале
+    
