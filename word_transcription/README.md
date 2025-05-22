@@ -1,14 +1,28 @@
 Проект по добавлению транскрипции к иностранным словам
-Этот проект предназначен для автоматического добавления транскрипций к иностранным словам из Excel-файла и сохранения результатов в формате JSON. Проект поддерживает работу с разными языками, включая немецкий, французский, испанский и английский, используя комбинацию локальных словарей и онлайн-сервисов.
+Этот проект предназначен для автоматического добавления транскрипций к иностранным словам из Excel-файла или JSON-файла и сохранения результатов в формате JSON. Проект поддерживает работу с разными языками, включая немецкий, французский, испанский, английский, итальянский, нидерландский, португальский, русский и другие, используя комбинацию локальных словарей и различных сервисов транскрипции.
 Описание
-Проект решает задачу обогащения словаря иностранных слов транскрипциями. На входе система принимает Excel-файл со словами, обрабатывает каждое слово, находит его транскрипцию и сохраняет результаты в JSON-файл.
+Проект решает задачу обогащения словаря иностранных слов транскрипциями в формате Международного фонетического алфавита (IPA). На входе система принимает Excel-файл или JSON-файл со словами, обрабатывает каждое слово, находит его транскрипцию с помощью различных сервисов и сохраняет результаты в JSON-файл.
 Основные функции:
 
-Чтение слов из Excel-файла
-Определение языка слова
-Получение транскрипций из локальных словарей
-Получение транскрипций через внешние API, если локальный словарь не содержит информации
+Чтение слов из Excel-файла или JSON-файла
+Автоматическое определение языка слова (если не указан явно)
+Получение транскрипций из различных источников:
+
+Локальные словари
+Epitran (локальная библиотека)
+G2P и G2P_EN (локальные библиотеки)
+Phonemizer (локальная библиотека с espeak-ng бэкендом)
+CharsiuG2P (локальная мультиязычная модель)
+Wiktionary API (онлайн-сервис)
+Google Translate API (онлайн-сервис, неофициальный)
+Forvo API (онлайн-сервис, требует API ключ)
+EasyPronunciation API (онлайн-сервис, требует API ключ)
+IBM Watson API (онлайн-сервис, требует API ключ)
+OpenAI API (онлайн-сервис, требует API ключ)
+
+
 Сохранение результатов в JSON-файл
+Кэширование найденных транскрипций в локальных словарях
 
 Поддерживаемые языки:
 
@@ -16,67 +30,97 @@
 Французский (fr)
 Испанский (es)
 Английский (en)
-
-Поддерживаемые источники транскрипций:
-
-Локальные словари - автономные словари для основных языков
-Forvo API - онлайн-сервис с произношениями для множества языков
-Google Translate API - резервный метод получения транскрипций
+Итальянский (it)
+Нидерландский (nl)
+Португальский (pt)
+Русский (ru)
+Польский (pl)
+Чешский (cs)
+И другие (в зависимости от используемых сервисов)
 
 Установка
 Требования
 
 Python 3.8 или новее
 pip или conda
-Доступ в интернет (для загрузки словарей и использования API)
-
-Установка с помощью pip
-bash# Клонирование репозитория
-git clone https://github.com/yourusername/foreign-word-transcription.git
-cd foreign-word-transcription
+Доступ в интернет (для загрузки зависимостей и использования онлайн-сервисов)
 
 # Установка зависимостей
 pip install -r requirements.txt
 
-# Скачивание словарей (опционально)
-mkdir -p data/dictionaries
-# Скачивание необходимых словарей будет выполнено автоматически при первом запуске
-Установка с помощью conda
-bash# Клонирование репозитория
-git clone https://github.com/yourusername/foreign-word-transcription.git
-cd foreign-word-transcription
-
-# Создание и активация окружения conda
-conda env create -f environment.yml
-conda activate word_transcription
-
-# Скачивание словарей (опционально)
-mkdir -p data/dictionaries
-# Скачивание необходимых словарей будет выполнено автоматически при первом запуске
+# Создание необходимых директорий
+mkdir -p data/dictionaries logs output
 Использование
 Базовое использование
 Используйте bash-скрипт для простого запуска:
-bash./transcribe.sh input.xlsx
-Скрипт автоматически создаст виртуальное окружение, установит необходимые зависимости, загрузит словарь CC-CEDICT (если он отсутствует) и запустит процесс добавления транскрипций.
+bash./scripts/transcribe.sh input.xlsx
+Скрипт автоматически создаст виртуальное окружение, установит необходимые зависимости, загрузит локальные словари (если они отсутствуют) и запустит процесс добавления транскрипций.
 Расширенное использование
 Для более тонкой настройки можно использовать Python-скрипт напрямую:
-bashpython transcription_script.py input.xlsx --output-file output.json --dict-path custom_dictionary.txt
+bashpython src/transcription_script.py input.xlsx --output-file output.json --services dictionary epitran g2p
 Параметры командной строки
 
-input_file - путь к входному Excel-файлу (обязательный параметр)
+input_file - путь к входному Excel или JSON файлу (обязательный параметр)
 --output-file - путь к выходному JSON-файлу (по умолчанию равен входному файлу с заменой расширения)
+--start-index - начальный индекс для обработки Excel-файла (по умолчанию: 0)
+--end-index - конечный индекс для обработки Excel-файла (по умолчанию: до конца файла)
 --lang-field - имя поля для кода языка (по умолчанию "language")
---char-field - имя поля с иероглифом (по умолчанию "character")
+--word-field - имя поля со словом (по умолчанию "word")
 --transcription-field - имя поля для транскрипции (по умолчанию "transcription")
---dict-path - путь к словарю CC-CEDICT (по умолчанию "data/cedict_ts.u8")
+--dict-dir - путь к директории со словарями (по умолчанию "data/dictionaries")
+--language - код языка для всех слов (de, fr, es, en, ...)
 
+API ключи:
+
+--forvo-key - API ключ для Forvo
+--easypronunciation-key - API ключ для EasyPronunciation
+--ibm-watson-key - API ключ для IBM Watson
+--openai-key - API ключ для OpenAI
+
+Выбор сервисов:
+
+--services - список сервисов для использования, разделенных пробелом: dictionary epitran forvo google wiktionary g2p phonemize easypronunciation ibm_watson charsiu openai all
+
+Отдельные флаги для сервисов (будут проигнорированы, если указан --services):
+
+--use-epitran - использовать Epitran
+--use-wiktionary - использовать Wiktionary API
+--use-forvo - использовать Forvo API
+--use-google - использовать Google Translate API
+--use-g2p - использовать G2P библиотеку
+--use-phonemize - использовать Phonemizer
+--use-easypronunciation - использовать EasyPronunciation API
+--use-ibm-watson - использовать IBM Watson API
+--use-charsiu - использовать CharsiuG2P
+--use-openai - использовать OpenAI API
+
+Прочие параметры:
+
+--verbose, -v - подробный вывод
+--help, -h - показать справку
+
+Примеры
+bash# Обработка Excel-файла с французскими словами
+./scripts/transcribe.sh words.xlsx -l fr
+
+# Использование только локальных сервисов
+./scripts/transcribe.sh words.xlsx --services dictionary epitran g2p phonemize
+
+# Использование онлайн-сервисов с API ключами
+./scripts/transcribe.sh words.xlsx --forvo-key YOUR_FORVO_KEY --openai-key YOUR_OPENAI_KEY
+
+# Обработка только определенных строк в Excel-файле
+./scripts/transcribe.sh words.xlsx --start-index 100 --end-index 200
+
+# Сохранение результатов в указанный файл
+./scripts/transcribe.sh words.xlsx --output-file results.json
 Обработка Excel-файлов
 Скрипт поддерживает работу с Excel-файлами в форматах .xls и .xlsx. Основной алгоритм:
 
 Чтение Excel-файла с помощью pandas
 Извлечение слов из указанной колонки
-Определение языка для каждого слова
-Поиск транскрипции в локальном словаре или через API
+Определение языка для каждого слова (если не указан)
+Поиск транскрипции в локальном словаре или через сервисы
 Сохранение результатов в JSON-файл
 
 Пример структуры Excel-файла
@@ -85,86 +129,77 @@ input_file - путь к входному Excel-файлу (обязательн
 Колонка с номерами (индекс 0)
 Колонка со словами (индекс 1)
 
-Пример кода для работы с Excel-файлом
-pythonimport pandas as pd
-
-# Чтение Excel-файла
-df = pd.read_excel('foreign_words.xlsx', sheet_name=0, engine='openpyxl')
-
-# Получение списка слов из второй колонки (индекс 1)
-words = df.iloc[start_index:end_index+1, 1].tolist()
-
-# Получение номеров из первой колонки (индекс 0)
-numbers = df.iloc[start_index:end_index+1, 0].tolist()
-Структура проекта
-word_transcription/
-│
-├── transcription_script.py   # Основной скрипт
-├── excel_processor.py        # Модуль для обработки Excel-файлов
-├── transcribe.sh             # Bash-скрипт для удобного запуска
-├── requirements.txt          # Зависимости для pip
-├── environment.yml           # Окружение для conda
-│
-├── data/                     # Каталог для данных
-│   └── dictionaries/         # Словари для разных языков
-│       ├── de_dict.json      # Немецкий словарь
-│       ├── fr_dict.json      # Французский словарь
-│       ├── es_dict.json      # Испанский словарь
-│       └── en_dict.json      # Английский словарь
-│
-├── output/                   # Каталог для выходных файлов
-│   └── ...                   # JSON-файлы с результатами
-│
-├── logs/                     # Каталог для логов
-│   └── transcription.log     # Файл логов
-│
-└── venv/                     # Виртуальное окружение Python
 Формат выходных данных
 Результаты сохраняются в JSON-файл следующей структуры:
 json{
     "1": {
         "word": "Schön",
-        "transcription": "ʃøːn",
+        "transcription": "/ʃøːn/",
         "language": "de",
         "frequency": 1
     },
     "2": {
         "word": "bonjour",
-        "transcription": "bɔ̃ʒuʁ",
+        "transcription": "/bɔ̃ʒuʁ/",
         "language": "fr",
         "frequency": 2
     },
     "3": {
         "word": "gracias",
-        "transcription": "ˈgɾa.θjas",
+        "transcription": "/ˈgɾa.θjas/",
         "language": "es",
         "frequency": 3
     },
     "4": {
         "word": "hello",
-        "transcription": "həˈloʊ",
+        "transcription": "/həˈloʊ/",
         "language": "en",
         "frequency": 4
     }
 }
+Модульная структура
+Проект имеет модульную структуру, позволяющую легко добавлять новые сервисы транскрипции:
+
+src/services/base.py - базовый класс для всех сервисов транскрипции
+src/services/dictionary_service.py - сервис на основе локальных словарей
+src/services/epitran_service.py - сервис на основе библиотеки Epitran
+src/services/g2p_service.py - сервис на основе библиотеки G2P
+src/services/phonemize_service.py - сервис на основе библиотеки Phonemizer
+src/services/wiktionary_service.py - сервис на основе Wiktionary API
+src/services/google_service.py - сервис на основе Google Translate API
+src/services/forvo_service.py - сервис на основе Forvo API
+src/services/easypronunciation_service.py - сервис на основе EasyPronunciation API
+src/services/ibm_watson_service.py - сервис на основе IBM Watson API
+src/services/charsiu_g2p_service.py - сервис на основе CharsiuG2P
+src/services/openai_service.py - сервис на основе OpenAI API
+
+Все эти сервисы управляются через класс TranscriptionManager, который пытается получить транскрипцию, используя сервисы по порядку до первого успешного результата.
 Поиск и устранение неисправностей
-Проблема: Транскрипция не найдена для некоторых иероглифов
+Проблема: Транскрипция не найдена для некоторых слов
 Решение:
 
-Проверьте наличие и актуальность словаря CC-CEDICT
-Убедитесь, что у вас есть доступ в интернет для использования API
-Проверьте ограничения API (некоторые API могут иметь ограничения на количество запросов)
+Проверьте наличие установленных зависимостей для локальных сервисов
+Убедитесь, что у вас есть доступ в интернет для использования онлайн-сервисов
+Проверьте правильность API ключей
+Попробуйте использовать разные сервисы транскрипции с помощью параметра --services
 
 Проблема: Ошибки при чтении Excel-файла
 Решение:
 
 Убедитесь, что Excel-файл имеет ожидаемую структуру
-Проверьте, что у вас установлены необходимые зависимости для работы с Excel (xlrd для .xls, openpyxl для .xlsx)
+Проверьте, что у вас установлены необходимые зависимости для работы с Excel (openpyxl для .xlsx, xlrd для .xls)
 Проверьте кодировку файла
+
+Проблема: Неправильное определение языка
+Решение:
+
+Укажите язык явно с помощью параметра --language
+Добавьте код языка в поле 'language' для каждого слова в JSON-файле
+Установите библиотеку langdetect для улучшенного определения языка: pip install langdetect
 
 Лицензия
 MIT
 Авторы
-Anton Mikhalev  
-[@Anton_Mikhalev](https://t.me/Anton_Mikhalev)  
+Anton Mikhalev
+@Anton_Mikhalev
 anton.v.mikhalev@gmail.com

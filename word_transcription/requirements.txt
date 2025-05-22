@@ -1,9 +1,23 @@
-requests==2.31.0
-pandas==2.0.2
-xlrd==2.0.1
-openpyxl==3.1.2
-typing==3.7.4.3
-argparse==1.4.0
-epitran==1.1.0
-panphon==0.19
-wikitextparser==0.51
+# Основные зависимости
+pandas>=1.3.0
+openpyxl>=3.0.9
+xlrd>=2.0.1
+requests>=2.26.0
+wikitextparser>=0.47.0
+unicodecsv>=0.14.1
+regex>=2022.1.18
+# Для транскрипции с Epitran
+epitran>=1.1.0
+panphon>=0.19
+# Для определения языка
+langdetect>=1.0.9
+# Для транскрипции с g2p
+g2p-en>=2.1.0
+g2p>=0.4.1
+# Для транскрипции с phonemizer
+phonemizer>=3.2.0
+# Для транскрипции с CharsiuG2P (требует больше ресурсов)
+# Не доступен через PyPI, нужна ручная установка:
+# pip install git+https://github.com/lingjzhu/CharsiuG2P.git
+# Для транскрипции с OpenAI
+openai>=0.27.0

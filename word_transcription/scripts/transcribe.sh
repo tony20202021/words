@@ -22,13 +22,35 @@ function show_help {
     echo "  -s, --start       Начальный индекс для обработки Excel-файла (по умолчанию: 0)"
     echo "  -e, --end         Конечный индекс для обработки Excel-файла"
     echo "  -d, --dict-dir    Путь к директории со словарями"
-    echo "  -f, --forvo-key   API ключ для Forvo"
     echo "  -l, --language    Код языка для всех слов (de, fr, es, en)"
     echo "  --lang-field      Имя поля для хранения кода языка (по умолчанию: language)"
-    echo "  --use-epitran     Использовать Epitran для транскрипции"
-    echo "  --use-wiktionary  Использовать Wiktionary API для транскрипции"
-    echo "  --use-forvo       Использовать Forvo API для транскрипции"
-    echo "  --use-google      Использовать Google Translate API для транскрипции"
+    echo "  --word-field      Имя поля со словом (по умолчанию: word)"
+    echo "  --trans-field     Имя поля для основной транскрипции (по умолчанию: transcription)"
+    echo "  --all-trans-field Имя поля для всех транскрипций (по умолчанию: all_transcriptions)"
+    echo ""
+    echo "API ключи:"
+    echo "  -f, --forvo-key             API ключ для Forvo"
+    echo "  --easypronunciation-key     API ключ для EasyPronunciation"
+    echo "  --ibm-watson-key            API ключ для IBM Watson"
+    echo "  --openai-key                API ключ для OpenAI"
+    echo ""
+    echo "Выбор сервисов:"
+    echo "  --services [список]  Список сервисов для использования, разделенных пробелом"
+    echo "                       Доступные значения: dictionary epitran forvo google wiktionary"
+    echo "                       g2p phonemize easypronunciation ibm_watson charsiu openai all"
+    echo ""
+    echo "Отдельные флаги для сервисов (будут проигнорированы, если указан --services):"
+    echo "  --use-epitran               Использовать Epitran для транскрипции"
+    echo "  --use-wiktionary            Использовать Wiktionary API для транскрипции"
+    echo "  --use-forvo                 Использовать Forvo API для транскрипции"
+    echo "  --use-google                Использовать Google Translate API для транскрипции"
+    echo "  --use-g2p                   Использовать g2p библиотеку для транскрипции"
+    echo "  --use-phonemize             Использовать phonemizer для транскрипции"
+    echo "  --use-easypronunciation     Использовать EasyPronunciation API для транскрипции"
+    echo "  --use-ibm-watson            Использовать IBM Watson API для транскрипции"
+    echo "  --use-charsiu               Использовать CharsiuG2P для транскрипции"
+    echo "  --use-openai                Использовать OpenAI API для транскрипции"
+    echo ""
     echo "  -v, --verbose     Подробный вывод"
     echo "  -h, --help        Показать эту справку"
     echo ""
@@ -38,7 +60,8 @@ function show_help {
     echo "  $0 words.json                     # Обработка JSON-файла"
     echo "  $0 words.xlsx -s 100 -e 200       # Обработка строк с 100 по 200"
     echo "  $0 words.xlsx -l fr               # Указать французский язык для всех слов"
-    echo "  $0 words.xlsx --use-epitran       # Использовать Epitran для транскрипции"
+    echo "  $0 words.xlsx --services g2p epitran  # Использовать только g2p и epitran"
+    echo "  $0 words.xlsx --use-g2p --use-epitran # То же самое, другой способ"
     echo ""
     exit 0
 }
@@ -56,13 +79,28 @@ START_INDEX=0
 END_INDEX=""
 DICT_DIR=""
 FORVO_KEY=""
+EASYPRONUNCIATION_KEY=""
+IBM_WATSON_KEY=""
+OPENAI_KEY=""
 LANGUAGE=""
 LANG_FIELD="language"
+WORD_FIELD="word"
+TRANS_FIELD="transcription"
+ALL_TRANS_FIELD="all_transcriptions"
 VERBOSE=""
+SERVICES=""
+
+# Флаги для отдельных сервисов
 USE_EPITRAN=""
 USE_WIKTIONARY=""
 USE_FORVO=""
 USE_GOOGLE=""
+USE_G2P=""
+USE_PHONEMIZE=""
+USE_EASYPRONUNCIATION=""
+USE_IBM_WATSON=""
+USE_CHARSIU=""
+USE_OPENAI=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -89,6 +127,18 @@ while [[ $# -gt 0 ]]; do
             FORVO_KEY="$2"
             shift 2
             ;;
+        --easypronunciation-key)
+            EASYPRONUNCIATION_KEY="$2"
+            shift 2
+            ;;
+        --ibm-watson-key)
+            IBM_WATSON_KEY="$2"
+            shift 2
+            ;;
+        --openai-key)
+            OPENAI_KEY="$2"
+            shift 2
+            ;;
         -l|--language)
             LANGUAGE="$2"
             shift 2
@@ -96,6 +146,27 @@ while [[ $# -gt 0 ]]; do
         --lang-field)
             LANG_FIELD="$2"
             shift 2
+            ;;
+        --word-field)
+            WORD_FIELD="$2"
+            shift 2
+            ;;
+        --trans-field)
+            TRANS_FIELD="$2"
+            shift 2
+            ;;
+        --all-trans-field)
+            ALL_TRANS_FIELD="$2"
+            shift 2
+            ;;
+        --services)
+            # Собираем все сервисы до следующего флага
+            SERVICES=""
+            shift
+            while [[ $# -gt 0 && ! $1 == -* ]]; do
+                SERVICES="$SERVICES $1"
+                shift
+            done
             ;;
         --use-epitran)
             USE_EPITRAN="--use-epitran"
@@ -111,6 +182,30 @@ while [[ $# -gt 0 ]]; do
             ;;
         --use-google)
             USE_GOOGLE="--use-google"
+            shift
+            ;;
+        --use-g2p)
+            USE_G2P="--use-g2p"
+            shift
+            ;;
+        --use-phonemize)
+            USE_PHONEMIZE="--use-phonemize"
+            shift
+            ;;
+        --use-easypronunciation)
+            USE_EASYPRONUNCIATION="--use-easypronunciation"
+            shift
+            ;;
+        --use-ibm-watson)
+            USE_IBM_WATSON="--use-ibm-watson"
+            shift
+            ;;
+        --use-charsiu)
+            USE_CHARSIU="--use-charsiu"
+            shift
+            ;;
+        --use-openai)
+            USE_OPENAI="--use-openai"
             shift
             ;;
         -v|--verbose)
@@ -187,6 +282,18 @@ if [ ! -z "$FORVO_KEY" ]; then
     CMD_ARGS="$CMD_ARGS --forvo-key \"$FORVO_KEY\""
 fi
 
+if [ ! -z "$EASYPRONUNCIATION_KEY" ]; then
+    CMD_ARGS="$CMD_ARGS --easypronunciation-key \"$EASYPRONUNCIATION_KEY\""
+fi
+
+if [ ! -z "$IBM_WATSON_KEY" ]; then
+    CMD_ARGS="$CMD_ARGS --ibm-watson-key \"$IBM_WATSON_KEY\""
+fi
+
+if [ ! -z "$OPENAI_KEY" ]; then
+    CMD_ARGS="$CMD_ARGS --openai-key \"$OPENAI_KEY\""
+fi
+
 if [ ! -z "$LANGUAGE" ]; then
     CMD_ARGS="$CMD_ARGS --language \"$LANGUAGE\""
 fi
@@ -195,20 +302,63 @@ if [ ! -z "$LANG_FIELD" ]; then
     CMD_ARGS="$CMD_ARGS --lang-field \"$LANG_FIELD\""
 fi
 
-if [ ! -z "$USE_EPITRAN" ]; then
-    CMD_ARGS="$CMD_ARGS $USE_EPITRAN"
+if [ ! -z "$WORD_FIELD" ]; then
+    CMD_ARGS="$CMD_ARGS --word-field \"$WORD_FIELD\""
 fi
 
-if [ ! -z "$USE_WIKTIONARY" ]; then
-    CMD_ARGS="$CMD_ARGS $USE_WIKTIONARY"
+if [ ! -z "$TRANS_FIELD" ]; then
+    CMD_ARGS="$CMD_ARGS --transcription-field \"$TRANS_FIELD\""
 fi
 
-if [ ! -z "$USE_FORVO" ]; then
-    CMD_ARGS="$CMD_ARGS $USE_FORVO"
+if [ ! -z "$ALL_TRANS_FIELD" ]; then
+    CMD_ARGS="$CMD_ARGS --all-transcriptions-field \"$ALL_TRANS_FIELD\""
 fi
 
-if [ ! -z "$USE_GOOGLE" ]; then
-    CMD_ARGS="$CMD_ARGS $USE_GOOGLE"
+if [ ! -z "$SERVICES" ]; then
+    CMD_ARGS="$CMD_ARGS --services$SERVICES"
+fi
+
+# Добавляем флаги для отдельных сервисов, только если не указаны сервисы через --services
+if [ -z "$SERVICES" ]; then
+    if [ ! -z "$USE_EPITRAN" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_EPITRAN"
+    fi
+
+    if [ ! -z "$USE_WIKTIONARY" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_WIKTIONARY"
+    fi
+
+    if [ ! -z "$USE_FORVO" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_FORVO"
+    fi
+
+    if [ ! -z "$USE_GOOGLE" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_GOOGLE"
+    fi
+    
+    if [ ! -z "$USE_G2P" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_G2P"
+    fi
+    
+    if [ ! -z "$USE_PHONEMIZE" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_PHONEMIZE"
+    fi
+    
+    if [ ! -z "$USE_EASYPRONUNCIATION" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_EASYPRONUNCIATION"
+    fi
+    
+    if [ ! -z "$USE_IBM_WATSON" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_IBM_WATSON"
+    fi
+    
+    if [ ! -z "$USE_CHARSIU" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_CHARSIU"
+    fi
+    
+    if [ ! -z "$USE_OPENAI" ]; then
+        CMD_ARGS="$CMD_ARGS $USE_OPENAI"
+    fi
 fi
 
 if [ ! -z "$VERBOSE" ]; then
@@ -225,25 +375,10 @@ eval "PYTHONPATH=. python ./src/transcription_script.py \"$INPUT_FILE\" $CMD_ARG
 # Проверка успешности выполнения
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}Транскрипции успешно добавлены в файл: ${YELLOW}$OUTPUT_FILE${RESET}"
+    
 else
     echo -e "${RED}Ошибка при добавлении транскрипций${RESET}"
     exit 1
-fi
-
-# Вывод статистики
-if [ -f "$OUTPUT_FILE" ]; then
-    WORD_COUNT=$(grep -o "\"word\"" "$OUTPUT_FILE" | wc -l)
-    # Улучшенный подсчет непустых транскрипций
-    TRANS_COUNT=$(grep -o "\"transcription\":\s*\"[^\"]*[^\"\s]" "$OUTPUT_FILE" | wc -l)
-    
-    echo -e "${GREEN}Статистика:${RESET}"
-    echo -e "  ${BLUE}Всего слов:${RESET} $WORD_COUNT"
-    echo -e "  ${BLUE}С транскрипцией:${RESET} $TRANS_COUNT"
-    if [ $WORD_COUNT -gt 0 ]; then
-        echo -e "  ${BLUE}Процент заполнения:${RESET} $(( TRANS_COUNT * 100 / WORD_COUNT ))%"
-    else
-        echo -e "  ${BLUE}Процент заполнения:${RESET} 0%"
-    fi
 fi
 
 echo -e "${GREEN}Готово!${RESET}"

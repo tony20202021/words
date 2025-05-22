@@ -5,22 +5,24 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 
-def generate_word_document(input_file, output_file=None, character_font_size=32, description_lines_count=3, description_limit=100,
-                       transcription_font_size=12, default_font_size=11, page_margins=(1, 1, 1, 1), column_widths=None, 
-                       character_line_spacing=24, transcription_limit=30):
+def generate_word_document(input_file, output_file=None, word_field_name="character", character_font_size=32, 
+                       description_lines_count=3, description_limit=100,
+                       transcription_font_size=12, default_font_size=11, page_margins=(1, 1, 1, 1), 
+                       column_widths=None, character_line_spacing=24, transcription_limit=30):
     """
-    Генерирует документ Microsoft Word из файла с данными о китайских иероглифах.
+    Генерирует документ Microsoft Word из файла с данными о словах.
     
     Args:
-        input_file (str): Путь к JSON-файлу с данными о китайских иероглифах
+        input_file (str): Путь к JSON-файлу с данными о словах
         output_file (str, optional): Путь для сохранения документа Word. 
                                      По умолчанию - то же имя файла с расширением .docx
-        character_font_size (int, optional): Размер шрифта для иероглифов. По умолчанию 32.
+        word_field_name (str, optional): Имя поля с основным словом. По умолчанию "character".
+        character_font_size (int, optional): Размер шрифта для слов. По умолчанию 32.
         description_limit (int, optional): Лимит символов для колонки с описанием. По умолчанию 100.
         default_font_size (int, optional): Размер шрифта для остальных колонок. По умолчанию 11.
         page_margins (tuple, optional): Поля страницы (левое, правое, верхнее, нижнее) в дюймах.
         column_widths (dict, optional): Ширина колонок в процентах от ширины страницы.
-        character_line_spacing (int, optional): Точное значение междустрочного интервала в пунктах для ячеек с иероглифами.
+        character_line_spacing (int, optional): Точное значение междустрочного интервала в пунктах для ячеек со словами.
         transcription_limit (int, optional): Лимит символов для колонки с транскрипцией. По умолчанию 30.
     
     Returns:
@@ -50,7 +52,7 @@ def generate_word_document(input_file, output_file=None, character_font_size=32,
                 entries.append({
                     'key': key,
                     'frequency': frequency,
-                    'character': value.get('character', ''),
+                    'character': value.get(word_field_name, ''),  # Используем word_field_name
                     'transcription': value.get('transcription', ''),
                     'description': value.get('description', [])
                 })
@@ -98,7 +100,7 @@ def generate_word_document(input_file, output_file=None, character_font_size=32,
         freq_key_run = freq_key_para.add_run(freq_key_text)
         freq_key_run.font.size = Pt(default_font_size)
         
-        # 2. Иероглиф (с увеличенным размером шрифта)
+        # 2. Слово/иероглиф (с увеличенным размером шрифта)
         char_para = row[1].paragraphs[0]
         char_run = char_para.add_run(entry['character'])
         char_run.font.size = Pt(character_font_size)
@@ -165,15 +167,16 @@ def generate_word_document(input_file, output_file=None, character_font_size=32,
     print(f"Документ успешно создан: {output_file}")
     return output_file
 
-def generate_excel_document(input_file, output_file=None, description_lines_count=3, description_limit=100,
-                       transcription_limit=30, column_widths=None):
+def generate_excel_document(input_file, output_file=None, word_field_name="character", description_lines_count=3, 
+                        description_limit=100, transcription_limit=30, column_widths=None):
     """
-    Генерирует документ Microsoft Excel из файла с данными о китайских иероглифах.
+    Генерирует документ Microsoft Excel из файла с данными о словах.
     
     Args:
-        input_file (str): Путь к JSON-файлу с данными о китайских иероглифах
+        input_file (str): Путь к JSON-файлу с данными о словах
         output_file (str, optional): Путь для сохранения документа Excel. 
                                      По умолчанию - то же имя файла с расширением .xlsx
+        word_field_name (str, optional): Имя поля с основным словом. По умолчанию "character".
         description_lines_count (int, optional): Максимальное количество строк описания. По умолчанию 3.
         description_limit (int, optional): Лимит символов для колонки с описанием. По умолчанию 100.
         transcription_limit (int, optional): Лимит символов для колонки с транскрипцией. По умолчанию 30.
@@ -231,7 +234,7 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
                 entries.append({
                     'key': key,
                     'frequency': frequency,
-                    'character': value.get('character', ''),
+                    word_field_name: value.get(word_field_name, ''),  # Используем word_field_name
                     'transcription': transcription_text,
                     'comments': '',  # Пустой столбец для комментариев
                     'description': description_text
@@ -250,10 +253,10 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
     # Создание Excel-файла
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Chinese Characters"
+    ws.title = "Words"
     
     # Добавление заголовков
-    headers = ['key', 'frequency', 'character', 'transcription', 'comments', 'description']
+    headers = ['key', 'frequency', word_field_name, 'transcription', 'comments', 'description']
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header
@@ -266,10 +269,10 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
         ws.cell(row=i, column=1).value = entry['key']
         ws.cell(row=i, column=2).value = entry['frequency']
         
-        # Настройка ячейки с иероглифом
+        # Настройка ячейки со словом
         char_cell = ws.cell(row=i, column=3)
-        char_cell.value = entry['character']
-        char_cell.font = Font(size=16)  # Увеличенный размер для иероглифов
+        char_cell.value = entry[word_field_name]
+        char_cell.font = Font(size=16)  # Увеличенный размер для слов
         char_cell.alignment = Alignment(horizontal='center', vertical='center')
         
         ws.cell(row=i, column=4).value = entry['transcription']
@@ -289,7 +292,7 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
         # Если ширина колонок не задана, устанавливаем приблизительные значения
         ws.column_dimensions['A'].width = 6     # key
         ws.column_dimensions['B'].width = 8     # frequency
-        ws.column_dimensions['C'].width = 12    # character
+        ws.column_dimensions['C'].width = 12    # word_field_name
         ws.column_dimensions['D'].width = 15    # transcription
         ws.column_dimensions['E'].width = 15    # comments
         ws.column_dimensions['F'].width = 45    # description
@@ -317,10 +320,29 @@ def generate_excel_document(input_file, output_file=None, description_lines_coun
 
 if __name__ == "__main__":
     # Задаем параметры как константы
-    INPUT_FILE = "chinese_characters_0_10000.json"
-    OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
-    
+    # INPUT_FILE = "chinese_characters_0_10000.json"
+    # OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
+
+    INPUT_FILE = "../word_transcription/data/fr.json"
+    OUTPUT_FILE_WORD = "fr_10_000.docx"
+    OUTPUT_FILE_EXCEL = "fr_10_000.xlsx"
+
+    # INPUT_FILE = "../word_transcription/data/eng.json"
+    # OUTPUT_FILE_WORD = "eng_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "eng_10_000.xlsx"
+
+    # INPUT_FILE = "../word_transcription/data/deutch.json"
+    # OUTPUT_FILE_WORD = "deutch_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "deutch_10_000.xlsx"
+
+    # INPUT_FILE = "../word_transcription/data/spain.json"
+    # OUTPUT_FILE_WORD = "spain_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
+
+    # Поле с основным словом
+    WORD_FIELD_NAME = "word"
+
     # Размеры шрифтов
     CHARACTER_FONT_SIZE = 20
     TRANSCRIPTION_FONT_SIZE = 12
@@ -330,7 +352,7 @@ if __name__ == "__main__":
     DESCRIPTION_LINES_COUNT = 5
     DESCRIPTION_LIMIT = 285
     # Лимит символов для транскрипции
-    TRANSCRIPTION_LIMIT = 15
+    TRANSCRIPTION_LIMIT = 115
         
     # Междустрочный интервал для ячеек с иероглифами (в пунктах)
     CHARACTER_LINE_SPACING = 22
@@ -341,7 +363,7 @@ if __name__ == "__main__":
     # Ширина колонок в процентах от ширины страницы для Word
     COLUMN_WIDTHS_WORD = {
         'frequency': 5,       # Частотность
-        'character': 15,       # Иероглиф
+        'character': 15,       # Иероглиф/Слово
         'transcription': 12,   # Транскрипция
         'comments': 12,        # Комментарии
         'description': 110      # Описание/перевод
@@ -351,7 +373,7 @@ if __name__ == "__main__":
     COLUMN_WIDTHS_EXCEL = {
         'key': 6,          # Ключ
         'frequency': 8,    # Частотность
-        'character': 12,   # Иероглиф
+        'character': 12,   # Иероглиф/Слово
         'transcription': 15, # Транскрипция
         'comments': 15,    # Комментарии
         'description': 145  # Описание/перевод
@@ -360,7 +382,8 @@ if __name__ == "__main__":
     # Вызов функции генерации Word документа
     generate_word_document(
         INPUT_FILE, 
-        OUTPUT_FILE_WORD, 
+        OUTPUT_FILE_WORD,
+        WORD_FIELD_NAME,  # Добавляем новый параметр
         CHARACTER_FONT_SIZE, 
         DESCRIPTION_LINES_COUNT,
         DESCRIPTION_LIMIT,
@@ -376,6 +399,7 @@ if __name__ == "__main__":
     generate_excel_document(
         INPUT_FILE,
         OUTPUT_FILE_EXCEL,
+        WORD_FIELD_NAME,  # Добавляем новый параметр
         DESCRIPTION_LINES_COUNT,
         DESCRIPTION_LIMIT,
         TRANSCRIPTION_LIMIT,

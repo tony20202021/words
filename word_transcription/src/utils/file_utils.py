@@ -1,163 +1,126 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Утилиты для работы с файлами
+"""
+
 import os
-import sys
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, Optional
 
-# Настройка логирования
 logger = logging.getLogger(__name__)
 
-def ensure_dir_exists(dir_path: str) -> None:
-    """Создает директорию, если она не существует"""
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-        logger.info(f"Создана директория: {dir_path}")
+def ensure_dir_exists(path: str) -> None:
+    """
+    Убеждается, что директория существует, создавая её при необходимости.
+    
+    Args:
+        path: Путь к директории
+    """
+    if not os.path.exists(path):
+        try:
+            os.makedirs(path)
+            logger.debug(f"Создана директория: {path}")
+        except Exception as e:
+            logger.error(f"Ошибка при создании директории {path}: {e}")
+            raise
 
-def load_json_file(file_path: str, default: Optional[Any] = None) -> Any:
+def load_json(file_path: str, default: Optional[Any] = None) -> Any:
     """
     Загружает данные из JSON-файла.
     
     Args:
-        file_path: Путь к файлу
-        default: Значение по умолчанию, если файл не существует или возникла ошибка
+        file_path: Путь к JSON-файлу
+        default: Значение по умолчанию, если файл не найден или произошла ошибка
         
     Returns:
-        Данные из файла или значение по умолчанию
+        Загруженные данные или default, если файл не найден или произошла ошибка
     """
+    if not os.path.exists(file_path):
+        logger.warning(f"Файл {file_path} не найден, возвращается значение по умолчанию")
+        return default
+    
     try:
-        if not os.path.exists(file_path):
-            logger.warning(f"Файл {file_path} не найден. Возвращается значение по умолчанию.")
-            return default
-            
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            logger.debug(f"Успешно загружен файл {file_path}")
-            return data
+        logger.debug(f"Загружены данные из файла {file_path}")
+        return data
     except Exception as e:
-        logger.error(f"Ошибка при загрузке файла {file_path}: {str(e)}")
-        return default
+        logger.error(f"Ошибка при загрузке JSON из файла {file_path}: {e}")
+        if default is not None:
+            return default
+        raise
 
-def save_json_file(file_path: str, data: Any, ensure_dir: bool = True) -> bool:
+def save_json(file_path: str, data: Any, ensure_dir: bool = True) -> None:
     """
     Сохраняет данные в JSON-файл.
     
     Args:
-        file_path: Путь к файлу
+        file_path: Путь к JSON-файлу
         data: Данные для сохранения
-        ensure_dir: Если True, создает директорию при необходимости
-        
-    Returns:
-        True, если сохранение успешно, иначе False
+        ensure_dir: Если True, убеждается что директория существует
     """
+    if ensure_dir:
+        directory = os.path.dirname(file_path)
+        if directory:
+            ensure_dir_exists(directory)
+    
     try:
-        # Создать директорию, если она не существует
-        if ensure_dir:
-            dir_path = os.path.dirname(file_path)
-            if dir_path and not os.path.exists(dir_path):
-                os.makedirs(dir_path)
-                logger.debug(f"Создана директория: {dir_path}")
-                
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-            logger.debug(f"Успешно сохранен файл {file_path}")
-            return True
+        logger.debug(f"Данные сохранены в файл {file_path}")
     except Exception as e:
-        logger.error(f"Ошибка при сохранении файла {file_path}: {str(e)}")
-        return False
+        logger.error(f"Ошибка при сохранении JSON в файл {file_path}: {e}")
+        raise
 
-def get_data_dir() -> str:
+def get_file_extension(file_path: str) -> str:
     """
-    Возвращает путь к директории с данными.
-    
-    Returns:
-        Путь к директории с данными
-    """
-    # Определяем путь к директории проекта
-    project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    data_dir = os.path.join(project_dir, "data")
-    
-    # Создаем директорию, если она не существует
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-        logger.debug(f"Создана директория для данных: {data_dir}")
-        
-    return data_dir
-
-def get_dict_dir() -> str:
-    """
-    Возвращает путь к директории со словарями.
-    
-    Returns:
-        Путь к директории со словарями
-    """
-    dict_dir = os.path.join(get_data_dir(), "dictionaries")
-    
-    # Создаем директорию, если она не существует
-    if not os.path.exists(dict_dir):
-        os.makedirs(dict_dir)
-        logger.debug(f"Создана директория для словарей: {dict_dir}")
-        
-    return dict_dir
-
-def get_output_dir() -> str:
-    """
-    Возвращает путь к директории для выходных файлов.
-    
-    Returns:
-        Путь к директории для выходных файлов
-    """
-    output_dir = os.path.join(get_data_dir(), "output")
-    
-    # Создаем директорию, если она не существует
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        logger.debug(f"Создана директория для выходных файлов: {output_dir}")
-        
-    return output_dir
-
-def get_log_dir() -> str:
-    """
-    Возвращает путь к директории для логов.
-    
-    Returns:
-        Путь к директории для логов
-    """
-    # Определяем путь к директории проекта
-    project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    log_dir = os.path.join(project_dir, "logs")
-    
-    # Создаем директорию, если она не существует
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-        
-    return log_dir
-
-def setup_logging(log_file: Optional[str] = None, level: int = logging.INFO) -> None:
-    """
-    Настраивает логирование.
+    Получает расширение файла.
     
     Args:
-        log_file: Путь к файлу логов
-        level: Уровень логирования
+        file_path: Путь к файлу
+        
+    Returns:
+        Расширение файла (без точки)
     """
-    # Если путь к файлу логов не указан, используем стандартный
-    if log_file is None:
-        log_dir = get_log_dir()
-        log_file = os.path.join(log_dir, "transcription.log")
+    return os.path.splitext(file_path)[1][1:].lower()
+
+def change_file_extension(file_path: str, new_extension: str) -> str:
+    """
+    Изменяет расширение файла.
     
-    # Настройка логирования
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
+    Args:
+        file_path: Путь к файлу
+        new_extension: Новое расширение (без точки)
+        
+    Returns:
+        Путь к файлу с новым расширением
+    """
+    base = os.path.splitext(file_path)[0]
+    return f"{base}.{new_extension.lstrip('.')}"
+
+def list_files(directory: str, extension: Optional[str] = None) -> list:
+    """
+    Возвращает список файлов в директории.
     
-    # Устанавливаем уровень логирования для urllib3 и requests на WARNING
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    Args:
+        directory: Путь к директории
+        extension: Расширение файлов для фильтрации (без точки)
+        
+    Returns:
+        Список файлов в директории
+    """
+    if not os.path.exists(directory) or not os.path.isdir(directory):
+        logger.warning(f"Директория {directory} не существует или не является директорией")
+        return []
     
-    logger.debug("Логирование настроено")
+    files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+    
+    if extension:
+        ext = extension.lstrip('.')
+        files = [f for f in files if get_file_extension(f) == ext]
+    
+    return files
     
