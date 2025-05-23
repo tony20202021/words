@@ -150,6 +150,7 @@ async def process_hint_text(message: Message, state: FSMContext):
     
     # Validate hint state
     if not hint_state.is_valid():
+        logger.error(f"not hint_state.is_valid()")
         await message.answer("❌ Ошибка: недостаточно данных для создания подсказки. Используйте /cancel для отмены.")
         return
     
@@ -158,6 +159,7 @@ async def process_hint_text(message: Message, state: FSMContext):
     
     # Validate user word state
     if not user_word_state.is_valid():
+        logger.error(f"not user_word_state.is_valid()")
         await message.answer("❌ Ошибка: недостаточно данных о пользователе или слове. Используйте /cancel для отмены.")
         return
     
@@ -230,8 +232,11 @@ async def process_hint_text(message: Message, state: FSMContext):
     )
     
     if not success:
+        logger.error(f"not success")
         return
     
+    user_word_state.set_flag("word_shown", True)
+
     # Update current word data in state with new hint
     if user_word_state.word_data:
         # If user_word_data exists, update there
@@ -247,6 +252,7 @@ async def process_hint_text(message: Message, state: FSMContext):
         if hint_type and hint_type not in used_hints:
             used_hints.append(hint_type)
             user_word_state.set_flag("used_hints", used_hints)
+
                 
     # Return to studying state
     await state.set_state(StudyStates.studying)

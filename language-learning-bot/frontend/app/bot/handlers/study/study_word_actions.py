@@ -232,6 +232,38 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     user_word_state = await UserWordState.from_state(state)
     
     if user_word_state.is_valid():
+        # Проверяем, было ли слово показано
+        word_shown = user_word_state.get_flag('word_shown', False)
+        
+        # ИСПРАВЛЕНО: Если слово еще не было показано - показываем полную информацию о нем
+        if not word_shown and user_word_state.word_data:
+            current_word = user_word_state.word_data
+            
+            # Получаем информацию о слове
+            word_foreign = current_word.get("word_foreign", "N/A")
+            transcription = current_word.get("transcription", "")
+            translation = current_word.get("translation", "")
+            
+            # Формируем сообщение с информацией о пропущенном слове
+            message_text = f"📖 Вот это слово:\n\n"
+            message_text += f"Перевод: <b>{translation}</b>\n\n"
+            message_text += f"Слово: <code>{word_foreign}</code>\n"
+            
+            if transcription:
+                message_text += f"Транскрипция: <b>[{transcription}]</b>\n\n"
+            else:
+                message_text += "\n"
+            
+            message_text += "🔄 Переходим к следующему слову..."
+            
+            await callback.message.answer(
+                message_text,
+                parse_mode="HTML"
+            )
+        else:
+            # Если слово было показано - обычное сообщение
+            await callback.message.answer("🔄 Переходим к следующему слову...")
+        
         # Reset word_shown flag
         user_word_state.set_flag('word_shown', False)
         
@@ -240,9 +272,6 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         
         # Save updated state
         await user_word_state.save_to_state(state)
-        
-        # Отправляем промежуточное сообщение
-        await callback.message.answer("🔄 Переходим к следующему слову...")
         
         # Show next word (используем callback.message вместо callback)
         await show_study_word(callback.message, state)
@@ -257,7 +286,7 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         # Update state with new index
         await state.update_data(current_study_index=current_index)
         
-        # Отправляем промежуточное сообщение
+        # ИСПРАВЛЕНО: Промежуточное сообщение для fallback случая
         await callback.message.answer("🔄 Переходим к следующему слову...")
         
         # Show next word (используем callback.message вместо callback)
@@ -386,6 +415,7 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
 async def process_word_know(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user knows the word.
+    ИЗМЕНЕНО: Сразу обновляем оценку на 1 здесь.
     
     Args:
         callback: The callback query from Telegram
@@ -419,30 +449,53 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
     show_debug = settings.get("show_debug", False)
     
     try:
+        # ПЕРЕНЕСЕНО СЮДА: Обновляем word score на 1 сразу
+        success, result = await update_word_score(
+            callback.bot,
+            db_user_id,
+            current_word_id,
+            score=1,  # Устанавливаем оценку 1 сразу
+            word=current_word,
+            message_obj=callback
+        )
+        
+        if not success:
+            logger.error(f"Failed to update word score")
+            await callback.answer("Ошибка при обновлении оценки слова")
+            return
+        
+        # Обновляем данные слова в состоянии
+        if 'user_word_data' not in current_word:
+            current_word['user_word_data'] = {}
+        current_word['user_word_data'].update(result)
+        
         # Show word information
         word_foreign = current_word.get("word_foreign")
         transcription = current_word.get("transcription", "")
         
-        # Получаем информацию о слове из текущего состояния
-        user_word_data = current_word.get("user_word_data", {})
-        check_interval = user_word_data.get("check_interval", 0)
-        next_check_date = user_word_data.get("next_check_date")
+        # ИЗМЕНЕНО: Получаем НОВЫЕ данные из результата обновления
+        new_check_interval = result.get("check_interval", 0)
+        new_next_check_date = result.get("next_check_date")
         
-        # Формируем сообщение, учитывая настройку отладочной информации
+        # Формируем сообщение с ОБНОВЛЕННОЙ информацией
         message_text = f"✅ Отлично! Вы знаете это слово.\n\n"
         message_text += f"Слово: <code>{word_foreign}</code>\n\n"
         message_text += f"Транскрипция: <b>[{transcription}]</b>\n\n"
         
-        # Добавляем информацию об интервалах только если включен отладочный режим
+        # Показываем обновленную информацию об интервалах
         if show_debug:
-            message_text += f"⏱ Текущий интервал: {check_interval} (дней)\n"
-            if next_check_date:
-                formatted_date = format_date(next_check_date)
-                message_text += f"🔄 Текущее запланированное повторение: {formatted_date}\n\n"
+            message_text += f"✅ Оценка обновлена на 1\n"
+            message_text += f"⏱ Новый интервал: {new_check_interval} (дней)\n"
+            if new_next_check_date:
+                formatted_date = format_date(new_next_check_date)
+                message_text += f"🔄 Следующее повторение: {formatted_date}\n\n"
             else:
-                message_text += "🔄 Дата повторения пока не задана\n\n"
-            
-            message_text += "ℹ️ После подтверждения интервал будет увеличен\n\n"
+                message_text += "🔄 Дата повторения обновлена\n\n"
+        else:
+            # Для обычных пользователей показываем упрощенную информацию
+            if new_next_check_date:
+                formatted_date = format_date(new_next_check_date)
+                message_text += f"📅 Следующее повторение: {formatted_date}\n\n"
         
         # Создаем клавиатуру с двумя кнопками
         keyboard = InlineKeyboardBuilder()
@@ -452,7 +505,8 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
         )
         keyboard.button(
             text="❌ Ой, все-таки не знаю",
-            callback_data="show_word"
+            callback_data="show_word"  
+            # Внутри show_word уже есть обновление оценки на 0, поэтому ничего дополнительного не нужно
         )
         keyboard.adjust(1)  # Размещаем кнопки одну под другой
         
@@ -466,7 +520,9 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
         user_word_state = await UserWordState.from_state(state)
         if user_word_state.is_valid():
             user_word_state.set_flag('pending_next_word', True)
-            user_word_state.set_flag('pending_word_know', True)  # Новый флаг для подтверждения знания
+            user_word_state.set_flag('pending_word_know', True)  # Флаг для обработки в show_word
+            # Обновляем данные слова в состоянии
+            user_word_state.word_data = current_word
             await user_word_state.save_to_state(state)
         
     except Exception as e:
@@ -481,6 +537,7 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
 async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
     """
     Process confirmation to go to the next word.
+    ИЗМЕНЕНО: Убрали обновление оценки - оно уже произошло в word_know.
     
     Args:
         callback: The callback query from Telegram
@@ -492,55 +549,75 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
 
     logger.info(f"'confirm_next_word' callback from {full_name} ({username})")
     
-    # Get required data
-    state_data = await state.get_data()
-    current_word = state_data.get("current_word")
-    current_word_id = state_data.get("current_word_id")
-    db_user_id = state_data.get("db_user_id")
-    
-    # Получаем настройку отображения отладочной информации
-    settings = await get_user_language_settings(callback, state)
-    show_debug = settings.get("show_debug", False)
-    
     # Получаем состояние слова
     user_word_state = await UserWordState.from_state(state)
     
-    # Проверяем, нужно ли обновить оценку слова
-    if user_word_state.is_valid() and user_word_state.get_flag('pending_word_know', False):
-        # Обновляем word score на 1 только при подтверждении
-        success, result = await update_word_score(
-            callback.bot,
-            db_user_id,
-            current_word_id,
-            score=1,
-            word=current_word,
-            message_obj=callback
-        )
-        
-        if not success:
-            logger.error(f"Failed to update word score")
-            await callback.answer("Ошибка при обновлении оценки слова")
-            return
-            
-        # Отправляем сообщение об успешном обновлении, если включен режим отладки
-        if show_debug:
-            debug_info = (
-                f"✅ Оценка слова обновлена успешно:\n"
-                f"Новая оценка: 1\n"
-                f"Новый интервал: {result.get('check_interval', 0)} дней\n"
-                f"Дата следующей проверки: {format_date(result.get('next_check_date', ''))}\n"
-            )
-            await callback.message.answer(debug_info)
-            
-        # Сбрасываем флаг ожидания обновления оценки
-        user_word_state.remove_flag('pending_word_know')
-        
+    # УБРАНО: Обновление оценки слова - оно уже произошло в word_know
+    # Просто переходим к следующему слову
+    
     if user_word_state.is_valid():
+        # Проверяем, было ли слово показано (всегда должно быть True после word_know)
+        word_shown = user_word_state.get_flag('word_shown', False)
+        
+        # ИСПРАВЛЕНО: Если слово не было показано после word_know - показываем полную информацию
+        if not word_shown and user_word_state.word_data:
+            current_word = user_word_state.word_data
+            
+            # Получаем информацию о слове
+            word_foreign = current_word.get("word_foreign", "N/A")
+            transcription = current_word.get("transcription", "")
+            translation = current_word.get("translation", "")
+            
+            # Получаем обновленные данные пользователя
+            user_word_data = current_word.get("user_word_data", {})
+            new_check_interval = user_word_data.get("check_interval", 0)
+            new_next_check_date = user_word_data.get("next_check_date")
+            
+            # Получаем настройки для отображения отладочной информации
+            settings = await get_user_language_settings(callback, state)
+            show_debug = settings.get("show_debug", False)
+            
+            # Формируем сообщение с полной информацией о изученном слове
+            message_text = f"✅ Слово изучено успешно:\n\n"
+            message_text += f"Перевод: <b>{translation}</b>\n\n"
+            message_text += f"Слово: <code>{word_foreign}</code>\n"
+            
+            if transcription:
+                message_text += f"Транскрипция: <b>[{transcription}]</b>\n\n"
+            else:
+                message_text += "\n"
+            
+            # Показываем информацию об интервалах
+            if show_debug:
+                message_text += f"✅ Оценка: 1 (знаю слово)\n"
+                message_text += f"⏱ Интервал повторения: {new_check_interval} (дней)\n"
+                if new_next_check_date:
+                    formatted_date = format_date(new_next_check_date)
+                    message_text += f"🔄 Следующее повторение: {formatted_date}\n\n"
+                else:
+                    message_text += "🔄 Дата повторения обновлена\n\n"
+            else:
+                # Для обычных пользователей показываем упрощенную информацию
+                if new_next_check_date:
+                    formatted_date = format_date(new_next_check_date)
+                    message_text += f"📅 Следующее повторение: {formatted_date}\n\n"
+            
+            message_text += "🔄 Переходим к следующему слову..."
+            
+            await callback.message.answer(
+                message_text,
+                parse_mode="HTML"
+            )
+        else:
+            # Слово было показано (обычный случай)
+            await callback.message.answer("🔄 Переходим к следующему слову...")
+        
         # Reset word_shown flag
         user_word_state.set_flag('word_shown', False)
         
-        # Remove pending flag
+        # Remove pending flags
         user_word_state.remove_flag('pending_next_word')
+        user_word_state.remove_flag('pending_word_know')
         
         # Advance to next word
         user_word_state.advance_to_next_word()
@@ -548,10 +625,7 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
         # Save updated state
         await user_word_state.save_to_state(state)
         
-        # Отправляем новое сообщение с следующим словом
-        await callback.message.answer("🔄 Переходим к следующему слову...")
-        
-        # Show next word (заменяем callback на callback.message)
+        # Show next word
         await show_study_word(callback.message, state)
     else:
         # Fallback to old approach if state model is invalid
@@ -564,11 +638,10 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
         # Update state with new index
         await state.update_data(current_study_index=current_index)
         
-        # Отправляем новое сообщение с следующим словом
+        # ИСПРАВЛЕНО: Промежуточное сообщение для fallback случая
         await callback.message.answer("🔄 Переходим к следующему слову...")
         
-        # Show next word (заменяем callback на callback.message)
+        # Show next word
         await show_study_word(callback.message, state)
     
     await callback.answer()
-    

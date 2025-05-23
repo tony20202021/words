@@ -61,9 +61,9 @@ steps:
       - type: message_contains
         text: "Вы знаете это слово"
       - type: message_contains
-        text: "Текущий интервал: 0 (дней)"
+        text: "Оценка обновлена на 1"
       - type: message_contains
-        text: "После подтверждения интервал будет увеличен" 
+        text: "Новый интервал: 1 (дней)" 
       - type: state_contains
         data: ["_state", <State 'StudyStates:studying'>]
       - type: keyboard_contains
@@ -76,10 +76,6 @@ steps:
   - type: callback
     data: "confirm_next_word"
     asserts:
-      - type: message_contains
-        position: -3
-        text: "Оценка слова обновлена успешно"
-      # TODO - исправить мок - интервал должен сохраняться увеличенный
       - type: message_contains
         position: -2
         text: "Переходим к следующему слову"

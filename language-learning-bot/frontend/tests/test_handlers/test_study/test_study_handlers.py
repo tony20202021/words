@@ -434,73 +434,6 @@ class TestStudyHandlers:
                 assert "изучили все" in args[0].lower()
 
     @pytest.mark.asyncio
-    async def test_process_word_know(self, setup_mocks):
-        """Test process_word_know callback handler."""
-        _, state, api_client, callback = setup_mocks
-        
-        # Импортируем process_word_know здесь, чтобы избежать проблем с импортами
-        from app.bot.handlers.study.study_word_actions import process_word_know
-        
-        # Mock validate_state_data to return True with test data
-        with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate:
-            # Set up mock data for validate_state_data
-            mock_validate.return_value = (True, {
-                "current_word_id": "word123",
-                "current_word": {
-                    "id": "word123",
-                    "language_id": "lang123",
-                    "word_foreign": "house",
-                    "translation": "дом",
-                    "transcription": "haʊs",
-                    "word_number": 1
-                },
-                "db_user_id": "user123",
-                "current_study_index": 0
-            })
-            
-            # Patch UserWordState to avoid actual state updates
-            with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state:
-                # Create mock for UserWordState
-                mock_state_obj = MagicMock()
-                mock_state_obj.is_valid.return_value = True
-                mock_state_obj.set_flag = MagicMock()
-                mock_state_obj.save_to_state = AsyncMock()
-                mock_user_word_state.return_value = mock_state_obj
-                
-                # Patch format_date
-                with patch('app.bot.handlers.study.study_word_actions.format_date', return_value="15 мая 2025"), \
-                    patch('app.bot.handlers.study.study_word_actions.InlineKeyboardBuilder') as mock_keyboard_builder:
-                    
-                    # Mock for keyboard builder
-                    mock_builder = MagicMock()
-                    mock_builder.button = MagicMock(return_value=mock_builder)
-                    mock_builder.adjust = MagicMock(return_value=mock_builder)
-                    mock_builder.as_markup = MagicMock(return_value="KEYBOARD")
-                    mock_keyboard_builder.return_value = mock_builder
-                    
-                    # Call the handler
-                    await process_word_know(callback, state)
-                    
-                    # Проверяем, что API был вызван
-                    # Важно: в новой версии мы НЕ проверяем вызов update_word_score, так как его нет
-                    
-                    # Check that the bot sent a message with buttons for confirmation
-                    callback.message.answer.assert_called_once()
-                    call_args = callback.message.answer.call_args
-                    # Проверяем, что в сообщении есть важные элементы
-                    assert "Отлично! Вы знаете это слово" in call_args.args[0]
-                    assert "Слово: " in call_args.args[0]
-                    assert "house" in call_args.args[0]
-                    assert call_args.kwargs["reply_markup"] == "KEYBOARD"
-                    
-                    # Проверяем, что оба флага были установлены - каждый отдельно
-                    mock_state_obj.set_flag.assert_any_call('pending_next_word', True)
-                    mock_state_obj.set_flag.assert_any_call('pending_word_know', True)
-                    
-                    # Проверяем, что состояние было сохранено
-                    mock_state_obj.save_to_state.assert_called_once_with(state)
-
-    @pytest.mark.asyncio
     async def test_process_show_word(self, setup_mocks):
         """Test process_show_word callback handler."""
         _, state, api_client, callback = setup_mocks
@@ -606,79 +539,6 @@ class TestStudyHandlers:
                     
                     # Проверяем, что callback.answer был вызван
                     callback.answer.assert_called_once()
-                    
-    @pytest.mark.asyncio
-    async def test_process_confirm_next_word(self, setup_mocks):
-        """Test process_confirm_next_word callback handler."""
-        _, state, api_client, callback = setup_mocks
-        
-        # Импортируем process_confirm_next_word здесь, чтобы избежать проблем с импортами
-        from app.bot.handlers.study.study_word_actions import process_confirm_next_word
-        
-        # Готовим тестовые данные для state
-        test_state_data = {
-            "current_word_id": "word123",
-            "current_word": {
-                "id": "word123",
-                "language_id": "lang123",
-                "word_foreign": "house",
-                "translation": "дом",
-                "transcription": "haʊs",
-                "word_number": 1
-            },
-            "db_user_id": "user123",
-            "current_study_index": 0
-        }
-        
-        # Настраиваем state.get_data, чтобы возвращать наши тестовые данные
-        state.get_data.return_value = test_state_data
-        
-        # Patch UserWordState to avoid actual state updates
-        with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state, \
-            patch('app.bot.handlers.study.study_word_actions.update_word_score', 
-                AsyncMock(return_value=(True, {"score": 1, "check_interval": 2, "next_check_date": "2025-05-15"}))) as mock_update_score:
-            
-            # Create mock for UserWordState
-            mock_state_obj = MagicMock()
-            mock_state_obj.is_valid.return_value = True
-            # Важно: устанавливаем флаг pending_word_know в True, чтобы тест проверял этот путь выполнения
-            mock_state_obj.get_flag = MagicMock(side_effect=lambda name, default=None: True if name == 'pending_word_know' else default)
-            mock_state_obj.set_flag = MagicMock()
-            mock_state_obj.remove_flag = MagicMock()
-            mock_state_obj.advance_to_next_word = MagicMock(return_value=True)
-            mock_state_obj.save_to_state = AsyncMock()
-            mock_user_word_state.return_value = mock_state_obj
-            
-            # Patch show_study_word
-            with patch('app.bot.handlers.study.study_word_actions.show_study_word', AsyncMock()) as mock_show_study:
-                
-                # Call the handler
-                await process_confirm_next_word(callback, state)
-                
-                # Проверяем, что update_word_score был вызван с правильными параметрами
-                mock_update_score.assert_called_once_with(
-                    callback.bot,
-                    "user123",  # db_user_id из тестовых данных
-                    "word123",  # current_word_id из тестовых данных
-                    score=1,    # должно быть 1 для "я знаю слово"
-                    word=test_state_data["current_word"],
-                    message_obj=callback
-                )
-                
-                # Check that flag pending_word_know was removed
-                mock_state_obj.remove_flag.assert_any_call('pending_word_know')
-                
-                # Check that state was saved
-                mock_state_obj.save_to_state.assert_called_once_with(state)
-                
-                # Check that a transition message was sent
-                callback.message.answer.assert_called_with("🔄 Переходим к следующему слову...")
-                
-                # Check that show_study_word was called with message, not callback
-                mock_show_study.assert_called_once_with(callback.message, state)
-                
-                # Check that callback.answer was called
-                callback.answer.assert_called_once()
                                     
     @pytest.mark.asyncio
     async def test_process_toggle_word_skip(self, setup_mocks):
@@ -786,3 +646,399 @@ class TestStudyHandlers:
         
         # Check that include_router was called with the study_router
         dp.include_router.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_word_know(self, setup_mocks):
+        """Test process_word_know callback handler with NEW LOGIC - immediate score update."""
+        _, state, api_client, callback = setup_mocks
+        
+        # Импортируем process_word_know здесь, чтобы избежать проблем с импортами
+        from app.bot.handlers.study.study_word_actions import process_word_know
+        
+        # Mock validate_state_data to return True with test data
+        with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate:
+            # Set up mock data for validate_state_data
+            mock_validate.return_value = (True, {
+                "current_word_id": "word123",
+                "current_word": {
+                    "id": "word123",
+                    "language_id": "lang123",
+                    "word_foreign": "house",
+                    "translation": "дом",
+                    "transcription": "haʊs",
+                    "word_number": 1,
+                    "user_word_data": {
+                        "score": 0,
+                        "check_interval": 0,
+                        "next_check_date": None
+                    }
+                },
+                "db_user_id": "user123",
+                "current_study_index": 0
+            })
+            
+            # Patch UserWordState to avoid actual state updates
+            with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state:
+                # Create mock for UserWordState
+                mock_state_obj = MagicMock()
+                mock_state_obj.is_valid.return_value = True
+                mock_state_obj.set_flag = MagicMock()
+                mock_state_obj.save_to_state = AsyncMock()
+                mock_user_word_state.return_value = mock_state_obj
+                
+                # НОВОЕ: Патчим update_word_score для немедленного обновления оценки
+                with patch('app.bot.handlers.study.study_word_actions.update_word_score', 
+                          AsyncMock(return_value=(True, {
+                              "score": 1,
+                              "check_interval": 2, 
+                              "next_check_date": "2025-05-15T00:00:00"
+                          }))) as mock_update_score:
+                    
+                    # Patch format_date and get_user_language_settings
+                    with patch('app.bot.handlers.study.study_word_actions.format_date', return_value="15 мая 2025"), \
+                        patch('app.bot.handlers.study.study_word_actions.get_user_language_settings', 
+                              AsyncMock(return_value={"show_debug": False})), \
+                        patch('app.bot.handlers.study.study_word_actions.InlineKeyboardBuilder') as mock_keyboard_builder:
+                        
+                        # Mock for keyboard builder
+                        mock_builder = MagicMock()
+                        mock_builder.button = MagicMock(return_value=mock_builder)
+                        mock_builder.adjust = MagicMock(return_value=mock_builder)
+                        mock_builder.as_markup = MagicMock(return_value="KEYBOARD")
+                        mock_keyboard_builder.return_value = mock_builder
+                        
+                        # Call the handler
+                        await process_word_know(callback, state)
+                        
+                        # НОВОЕ: Проверяем, что update_word_score был вызван СРАЗУ с score=1
+                        mock_update_score.assert_called_once_with(
+                            callback.bot,
+                            "user123",
+                            "word123", 
+                            score=1,  # ВАЖНО: оценка обновляется сразу на 1
+                            word=mock_validate.return_value[1]["current_word"],
+                            message_obj=callback
+                        )
+                        
+                        # Check that the bot sent a message with confirmation buttons
+                        callback.message.answer.assert_called_once()
+                        call_args = callback.message.answer.call_args
+                        
+                        # Проверяем содержимое сообщения
+                        message_text = call_args.args[0]
+                        assert "Отлично! Вы знаете это слово" in message_text
+                        assert "house" in message_text
+                        assert "15 мая 2025" in message_text  # Новая дата повторения
+                        assert call_args.kwargs["reply_markup"] == "KEYBOARD"
+                        
+                        # Проверяем, что оба флага были установлены
+                        mock_state_obj.set_flag.assert_any_call('pending_next_word', True)
+                        mock_state_obj.set_flag.assert_any_call('pending_word_know', True)
+                        
+                        # Проверяем, что состояние было сохранено
+                        mock_state_obj.save_to_state.assert_called_once_with(state)
+                        
+    @pytest.mark.asyncio
+    async def test_process_confirm_next_word(self, setup_mocks):
+        """Test process_confirm_next_word callback handler with NEW LOGIC - no score update."""
+        _, state, api_client, callback = setup_mocks
+        
+        # Импортируем process_confirm_next_word здесь, чтобы избежать проблем с импортами
+        from app.bot.handlers.study.study_word_actions import process_confirm_next_word
+        
+        # Готовим тестовые данные для state
+        test_state_data = {
+            "current_word_id": "word123",
+            "current_word": {
+                "id": "word123",
+                "language_id": "lang123",
+                "word_foreign": "house",
+                "translation": "дом",
+                "transcription": "haʊs",
+                "word_number": 1,
+                "user_word_data": {
+                    "score": 1,  # Оценка уже обновлена в word_know
+                    "check_interval": 2,
+                    "next_check_date": "2025-05-15T00:00:00"
+                }
+            },
+            "db_user_id": "user123",
+            "current_study_index": 0
+        }
+        
+        # Настраиваем state.get_data, чтобы возвращать наши тестовые данные
+        state.get_data.return_value = test_state_data
+        
+        # Patch UserWordState to avoid actual state updates
+        with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state:
+            
+            # Create mock for UserWordState
+            mock_state_obj = MagicMock()
+            mock_state_obj.is_valid.return_value = True
+            # ИЗМЕНЕНО: pending_word_know уже не нужен, так как оценка уже обновлена
+            mock_state_obj.get_flag = MagicMock(return_value=False)  # Нет pending флагов
+            mock_state_obj.set_flag = MagicMock()
+            mock_state_obj.remove_flag = MagicMock()
+            mock_state_obj.advance_to_next_word = MagicMock(return_value=True)
+            mock_state_obj.save_to_state = AsyncMock()
+            mock_user_word_state.return_value = mock_state_obj
+            
+            # Patch show_study_word
+            with patch('app.bot.handlers.study.study_word_actions.show_study_word', AsyncMock()) as mock_show_study, \
+                patch('app.bot.handlers.study.study_word_actions.update_word_score', AsyncMock()) as mock_update_score:
+                
+                # Call the handler
+                await process_confirm_next_word(callback, state)
+                
+                # НОВОЕ: Проверяем, что update_word_score НЕ вызывается
+                # (оценка уже обновлена в word_know)
+                mock_update_score.assert_not_called()
+                
+                # Check that pending flags were removed
+                mock_state_obj.remove_flag.assert_any_call('pending_next_word')
+                mock_state_obj.remove_flag.assert_any_call('pending_word_know')
+                
+                # Check that advance_to_next_word was called
+                mock_state_obj.advance_to_next_word.assert_called_once()
+                
+                # Check that state was saved
+                mock_state_obj.save_to_state.assert_called_once_with(state)
+                
+                # ИСПРАВЛЕНО: Проверяем, что было отправлено сообщение (может быть любое из двух вариантов)
+                assert callback.message.answer.called, "Should send a transition message"
+                
+                # Проверяем, что в сообщении есть текст о переходе
+                call_args = callback.message.answer.call_args
+                message_text = call_args.args[0]
+                assert "Переходим к следующему слову" in message_text, "Should contain transition message"
+                
+                # Check that show_study_word was called
+                mock_show_study.assert_called_once_with(callback.message, state)
+                
+                # Check that callback.answer was called
+                callback.answer.assert_called_once()
+                
+    @pytest.mark.asyncio
+    async def test_process_show_word_rollback_scenario(self, setup_mocks):
+        """Test process_show_word when called after 'word_know' (rollback scenario)."""
+        _, state, api_client, callback = setup_mocks
+        
+        # Импортируем process_show_word
+        from app.bot.handlers.study.study_word_actions import process_show_word
+        
+        # Mock validate_state_data для возврата тестовых данных
+        with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate:
+            # Настраиваем данные для validate_state_data
+            mock_validate.return_value = (True, {
+                "current_word_id": "word123",
+                "current_word": {
+                    "id": "word123",
+                    "language_id": "lang123",
+                    "word_foreign": "house",
+                    "translation": "дом",
+                    "transcription": "haʊs",
+                    "word_number": 1,
+                    "user_word_data": {
+                        "score": 1,  # Была установлена в word_know
+                        "check_interval": 2,
+                        "next_check_date": "2025-05-15T00:00:00",
+                        "is_skipped": False  # ДОБАВЛЕНО: поле is_skipped
+                    }
+                },
+                "db_user_id": "user123",
+                "current_study_index": 0
+            })
+            
+            # Патчим UserWordState
+            with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state:
+                # Создаем мок для UserWordState с флагом pending_word_know
+                mock_state_obj = MagicMock()
+                mock_state_obj.is_valid.return_value = True
+                mock_state_obj.set_flag = MagicMock()
+                mock_state_obj.remove_flag = MagicMock()
+                mock_state_obj.get_flag = MagicMock(side_effect=lambda name, default=None: 
+                    True if name == 'pending_word_know' else ([] if name == 'used_hints' else default))
+                mock_state_obj.user_id = "user123"
+                mock_state_obj.word_id = "word123"
+                mock_state_obj.word_data = mock_validate.return_value[1]["current_word"]
+                mock_state_obj.save_to_state = AsyncMock()
+                mock_user_word_state.return_value = mock_state_obj
+                
+                # Патчим зависимости
+                with patch('app.bot.handlers.study.study_word_actions.update_word_score', 
+                          AsyncMock(return_value=(True, {
+                              "check_interval": 0,
+                              "next_check_date": None,
+                              "score": 0,  # Откат к оценке 0
+                              "is_skipped": False
+                          }))) as mock_update_score, \
+                     patch('app.bot.handlers.study.study_word_actions.get_api_client_from_bot', return_value=api_client), \
+                     patch('app.bot.handlers.study.study_word_actions.create_word_keyboard') as mock_create_keyboard, \
+                     patch('app.bot.handlers.study.study_word_actions.format_study_word_message') as mock_format_message, \
+                     patch('app.bot.handlers.study.study_word_actions.format_used_hints', AsyncMock(return_value="")) as mock_format_used_hints, \
+                     patch('app.utils.settings_utils.get_show_hints_setting', AsyncMock(return_value=True)):
+                    
+                    # Настраиваем моки
+                    mock_create_keyboard.return_value = "KEYBOARD"
+                    mock_format_message.return_value = "FORMATTED_MESSAGE"
+                    
+                    # Настраиваем ответ API для get_language
+                    api_client.get_language.return_value = {
+                        "success": True, 
+                        "result": {
+                            "id": "lang123", 
+                            "name_ru": "Английский", 
+                            "name_foreign": "English"
+                        }
+                    }
+                    
+                    # Вызываем обработчик
+                    await process_show_word(callback, state)
+                    
+                    # НОВОЕ: Проверяем, что update_word_score был вызван с score=0 (откат)
+                    mock_update_score.assert_called_once()
+                    call_args = mock_update_score.call_args
+                    assert call_args.kwargs["score"] == 0  # Откат к оценке 0
+                    
+                    # Проверяем, что pending_word_know флаги были удалены
+                    mock_state_obj.remove_flag.assert_any_call('pending_word_know')
+                    mock_state_obj.remove_flag.assert_any_call('pending_next_word')
+                    
+                    # Проверяем, что флаг word_shown был установлен
+                    mock_state_obj.set_flag.assert_called_with('word_shown', True)
+                    
+                    # ИСПРАВЛЕНО: save_to_state может вызываться несколько раз в реальном коде
+                    # Проверяем, что состояние было сохранено хотя бы один раз
+                    assert mock_state_obj.save_to_state.call_count >= 1
+                    
+                    # Проверяем, что было отправлено сообщение о возврате к изучению
+                    assert callback.message.answer.call_count >= 1
+                    # Первый вызов должен быть с сообщением о возврате
+                    first_call_args = callback.message.answer.call_args_list[0]
+                    assert "Возвращаемся к изучению слова" in first_call_args.args[0]
+
+    @pytest.mark.asyncio 
+    async def test_word_know_then_show_word_flow(self, setup_mocks):
+        """Test complete flow: word_know -> show_word (rollback scenario)."""
+        _, state, api_client, callback = setup_mocks
+        
+        from app.bot.handlers.study.study_word_actions import process_word_know, process_show_word
+        
+        # Первый этап: process_word_know
+        with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate_word_know:
+            mock_validate_word_know.return_value = (True, {
+                "current_word_id": "word123",
+                "current_word": {
+                    "id": "word123",
+                    "language_id": "lang123",
+                    "word_foreign": "house",
+                    "translation": "дом",
+                    "transcription": "haʊs",
+                    "word_number": 1,
+                    "user_word_data": {
+                        "score": 0, 
+                        "check_interval": 0,
+                        "is_skipped": False,
+                        "next_check_date": None  # ДОБАВЛЕНО: поле next_check_date
+                    }
+                },
+                "db_user_id": "user123"
+            })
+            
+            with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state_1:
+                mock_state_obj_1 = MagicMock()
+                mock_state_obj_1.is_valid.return_value = True
+                mock_state_obj_1.set_flag = MagicMock()
+                mock_state_obj_1.save_to_state = AsyncMock()
+                mock_user_word_state_1.return_value = mock_state_obj_1
+                
+                with patch('app.bot.handlers.study.study_word_actions.update_word_score', 
+                        AsyncMock(return_value=(True, {
+                            "score": 1, 
+                            "check_interval": 2, 
+                            "next_check_date": "2025-05-15T00:00:00",  # ИСПРАВЛЕНО: добавлено поле
+                            "is_skipped": False
+                        }))) as mock_update_score_1, \
+                    patch('app.bot.handlers.study.study_word_actions.get_user_language_settings', 
+                        AsyncMock(return_value={"show_debug": False})), \
+                    patch('app.bot.handlers.study.study_word_actions.format_date', return_value="15 мая 2025"), \
+                    patch('app.bot.handlers.study.study_word_actions.InlineKeyboardBuilder'):
+                    
+                    # Сбрасываем моки перед первым вызовом
+                    callback.message.answer.reset_mock()
+                    
+                    # Вызываем word_know
+                    await process_word_know(callback, state)
+                    
+                    # Проверяем, что оценка была обновлена на 1
+                    mock_update_score_1.assert_called_once()
+                    assert mock_update_score_1.call_args.kwargs["score"] == 1
+                    
+                    # Проверяем, что флаги pending были установлены
+                    mock_state_obj_1.set_flag.assert_any_call('pending_word_know', True)
+                    
+        # Второй этап: process_show_word (откат)
+        with patch('app.bot.handlers.study.study_word_actions.validate_state_data') as mock_validate_show_word:
+            mock_validate_show_word.return_value = (True, {
+                "current_word_id": "word123", 
+                "current_word": {
+                    "id": "word123",
+                    "language_id": "lang123",  # ДОБАВЛЕНО: необходимо для get_language
+                    "word_foreign": "house",   # ДОБАВЛЕНО: необходимо для сообщения
+                    "translation": "дом",      # ДОБАВЛЕНО: необходимо для сообщения
+                    "transcription": "haʊs",   # ДОБАВЛЕНО: необходимо для сообщения
+                    "word_number": 1,          # ДОБАВЛЕНО: необходимо для сообщения
+                    "user_word_data": {
+                        "score": 1, 
+                        "check_interval": 2,
+                        "next_check_date": "2025-05-15T00:00:00",  # ИСПРАВЛЕНО: добавлено поле
+                        "is_skipped": False
+                    }  # Состояние после word_know
+                },
+                "db_user_id": "user123"
+            })
+            
+            with patch('app.bot.handlers.study.study_word_actions.UserWordState.from_state') as mock_user_word_state_2:
+                mock_state_obj_2 = MagicMock()
+                mock_state_obj_2.is_valid.return_value = True
+                mock_state_obj_2.get_flag = MagicMock(side_effect=lambda name, default=None: 
+                    True if name == 'pending_word_know' else ([] if name == 'used_hints' else default))
+                mock_state_obj_2.set_flag = MagicMock()
+                mock_state_obj_2.remove_flag = MagicMock()
+                mock_state_obj_2.save_to_state = AsyncMock()
+                mock_state_obj_2.user_id = "user123"
+                mock_state_obj_2.word_id = "word123"
+                mock_user_word_state_2.return_value = mock_state_obj_2
+                
+                with patch('app.bot.handlers.study.study_word_actions.update_word_score', 
+                        AsyncMock(return_value=(True, {
+                            "score": 0, 
+                            "check_interval": 0,
+                            "next_check_date": None,  # ИСПРАВЛЕНО: добавлено поле
+                            "is_skipped": False
+                        }))) as mock_update_score_2, \
+                    patch('app.bot.handlers.study.study_word_actions.get_api_client_from_bot', return_value=api_client), \
+                    patch('app.bot.handlers.study.study_word_actions.create_word_keyboard'), \
+                    patch('app.bot.handlers.study.study_word_actions.format_study_word_message'), \
+                    patch('app.bot.handlers.study.study_word_actions.format_used_hints', AsyncMock(return_value="")), \
+                    patch('app.utils.settings_utils.get_show_hints_setting', AsyncMock(return_value=True)):
+                    
+                    api_client.get_language.return_value = {
+                        "success": True,
+                        "result": {"id": "lang123", "name_ru": "Английский", "name_foreign": "English"}
+                    }
+                    
+                    # Сбрасываем моки перед вторым вызовом
+                    callback.message.answer.reset_mock()
+                    
+                    # Вызываем show_word
+                    await process_show_word(callback, state)
+                    
+                    # Проверяем, что оценка была откачена к 0
+                    mock_update_score_2.assert_called_once()
+                    assert mock_update_score_2.call_args.kwargs["score"] == 0
+                    
+                    # Проверяем, что pending флаги были удалены
+                    mock_state_obj_2.remove_flag.assert_any_call('pending_word_know')
+                    mock_state_obj_2.remove_flag.assert_any_call('pending_next_word')
+                    

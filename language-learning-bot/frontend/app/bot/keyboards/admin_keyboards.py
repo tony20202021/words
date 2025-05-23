@@ -14,6 +14,7 @@ def get_admin_keyboard() -> InlineKeyboardMarkup:
     """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👨‍💼 Управление языками", callback_data="admin_languages")],
+        [InlineKeyboardButton(text="👥 Управление пользователями", callback_data="admin_users")],
         [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats_callback")],
         [InlineKeyboardButton(text="⬅️ Выйти из режима администратора", callback_data="back_to_start")]
     ])
@@ -163,4 +164,100 @@ def get_word_actions_keyboard(word_id: str, language_id: str) -> InlineKeyboardM
         [InlineKeyboardButton(text="🔍 Найти другое слово", callback_data=f"search_word_by_number_{language_id}")],
         [InlineKeyboardButton(text="⬅️ Назад к языку", callback_data=f"edit_language_{language_id}")]
     ])
+    return keyboard
+
+
+def get_users_keyboard(users: list, page: int = 0, per_page: int = 10) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру для списка пользователей с пагинацией.
+    
+    Args:
+        users (list): Список пользователей
+        page (int): Текущая страница (начиная с 0)
+        per_page (int): Количество пользователей на странице
+        
+    Returns:
+        InlineKeyboardMarkup: Клавиатура с кнопками пользователей
+    """
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    
+    # Вычисляем индексы для текущей страницы
+    start_idx = page * per_page
+    end_idx = min(start_idx + per_page, len(users))
+    
+    # Кнопки для пользователей на текущей странице
+    for i in range(start_idx, end_idx):
+        user = users[i]
+        user_id = user.get('_id', user.get('id'))
+        username = user.get('username', 'Нет username')
+        first_name = user.get('first_name', 'Без имени')
+        
+        # Формируем отображаемое имя
+        display_name = f"{first_name}"
+        if username and username != 'Нет username':
+            display_name += f" (@{username})"
+        
+        # Добавляем индикатор администратора
+        if user.get('is_admin', False):
+            display_name += " 👑"
+        
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=display_name, 
+                callback_data=f"view_user_{user_id}"
+            )
+        ])
+    
+    # Кнопки навигации
+    nav_buttons = []
+    
+    # Кнопка "Предыдущая страница"
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(text="⬅️ Пред.", callback_data=f"users_page_{page-1}")
+        )
+    
+    # Кнопка "Следующая страница" 
+    if end_idx < len(users):
+        nav_buttons.append(
+            InlineKeyboardButton(text="След. ➡️", callback_data=f"users_page_{page+1}")
+        )
+    
+    if nav_buttons:
+        keyboard.inline_keyboard.append(nav_buttons)
+    
+    # Информация о странице
+    total_pages = (len(users) + per_page - 1) // per_page
+    if total_pages > 1:
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f"Стр. {page + 1}/{total_pages}",
+                callback_data="page_info"
+            )
+        ])
+    
+    # Кнопка возврата
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text="⬅️ Назад в админку", callback_data="back_to_admin")
+    ])
+    
+    return keyboard
+
+
+def get_user_detail_keyboard(user_id: str) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру для детального просмотра пользователя.
+    
+    Args:
+        user_id (str): ID пользователя
+        
+    Returns:
+        InlineKeyboardMarkup: Клавиатура с кнопками действий для пользователя
+    """
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Подробная статистика", callback_data=f"user_stats_{user_id}")],
+        [InlineKeyboardButton(text="👑 Изменить права админа", callback_data=f"toggle_admin_{user_id}")],
+        [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_users")]
+    ])
+    
     return keyboard

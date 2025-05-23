@@ -9,7 +9,9 @@ from app.bot.keyboards.admin_keyboards import (
     get_back_to_admin_keyboard,
     get_yes_no_keyboard,
     get_upload_columns_keyboard,
-    get_word_actions_keyboard
+    get_word_actions_keyboard,
+    get_users_keyboard,
+    get_user_detail_keyboard
 )
 
 
@@ -33,18 +35,20 @@ class TestAdminKeyboards:
         for row in keyboard.inline_keyboard:
             all_buttons.extend(row)
         
-        # Check count
-        assert len(all_buttons) == 3, "Should have 3 buttons"
+        # ИСПРАВЛЕНО: Теперь должно быть 4 кнопки (добавлено управление пользователями)
+        assert len(all_buttons) == 4, "Should have 4 buttons"
         
         # Check texts
         button_texts = [button.text for button in all_buttons]
         assert any("Управление языками" in text for text in button_texts), "Should have languages management button"
+        assert any("Управление пользователями" in text for text in button_texts), "Should have users management button"
         assert any("Статистика" in text for text in button_texts), "Should have statistics button"
         assert any("Выйти из режима администратора" in text for text in button_texts), "Should have exit button"
         
         # Check callback data
         callback_data = [button.callback_data for button in all_buttons]
         assert "admin_languages" in callback_data
+        assert "admin_users" in callback_data
         assert "admin_stats_callback" in callback_data
         assert "back_to_start" in callback_data
     
@@ -275,4 +279,112 @@ class TestAdminKeyboards:
         assert f"edit_word_{word_id}" in callback_data
         assert f"search_word_by_number_{language_id}" in callback_data
         assert f"edit_language_{language_id}" in callback_data
+
+    def test_get_users_keyboard(self):
+        """
+        Test creating users list keyboard.
+        Check that:
+        1. Function returns InlineKeyboardMarkup
+        2. Keyboard contains buttons for each user plus navigation
+        """
+        # Arrange
+        users = [
+            {"_id": "user1", "first_name": "John", "username": "john_doe", "is_admin": False},
+            {"id": "user2", "first_name": "Jane", "username": "jane_doe", "is_admin": True},
+            {"_id": "user3", "first_name": "Bob", "is_admin": False}  # No username
+        ]
+        
+        # Act
+        keyboard = get_users_keyboard(users, page=0, per_page=10)
+        
+        # Assert
+        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
+        
+        # Get all buttons 
+        all_buttons = []
+        for row in keyboard.inline_keyboard:
+            all_buttons.extend(row)
+        
+        # Check count (3 users + back button = 4 buttons, no pagination needed for 3 users)
+        assert len(all_buttons) == 4, "Should have 4 buttons"
+        
+        # Check texts
+        button_texts = [button.text for button in all_buttons]
+        assert any("John (@john_doe)" in text for text in button_texts), "Should have button for John"
+        assert any("Jane (@jane_doe) 👑" in text for text in button_texts), "Should have button for Jane with admin crown"
+        assert any("Bob" in text for text in button_texts), "Should have button for Bob"
+        assert any("Назад в админку" in text for text in button_texts), "Should have back button"
+        
+        # Check callback data
+        callback_data = [button.callback_data for button in all_buttons]
+        assert "view_user_user1" in callback_data
+        assert "view_user_user2" in callback_data
+        assert "view_user_user3" in callback_data
+        assert "back_to_admin" in callback_data
+
+    def test_get_users_keyboard_with_pagination(self):
+        """
+        Test creating users keyboard with pagination.
+        """
+        # Arrange - создаем много пользователей для проверки пагинации
+        users = []
+        for i in range(25):  # 25 пользователей для проверки пагинации
+            users.append({
+                "_id": f"user{i}",
+                "first_name": f"User{i}",
+                "username": f"user{i}",
+                "is_admin": i % 5 == 0  # Каждый 5-й - админ
+            })
+        
+        # Act - первая страница
+        keyboard_page_0 = get_users_keyboard(users, page=0, per_page=10)
+        
+        # Assert
+        all_buttons_page_0 = []
+        for row in keyboard_page_0.inline_keyboard:
+            all_buttons_page_0.extend(row)
+        
+        # На первой странице: 10 пользователей + кнопка "След." + информация о странице + кнопка "Назад" = 13 кнопок
+        assert len(all_buttons_page_0) == 13, "Page 0 should have 13 buttons"
+        
+        # Проверяем наличие кнопки "След."
+        button_texts = [button.text for button in all_buttons_page_0]
+        assert any("След." in text for text in button_texts), "Should have next page button"
+        assert any("Стр. 1/3" in text for text in button_texts), "Should have page info"
+
+    def test_get_user_detail_keyboard(self):
+        """
+        Test creating user detail keyboard.
+        Check that:
+        1. Function returns InlineKeyboardMarkup
+        2. Keyboard contains expected action buttons
+        """
+        # Arrange
+        user_id = "user123"
+        
+        # Act
+        keyboard = get_user_detail_keyboard(user_id)
+        
+        # Assert
+        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
+        
+        # Get all buttons
+        all_buttons = []
+        for row in keyboard.inline_keyboard:
+            all_buttons.extend(row)
+        
+        # Check count
+        assert len(all_buttons) == 3, "Should have 3 buttons"
+        
+        # Check texts
+        button_texts = [button.text for button in all_buttons]
+        assert any("Подробная статистика" in text for text in button_texts), "Should have stats button"
+        assert any("Изменить права админа" in text for text in button_texts), "Should have admin toggle button"
+        assert any("Назад к списку" in text for text in button_texts), "Should have back button"
+        
+        # Check callback data
+        callback_data = [button.callback_data for button in all_buttons]
+        assert f"user_stats_{user_id}" in callback_data
+        assert f"toggle_admin_{user_id}" in callback_data
+        assert "admin_users" in callback_data
         
