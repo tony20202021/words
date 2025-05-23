@@ -15,12 +15,7 @@ from pathlib import Path
 import logging
 from tqdm import tqdm
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
+# Получаем logger, но не настраиваем базовую конфигурацию
 logger = logging.getLogger(__name__)
 
 def load_json_file(file_path):
@@ -35,9 +30,11 @@ def load_json_file(file_path):
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
+            data = json.load(file)
+            logger.info(f"Успешно загружен файл: {file_path}")
+            return data
     except Exception as e:
-        logger.error(f"Ошибка при чтении файла: {e}")
+        logger.error(f"Ошибка при чтении файла {file_path}: {e}")
         return None
 
 def save_json_file(data, file_path):
@@ -53,7 +50,7 @@ def save_json_file(data, file_path):
             json.dump(data, file, ensure_ascii=False, indent=4)
         logger.info(f"Файл успешно сохранен: {file_path}")
     except Exception as e:
-        logger.error(f"Ошибка при сохранении файла: {e}")
+        logger.error(f"Ошибка при сохранении файла {file_path}: {e}")
 
 def create_short_description_with_llm(translator, character, descriptions, use_description=True):
     """
@@ -71,6 +68,7 @@ def create_short_description_with_llm(translator, character, descriptions, use_d
     """
     # Используем языковую модель для генерации перевода
     translation = translator.translate(character, descriptions, use_description)
+    logger.debug(f"Перевод для {character}: {translation}")
     return translation
 
 def process_chinese_dictionary_with_llm(data, translator, max_items=None, use_description=True):
@@ -92,6 +90,9 @@ def process_chinese_dictionary_with_llm(data, translator, max_items=None, use_de
     items = list(data.items())
     if max_items and max_items > 0:
         items = items[:max_items]
+        logger.info(f"Ограничиваем обработку до {max_items} элементов")
+    
+    logger.info(f"Начинаем обработку {len(items)} элементов")
     
     # Используем tqdm для отображения прогресса
     for key, entry in tqdm(items, desc="Обработка словаря"):
@@ -112,7 +113,7 @@ def process_chinese_dictionary_with_llm(data, translator, max_items=None, use_de
                 new_entry[field] = value
         
         # Создание краткого описания с помощью LLM
-        logger.info(f"Обработка {entry['character']}")
+        logger.debug(f"Обработка {entry['character']}")
         new_entry['description'] = create_short_description_with_llm(
             translator, 
             entry['character'], 
@@ -122,6 +123,7 @@ def process_chinese_dictionary_with_llm(data, translator, max_items=None, use_de
         
         result[key] = new_entry
     
+    logger.info(f"Обработка завершена. Обработано {len(result)} элементов")
     return result
 
 def batch_process_chinese_dictionary(data, translator, batch_size=10, max_items=None, use_description=True):
@@ -144,6 +146,7 @@ def batch_process_chinese_dictionary(data, translator, batch_size=10, max_items=
     items = list(data.items())
     if max_items and max_items > 0:
         items = items[:max_items]
+        logger.info(f"Ограничиваем обработку до {max_items} элементов")
     
     # Подготавливаем данные для пакетной обработки
     batch_items = []
@@ -155,13 +158,14 @@ def batch_process_chinese_dictionary(data, translator, batch_size=10, max_items=
     
     # Разбиваем на пакеты
     total_batches = (len(batch_items) + batch_size - 1) // batch_size
+    logger.info(f"Начинаем пакетную обработку: {len(batch_items)} элементов в {total_batches} пакетах")
     
     for batch_index in range(total_batches):
         start_idx = batch_index * batch_size
         end_idx = min(start_idx + batch_size, len(batch_items))
         current_batch = batch_items[start_idx:end_idx]
         
-        logger.info(f"Обработка пакета {batch_index+1}/{total_batches}")
+        logger.info(f"Обработка пакета {batch_index+1}/{total_batches} ({len(current_batch)} элементов)")
         
         # Подготавливаем данные для переводчика
         translator_inputs = [(item[1], item[2]) for item in current_batch]
@@ -186,6 +190,17 @@ def batch_process_chinese_dictionary(data, translator, batch_size=10, max_items=
             new_entry['description'] = translations[i]
             
             result[key] = new_entry
+            logger.debug(f"Обработан элемент {key}: {character} -> {translations[i]}")
+    
+    logger.info(f"Пакетная обработка завершена. Обработано {len(result)} элементов")
+    
+    # Выводим статистику, если доступна
+    try:
+        if hasattr(translator, 'print_statistics') and callable(getattr(translator, 'print_statistics', None)):
+            translator.print_statistics()
+        else:
+            logger.info("Метод print_statistics недоступен")
+    except Exception as e:
+        logger.debug(f"Не удалось вывести статистику: {e}")
     
     return result
-    

@@ -36,10 +36,12 @@ class PromptGenerator:
         desc_text = self._prepare_descriptions(descriptions, use_description)
         
         # Генерируем промпт в зависимости от модели
-        if "wenzhong" in self.model_name.lower() or "baichuan" in self.model_name.lower():
-            return self._create_chinese_prompt(character, desc_text, use_description)
-        elif "qwen" in self.model_name.lower():
+        if "qwen3" in self.model_name.lower():
+            return self._create_qwen3_prompt(character, desc_text, use_description)
+        elif "qwen2.5" in self.model_name.lower() or "qwen2" in self.model_name.lower():
             return self._create_qwen_prompt(character, desc_text, use_description)
+        elif "wenzhong" in self.model_name.lower() or "baichuan" in self.model_name.lower():
+            return self._create_chinese_prompt(character, desc_text, use_description)
         elif "bloom" in self.model_name.lower():
             return self._create_bloom_prompt(character, desc_text, use_description)
         elif "llama" in self.model_name.lower():
@@ -62,6 +64,94 @@ class PromptGenerator:
         else:
             return "\n".join([f"- {desc}" for desc in descriptions])
     
+    def _is_complex_character(self, character, descriptions):
+        """
+        Определяет, является ли иероглиф сложным для перевода.
+        Для Qwen3 - помогает выбрать thinking mode.
+        """
+        # Сложным считается иероглиф, если:
+        # 1. Состоит из нескольких символов
+        # 2. Имеет много описаний
+        # 3. Описания длинные и сложные
+        
+        if len(character) > 2:  # Многосимвольное слово
+            return True
+            
+        if len(descriptions) > 3:  # Много значений
+            return True
+            
+        # Проверяем сложность описаний
+        total_desc_length = sum(len(desc) for desc in descriptions)
+        if total_desc_length > 500:  # Длинные описания
+            return True
+            
+        return False
+    
+    def _create_qwen3_prompt(self, character, desc_text, use_description):
+        """Создает промпт для моделей Qwen3 с поддержкой thinking mode."""
+        
+        # Определяем, нужен ли thinking mode
+        thinking_control = ""
+        if use_description:
+            is_complex = self._is_complex_character(character, desc_text.split('\n') if desc_text else [])
+            if is_complex:
+                thinking_control = "/think "  # Включаем thinking mode для сложных случаев
+            else:
+                thinking_control = "/no_think "  # Быстрый ответ для простых случаев
+        else:
+            thinking_control = "/no_think "  # Без описания всегда быстро
+        
+        if use_description:
+            messages = [
+                {
+                    "role": "system", 
+                    "content": "Ты - эксперт-синолог и профессиональный переводчик. Твоя специализация - создание точных и кратких переводов китайских иероглифов на русский язык. Ты умеешь выделять главное значение из сложных описаний и создавать лаконичные, но содержательные переводы."
+                },
+                {
+                    "role": "user", 
+                    "content": f"""{thinking_control}Переведи китайский иероглиф/слово: {character}
+
+Контекст (подробное описание на русском):
+{desc_text}
+
+Требования:
+- Максимум 5 слов в переводе
+- Выбери самое важное и частое значение
+- Перевод должен быть понятным русскоговорящему
+- Только сам перевод, никаких пояснений
+
+Перевод:"""
+                }
+            ]
+        else:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "Ты - эксперт по китайскому языку. Создавай краткие точные переводы китайских иероглифов на русский язык."
+                },
+                {
+                    "role": "user",
+                    "content": f"""{thinking_control}Переведи китайский иероглиф/слово: {character}
+
+Требования:
+- Максимум 5 слов
+- Самое основное значение
+- Только перевод, без объяснений
+
+Перевод:"""
+                }
+            ]
+        
+        # Преобразуем в строку (для совместимости с текущим кодом)
+        prompt_parts = []
+        for msg in messages:
+            if msg["role"] == "system":
+                prompt_parts.append(f"System: {msg['content']}")
+            elif msg["role"] == "user":
+                prompt_parts.append(f"User: {msg['content']}")
+        
+        return "\n\n".join(prompt_parts) + "\n\nAssistant: "
+    
     def _create_chinese_prompt(self, character, desc_text, use_description):
         """Создает промпт для китайских моделей (Wenzhong, Baichuan)."""
         if use_description:
@@ -77,7 +167,7 @@ class PromptGenerator:
 简短翻译（最多5个单词）: """
     
     def _create_qwen_prompt(self, character, desc_text, use_description):
-        """Создает промпт для моделей Qwen."""
+        """Создает промпт для моделей Qwen2/Qwen2.5 (старый формат)."""
         if use_description:
             return f"""<|im_start|>system
 Ты - лингвист-синолог, специализирующийся на китайском языке и переводах. Твоя задача - создать краткий и точный перевод китайского слова или иероглифа на русский язык.
@@ -149,51 +239,18 @@ class PromptGenerator:
 Дай только сам перевод без объяснений и не более 5 слов. [/INST]"""
 
     def _create_mistral_prompt(self, character, desc_text, use_description):
-            """Создает промпт для моделей Mistral."""
-            if use_description:
-                return f"""<s>[INST] Создай краткий перевод (максимум 5 слов) для китайского слова/иероглифа: {character}
+        """Создает промпт для моделей Mistral."""
+        if use_description:
+            return f"""<s>[INST] Создай краткий перевод (максимум 5 слов) для китайского слова/иероглифа: {character}
 
 Вот подробное описание этого слова на русском:
 {desc_text}
 
 Дай только сам перевод, максимум 5 слов, без дополнительных пояснений. [/INST]"""
-            else:
-                return f"""<s>[INST] Переведи китайское слово/иероглиф на русский язык: {character}
+        else:
+            return f"""<s>[INST] Переведи китайское слово/иероглиф на русский язык: {character}
 
 Дай только сам перевод, максимум 5 слов, без дополнительных пояснений. [/INST]"""
-
-
-#     def _create_mistral_prompt(self, character, desc_text, use_description):
-#             """Создает промпт для моделей Mistral."""
-#             if use_description:
-#                 return f"""<s>[INST] Создай краткий перевод (максимум 5 слов) для китайского слова/иероглифа: {character}
-
-# Вот подробное описание этого слова на русском:
-# {desc_text}
-
-# Дай только сам перевод, максимум 5 слов, без дополнительных пояснений. [/INST]"""
-#             else:
-#                 return f"""<s>[INST] Переведи китайское слово/иероглиф на русский язык: {character}
-
-# Дай только сам перевод, максимум 5 слов, без дополнительных пояснений. [/INST]"""
-     
-#     def _create_mistral_prompt(self, character, desc_text, use_description):
-#         """Создает промпт для моделей Mistral."""
-#         if use_description:
-#             return f"""<s>[INST] Переведи китайское слово "{character}" на русский язык.
-
-# Описание слова:
-# {desc_text}
-
-# Дай только краткий перевод, максимум 5 слов, без объяснений. [/INST]
-
-# Перевод:"""
-#         else:
-#             return f"""<s>[INST] Переведи китайское слово "{character}" на русский язык.
-
-# Дай только краткий перевод, максимум 5 слов, без объяснений. [/INST]
-
-# Перевод:"""
     
     def _create_universal_prompt(self, character, desc_text, use_description):
         """Создает универсальный промпт для остальных моделей."""
@@ -220,6 +277,10 @@ def process_response(response_text, model_name):
     Returns:
         str: Очищенный перевод
     """
+    # Специальная обработка для Qwen3 (может содержать thinking блоки)
+    if "qwen3" in model_name.lower():
+        response_text = _process_qwen3_response(response_text)
+    
     # Удаляем служебные токены различных моделей
     cleanup_tokens = [
         "<|im_start|>", "<|im_end|>", "<s>", "</s>", "[INST]", "[/INST]",
@@ -229,8 +290,8 @@ def process_response(response_text, model_name):
     for token in cleanup_tokens:
         response_text = response_text.replace(token, "")
     
-    # Для моделей Qwen извлекаем текст после последнего system/user/assistant
-    if "qwen" in model_name.lower():
+    # Для моделей Qwen2/2.5 извлекаем текст после последнего system/user/assistant
+    if "qwen2" in model_name.lower() and "qwen3" not in model_name.lower():
         parts = response_text.split("<|im_start|>assistant")
         if len(parts) > 1:
             response_text = parts[-1]
@@ -268,3 +329,35 @@ def process_response(response_text, model_name):
     response_text = response_text.strip()
     
     return response_text
+
+def _process_qwen3_response(response_text):
+    """
+    Специальная обработка ответов Qwen3 с thinking блоками.
+    
+    Args:
+        response_text (str): Ответ модели Qwen3
+        
+    Returns:
+        str: Очищенный ответ без thinking блоков
+    """
+    # Удаляем thinking блоки
+    import re
+    
+    # Убираем блоки <think>...</think>
+    response_text = re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL)
+    
+    # Убираем управляющие токены thinking mode
+    response_text = response_text.replace("/think", "")
+    response_text = response_text.replace("/no_think", "")
+    
+    # Ищем текст после "Перевод:" или аналогичных маркеров
+    markers = ["Перевод:", "перевод:", "Ответ:", "ответ:", "Translation:", "Answer:"]
+    for marker in markers:
+        if marker in response_text:
+            parts = response_text.split(marker)
+            if len(parts) > 1:
+                response_text = parts[-1].strip()
+                break
+    
+    return response_text
+    

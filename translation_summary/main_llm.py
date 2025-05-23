@@ -13,14 +13,7 @@ import argparse
 import logging
 import json
 import time
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(), logging.FileHandler("translation.log")]
-)
-logger = logging.getLogger(__name__)
+from datetime import datetime
 
 # Добавляем путь к пакету для импорта
 sys.path.append(str(Path(__file__).parent))
@@ -33,6 +26,63 @@ from src.chinese_translator_llm import (
     process_chinese_dictionary_with_llm,
     batch_process_chinese_dictionary
 )
+
+def setup_logging(results_dir=None, run_id=None):
+    """
+    Настраивает логирование для записи в файл в каталоге results.
+    
+    Args:
+        results_dir (str): Базовый каталог для результатов
+        run_id (str): Идентификатор текущего запуска
+    """
+    # Определяем каталог для логов
+    if results_dir and run_id:
+        log_dir = Path(results_dir) / f"run_{run_id}"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "translation.log"
+    else:
+        # Создаем каталог на основе текущего времени
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_dir = Path("results") / f"run_{timestamp}"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "translation.log"
+    
+    # Очищаем существующие обработчики
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
+    # Настраиваем новые обработчики
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),  # Вывод в консоль
+            logging.FileHandler(log_file, encoding='utf-8')  # Запись в файл
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Логирование настроено. Файл логов: {log_file}")
+    
+    return str(log_file), str(log_dir)
+
+def detect_run_context():
+    """
+    Определяет контекст запуска (из run_models.sh или напрямую).
+    
+    Returns:
+        tuple: (results_dir, run_id) или (None, None) если запуск напрямую
+    """
+    # Проверяем переменные окружения, которые может установить run_models.sh
+    run_dir = os.environ.get('RUN_DIR')
+    if run_dir:
+        # Запуск из run_models.sh
+        run_path = Path(run_dir)
+        results_dir = str(run_path.parent)
+        run_id = run_path.name.replace('run_', '')
+        return results_dir, run_id
+    
+    return None, None
 
 def list_available_models():
     """Выводит список доступных моделей."""
@@ -64,13 +114,30 @@ def main():
     parser.add_argument('--cpu', help='Использовать CPU вместо GPU', action='store_true')
     parser.add_argument('--list-models', help='Показать список доступных моделей', action='store_true')
     parser.add_argument('--no-description', help='Не использовать русское описание для перевода', action='store_true')    
+    parser.add_argument('--results-dir', help='Каталог для результатов (автоопределение)')
     
     args = parser.parse_args()
     
-    # Вывод списка моделей, если запрошено
+    # Вывод списка моделей, если запрошено (без настройки логирования)
     if args.list_models:
         list_available_models()
         return 0
+    
+    # Определяем контекст запуска
+    results_dir, run_id = detect_run_context()
+    if args.results_dir:
+        results_dir = args.results_dir
+    
+    # Настраиваем логирование
+    log_file, log_dir = setup_logging(results_dir, run_id)
+    logger = logging.getLogger(__name__)
+    
+    logger.info("="*50)
+    logger.info("Запуск переводчика китайских слов с использованием LLM")
+    logger.info(f"Модель: {args.model}")
+    logger.info(f"Режим: {'без описания' if args.no_description else 'с описанием'}")
+    logger.info(f"Каталог логов: {log_dir}")
+    logger.info("="*50)
     
     # Определяем путь к входному файлу
     if args.input:
@@ -82,11 +149,15 @@ def main():
         logger.error(f"Файл не найден: {file_path}")
         return 1
     
+    logger.info(f"Входной файл: {file_path}")
+    
     # Загрузка данных
     data = load_json_file(file_path)
     if not data:
         logger.error("Не удалось загрузить данные")
         return 1
+    
+    logger.info(f"Загружено записей: {len(data)}")
     
     # Инициализация переводчика с выбранной моделью
     logger.info(f"Инициализация переводчика с моделью {args.model}")
@@ -96,8 +167,18 @@ def main():
             use_cuda=not args.cpu,
             temperature=args.temp
         )
+        logger.info("Переводчик успешно инициализирован")
+        
+        # Добавим отладочную информацию
+        logger.debug(f"Тип модели: {translator.model_type}")
+        logger.debug(f"Имеет openai_handler: {hasattr(translator, 'openai_handler')}")
+        if hasattr(translator, 'openai_handler'):
+            logger.debug(f"openai_handler не None: {translator.openai_handler is not None}")
+        
     except Exception as e:
         logger.error(f"Ошибка при инициализации переводчика: {e}")
+        import traceback
+        logger.error(f"Полная трассировка: {traceback.format_exc()}")
         return 1
     
     # Засекаем время выполнения
@@ -105,6 +186,9 @@ def main():
     
     # Обработка данных (с использованием пакетной обработки)
     logger.info("Начало обработки данных")
+    logger.info(f"Размер пакета: {args.batch}")
+    logger.info(f"Максимальное количество элементов: {args.max if args.max else 'все'}")
+    
     try:
         processed_data = batch_process_chinese_dictionary(
             data, 
@@ -113,6 +197,7 @@ def main():
             max_items=args.max,
             use_description=not args.no_description  # Передаем параметр use_description
         )
+        logger.info(f"Успешно обработано записей: {len(processed_data)}")
     except KeyboardInterrupt:
         logger.warning("Обработка прервана пользователем")
         # Сохраняем то, что успели обработать
@@ -135,9 +220,16 @@ def main():
         else:
             output_path = f"{file_path}_llm_processed.json"
     
+    logger.info(f"Сохранение результатов в: {output_path}")
+    
     # Сохранение результата
     save_json_file(processed_data, output_path)
     logger.info(f"Обработанные данные сохранены в: {output_path}")
+    
+    logger.info("="*50)
+    logger.info("Выполнение завершено успешно")
+    logger.info(f"Файл логов: {log_file}")
+    logger.info("="*50)
     
     return 0
 

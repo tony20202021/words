@@ -12,3 +12,4 @@ sacremoses
 huggingface-hub>=0.16.4
 safetensors>=0.3.3
 colorama>=0.4.6
+openai>=1.0.0

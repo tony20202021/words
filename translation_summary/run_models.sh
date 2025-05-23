@@ -8,6 +8,12 @@ if [ -z "$HUGGING_FACE_HUB_TOKEN" ]; then
     echo "Установите токен командой: export HUGGING_FACE_HUB_TOKEN=ваш_токен"
 fi
 
+# Проверяем наличие OpenAI API ключа
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo "ВНИМАНИЕ: Переменная OPENAI_API_KEY не установлена. OpenAI модели будут недоступны."
+    echo "Установите ключ командой: export OPENAI_API_KEY=ваш_ключ"
+fi
+
 # Путь к входному файлу
 INPUT_FILE="../words/chinese_characters_0_30.json"
 
@@ -25,7 +31,10 @@ RUN_DIR="$RESULTS_DIR/run_${TIMESTAMP}"
 # Создаем структуру каталогов
 mkdir -p "$RUN_DIR"
 
-# Лог-файл
+# Экспортируем переменную окружения для Python-скриптов
+export RUN_DIR="$RUN_DIR"
+
+# Лог-файл (основной лог скрипта, отдельно от логов Python)
 LOG_FILE="$RUN_DIR/run.log"
 
 # Заголовок лога
@@ -34,6 +43,7 @@ echo "Запуск тестирования моделей" | tee -a "$LOG_FILE"
 echo "Дата и время: $(date)" | tee -a "$LOG_FILE"
 echo "Входной файл: $INPUT_FILE" | tee -a "$LOG_FILE"
 echo "Максимальное количество слов: $MAX_ITEMS" | tee -a "$LOG_FILE"
+echo "Каталог результатов: $RUN_DIR" | tee -a "$LOG_FILE"
 echo "==================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
@@ -61,12 +71,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Разделяем модели на легкие и тяжелые
+# Разделяем модели на категории
+declare -a API_MODELS=()
 declare -a LIGHT_MODELS=()
 declare -a HEAVY_MODELS=()
 
 while IFS='|' read -r model_key model_path; do
-    if [[ "$model_key" == *"7b"* || "$model_key" == *"7B"* || "$model_path" == *"7B"* || "$model_path" == *"7b"* || 
+    if [[ "$model_key" == gpt-* ]]; then
+        API_MODELS+=("$model_key")
+    elif [[ "$model_key" == *"7b"* || "$model_key" == *"7B"* || "$model_path" == *"7B"* || "$model_path" == *"7b"* || 
           "$model_key" == *"8b"* || "$model_key" == *"8B"* || "$model_path" == *"8B"* || "$model_path" == *"8b"* ]]; then
         HEAVY_MODELS+=("$model_key")
     else
@@ -76,6 +89,7 @@ done <<< "$MODELS_LIST"
 
 # Выводим информацию о найденных моделях
 echo "Найдены модели:" | tee -a "$LOG_FILE"
+echo "API модели: ${API_MODELS[*]}" | tee -a "$LOG_FILE"
 echo "Легкие модели: ${LIGHT_MODELS[*]}" | tee -a "$LOG_FILE"
 echo "Тяжелые модели: ${HEAVY_MODELS[*]}" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
@@ -104,7 +118,8 @@ run_model() {
     start_time=$(date +%s)
     
     # Запускаем скрипт с выбранной моделью
-    python ./main_llm.py -i "$INPUT_FILE" -o "$output_file" -m "$model_param" --max $MAX_ITEMS $desc_param 2>&1 | tee -a "$LOG_FILE"
+    # Передаем каталог результатов через параметр
+    python ./main_llm.py -i "$INPUT_FILE" -o "$output_file" -m "$model_param" --max $MAX_ITEMS $desc_param --results-dir "$RESULTS_DIR" 2>&1 | tee -a "$LOG_FILE"
     exit_code=$?
     
     # Проверяем успешность выполнения
@@ -139,6 +154,31 @@ except Exception as e:
 "
     return 0
 }
+
+# Запускаем API модели в обоих режимах (если доступен ключ)
+if [ -n "$OPENAI_API_KEY" ]; then
+    echo "Тестирование API моделей с описанием..." | tee -a "$LOG_FILE"
+    for model in "${API_MODELS[@]}"; do
+        echo "Попытка запуска API модели: $model" | tee -a "$LOG_FILE"
+        run_model "$model" "$model" ""
+        # Проверяем успешность выполнения для API модели
+        if [ $? -ne 0 ]; then
+            echo "ВНИМАНИЕ: API модель $model недоступна (возможно, региональные ограничения)" | tee -a "$LOG_FILE"
+        fi
+    done
+
+    echo "Тестирование API моделей без описания..." | tee -a "$LOG_FILE"
+    for model in "${API_MODELS[@]}"; do
+        echo "Попытка запуска API модели: $model (без описания)" | tee -a "$LOG_FILE"
+        run_model "$model" "$model" "no"
+        # Проверяем успешность выполнения для API модели
+        if [ $? -ne 0 ]; then
+            echo "ВНИМАНИЕ: API модель $model недоступна (возможно, региональные ограничения)" | tee -a "$LOG_FILE"
+        fi
+    done
+else
+    echo "Пропускаем API модели - не установлен OPENAI_API_KEY" | tee -a "$LOG_FILE"
+fi
 
 # Запускаем легкие модели в обоих режимах
 echo "Тестирование легких моделей с описанием..." | tee -a "$LOG_FILE"
@@ -187,4 +227,5 @@ ln -sf "run_${TIMESTAMP}" "$RESULTS_DIR/latest"
 echo "" | tee -a "$LOG_FILE"
 echo "Сравнительная таблица сохранена в $COMPARISON_FILE" | tee -a "$LOG_FILE"
 echo "Создана символическая ссылка на текущий запуск: $RESULTS_DIR/latest" | tee -a "$LOG_FILE"
+echo "Логи Python-скриптов сохранены в отдельные файлы translation.log в каталоге $RUN_DIR" | tee -a "$LOG_FILE"
 echo "Выполнение скрипта завершено" | tee -a "$LOG_FILE"
