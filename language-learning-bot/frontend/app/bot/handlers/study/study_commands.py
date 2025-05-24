@@ -12,7 +12,7 @@ from app.utils.logger import setup_logger
 from app.utils.error_utils import handle_api_error, validate_state_data
 from app.utils.state_models import UserWordState
 
-from app.bot.handlers.study.study_states import StudyStates
+from app.bot.states.centralized_states import HintStates, StudyStates
 from app.bot.handlers.study.study_words import get_words_for_study
 from app.utils.formatting_utils import format_settings_text
 

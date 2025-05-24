@@ -9,15 +9,14 @@ from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
-import app.bot.handlers.admin_handlers as admin_handlers
 from app.bot.handlers.admin.admin_language_handlers import (
     cmd_manage_languages, process_create_language, process_language_name,
     process_language_native_name, process_edit_language,
-    process_edit_name_ru, process_edit_language_name, process_edit_name_foreign,
-    process_edit_language_native_name, process_delete_language,
+    process_edit_name_ru, process_edit_language_name,
+    process_delete_language,
     process_confirm_delete_language, process_cancel_delete_language
 )
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
 
 
 class TestLanguageAdminHandlers:

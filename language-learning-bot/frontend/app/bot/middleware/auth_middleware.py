@@ -1,19 +1,39 @@
 """
-Authentication middleware for the Telegram bot.
-This middleware is responsible for user authentication and session management.
+Enhanced authentication middleware for the Telegram bot.
+This middleware handles user authentication, admin rights checking, and session management.
 """
 
 import logging
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from aiogram import BaseMiddleware
-from aiogram.types import Message, TelegramObject, User
+from aiogram.types import Message, CallbackQuery, TelegramObject, User
 
-logger = logging.getLogger(__name__)
+from app.utils.api_utils import get_api_client_from_bot
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class AuthMiddleware(BaseMiddleware):
-    """Middleware for user authentication and session management."""
+    """Enhanced middleware for user authentication and session management."""
+    
+    def __init__(self, check_admin_for_patterns: Optional[list] = None):
+        """
+        Initialize auth middleware.
+        
+        Args:
+            check_admin_for_patterns: List of callback patterns that require admin rights
+        """
+        self.admin_patterns = check_admin_for_patterns or [
+            "admin_",
+            "create_language",
+            "edit_language_",
+            "delete_language_",
+            "upload_to_lang_",
+            "confirm_delete_",
+            "column_template_",
+        ]
     
     async def __call__(
         self,
@@ -32,80 +52,191 @@ class AuthMiddleware(BaseMiddleware):
         Returns:
             The result of the handler call.
         """
-        # Получаем пользователя из апдейта
-        user = None
-        
-        # В зависимости от типа события получаем пользователя
-        if isinstance(event, Message):
-            user = event.from_user
-        else:
-            # Пытаемся получить пользователя из других типов событий
-            # Например, для CallbackQuery
-            user_field = getattr(event, "from_user", None)
-            if user_field:
-                user = user_field
+        # Get user from the event
+        user = self._extract_user(event)
         
         if user:
-            # Логгируем информацию о пользователе
+            # Log user activity
             logger.info(f"User {user.full_name} ({user.id}) is using the bot")
             
-            # В aiogram 3.x мы можем добавить пользователя в data
+            # Add user to data
             data["user"] = user
             
-            # Получаем API-клиент из диспетчера и добавляем его в data
-            # Это позволит обработчикам получить доступ к API-клиенту
-            dispatcher = data.get("dispatcher")
-            if dispatcher and "api_client" in dispatcher:
-                # Передаем API-клиент в каждый обработчик
-                data["api_client"] = dispatcher["api_client"]
+            # Get API client and add to data
+            bot = data.get("bot")
+            if bot:
+                api_client = get_api_client_from_bot(bot)
+                if api_client:
+                    data["api_client"] = api_client
+                    
+                    # Get or create user in database
+                    db_user = await self._get_or_create_user(user, api_client)
+                    if db_user:
+                        data["db_user"] = db_user
+                        data["db_user_id"] = db_user.get("id")
+                        data["is_admin"] = db_user.get("is_admin", False)
             
-            # В реальном приложении здесь будет код для проверки 
-            # существования пользователя в БД и его создание при необходимости
-            # if "api_client" in data:
-            #    await self._get_or_create_user(user, data["api_client"])
-            
-            # Проверка прав администратора (пример)
-            await self._check_admin_rights(user, data)
+            # Check admin rights for admin callbacks
+            if isinstance(event, CallbackQuery) and self._requires_admin_rights(event):
+                is_admin = data.get("is_admin", False)
+                if not is_admin:
+                    await event.answer("❌ Недостаточно прав для выполнения данного действия", show_alert=True)
+                    return
         
-        # Вызываем следующий обработчик
+        # Call the next handler
         return await handler(event, data)
     
-    async def _check_admin_rights(self, user: User, data: Dict[str, Any]) -> None:
+    def _extract_user(self, event: TelegramObject) -> Optional[User]:
         """
-        Check if user has admin rights.
+        Extract user from event.
         
         Args:
-            user: The Telegram user.
-            data: Additional data passed to the handler.
+            event: The telegram event
+            
+        Returns:
+            User object or None
         """
-        # Здесь будет код для проверки прав администратора
-        # Для простоты используем заглушку
-        admin_ids = [12345, 67890]  # ID администраторов
+        if isinstance(event, (Message, CallbackQuery)):
+            return event.from_user
         
-        # Устанавливаем флаг is_admin в data
-        data["is_admin"] = user.id in admin_ids
+        # Try to get user from other event types
+        return getattr(event, "from_user", None)
     
-    async def _get_or_create_user(self, user: User, api_client) -> None:
+    def _requires_admin_rights(self, event: CallbackQuery) -> bool:
+        """
+        Check if callback requires admin rights.
+        
+        Args:
+            event: The callback query event
+            
+        Returns:
+            True if admin rights are required
+        """
+        if not event.data:
+            return False
+        
+        # Check if callback data matches any admin pattern
+        for pattern in self.admin_patterns:
+            if event.data.startswith(pattern):
+                return True
+        
+        return False
+    
+    async def _get_or_create_user(self, user: User, api_client) -> Optional[Dict]:
         """
         Get or create user in the database.
         
         Args:
-            user: The Telegram user.
-            api_client: The API client for database operations.
+            user: The Telegram user
+            api_client: The API client for database operations
+            
+        Returns:
+            User data from database or None if error
         """
-        # В реальном приложении здесь будет код для получения 
-        # пользователя из БД или его создания
-        # Пример:
-        # try:
-        #     # Проверяем существование пользователя
-        #     db_user = await api_client.get_user(user.id)
-        # except Exception:
-        #     # Если пользователь не найден, создаем его
-        #     db_user = await api_client.create_user(
-        #         user_id=user.id,
-        #         username=user.username,
-        #         full_name=user.full_name
-        #     )
+        try:
+            # Try to get existing user
+            user_response = await api_client.get_user_by_telegram_id(user.id)
+            
+            if user_response["success"] and user_response["result"]:
+                # User exists, return first result
+                users = user_response["result"]
+                db_user = users[0] if users else None
+                
+                if db_user:
+                    logger.debug(f"Found existing user: {db_user.get('id')}")
+                    return db_user
+            
+            # User doesn't exist, create new one
+            user_data = {
+                "telegram_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name
+            }
+            
+            create_response = await api_client.create_user(user_data)
+            
+            if create_response["success"] and create_response["result"]:
+                db_user = create_response["result"]
+                logger.info(f"Created new user: {db_user.get('id')} for Telegram ID {user.id}")
+                return db_user
+            else:
+                logger.error(f"Failed to create user: {create_response.get('error')}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in _get_or_create_user: {e}", exc_info=True)
+            return None
+
+
+class AdminOnlyMiddleware(BaseMiddleware):
+    """Middleware that restricts access to admin-only handlers."""
+    
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        """
+        Check if user is admin before allowing access.
         
-        # Логгируем информацию о пользователе
-        logger.info(f"User {user.full_name} ({user.id}) authenticated")
+        Args:
+            handler: The event handler
+            event: The event to be processed
+            data: Additional data passed to the handler
+            
+        Returns:
+            The result of the handler call or None if access denied
+        """
+        is_admin = data.get("is_admin", False)
+        
+        if not is_admin:
+            # Send appropriate error message
+            if isinstance(event, Message):
+                await event.answer("❌ Эта команда доступна только администраторам")
+            elif isinstance(event, CallbackQuery):
+                await event.answer("❌ Недостаточно прав", show_alert=True)
+            
+            return
+        
+        # User is admin, proceed with handler
+        return await handler(event, data)
+
+
+class UserRegistrationMiddleware(BaseMiddleware):
+    """Middleware that ensures user is registered in the database."""
+    
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        """
+        Ensure user is registered before handling the event.
+        
+        Args:
+            handler: The event handler
+            event: The event to be processed
+            data: Additional data passed to the handler
+            
+        Returns:
+            The result of the handler call
+        """
+        db_user_id = data.get("db_user_id")
+        
+        if not db_user_id:
+            # User not registered, send error
+            if isinstance(event, Message):
+                await event.answer(
+                    "❌ Ошибка регистрации пользователя. Попробуйте команду /start"
+                )
+            elif isinstance(event, CallbackQuery):
+                await event.answer("❌ Ошибка регистрации", show_alert=True)
+            
+            return
+        
+        # User is registered, proceed
+        return await handler(event, data)
+    

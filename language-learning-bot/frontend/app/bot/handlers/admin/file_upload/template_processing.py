@@ -7,8 +7,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.logger import setup_logger
-from app.bot.keyboards.admin_keyboards import get_admin_keyboard
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
+from app.utils.callback_constants import CallbackData
 
 logger = setup_logger(__name__)
 
@@ -69,7 +69,7 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
     ))
     builder.add(InlineKeyboardButton(
         text="🔧 Настроить колонки вручную",
-        callback_data=f"select_column_type:{language_id}"
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
     builder.add(InlineKeyboardButton(
         text="⬅️ Назад к настройкам",

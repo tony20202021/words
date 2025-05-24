@@ -79,9 +79,18 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Подсказка успешно создана"
+        text: "Подсказка «Фонетическое звучание» успешно создана"
       - type: message_contains
         position: -2
+        text: "Продолжаем изучение слов"
+      - type: message_contains
+        position: -1
+        text: "Переведите на"
+      - type: message_contains
+        position: -1
+        text: "Использованные подсказки"
+      - type: message_contains
+        position: -1
         text: "Фонетическое звучание"
       - type: state_contains
         data: ["_state", "<State 'StudyStates:studying'>"]
@@ -133,10 +142,10 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Подсказка успешно создана"
+        text: "Подсказка «Ассоциация для фонетики» успешно создана"
       - type: message_contains
         position: -2
-        text: "«Ассоциация для фонетики»"
+        text: "Продолжаем изучение слов"
       - type: state_contains
         data: ["_state", "<State 'StudyStates:studying'>"]
       # Проверяем клавиатуру подсказок
@@ -191,10 +200,10 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Подсказка успешно создана"
+        text: "Подсказка «Ассоциация для значения на русском» успешно создана"
       - type: message_contains
         position: -2
-        text: "«Ассоциация для значения на русском»"
+        text: "Продолжаем изучение слов"
       - type: state_contains
         data: ["_state", "<State 'StudyStates:studying'>"]
       # Проверяем клавиатуру подсказок
@@ -253,10 +262,10 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Подсказка успешно создана"
+        text: "Подсказка «Ассоциация для написания» успешно создана"
       - type: message_contains
         position: -2
-        text: "«Ассоциация для написания»"
+        text: "Продолжаем изучение слов"
       - type: state_contains
         data: ["_state", "<State 'StudyStates:studying'>"]
       # Проверяем клавиатуру подсказок

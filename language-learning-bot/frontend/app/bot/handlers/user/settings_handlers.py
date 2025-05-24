@@ -13,18 +13,14 @@ from aiogram.fsm.state import State, StatesGroup
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error
 from app.utils.settings_utils import get_user_language_settings, save_user_language_settings, display_language_settings
+from app.bot.states.centralized_states import SettingsStates
 
 # Создаем роутер для обработчиков настроек
 settings_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
-
-# Определение состояний для FSM настроек
-class SettingsStates(StatesGroup):
-    waiting_start_word = State()  # Ожидание ввода начального слова
 
 @settings_router.message(Command("settings"))
 async def cmd_settings(message: Message, state: FSMContext):

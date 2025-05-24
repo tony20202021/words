@@ -1,5 +1,6 @@
 """
-Handlers for hint toggling.
+Refactored handlers for hint toggling.
+Now uses centralized utilities and constants.
 """
 
 from aiogram import Router, F
@@ -16,41 +17,38 @@ from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
 from app.utils.settings_utils import get_show_hints_setting
 
+# Import callback utilities
+from app.utils.callback_constants import CallbackParser
+
 # Создаем вложенный роутер для обработчиков переключения подсказок
 toggle_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
 
-"""
-Обновленная функция process_hint_toggle в hint/toggle_handlers.py
-"""
 
 @toggle_router.callback_query(F.data.startswith("hint_toggle_"))
 async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user wants to toggle a hint visibility.
     Updates the current message to show or hide the hint.
+    Now uses improved callback parsing.
     
     Args:
         callback: The callback query from Telegram
         state: The FSM state context
     """
-    # Логируем полный callback_data для отладки
-    logger.info(f"Received hint toggle callback_data: {callback.data}")
+    logger.info(f"Received hint toggle callback: {callback.data}")
     
-    # Разбор callback_data - сейчас этот формат проще:
-    # hint_toggle_TYPE_ID где TYPE не содержит подчеркиваний
-    parts = callback.data.split('_', 3)
-    if len(parts) < 4:
-        await callback.answer("Ошибка: неверный формат данных")
+    # Parse callback data using the new parser
+    parsed = CallbackParser.parse_hint_action(callback.data)
+    if not parsed:
+        logger.error(f"Could not parse callback_data: {callback.data}")
+        await callback.answer("Ошибка формата данных")
         return
     
-    # Теперь разбор намного проще
-    hint_type = parts[2]
-    word_id = parts[3]
-    
-    logger.info(f"Parsed toggle callback_data: hint_type={hint_type}, word_id={word_id}")
+    action, hint_type, word_id = parsed
+    logger.info(f"Parsed toggle callback: hint_type={hint_type}, word_id={word_id}")
     
     # Validate state data
     is_valid, state_data = await validate_state_data(
@@ -67,7 +65,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     current_word = state_data["current_word"]
     db_user_id = state_data["db_user_id"]
     
-    # Проверяем совпадение ID слова
+    # Verify word ID matches current word
     current_word_id = None
     for id_field in ["id", "_id", "word_id"]:
         if id_field in current_word and current_word[id_field]:
@@ -80,7 +78,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Ошибка: несоответствие ID слова")
         return
     
-    # Получаем ключ и имя подсказки
+    # Get hint key and name
     hint_key = get_hint_key(hint_type)
     hint_name = get_hint_name(hint_type)
     hint_icon = get_hint_icon(hint_type)
@@ -89,7 +87,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Ошибка: неизвестный тип подсказки")
         return
     
-    # Получаем текст подсказки
+    # Get hint text
     hint_text = await get_hint_text(
         callback.bot, 
         db_user_id, 
@@ -99,27 +97,24 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     )
     
     if not hint_text:
-        logger.error(f"Подсказка не найдена")
+        logger.error("Hint text not found")
         await callback.answer("Подсказка не найдена")
         return
     
-    # Получаем текущий список активных подсказок из состояния
+    # Get current user word state
     user_word_state = await UserWordState.from_state(state)
     
-    # Получаем список использованных подсказок
+    # Get list of used hints
     used_hints = user_word_state.get_flag("used_hints", []) if user_word_state.is_valid() else []
     
-    # Переключаем состояние подсказки
-    if hint_type in used_hints:
-        logger.error(f"Попытка скрыть подсказку {hint_type}")
-    else:
-        # Если подсказка не активна, добавляем её и устанавливаем оценку 0
+    # Toggle hint state - add hint to used hints and set score to 0
+    if hint_type not in used_hints:
         used_hints.append(hint_type)
         
-        # Добавляем подсказку в список использованных
+        # Update user word state
         user_word_state.set_flag("used_hints", used_hints)
         
-        # Устанавливаем оценку 0
+        # Set score to 0 for using hint
         await update_word_score(
             callback.bot,
             db_user_id,
@@ -129,19 +124,17 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
             message_obj=callback
         )
     
-    # Сохраняем обновленный список использованных подсказок
-    user_word_state.set_flag("used_hints", used_hints)
+    # Save updated used hints
     await user_word_state.save_to_state(state)
     
-    # Получаем данные для обновления сообщения
+    # Get display settings
     word_shown = user_word_state.get_flag("word_shown", False)
     show_hints = await get_show_hints_setting(callback, state)
     
-    # Формируем базовое сообщение
+    # Get language information for message formatting
     language_name_ru = ""
     language_name_foreign = ""
     
-    # Получаем информацию о языке, если доступна
     language_id = current_word.get("language_id")
     if language_id:
         api_client = get_api_client_from_bot(callback.bot)
@@ -151,20 +144,20 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
             language_name_ru = language.get("name_ru", "")
             language_name_foreign = language.get("name_foreign", "")
     
-    # Получаем детали слова
+    # Get word details
     word_number = current_word.get("word_number", 0)
     translation = current_word.get("translation", "")
     word_foreign = current_word.get("word_foreign", "")
     transcription = current_word.get("transcription", "")
     
-    # Получаем данные пользователя о слове
+    # Get user word data
     user_word_data = current_word.get("user_word_data", {})
     is_skipped = user_word_data.get("is_skipped", False)
     check_interval = user_word_data.get("check_interval", 0)
     next_check_date = user_word_data.get("next_check_date")
     score = user_word_data.get("score", 0)
     
-    # Формируем основное сообщение
+    # Format main message
     message_text = format_study_word_message(
         language_name_ru,
         language_name_foreign,
@@ -179,7 +172,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         transcription=transcription
     )
     
-    # Добавляем активные подсказки с помощью новой функции
+    # Add active hints using formatting utility
     hint_text = await format_used_hints(
         bot=callback.bot,
         user_id=db_user_id,
@@ -191,7 +184,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     
     message_text += hint_text
     
-    # Создаем клавиатуру с учетом активных подсказок и использованных подсказок
+    # Create updated keyboard
     keyboard = create_word_keyboard(
         current_word, 
         word_shown=word_shown, 
@@ -199,7 +192,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         used_hints=used_hints,
     )
     
-    # Обновляем сообщение
+    # Update message
     try:
         await callback.message.edit_text(
             message_text,
@@ -208,8 +201,12 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
         )
     except Exception as e:
         logger.error(f"Error updating message with toggled hints: {e}", exc_info=True)
+        # If editing fails, send new message
         await callback.message.answer(
             message_text,
             reply_markup=keyboard,
             parse_mode="HTML"
         )
+    
+    await callback.answer()
+    

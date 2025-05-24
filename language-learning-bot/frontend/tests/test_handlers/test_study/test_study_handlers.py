@@ -9,7 +9,7 @@ from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import app.bot.handlers.study_handlers as study_handlers_module
-from app.bot.handlers.study.study_states import StudyStates
+from app.bot.states.centralized_states import HintStates, StudyStates
 from app.utils.error_utils import validate_state_data
 from datetime import datetime, timedelta
 

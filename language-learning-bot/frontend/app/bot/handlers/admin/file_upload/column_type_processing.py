@@ -7,14 +7,15 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
+from app.utils.callback_constants import CallbackData
 
 logger = setup_logger(__name__)
 
 # Создаем роутер для обработчиков выбора типа колонки
 column_type_router = Router()
 
-@column_type_router.callback_query(AdminStates.configuring_columns, F.data.startswith("select_column_type:"))
+@column_type_router.callback_query(AdminStates.configuring_columns, F.data.startswith(CallbackData.SELECT_COLUMN_TYPE))
 async def process_select_column_type(callback: CallbackQuery, state: FSMContext):
     """
     Process column type selection.

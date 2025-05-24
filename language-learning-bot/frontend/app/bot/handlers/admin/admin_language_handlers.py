@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
 from app.bot.keyboards.admin_keyboards import (
     get_admin_keyboard, 
     get_languages_keyboard,
@@ -19,6 +19,7 @@ from app.bot.keyboards.admin_keyboards import (
     get_word_actions_keyboard
 )
 from app.utils.formatting_utils import format_date_standard
+from app.utils.callback_constants import CallbackData
 
 # Создаем роутер для обработчиков администрирования языками
 language_router = Router()
@@ -43,7 +44,7 @@ async def cmd_manage_languages(message: Message, state: FSMContext):
     # Вызываем общую функцию для обработки
     await handle_language_management(message, state, is_callback=False)
 
-@language_router.callback_query(F.data == "create_language")
+@language_router.callback_query(F.data == CallbackData.CREATE_LANGUAGE)
 async def process_create_language(callback: CallbackQuery, state: FSMContext):
     """
     Start creating a new language.
@@ -658,7 +659,7 @@ async def handle_language_management(message_or_callback, state: FSMContext, is_
     # Возвращаем True, чтобы показать, что обработка прошла успешно
     return True
 
-@language_router.callback_query(F.data == "back_to_admin")
+@language_router.callback_query(F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin_from_languages(callback: CallbackQuery, state: FSMContext):
     """
     Process callback to return to admin menu from language management.
@@ -682,7 +683,7 @@ async def process_back_to_admin_from_languages(callback: CallbackQuery, state: F
     # Отвечаем на callback
     await callback.answer()
 
-@language_router.callback_query(F.data == "back_to_languages")
+@language_router.callback_query(F.data == CallbackData.BACK_TO_LANGUAGES)
 async def process_back_to_languages(callback: CallbackQuery, state: FSMContext):
     """
     Handle going back to languages list from language edit screen.

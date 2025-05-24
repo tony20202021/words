@@ -4,13 +4,8 @@ Unit tests for file upload admin handlers.
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-# Импортируем роутеры вместо отдельных функций
-from app.bot.handlers.admin.admin_upload_handlers import upload_router
 
 # Импортируем функции из соответствующих модулей
 from app.bot.handlers.admin.file_upload.file_processing import cmd_upload, process_file_upload
@@ -18,10 +13,9 @@ from app.bot.handlers.admin.file_upload.language_selection import process_langua
 from app.bot.handlers.admin.file_upload.column_configuration import process_upload_confirmation
 from app.bot.handlers.admin.file_upload.template_processing import process_column_template
 from app.bot.handlers.admin.file_upload.settings_management import process_back_to_settings
-from app.bot.handlers.admin.file_upload.column_type_processing import process_select_column_type, process_column_type_selection
+from app.bot.handlers.admin.file_upload.column_type_processing import process_select_column_type
 
-from app.bot.handlers.admin.admin_states import AdminStates
-from app.bot.keyboards.admin_keyboards import get_admin_keyboard
+from app.bot.states.centralized_states import AdminStates
 
 class TestUploadAdminHandlers:
     """Tests for the file upload admin handlers."""

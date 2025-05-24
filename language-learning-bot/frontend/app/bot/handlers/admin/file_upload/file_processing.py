@@ -9,7 +9,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
+from app.utils.callback_constants import CallbackData
 
 logger = setup_logger(__name__)
 
@@ -184,7 +185,7 @@ async def process_file_upload(message: Message, state: FSMContext):
     column_info = f"(сейчас: {DEFAULT_COLUMN_NUMBER}, {DEFAULT_COLUMN_WORD}, {DEFAULT_COLUMN_TRANSCRIPTION}, {DEFAULT_COLUMN_TRANSLATION})"
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
-        callback_data=f"select_column_type:{language_id}"
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
     
     # Добавляем кнопку подтверждения загрузки

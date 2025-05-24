@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
 
 logger = setup_logger(__name__)
 

@@ -1,5 +1,6 @@
 """
-Handlers for hint creation.
+Refactored handlers for hint creation.
+Now uses centralized utilities and constants.
 """
 
 from aiogram import Router, F
@@ -12,7 +13,17 @@ from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState, HintState
 from app.utils.word_data_utils import ensure_user_word_data
 from app.utils.hint_constants import get_all_hint_types, get_hint_key, get_hint_name
-from app.bot.handlers.study.study_states import HintStates, StudyStates
+
+# Import centralized states
+from app.bot.states.centralized_states import HintStates, StudyStates
+
+# Import callback utilities
+from app.utils.callback_constants import CallbackParser
+
+# Import voice utilities
+from app.utils.voice_utils import process_hint_input
+
+# Import study utilities
 from app.bot.handlers.study.study_words import show_study_word
 
 # Создаем вложенный роутер для обработчиков создания подсказок
@@ -21,45 +32,28 @@ create_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
+
 @create_router.callback_query(F.data.startswith("hint_create_"))
 async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user wants to create a new hint.
+    Now uses improved callback parsing.
     
     Args:
         callback: The callback query from Telegram
         state: The FSM state context
     """
-    # Логируем полный callback_data для отладки
-    logger.info(f"Received callback_data: {callback.data}")
+    logger.info(f"Received hint create callback: {callback.data}")
     
-    # Сначала выделяем два первых компонента (hint_create)
-    prefixes = callback.data.split('_', 2)
-    if len(prefixes) < 3:
-        await callback.answer("Ошибка: неверный формат данных")
-        return
-    
-    # Теперь разбираем остальную часть строки
-    remainder = prefixes[2]  # "phonetic_association_ID" или "meaning_ID"
-    
-    # Проверяем, какой тип подсказки содержится в remainder
-    hint_type = None
-    word_id = None
-    
-    # Проверка для каждого возможного типа подсказки
-    for possible_type in get_all_hint_types():
-        print(possible_type, prefixes)
-        if remainder.startswith(possible_type + "_"):
-            hint_type = possible_type
-            word_id = remainder[len(possible_type) + 1:]  # Всё после "TYPE_"
-            break
-    
-    if not hint_type or not word_id:
+    # Parse callback data using the new parser
+    parsed = CallbackParser.parse_hint_action(callback.data)
+    if not parsed:
         logger.error(f"Could not parse callback_data: {callback.data}")
         await callback.answer("Ошибка формата данных подсказки")
         return
     
-    logger.info(f"Parsed callback_data: action=create, hint_type={hint_type}, word_id={word_id}")
+    action, hint_type, word_id = parsed
+    logger.info(f"Parsed callback: action={action}, hint_type={hint_type}, word_id={word_id}")
     
     # Validate state data
     is_valid, state_data = await validate_state_data(
@@ -76,25 +70,16 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     current_word = state_data["current_word"]
     db_user_id = state_data["db_user_id"]
     
-    # Check if word_id matches current word
+    # Verify word ID matches current word
     current_word_id = None
     for id_field in ["id", "_id", "word_id"]:
         if id_field in current_word and current_word[id_field]:
             current_word_id = str(current_word[id_field])
-            # Если найдено совпадение, прерываем проверку
             if current_word_id == word_id:
                 break
     
-    # Логирование для отладки
-    logger.info(f"Comparing word IDs: callback_word_id={word_id}, current_word_id={current_word_id}")
-    logger.info(f"Current word fields: {[k for k in current_word.keys() if k in ['id', '_id', 'word_id']]}")
-    
     if not current_word_id or current_word_id != word_id:
-        # Логируем ошибку с более подробной информацией
-        logger.error(f"Word ID mismatch: callback_word_id={word_id}, available IDs in current_word: "
-                    f"id={current_word.get('id')}, _id={current_word.get('_id')}, word_id={current_word.get('word_id')}")
-        
-        # Отправляем ошибку через alert, а не просто сообщение
+        logger.error(f"Word ID mismatch: callback_word_id={word_id}, current_word_id={current_word_id}")
         await callback.answer("Ошибка: несоответствие ID слова. Пожалуйста, обновите слово.")
         return
     
@@ -113,7 +98,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
         hint_word_id=word_id
     )
     
-    # Save to state
+    # Save to state using centralized state
     await hint_state.save_to_state(state)
     await state.set_state(HintStates.creating)
     
@@ -122,7 +107,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     transcription = current_word.get("transcription", "")
     translation = current_word.get("translation", "")
     
-    # Ask for hint text
+    # Send creation prompt
     await callback.message.answer(
         f"Слово: <code>{word_foreign}</code>\n\n"
         f"Транскрипция: <b>[{transcription}]</b>\n\n"
@@ -140,6 +125,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
 async def process_hint_text(message: Message, state: FSMContext):
     """
     Process the hint text entered by the user as text or voice message.
+    Now uses centralized voice processing utilities.
     
     Args:
         message: The message object from Telegram
@@ -150,76 +136,30 @@ async def process_hint_text(message: Message, state: FSMContext):
     
     # Validate hint state
     if not hint_state.is_valid():
-        logger.error(f"not hint_state.is_valid()")
+        logger.error("Invalid hint state")
         await message.answer("❌ Ошибка: недостаточно данных для создания подсказки. Используйте /cancel для отмены.")
         return
     
-    # Load user word state for db_user_id and current_word
+    # Load user word state
     user_word_state = await UserWordState.from_state(state)
     
     # Validate user word state
     if not user_word_state.is_valid():
-        logger.error(f"not user_word_state.is_valid()")
+        logger.error("Invalid user word state")
         await message.answer("❌ Ошибка: недостаточно данных о пользователе или слове. Используйте /cancel для отмены.")
         return
     
-    # Get hint text from message
-    hint_text = None
+    # Process hint input using voice utilities
+    hint_text = await process_hint_input(
+        message, 
+        hint_state.hint_name
+    )
     
-    if message.text:
-        # Если получено текстовое сообщение
-        hint_text = message.text
-
-        # Стандартное сообщение успеха для текстовой подсказки
-        await message.answer(
-            f"✅ Подсказка успешно создана!\n\n"
-            f"«{hint_state.hint_name}»\n\n"
-            f"Текст подсказки:\n<code>{hint_text}</code>\n\n"
-            "Продолжаем изучение слов...",
-            parse_mode="HTML",
-        )
-    elif message.voice:
-        # Если получено голосовое сообщение
-        processing_msg = await message.answer("🎙️ Распознаю ваше голосовое сообщение...")
-        
-        try:
-            # Импортируем модуль распознавания речи
-            from app.utils.voice_recognition import process_telegram_voice
-            
-            # Распознаем голосовое сообщение
-            recognized_text = await process_telegram_voice(message.bot, message.voice)
-            
-            if recognized_text:
-                hint_text = recognized_text
-                # Удаляем сообщение о процессе распознавания
-                await processing_msg.delete()
-                # Уведомляем о результате
-                await message.answer(
-                    f"✅ Подсказка успешно распознана из голосового сообщения!\n\n"
-                    f"«{hint_state.hint_name}»\n\n"
-                    f"Текст подсказки:\n<code>{recognized_text}</code>\n\n"
-                    "Продолжаем изучение слов...",
-                    parse_mode="HTML",
-                )
-            else:
-                await processing_msg.delete()
-                await message.answer("❌ Не удалось распознать голосовое сообщение. Пожалуйста, отправьте текст или попробуйте еще раз.")
-                return
-        except ImportError:
-            logger.error("Voice recognition module not available")
-            await processing_msg.delete()
-            await message.answer("❌ Распознавание речи недоступно. Пожалуйста, отправьте текст.")
-            return
-        except Exception as e:
-            logger.error(f"Error processing voice message: {e}", exc_info=True)
-            await processing_msg.delete()
-            await message.answer("❌ Ошибка при распознавании голосового сообщения. Пожалуйста, попробуйте еще раз или отправьте текст.")
-            return
-    else:
-        await message.answer("⚠️ Пожалуйста, отправьте текст или голосовое сообщение")
-        return
+    if not hint_text:
+        logger.error("not hint_text")
+        return  # Error already handled by voice utilities
     
-    # Оставшаяся логика сохранения подсказки (существующий код)
+    # Save hint to database
     update_data = {hint_state.hint_key: hint_text}
     
     success, result = await ensure_user_word_data(
@@ -232,11 +172,12 @@ async def process_hint_text(message: Message, state: FSMContext):
     )
     
     if not success:
-        logger.error(f"not success")
+        logger.error("Failed to save hint to database")
         return
     
+    # Update word state
     user_word_state.set_flag("word_shown", True)
-
+    
     # Update current word data in state with new hint
     if user_word_state.word_data:
         # If user_word_data exists, update there
@@ -246,15 +187,22 @@ async def process_hint_text(message: Message, state: FSMContext):
             
         user_word_state.word_data["user_word_data"][hint_state.hint_key] = hint_text
         
-        # Добавляем подсказку в список использованных
+        # Add hint to used hints
         used_hints = user_word_state.get_flag("used_hints", [])
         hint_type = hint_state.get_hint_type()
         if hint_type and hint_type not in used_hints:
             used_hints.append(hint_type)
             user_word_state.set_flag("used_hints", used_hints)
-
-                
-    # Return to studying state
+    
+    # ИСПРАВЛЕНО: Сообщение об успешном создании подсказки
+    await message.answer(
+        f"✅ Подсказка «{hint_state.hint_name}» успешно создана!\n\n"
+        f"💡 Текст подсказки:\n<code>{hint_text}</code>\n\n"
+        "Продолжаем изучение слов...",
+        parse_mode="HTML"
+    )
+    
+    # Return to studying state using centralized state
     await state.set_state(StudyStates.studying)
     await show_study_word(message, state)
-
+    

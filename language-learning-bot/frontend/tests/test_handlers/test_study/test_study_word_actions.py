@@ -13,7 +13,7 @@ from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.dispatcher.event.bases import SkipHandler
-from app.bot.handlers.study.study_states import HintStates, StudyStates
+from app.bot.states.centralized_states import HintStates, StudyStates
 
 # Импортируем функции обработчиков из правильных подмодулей
 from app.bot.handlers.study.hint.create_handlers import process_hint_create, process_hint_text

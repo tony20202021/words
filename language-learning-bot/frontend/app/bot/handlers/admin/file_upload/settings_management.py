@@ -7,14 +7,15 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
+from app.utils.callback_constants import CallbackData
 
 logger = setup_logger(__name__)
 
 # Создаем роутер для обработчиков управления настройками
 settings_router = Router()
 
-@settings_router.callback_query(AdminStates.configuring_columns, F.data == "toggle_headers")
+@settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.TOGGLE_HEADERS)
 async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     """
     Toggle the 'has_headers' setting.
@@ -47,11 +48,11 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text=headers_btn_text, 
-        callback_data="toggle_headers"
+        callback_data=CallbackData.TOGGLE_HEADERS
     ))
     builder.add(InlineKeyboardButton(
         text=clear_btn_text, 
-        callback_data="toggle_clear_existing"
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
@@ -59,18 +60,18 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     column_info = get_column_info_text(user_data)
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
-        callback_data=f"select_column_type:{language_id}"
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
     
     # Добавляем кнопку подтверждения загрузки
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить", 
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     
     builder.add(InlineKeyboardButton(
         text="⬅️ Отмена", 
-        callback_data="back_to_admin" 
+        callback_data=CallbackData.BACK_TO_ADMIN 
         # TODO - по этой кнопке происходит переход на экран "Панель администратора Выберите действие:", без никакой доп информации
         # надо переходить на экран "Режим администратора активирован!" со всей заполненной инфой
     ))
@@ -89,7 +90,7 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-@settings_router.callback_query(AdminStates.configuring_columns, F.data == "toggle_clear_existing")
+@settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.TOGGLE_CLEAR_EXISTING)
 async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMContext):
     """
     Toggle the 'clear_existing' setting.
@@ -134,7 +135,7 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     column_info = get_column_info_text(user_data)
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
-        callback_data=f"select_column_type:{language_id}"
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
     
     # Добавляем кнопку подтверждения загрузки
@@ -160,7 +161,7 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     
     await callback.answer()
 
-@settings_router.callback_query(AdminStates.configuring_columns, F.data == "back_to_settings")
+@settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.BACK_TO_SETTINGS)
 async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     """
     Handle going back to file settings screen.
@@ -197,7 +198,7 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     column_info = get_column_info_text(user_data)
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
-        callback_data=f"select_column_type:{language_id}"
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
     
     # Добавляем кнопку подтверждения загрузки
@@ -223,7 +224,6 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-
 def format_column_settings(user_data):
     """
     Форматирует настройки колонок для отображения в сообщении.
@@ -248,7 +248,6 @@ def format_column_settings(user_data):
     
     # Возвращаем отформатированную строку
     return "Настройки колонок:\n" + "\n".join(column_settings) + "\n"
-
 
 def get_column_info_text(user_data):
     """

@@ -11,6 +11,7 @@ from app.utils.logger import setup_logger
 from app.bot.keyboards.admin_keyboards import get_admin_keyboard
 from app.bot.handlers.admin.admin_language_handlers import cmd_manage_languages
 from app.bot.handlers.admin.admin_language_handlers import handle_language_management
+from app.utils.callback_constants import CallbackData
 
 # Создаем роутер для базовых обработчиков администратора
 admin_router = Router()
@@ -126,7 +127,7 @@ async def cmd_admin(message: Message, state: FSMContext):
     
     await handle_admin_mode(message, state)
 
-@admin_router.callback_query(F.data == "back_to_admin")
+@admin_router.callback_query(F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'back_to_admin' callback which returns to admin mode.
@@ -147,7 +148,7 @@ async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
-@admin_router.callback_query(F.data == "back_to_start")
+@admin_router.callback_query(F.data == CallbackData.BACK_TO_START)
 async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'back_to_start' callback which exits admin mode and returns to the main screen.
@@ -191,7 +192,7 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
-@admin_router.callback_query(F.data == "admin_languages")
+@admin_router.callback_query(F.data == CallbackData.ADMIN_LANGUAGES)
 async def process_admin_languages(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'admin_languages' callback which redirects to language management.
@@ -339,7 +340,7 @@ async def cmd_bot_stats(message: Message, state: FSMContext):
     # Вызываем общую функцию для обработки статистики
     await handle_stats(message, state, is_callback=False)
 
-@admin_router.callback_query(F.data == "admin_stats_callback")
+@admin_router.callback_query(F.data == CallbackData.ADMIN_STATS_CALLBACK)
 async def process_admin_stats(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'admin_stats' callback which shows usage statistics.
@@ -360,7 +361,7 @@ async def process_admin_stats(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
-@admin_router.callback_query(F.data == "admin_users")
+@admin_router.callback_query(F.data == CallbackData.ADMIN_USERS)
 async def process_admin_users(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'admin_users' callback which shows user management.
@@ -462,7 +463,7 @@ async def process_toggle_admin(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@admin_router.callback_query(F.data == "page_info")
+@admin_router.callback_query(F.data == CallbackData.PAGE_INFO)
 async def process_page_info(callback: CallbackQuery, state: FSMContext):
     """
     Handle page info button (does nothing, just answers callback).

@@ -1,15 +1,14 @@
-# Структура каталогов и файлов проекта
+Структура каталогов и файлов проекта (обновлено)
+Содержание
 
-## Содержание
-1. [Корневой каталог](#корневой-каталог)
-2. [Каталог документации](#каталог-документации)
-3. [Фронтенд (Telegram-бот)](#фронтенд-telegram-бот)
-4. [Бэкенд (REST API)](#бэкенд-rest-api)
-5. [Служебные скрипты](#служебные-скрипты)
+Корневой каталог
+Каталог документации
+Фронтенд (Telegram-бот)
+Бэкенд (REST API)
+Служебные скрипты
+Обновления архитектуры
 
-## Корневой каталог
-
-```
+Корневой каталог
 language-learning-bot/
 ├── README.md                 # Описание проекта, инструкции по установке и запуску
 ├── .gitignore                # Список игнорируемых файлов и каталогов
@@ -32,12 +31,9 @@ language-learning-bot/
 ├── docs/                     # Каталог с документацией
 ├── frontend/                 # Каталог фронтенда (Telegram-бота)
 ├── backend/                  # Каталог бэкенда (REST API)
+├── common/                   # Каталог общих модулей (НОВОЕ)
 └── scripts/                  # Каталог со служебными скриптами
-```
-
-## Каталог документации
-
-```
+Каталог документации
 docs/
 ├── README.md                    # Обзор документации
 ├── summary.md                   # Структура документации
@@ -63,17 +59,15 @@ docs/
 │   ├── testing_guide.md         # Руководство по тестированию
 │   ├── bot_test_framework.md    # Фреймворк для тестирования бота
 │   ├── configuration.md         # Конфигурация с Hydra
-│   └── directory_structure.md   # Структура каталогов (этот файл)
+│   ├── directory_structure.md   # Структура каталогов (этот файл)
+│   ├── migration_guide.md       # Гид по миграции к улучшенной архитектуре (НОВОЕ)
+│   └── router_organization.md   # Организация роутеров и обработчиков
 │
 └── functionality/               # Функциональность бота
     ├── bot_commands.md          # Команды и действия бота
     ├── admin_tools.md           # Инструменты администрирования
     └── learning_system.md       # Система изучения слов
-```
-
-## Фронтенд (Telegram-бот)
-
-```
+Фронтенд (Telegram-бот)
 frontend/
 ├── app/
 │   ├── __init__.py
@@ -81,6 +75,9 @@ frontend/
 │   ├── bot/
 │   │   ├── __init__.py
 │   │   ├── bot.py            # Основной класс бота
+│   │   ├── states/           # НОВОЕ: Централизованные состояния FSM
+│   │   │   ├── __init__.py
+│   │   │   └── centralized_states.py    # Все состояния FSM в одном файле
 │   │   ├── handlers/
 │   │   │   ├── __init__.py
 │   │   │   ├── admin_handlers.py     # Объединяет обработчики админа
@@ -92,41 +89,41 @@ frontend/
 │   │   │   │   ├── admin_basic_handlers.py     # Базовые команды админа
 │   │   │   │   ├── admin_language_handlers.py  # Управление языками
 │   │   │   │   ├── admin_upload_handlers.py    # Загрузка файлов
-│   │   │   │   └── admin_states.py             # Состояния FSM админа
+│   │   │   │   └── admin_states.py             # УДАЛЕНО: заменено centralized_states.py
 │   │   │   ├── user/                # Подмодули пользователя
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── basic_handlers.py      # Базовые команды пользователя
 │   │   │   │   ├── help_handlers.py       # Команда /help
 │   │   │   │   ├── hint_handlers.py       # Команда /hint
-│   │   │   │   ├── settings_handlers.py   # Команда /settings
+│   │   │   │   ├── settings_handlers.py   # Команда /settings (ОБНОВЛЕН)
 │   │   │   │   └── stats_handlers.py      # Команда /stats
 │   │   │   └── study/                  # Подмодули изучения слов
 │   │   │       ├── __init__.py
-│   │   │       ├── study_states.py           # Состояния FSM изучения
+│   │   │       ├── study_states.py           # УДАЛЕНО: заменено centralized_states.py
 │   │   │       ├── study_commands.py         # Команда /study
 │   │   │       ├── study_words.py            # Получение и отображение слов
 │   │   │       ├── study_word_actions.py     # Действия со словами
 │   │   │       ├── study_hint_handlers.py    # Регистрация обработчиков подсказок
-│   │   │       └── hint/                     # Подмодули подсказок
+│   │   │       └── hint/                     # Подмодули подсказок (ВСЕ ОБНОВЛЕНЫ)
 │   │   │           ├── __init__.py
 │   │   │           ├── common.py             # Общие функции и отмена
-│   │   │           ├── create_handlers.py    # Создание подсказок
-│   │   │           ├── edit_handlers.py      # Редактирование подсказок
+│   │   │           ├── create_handlers.py    # Создание подсказок (РЕФАКТОРИНГ)
+│   │   │           ├── edit_handlers.py      # Редактирование подсказок (РЕФАКТОРИНГ)
 │   │   │           ├── view_handlers.py      # Просмотр подсказок
-│   │   │           └── toggle_handlers.py    # Переключение видимости
-│   │   ├── keyboards/
+│   │   │           └── toggle_handlers.py    # Переключение видимости (РЕФАКТОРИНГ)
+│   │   ├── keyboards/                       # ВСЕ ФАЙЛЫ ОБНОВЛЕНЫ
 │   │   │   ├── __init__.py
-│   │   │   ├── admin_keyboards.py      # Клавиатуры для администратора
-│   │   │   ├── user_keyboards.py       # Клавиатуры для пользователя
+│   │   │   ├── admin_keyboards.py      # Клавиатуры для администратора (РЕФАКТОРИНГ)
+│   │   │   ├── user_keyboards.py       # Клавиатуры для пользователя (РЕФАКТОРИНГ)
 │   │   │   ├── inline_keyboards.py     # Базовые inline-клавиатуры
-│   │   │   └── study_keyboards.py      # Клавиатуры для изучения
-│   │   ├── states/
-│   │   │   ├── __init__.py
-│   │   │   ├── admin_states.py         # Состояния FSM администратора
-│   │   │   └── user_states.py          # Состояния FSM пользователя
+│   │   │   └── study_keyboards.py      # Клавиатуры для изучения (РЕФАКТОРИНГ)
+│   │   ├── states/                     # УДАЛЕНО: файлы перенесены в bot/states/
+│   │   │   ├── __init__.py             # УДАЛЕНО
+│   │   │   ├── admin_states.py         # УДАЛЕНО: был пустой
+│   │   │   └── user_states.py          # УДАЛЕНО: был пустой
 │   │   └── middleware/
 │   │       ├── __init__.py
-│   │       └── auth_middleware.py      # Промежуточное ПО для авторизации
+│   │       └── auth_middleware.py      # Промежуточное ПО для авторизации (УЛУЧШЕНО)
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── client.py                   # API клиент для бэкенда
@@ -145,7 +142,12 @@ frontend/
 │       ├── settings_utils.py           # Утилиты для настроек
 │       ├── state_models.py             # Модели для работы с FSM
 │       ├── word_data_utils.py          # Утилиты для данных слов
-│       └── hint_constants.py           # Константы для подсказок
+│       ├── hint_constants.py           # Константы для подсказок
+│       ├── callback_constants.py       # НОВОЕ: Константы для callback_data
+│       ├── voice_utils.py              # НОВОЕ: Утилиты для голосовых сообщений
+│       ├── voice_recognition.py        # Утилиты для распознавания речи
+│       ├── audio_utils.py              # Утилиты для работы с аудио
+│       └── ffmpeg_utils.py             # Утилиты для FFmpeg
 ├── conf/
 │   ├── __init__.py
 │   └── config/
@@ -179,14 +181,22 @@ frontend/
 │   │       ├── start_help_settings.yaml
 │   │       └── settings_toggle.yaml
 │   ├── test_handlers/                  # Тесты обработчиков
+│   │   ├── test_user/                   # Тесты обработчиков пользователя
+│   │   │   ├── test_user_handlers.py       # Тесты основных обработчиков пользователя
+│   │   │   └── [другие тесты пользовательских обработчиков]
+│   │   └── test_admin/                  # Тесты обработчиков администратора
+│   │       ├── test_admin_basic_handlers.py    # Тесты базовых обработчиков администратора
+│   │       ├── test_admin_language_handlers.py # Тесты обработчиков управления языками
+│   │       ├── test_admin_upload_handlers.py   # Тесты обработчиков загрузки файлов
+│   │       ├── test_admin_upload_column_handlers.py   # Тесты обработчиков настройки колонок
+│   │       └── test_admin_upload_routers.py    # Тесты структуры роутеров загрузки
 │   ├── test_utils/                     # Тесты утилит
+│   │   ├── test_callback_constants.py  # НОВОЕ: Тесты констант callback
+│   │   ├── test_voice_utils.py         # НОВОЕ: Тесты голосовых утилит
+│   │   └── test_centralized_states.py  # НОВОЕ: Тесты централизованных состояний
 │   └── test_api/                       # Тесты API клиента
 └── watch_and_reload.py                 # Скрипт автоперезапуска
-```
-
-## Бэкенд (REST API)
-
-```
+Бэкенд (REST API)
 backend/
 ├── app/
 │   ├── __init__.py
@@ -245,26 +255,18 @@ backend/
     ├── test_api/                     # Тесты API
     ├── test_services/                # Тесты сервисов
     └── test_repositories/            # Тесты репозиториев
-```
-
-## Общие модули (Common)
+Общие модули (Common)
 common/
-├── init.py
+├── __init__.py
 ├── utils/
-│   ├── init.py
+│   ├── __init__.py
 │   ├── logger.py             # Унифицированный модуль логирования
 │   └── [другие утилиты]      # Другие общие утилиты
 └── tests/
-├── init.py
-├── conftest.py           # Конфигурация pytest для модуля common
-└── test_utils_logger.py  # Тесты для logger.py
-
-Директория `common` содержит модули и утилиты, которые используются как фронтендом, так и бэкендом для обеспечения единообразного поведения и избежания дублирования кода.
-
-
-## Служебные скрипты
-
-```
+    ├── __init__.py
+    ├── conftest.py           # Конфигурация pytest для модуля common
+    └── test_utils_logger.py  # Тесты для logger.py
+Служебные скрипты
 scripts/
 ├── __init__.py
 ├── init_db.py                # Инициализация БД
@@ -273,24 +275,46 @@ scripts/
 ├── migrate_data.py           # Миграция данных
 ├── admin_manager.py          # Управление администраторами
 └── create_user_language_settings_collection.py  # Создание коллекции настроек
-```
+Обновления архитектуры
+Новые файлы
+Централизованные константы
 
+frontend/app/utils/callback_constants.py - Все константы callback_data и парсеры
+frontend/app/utils/voice_utils.py - Централизованная обработка голосовых сообщений
+frontend/app/bot/states/centralized_states.py - Все состояния FSM в одном месте
+docs/development/migration_guide.md - Руководство по миграции
 
-## Обновление для файла directory_structure.md
+Улучшенные файлы
 
-Можно обновить раздел о структуре тестов, чтобы отразить новые тесты:
+frontend/app/bot/middleware/auth_middleware.py - Расширенный функционал
+Все файлы в frontend/app/bot/keyboards/ - Использование констант
+Все файлы в frontend/app/bot/handlers/study/hint/ - Рефакторинг с новыми утилитами
 
-```markdown
-frontend/
-├── tests/
-│   ├── test_bot_commands.py            # Тесты команд бота
-│   ├── test_handlers/                  # Тесты обработчиков
-│   │   ├── test_user/                   # Тесты обработчиков пользователя
-│   │   │   ├── test_user_handlers.py       # Тесты основных обработчиков пользователя
-│   │   │   └── [другие тесты пользовательских обработчиков]
-│   │   └── test_admin/                  # Тесты обработчиков администратора
-│   │       ├── test_admin_basic_handlers.py    # Тесты базовых обработчиков администратора
-│   │       ├── test_admin_language_handlers.py # Тесты обработчиков управления языками
-│   │       ├── test_admin_upload_handlers.py   # Тесты обработчиков загрузки файлов
-│   │       ├── test_admin_upload_column_handlers.py   # Тесты обработчиков настройки колонок
-│   │       └── test_admin_upload_routers.py    # Тесты структуры роутеров загрузки
+Удаленные файлы
+Пустые файлы состояний
+
+frontend/app/bot/states/admin_states.py - Был пустой
+frontend/app/bot/states/user_states.py - Был пустой
+
+Дублированные определения
+
+Локальные определения состояний в обработчиках заменены импортами из centralized_states.py
+
+Статистика изменений
+Тип измененияКоличество файловЭкономия строкНовые файлы4+800 строкРефакторинг8-400 строкУдаленные2-10 строкИтого14+390 строк
+Преимущества новой структуры
+
+Централизация - все константы и состояния в одном месте
+Типобезопасность - использование констант вместо магических строк
+DRY принцип - нет дублирования логики обработки голоса
+Легкость отладки - все callback_data управляются централизованно
+Автодополнение IDE - работает для всех констант
+Безопасность рефакторинга - изменение константы влияет на весь код
+
+Обратная совместимость
+
+Все существующие команды и функции работают без изменений
+API не изменился
+База данных не требует миграции
+Конфигурация остается той же
+

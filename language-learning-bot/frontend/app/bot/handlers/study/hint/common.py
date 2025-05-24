@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from app.utils.logger import setup_logger
-from app.bot.handlers.study.study_states import HintStates, StudyStates
+from app.bot.states.centralized_states import HintStates, StudyStates
 from app.bot.handlers.study.study_words import show_study_word
 
 # Создаем вложенный роутер для общих обработчиков

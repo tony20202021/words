@@ -75,10 +75,7 @@ steps:
     asserts:
       - type: message_contains
         position: -2
-        text: "Подсказка успешно создана"
-      - type: message_contains
-        position: -2
-        text: "«Ассоциация для фонетики»"
+        text: "Подсказка «Ассоциация для фонетики» успешно создана"
       - type: message_contains
         position: -2
         text: "Продолжаем изучение слов"

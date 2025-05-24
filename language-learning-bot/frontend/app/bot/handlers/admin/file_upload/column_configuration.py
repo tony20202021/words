@@ -7,7 +7,8 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.bot.handlers.admin.admin_states import AdminStates
+from app.bot.states.centralized_states import AdminStates
+from app.utils.callback_constants import CallbackData
 
 logger = setup_logger(__name__)
 
@@ -20,7 +21,7 @@ DEFAULT_COLUMN_WORD = 1
 DEFAULT_COLUMN_TRANSCRIPTION = 2
 DEFAULT_COLUMN_TRANSLATION = 3
 
-@column_router.callback_query(AdminStates.configuring_columns, F.data == "confirm_upload")
+@column_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.CONFIRM_UPLOAD)
 async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext):
     """
     Process upload confirmation after column configuration.

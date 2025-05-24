@@ -186,6 +186,7 @@ class TestUserHandlers:
             await settings_handlers_module.process_settings_start_word(callback, state)
             
             # Проверяем, что состояние было изменено
+            # from app.bot.states.centralized_states import SettingsStates
             state.set_state.assert_called_once_with(settings_handlers_module.SettingsStates.waiting_start_word)
             
             # Проверяем, что бот отправил ответное сообщение
