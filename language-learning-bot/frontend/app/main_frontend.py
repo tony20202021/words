@@ -153,6 +153,10 @@ def load_secrets(cfg, path):
     Обновляет конфигурацию Hydra с этими данными.
     """
     try:
+        path = os.path.expanduser(path)
+        path = os.path.expandvars(path)
+        print(f"Путь к файлу: {path}")
+
         if os.path.exists(path):
             logger.info(f"Найден файл с секретами: {path}")
             with open(path, 'r') as f:
@@ -176,7 +180,7 @@ async def main() -> None:
     Асинхронная версия для aiogram 3.x
     """
     try:
-        load_secrets(cfg, "../../../../ssh/bot.yaml")
+        load_secrets(cfg, "~/.ssh/bot.yaml")
 
         # Get bot token from configuration
         bot_token = cfg.bot.token if hasattr(cfg, "bot") and hasattr(cfg.bot, "token") else None

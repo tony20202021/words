@@ -1,11 +1,10 @@
-name: language-learning-bot
+name: amikhalev_language_learning_bot
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python=3.10
   - pip>=23.0
-  - conda-forge::postgresql=14
   - conda-forge::mongodb=5.0
   - conda-forge::ffmpeg=4.4  # Conda может установить ffmpeg без sudo
   - pip:

@@ -86,7 +86,7 @@ systemLog:
   logAppend: true
 net:
   bindIp: 127.0.0.1
-  port: 27017
+  port: 27027
 EOL
 ```
 
@@ -102,7 +102,7 @@ EOL
 2. Отредактируйте файл, добавив или проверив настройки MongoDB:
    ```
    MONGODB_HOST=localhost
-   MONGODB_PORT=27017
+   MONGODB_PORT=27027
    MONGODB_DB_NAME=language_learning_bot
    ```
 
@@ -337,7 +337,7 @@ mkdir -p backup
 
 4. Занятость порта MongoDB:
    ```bash
-   lsof -i :27017
+   lsof -i :27027
    ```
 
 ### Ошибки соединения
@@ -356,12 +356,12 @@ mkdir -p backup
 
 3. Проверьте доступность порта MongoDB:
    ```bash
-   telnet localhost 27017
+   telnet localhost 27027
    ```
 
 4. Проверьте настройки брандмауэра:
    ```bash
-   sudo iptables -L | grep 27017
+   sudo iptables -L | grep 27027
    ```
 
 ### Сбои при инициализации базы данных

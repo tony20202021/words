@@ -55,3 +55,5 @@ torch>=2.0.0
 torchaudio>=2.0.0
 numpy>=1.22.0
 imageio-ffmpeg>=0.4.8
+
+watchdog
