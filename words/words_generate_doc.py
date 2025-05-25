@@ -324,21 +324,21 @@ if __name__ == "__main__":
     # OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
     # OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
 
-    INPUT_FILE = "../word_transcription/data/fr.json"
-    OUTPUT_FILE_WORD = "fr_10_000.docx"
-    OUTPUT_FILE_EXCEL = "fr_10_000.xlsx"
+    # INPUT_FILE = "../data/fr.json.cleaned.json"
+    # OUTPUT_FILE_WORD = "fr_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "fr_10_000.xlsx"
 
-    # INPUT_FILE = "../word_transcription/data/eng.json"
+    # INPUT_FILE = "../data/eng.json.cleaned.json"
     # OUTPUT_FILE_WORD = "eng_10_000.docx"
     # OUTPUT_FILE_EXCEL = "eng_10_000.xlsx"
 
-    # INPUT_FILE = "../word_transcription/data/deutch.json"
+    # INPUT_FILE = "../data/deutch.json.cleaned.json"
     # OUTPUT_FILE_WORD = "deutch_10_000.docx"
     # OUTPUT_FILE_EXCEL = "deutch_10_000.xlsx"
 
-    # INPUT_FILE = "../word_transcription/data/spain.json"
-    # OUTPUT_FILE_WORD = "spain_10_000.docx"
-    # OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
+    INPUT_FILE = "../data/spain.json.cleaned.json"
+    OUTPUT_FILE_WORD = "spain_10_000.docx"
+    OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
 
     # Поле с основным словом
     WORD_FIELD_NAME = "word"
