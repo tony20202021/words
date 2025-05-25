@@ -1,5 +1,6 @@
 """
 Handlers for language management in administrative mode.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -44,6 +45,8 @@ async def cmd_manage_languages(message: Message, state: FSMContext):
     # Вызываем общую функцию для обработки
     await handle_language_management(message, state, is_callback=False)
 
+@language_router.callback_query(AdminStates.main_menu, F.data == CallbackData.CREATE_LANGUAGE)
+@language_router.callback_query(AdminStates.viewing_languages, F.data == CallbackData.CREATE_LANGUAGE)
 @language_router.callback_query(F.data == CallbackData.CREATE_LANGUAGE)
 async def process_create_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -159,8 +162,9 @@ async def process_language_native_name(message: Message, state: FSMContext):
             f"❌ Ошибка при создании языка: {str(e)}"
         )
     
-    # Очищаем состояние
+    # Очищаем состояние и возвращаемся к списку языков
     await state.clear()
+    await state.set_state(AdminStates.viewing_languages)
 
 @language_router.message(AdminStates.editing_language_name)
 async def process_edit_language_name(message: Message, state: FSMContext):
@@ -198,8 +202,8 @@ async def process_edit_language_name(message: Message, state: FSMContext):
             await state.clear()
             return
         
-        # Очищаем состояние
-        await state.clear()
+        # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей языка
+        await state.set_state(AdminStates.viewing_language_details)
         
         # Сразу переходим к экрану редактирования языка
         await process_edit_language_after_update(message, language_id)
@@ -248,8 +252,8 @@ async def process_edit_language_native_name(message: Message, state: FSMContext)
             await state.clear()
             return
         
-        # Очищаем состояние
-        await state.clear()
+        # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей языка
+        await state.set_state(AdminStates.viewing_language_details)
         
         # Сразу переходим к экрану редактирования языка
         await process_edit_language_after_update(message, language_id)
@@ -262,6 +266,7 @@ async def process_edit_language_native_name(message: Message, state: FSMContext)
         # Очищаем состояние
         await state.clear()
 
+@language_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("edit_name_ru_"))
 @language_router.callback_query(F.data.startswith("edit_name_ru_"))
 async def process_edit_name_ru(callback: CallbackQuery, state: FSMContext):
     """
@@ -286,6 +291,7 @@ async def process_edit_name_ru(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
+@language_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("edit_name_foreign_"))
 @language_router.callback_query(F.data.startswith("edit_name_foreign_"))
 async def process_edit_name_foreign(callback: CallbackQuery, state: FSMContext):
     """
@@ -310,6 +316,7 @@ async def process_edit_name_foreign(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
+@language_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("delete_language_"))
 @language_router.callback_query(F.data.startswith("delete_language_"))
 async def process_delete_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -337,6 +344,10 @@ async def process_delete_language(callback: CallbackQuery, state: FSMContext):
     
     language = language_response["result"]
     
+    # ✅ НОВОЕ: Устанавливаем состояние подтверждения удаления языка
+    await state.set_state(AdminStates.confirming_language_deletion)
+    await state.update_data(deleting_language_id=language_id)
+    
     # Создаем билдер для клавиатуры
     builder = InlineKeyboardBuilder()
     
@@ -363,6 +374,7 @@ async def process_delete_language(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
+@language_router.callback_query(AdminStates.confirming_language_deletion, F.data.startswith("confirm_delete_"))
 @language_router.callback_query(F.data.startswith("confirm_delete_"))
 async def process_confirm_delete_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -396,6 +408,9 @@ async def process_confirm_delete_language(callback: CallbackQuery, state: FSMCon
             f"Сообщение: {result.get('message', 'Язык удален')}"
         )
         
+        # ✅ НОВОЕ: Возвращаемся к списку языков после удаления
+        await state.set_state(AdminStates.viewing_languages)
+        
     except Exception as e:
         logger.error(f"Error deleting language: {e}")
         await callback.message.answer(
@@ -404,6 +419,7 @@ async def process_confirm_delete_language(callback: CallbackQuery, state: FSMCon
     
     await callback.answer()
 
+@language_router.callback_query(AdminStates.confirming_language_deletion, F.data.startswith("cancel_delete_"))
 @language_router.callback_query(F.data.startswith("cancel_delete_"))
 async def process_cancel_delete_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -413,9 +429,20 @@ async def process_cancel_delete_language(callback: CallbackQuery, state: FSMCont
         callback: The callback query from Telegram
         state: The FSM state context
     """
-    await callback.message.answer("🚫 Удаление языка отменено")
+    # ✅ НОВОЕ: Возвращаемся к деталям языка после отмены
+    user_data = await state.get_data()
+    language_id = user_data.get('deleting_language_id')
+    
+    if language_id:
+        await state.set_state(AdminStates.viewing_language_details)
+        await show_language_edit_screen_callback(callback, language_id)
+    else:
+        await callback.message.answer("🚫 Удаление языка отменено")
+        await state.set_state(AdminStates.viewing_languages)
+    
     await callback.answer()
 
+@language_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("search_word_by_number_"))
 @language_router.callback_query(F.data.startswith("search_word_by_number_"))
 async def process_search_word_by_number(callback_query: CallbackQuery, state: FSMContext):
     """
@@ -499,9 +526,13 @@ async def process_word_number_input(message: Message, state: FSMContext):
         await message.reply(
             f"⚠️ Слово с номером {word_number} не найдено в базе данных."
         )
-        # Возвращаемся на экран редактирования языка
+        # ✅ НОВОЕ: Возвращаемся на экран редактирования языка
+        await state.set_state(AdminStates.viewing_language_details)
         await show_language_edit_screen(message, language_id, is_callback=False)
         return
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра результатов поиска слова
+    await state.set_state(AdminStates.viewing_word_search_results)
     
     # Получаем слово (первый элемент в списке)
     words = result
@@ -580,9 +611,6 @@ async def process_word_number_input(message: Message, state: FSMContext):
         reply_markup=keyboard
     )
 
-    # Очищаем состояние FSM
-    await state.clear()
-
 async def handle_language_management(message_or_callback, state: FSMContext, is_callback=False):
     """
     Common handler logic for language management.
@@ -606,6 +634,9 @@ async def handle_language_management(message_or_callback, state: FSMContext, is_
         message = message_or_callback
 
     logger.info(f"Language management requested by {full_name} ({username})")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра списка языков
+    await state.set_state(AdminStates.viewing_languages)
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(message.bot)
@@ -659,6 +690,8 @@ async def handle_language_management(message_or_callback, state: FSMContext, is_
     # Возвращаем True, чтобы показать, что обработка прошла успешно
     return True
 
+@language_router.callback_query(AdminStates.viewing_languages, F.data == CallbackData.BACK_TO_ADMIN)
+@language_router.callback_query(AdminStates.viewing_language_details, F.data == CallbackData.BACK_TO_ADMIN)
 @language_router.callback_query(F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin_from_languages(callback: CallbackQuery, state: FSMContext):
     """
@@ -683,6 +716,8 @@ async def process_back_to_admin_from_languages(callback: CallbackQuery, state: F
     # Отвечаем на callback
     await callback.answer()
 
+@language_router.callback_query(AdminStates.viewing_language_details, F.data == CallbackData.BACK_TO_LANGUAGES)
+@language_router.callback_query(AdminStates.viewing_word_search_results, F.data == CallbackData.BACK_TO_LANGUAGES)
 @language_router.callback_query(F.data == CallbackData.BACK_TO_LANGUAGES)
 async def process_back_to_languages(callback: CallbackQuery, state: FSMContext):
     """
@@ -759,7 +794,59 @@ async def show_language_edit_screen(message_or_callback, language_id: str, is_ca
         parse_mode="HTML",
         reply_markup=keyboard
     )
+
+async def show_language_edit_screen_callback(callback: CallbackQuery, language_id: str):
+    """
+    Show language edit screen for callback queries.
     
+    Args:
+        callback: The callback query from Telegram
+        language_id: The ID of the language to edit
+    """
+    # Получаем клиент API с помощью утилиты
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о языке из API
+    language_response = await api_client.get_language(language_id)
+    
+    if not language_response["success"] or not language_response["result"]:
+        error_msg = language_response.get("error", "Язык не найден")
+        await callback.message.answer(f"Ошибка: {error_msg}")
+        logger.error(f"Failed to get language by ID {language_id}. Error: {error_msg}")
+        return
+    
+    language = language_response["result"]
+    
+    # Получаем количество слов в языке
+    word_count_response = await api_client.get_word_count_by_language(language_id)
+    word_count = "N/A"
+
+    if word_count_response["success"]:
+        word_count = word_count_response["result"]["count"] if word_count_response["result"] else "0"
+    else:
+        logger.error(f"Failed to get word count for language {language_id}. Error: {word_count_response.get('error')}")    
+
+    # Форматируем даты
+    created_at = format_date_standard(language.get('created_at', 'N/A'))
+    updated_at = format_date_standard(language.get('updated_at', 'N/A'))
+    
+    # Используем готовую клавиатуру
+    keyboard = get_edit_language_keyboard(language_id)
+    
+    await callback.message.edit_text(
+        f"🔹 <b>Редактирование языка</b> 🔹\n\n"
+        f"ID: {language['id']}\n"
+        f"Название (рус): <b>{language['name_ru']}</b>\n"
+        f"Название (ориг.): <b>{language['name_foreign']}</b>\n"
+        f"Количество слов: <b>{word_count}</b>\n"
+        f"Дата создания: <b>{created_at}</b>\n"
+        f"Дата обновления: <b>{updated_at}</b>",
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+    
+@language_router.callback_query(AdminStates.viewing_languages, F.data.startswith("edit_language_"))
+@language_router.callback_query(AdminStates.viewing_word_search_results, F.data.startswith("edit_language_"))
 @language_router.callback_query(F.data.startswith("edit_language_"))
 async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     """
@@ -774,6 +861,9 @@ async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     
     # Логируем выбранный язык
     logger.info(f"'edit_language_' callback for language ID: {language_id}")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей языка
+    await state.set_state(AdminStates.viewing_language_details)
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(callback.bot)
@@ -801,7 +891,7 @@ async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     await state.update_data(editing_language_id=language_id)
     
     # Вызываем общую функцию для отображения экрана редактирования
-    await show_language_edit_screen(callback, language_id, is_callback=True)
+    await show_language_edit_screen_callback(callback, language_id)
     
     await callback.answer()
 
@@ -815,3 +905,4 @@ async def process_edit_language_after_update(message: Message, language_id: str)
     """
     # Вызываем общую функцию для отображения экрана редактирования
     await show_language_edit_screen(message, language_id, is_callback=False)
+    

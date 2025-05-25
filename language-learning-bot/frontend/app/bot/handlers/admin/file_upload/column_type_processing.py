@@ -1,5 +1,6 @@
 """
 Handlers for column type selection and processing.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -16,6 +17,7 @@ logger = setup_logger(__name__)
 column_type_router = Router()
 
 @column_type_router.callback_query(AdminStates.configuring_columns, F.data.startswith(CallbackData.SELECT_COLUMN_TYPE))
+@column_type_router.callback_query(AdminStates.configuring_upload_settings, F.data.startswith(CallbackData.SELECT_COLUMN_TYPE))
 async def process_select_column_type(callback: CallbackQuery, state: FSMContext):
     """
     Process column type selection.
@@ -27,6 +29,9 @@ async def process_select_column_type(callback: CallbackQuery, state: FSMContext)
     # Извлекаем ID языка из callback_data
     language_id = callback.data.split(":")[-1]
     logger.info(f"Column type selection for language ID: {language_id}")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние конфигурации колонок
+    await state.set_state(AdminStates.configuring_columns)
     
     # Получаем текущие данные состояния для отображения текущих номеров колонок
     user_data = await state.get_data()
@@ -53,11 +58,11 @@ async def process_select_column_type(callback: CallbackQuery, state: FSMContext)
     # Кнопка подтверждения и возврата
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить",
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     builder.add(InlineKeyboardButton(
         text="⬅️ Назад к настройкам",
-        callback_data="back_to_settings"
+        callback_data=CallbackData.BACK_TO_SETTINGS
     ))
     
     # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)
@@ -97,7 +102,7 @@ async def process_column_type_selection(callback: CallbackQuery, state: FSMConte
         column_settings_chat_id=callback.message.chat.id
     )
     
-    # Создаем состояние для ввода номера колонки
+    # ✅ НОВОЕ: Переходим в состояние ввода номера колонки
     await state.set_state(AdminStates.input_column_number)
     
     # Заменяем сообщение на запрос ввода номера колонки
@@ -123,7 +128,8 @@ async def process_column_number_input(message: Message, state: FSMContext):
     
     if not column_type:
         await message.answer("❌ Ошибка: тип колонки не найден. Начните процесс заново.")
-        await state.clear()
+        # ✅ НОВОЕ: Возвращаемся к настройкам загрузки при ошибке
+        await state.set_state(AdminStates.configuring_upload_settings)
         return
     
     # Проверяем, что введен корректный номер колонки
@@ -137,7 +143,11 @@ async def process_column_number_input(message: Message, state: FSMContext):
             "❌ Пожалуйста, введите корректный номер колонки (целое неотрицательное число)"
         )
         # Отложенное удаление сообщения через 5 секунд
-        await error_message.delete_delayed(delay=5)
+        try:
+            await error_message.delete_delayed(delay=5)
+        except:
+            # Если delete_delayed не поддерживается, просто продолжаем
+            pass
         return
     
     # Сохраняем номер колонки в состоянии
@@ -147,7 +157,7 @@ async def process_column_number_input(message: Message, state: FSMContext):
     # Получаем обновленные данные состояния
     user_data = await state.get_data()
     
-    # Возвращаемся к состоянию настройки колонок
+    # ✅ НОВОЕ: Возвращаемся к состоянию настройки колонок
     await state.set_state(AdminStates.configuring_columns)
     
     # Создаем билдер для клавиатуры
@@ -172,11 +182,11 @@ async def process_column_number_input(message: Message, state: FSMContext):
     # Кнопка подтверждения и возврата
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить",
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     builder.add(InlineKeyboardButton(
         text="⬅️ Назад к настройкам",
-        callback_data="back_to_settings"
+        callback_data=CallbackData.BACK_TO_SETTINGS
     ))
     
     # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)
@@ -220,3 +230,45 @@ async def process_column_number_input(message: Message, state: FSMContext):
         await message.delete()
     except Exception as e:
         logger.error(f"Error deleting message: {e}")
+
+# ✅ НОВОЕ: Обработчик отмены из ввода номера колонки  
+@column_type_router.message(AdminStates.input_column_number, F.text == "/cancel")
+async def process_cancel_column_input(message: Message, state: FSMContext):
+    """
+    Handle canceling column number input.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    logger.info("Cancel column number input")
+    
+    # ✅ НОВОЕ: Возвращаемся к состоянию конфигурации колонок
+    await state.set_state(AdminStates.configuring_columns)
+    
+    await message.answer(
+        "❌ Ввод номера колонки отменен.\n\n"
+        "Вы можете выбрать другую колонку для настройки или подтвердить загрузку с текущими настройками."
+    )
+
+# ✅ НОВОЕ: Обработчик возврата в админку из ввода номера колонки
+@column_type_router.callback_query(AdminStates.input_column_number, F.data == CallbackData.BACK_TO_ADMIN)
+async def process_back_to_admin_from_column_input(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to admin menu from column number input.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to admin from column number input")
+    
+    # Очищаем состояние
+    await state.clear()
+    
+    # Импортируем и вызываем функцию возврата в административное меню
+    from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+    await handle_admin_mode(callback, state, is_callback=True)
+    
+    await callback.answer()
+    

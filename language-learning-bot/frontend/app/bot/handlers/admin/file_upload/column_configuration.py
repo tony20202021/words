@@ -1,5 +1,6 @@
 """
 Handlers for column configuration during file upload.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -30,6 +31,11 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
         callback: The callback query from Telegram
         state: The FSM state context
     """
+    logger.info("Processing upload confirmation from column configuration")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние подтверждения загрузки файла
+    await state.set_state(AdminStates.confirming_file_upload)
+    
     # Получаем данные состояния
     user_data = await state.get_data()
     logger.debug(f"User data for upload confirmation: {user_data}")
@@ -87,7 +93,8 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
             error_msg = upload_response.get("error", "Неизвестная ошибка")
             await loading_message.edit_text(f"❌ Ошибка при загрузке файла: {error_msg}")
             logger.error(f"Failed to upload file. Error: {error_msg}")
-            await state.clear()
+            # ✅ НОВОЕ: Возвращаемся к настройкам загрузки при ошибке
+            await state.set_state(AdminStates.configuring_upload_settings)
             return
         
         result = upload_response["result"]
@@ -107,14 +114,89 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
         if result.get('errors') and len(result.get('errors', [])) > 0:
             logger.warning(f"Errors during file upload: {result.get('errors')}")
         
-        # Очищаем состояние
+        # ✅ НОВОЕ: Очищаем состояние и возвращаемся в главное меню админа
         await state.clear()
+        
+        # Показываем кнопку возврата в админ-панель
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Вернуться в админку", callback_data=CallbackData.BACK_TO_ADMIN)]
+        ])
+        
+        await callback.message.answer(
+            "🎉 Загрузка файла завершена!\n\n"
+            "Вы можете вернуться в административную панель или выполнить другие действия.",
+            reply_markup=keyboard
+        )
         
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         await loading_message.edit_text(
             f"❌ Ошибка при загрузке файла: {str(e)}"
         )
-        await state.clear()
+        # ✅ НОВОЕ: Возвращаемся к настройкам загрузки при исключении
+        await state.set_state(AdminStates.configuring_upload_settings)
     
     await callback.answer()
+
+# ✅ НОВОЕ: Обработчик отмены из конфигурации колонок
+@column_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.BACK_TO_SETTINGS)
+async def process_back_to_settings_from_columns(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to upload settings from column configuration.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to settings from column configuration")
+    
+    # ✅ НОВОЕ: Возвращаемся к состоянию настроек загрузки
+    await state.set_state(AdminStates.configuring_upload_settings)
+    
+    # Импортируем и вызываем обработчик возврата к настройкам
+    from app.bot.handlers.admin.file_upload.settings_management import process_back_to_settings
+    await process_back_to_settings(callback, state)
+
+# ✅ НОВОЕ: Обработчик возврата в админку из конфигурации колонок
+@column_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.BACK_TO_ADMIN)
+async def process_back_to_admin_from_columns(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to admin menu from column configuration.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to admin from column configuration")
+    
+    # Очищаем состояние загрузки файла
+    await state.clear()
+    
+    # Импортируем и вызываем функцию возврата в административное меню
+    from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+    await handle_admin_mode(callback, state, is_callback=True)
+    
+    await callback.answer()
+
+# ✅ НОВОЕ: Обработчик для состояния подтверждения загрузки файла
+@column_router.callback_query(AdminStates.confirming_file_upload, F.data == CallbackData.BACK_TO_ADMIN)
+async def process_back_to_admin_from_confirmation(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to admin menu from upload confirmation.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to admin from upload confirmation")
+    
+    # Очищаем состояние
+    await state.clear()
+    
+    # Импортируем и вызываем функцию возврата в административное меню
+    from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+    await handle_admin_mode(callback, state, is_callback=True)
+    
+    await callback.answer()
+    

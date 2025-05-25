@@ -12,6 +12,7 @@ from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.formatting_utils import format_settings_text
+from app.bot.states.centralized_states import UserStates
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -58,10 +59,11 @@ async def cmd_language(message: Message, state: FSMContext):
     Args:
         message: The message object from Telegram
     """
-    # Сначала очищаем состояние для предотвращения конфликтов
-    # Но в данном случае мы хотим сохранить данные пользователя
+    # ИСПРАВЛЕНО: Устанавливаем состояние выбора языка и НЕ сбрасываем его
+    await state.set_state(UserStates.selecting_language)
+    
+    # Сохраняем данные пользователя, но очищаем другие состояния
     current_data = await state.get_data()
-    await state.set_state(None)
     await state.update_data(**current_data)
 
     user_id = message.from_user.id
@@ -206,7 +208,8 @@ async def cmd_language(message: Message, state: FSMContext):
     languages_text += "/study - Начать изучение слов\n"
     languages_text += "/settings - Настройки процесса обучения\n"
     languages_text += "/stats - Показать статистику\n"
-    languages_text += "/start - Вернуться на начальный экран"
+    languages_text += "/start - Вернуться на начальный экран\n"
+    languages_text += "/cancel - Отменить выбор языка"
     
     # Создаем клавиатуру с кнопками для выбора языка
     keyboard_builder = InlineKeyboardBuilder()
@@ -326,6 +329,9 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         show_debug=settings.get("show_debug", True),
     )
 
+    # ИСПРАВЛЕНО: Очищаем состояние выбора языка после успешного выбора
+    await state.set_state(None)
+
     # Форматируем текст настроек
     settings_prefix = "⚙️ Ваши настройки для этого языка:\n"
     settings_text = format_settings_text(
@@ -365,3 +371,4 @@ def register_handlers(dp: Dispatcher):
     """
     # Для aiogram 3.x используем include_router
     dp.include_router(language_router)
+    

@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.dispatcher.router import Router
 from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
@@ -32,10 +33,11 @@ async def cmd_settings(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    # Сначала очищаем состояние для предотвращения конфликтов
-    # Но в данном случае мы хотим сохранить данные пользователя
+    # Устанавливаем состояние просмотра настроек
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Сохраняем данные пользователя
     current_data = await state.get_data()
-    await state.set_state(None)
     await state.update_data(**current_data)
     
     user_id = message.from_user.id
@@ -96,6 +98,9 @@ async def cmd_settings(message: Message, state: FSMContext):
     
     # Если язык выбран, используем функцию для отображения настроек
     await display_language_settings(message, state)
+    
+    # Очищаем состояние после показа настроек
+    await state.set_state(None)
 
 @settings_router.callback_query(F.data == "settings_toggle_skip_marked")
 async def process_settings_toggle_skip_marked(callback: CallbackQuery, state: FSMContext):
@@ -116,18 +121,97 @@ async def process_settings_toggle_skip_marked(callback: CallbackQuery, state: FS
     settings = await get_user_language_settings(callback, state)
     
     # Инвертируем настройку пропуска помеченных слов
-    settings["skip_marked"] = not settings.get("skip_marked", False)
+    new_skip_marked = not settings.get("skip_marked", False)
+    
+    # Переходим в состояние подтверждения для критически важной настройки
+    await state.set_state(SettingsStates.confirming_changes)
+    
+    # Сохраняем данные о предстоящем изменении
+    await state.update_data(
+        pending_setting_key="skip_marked",
+        pending_setting_value=new_skip_marked,
+        pending_setting_name="пропуск помеченных слов"
+    )
+    
+    # Создаем клавиатуру подтверждения
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(
+        text="✅ Подтвердить изменение",
+        callback_data="confirm_setting_change"
+    )
+    keyboard.button(
+        text="❌ Отменить",
+        callback_data="cancel_setting_change"
+    )
+    keyboard.adjust(1)
+    
+    # Показываем подтверждение
+    current_status = "Пропускать ❌" if settings.get("skip_marked", False) else "Показывать ✅"
+    new_status = "Пропускать ❌" if new_skip_marked else "Показывать ✅"
+    
+    await callback.message.answer(
+        f"⚠️ Подтвердите изменение настройки:\n\n"
+        f"📝 <b>Слова, помеченные как пропущенные</b>\n\n"
+        f"Текущее значение: <b>{current_status}</b>\n"
+        f"Новое значение: <b>{new_status}</b>\n\n"
+        f"Это изменение повлияет на то, какие слова будут показываться при изучении.",
+        reply_markup=keyboard.as_markup(),
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+
+@settings_router.callback_query(F.data == "confirm_setting_change")
+async def process_confirm_setting_change(callback: CallbackQuery, state: FSMContext):
+    """
+    Process confirmation of setting change.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    user_id = callback.from_user.id
+    username = callback.from_user.username
+    full_name = callback.from_user.full_name
+
+    logger.info(f"'confirm_setting_change' callback from {full_name} ({username})")
+    
+    # Получаем данные о предстоящем изменении
+    state_data = await state.get_data()
+    setting_key = state_data.get("pending_setting_key")
+    setting_value = state_data.get("pending_setting_value")
+    setting_name = state_data.get("pending_setting_name")
+    
+    if not setting_key:
+        await callback.answer("Ошибка: данные об изменении не найдены")
+        return
+    
+    # Получаем настройки пользователя
+    settings = await get_user_language_settings(callback, state)
+    
+    # Применяем изменение
+    settings[setting_key] = setting_value
     
     # Сохраняем обновленные настройки
     success = await save_user_language_settings(callback, state, settings)
     
     if success:
         # Обновляем состояние FSM для совместимости со старым кодом
-        await state.update_data(skip_marked=settings["skip_marked"])
+        await state.update_data(**{setting_key: setting_value})
         
-        # Используем функцию для отображения настроек
+        # Очищаем данные о предстоящем изменении
+        await state.update_data(
+            pending_setting_key=None,
+            pending_setting_value=None,
+            pending_setting_name=None
+        )
+        
+        # Возвращаемся к состоянию просмотра настроек
+        await state.set_state(SettingsStates.viewing_settings)
+        
+        # Показываем обновленные настройки
         await display_language_settings(callback, state, 
-                                       prefix="✅ Настройки успешно обновлены!\n\n", 
+                                       prefix=f"✅ Настройка «{setting_name}» успешно изменена!\n\n", 
                                        is_callback=True)
     else:
         # В случае ошибки сообщаем пользователю
@@ -135,6 +219,37 @@ async def process_settings_toggle_skip_marked(callback: CallbackQuery, state: FS
     
     await callback.answer()
 
+@settings_router.callback_query(F.data == "cancel_setting_change")
+async def process_cancel_setting_change(callback: CallbackQuery, state: FSMContext):
+    """
+    Process cancellation of setting change.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    user_id = callback.from_user.id
+    username = callback.from_user.username
+    full_name = callback.from_user.full_name
+
+    logger.info(f"'cancel_setting_change' callback from {full_name} ({username})")
+    
+    # Очищаем данные о предстоящем изменении
+    await state.update_data(
+        pending_setting_key=None,
+        pending_setting_value=None,
+        pending_setting_name=None
+    )
+    
+    # Возвращаемся к состоянию просмотра настроек
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Показываем настройки без изменений
+    await display_language_settings(callback, state, 
+                                   prefix="⚙️ Изменение настройки отменено.\n\n", 
+                                   is_callback=True)
+    
+    await callback.answer("Изменение отменено")
 
 @settings_router.callback_query(F.data == "settings_toggle_check_date")
 async def process_settings_toggle_check_date(callback: CallbackQuery, state: FSMContext):
@@ -417,3 +532,4 @@ async def process_settings_toggle_show_debug(callback: CallbackQuery, state: FSM
         await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
     
     await callback.answer()
+    

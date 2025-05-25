@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
+from app.bot.states.centralized_states import UserStates
 
 # Создаем роутер для обработчиков статистики
 stats_router = Router()
@@ -25,9 +26,11 @@ async def cmd_stats(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    # Сначала очищаем состояние, сохраняя данные пользователя
+    # ИСПРАВЛЕНО: Устанавливаем состояние просмотра статистики и НЕ сбрасываем его
+    await state.set_state(UserStates.viewing_stats)
+    
+    # Сохраняем данные пользователя
     current_data = await state.get_data()
-    await state.set_state(None)
     await state.update_data(**current_data)
     
     user_id = message.from_user.id
@@ -85,7 +88,12 @@ async def cmd_stats(message: Message, state: FSMContext):
     if not languages:
         await message.answer(
             "📊 Статистика\n\n"
-            "В системе пока нет доступных языков. Обратитесь к администратору."
+            "В системе пока нет доступных языков. Обратитесь к администратору.\n\n"
+            "Доступные команды:\n"
+            "/language - Выбор языка\n"
+            "/help - Справка\n"
+            "/start - Главное меню\n"
+            "/cancel - Выйти из просмотра статистики"
         )
         return
     
@@ -128,7 +136,12 @@ async def cmd_stats(message: Message, state: FSMContext):
         await message.answer(
             "📊 Статистика\n\n"
             "У вас пока нет статистики по изучению языков.\n"
-            "Начните с выбора языка с помощью команды /language"
+            "Начните с выбора языка с помощью команды /language\n\n"
+            "Доступные команды:\n"
+            "/language - Выбор языка\n"
+            "/help - Справка\n"
+            "/start - Главное меню\n"
+            "/cancel - Выйти из просмотра статистики"
         )
         return
     
@@ -168,4 +181,17 @@ async def cmd_stats(message: Message, state: FSMContext):
             
             stats_text += f"- {lang_name} ({lang_name_foreign}) - {total_words} слов\n"
     
+    # ИСПРАВЛЕНО: Добавляем информацию о доступных командах
+    stats_text += "\nДоступные команды:\n"
+    stats_text += "/language - Выбор языка для изучения\n"
+    stats_text += "/study - Начать изучение слов\n"
+    stats_text += "/settings - Настройки обучения\n"
+    stats_text += "/help - Справка\n"
+    stats_text += "/start - Главное меню\n"
+    stats_text += "/cancel - Выйти из просмотра статистики"
+    
     await message.answer(stats_text)
+    
+    # ИСПРАВЛЕНО: НЕ очищаем состояние после показа статистики
+    # Состояние будет очищено только при переходе в другую команду или /cancel
+    

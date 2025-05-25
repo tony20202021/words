@@ -1,5 +1,6 @@
 """
 Basic admin handlers for common commands like /admin and /stats.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -12,6 +13,7 @@ from app.bot.keyboards.admin_keyboards import get_admin_keyboard
 from app.bot.handlers.admin.admin_language_handlers import cmd_manage_languages
 from app.bot.handlers.admin.admin_language_handlers import handle_language_management
 from app.utils.callback_constants import CallbackData
+from app.bot.states.centralized_states import AdminStates
 
 # Создаем роутер для базовых обработчиков администратора
 admin_router = Router()
@@ -45,7 +47,7 @@ async def handle_admin_mode(message_or_callback, state: FSMContext, is_callback=
     # Сначала очищаем состояние для предотвращения конфликтов
     # Но в данном случае мы хотим сохранить данные пользователя
     current_data = await state.get_data()
-    await state.set_state(None)
+    await state.set_state(AdminStates.main_menu)  # ✅ НОВОЕ: Устанавливаем состояние главного меню
     await state.update_data(**current_data)
     
     # Получаем клиент API с помощью утилиты
@@ -127,6 +129,7 @@ async def cmd_admin(message: Message, state: FSMContext):
     
     await handle_admin_mode(message, state)
 
+@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.BACK_TO_ADMIN)
 @admin_router.callback_query(F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     """
@@ -148,6 +151,7 @@ async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
+@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.BACK_TO_START)
 @admin_router.callback_query(F.data == CallbackData.BACK_TO_START)
 async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     """
@@ -192,6 +196,7 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
+@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.ADMIN_LANGUAGES)
 @admin_router.callback_query(F.data == CallbackData.ADMIN_LANGUAGES)
 async def process_admin_languages(callback: CallbackQuery, state: FSMContext):
     """
@@ -236,6 +241,9 @@ async def handle_stats(message_or_callback, state: FSMContext, is_callback=False
         message = message_or_callback
 
     logger.info(f"Statistics requested by {full_name} ({username})")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра статистики
+    await state.set_state(AdminStates.viewing_admin_stats)
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(message.bot)
@@ -340,6 +348,8 @@ async def cmd_bot_stats(message: Message, state: FSMContext):
     # Вызываем общую функцию для обработки статистики
     await handle_stats(message, state, is_callback=False)
 
+@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.ADMIN_STATS_CALLBACK)
+@admin_router.callback_query(AdminStates.viewing_admin_stats, F.data == CallbackData.ADMIN_STATS_CALLBACK)
 @admin_router.callback_query(F.data == CallbackData.ADMIN_STATS_CALLBACK)
 async def process_admin_stats(callback: CallbackQuery, state: FSMContext):
     """
@@ -361,6 +371,8 @@ async def process_admin_stats(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
+@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.ADMIN_USERS)
+@admin_router.callback_query(AdminStates.viewing_users_list, F.data == CallbackData.ADMIN_USERS)
 @admin_router.callback_query(F.data == CallbackData.ADMIN_USERS)
 async def process_admin_users(callback: CallbackQuery, state: FSMContext):
     """
@@ -383,6 +395,7 @@ async def process_admin_users(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@admin_router.callback_query(AdminStates.viewing_users_list, F.data.startswith("users_page_"))
 @admin_router.callback_query(F.data.startswith("users_page_"))
 async def process_users_page(callback: CallbackQuery, state: FSMContext):
     """
@@ -403,6 +416,8 @@ async def process_users_page(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@admin_router.callback_query(AdminStates.viewing_users_list, F.data.startswith("view_user_"))
+@admin_router.callback_query(AdminStates.viewing_user_details, F.data.startswith("view_user_"))
 @admin_router.callback_query(F.data.startswith("view_user_"))
 async def process_view_user(callback: CallbackQuery, state: FSMContext):
     """
@@ -423,6 +438,7 @@ async def process_view_user(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@admin_router.callback_query(AdminStates.viewing_user_details, F.data.startswith("user_stats_"))
 @admin_router.callback_query(F.data.startswith("user_stats_"))
 async def process_user_stats(callback: CallbackQuery, state: FSMContext):
     """
@@ -443,6 +459,7 @@ async def process_user_stats(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@admin_router.callback_query(AdminStates.viewing_user_details, F.data.startswith("toggle_admin_"))
 @admin_router.callback_query(F.data.startswith("toggle_admin_"))
 async def process_toggle_admin(callback: CallbackQuery, state: FSMContext):
     """
@@ -456,6 +473,9 @@ async def process_toggle_admin(callback: CallbackQuery, state: FSMContext):
     user_id = callback.data.split("_")[-1]
     
     logger.info(f"Toggle admin rights for {user_id} requested")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние подтверждения изменения прав
+    await state.set_state(AdminStates.confirming_admin_rights_change)
     
     # Вызываем функцию для изменения прав администратора
     await toggle_user_admin_rights(callback, state, user_id)
@@ -497,6 +517,9 @@ async def handle_user_management(message_or_callback, state: FSMContext, is_call
         message = message_or_callback
 
     logger.info(f"User management requested by {full_name} ({username})")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра списка пользователей
+    await state.set_state(AdminStates.viewing_users_list)
     
     # Получаем клиент API
     api_client = get_api_client_from_bot(message.bot)
@@ -569,6 +592,9 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
         state: The FSM state context
         user_id: ID of the user to show details for
     """
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей пользователя
+    await state.set_state(AdminStates.viewing_user_details)
+    
     api_client = get_api_client_from_bot(callback.bot)
     
     # Получаем информацию о пользователе
@@ -813,3 +839,4 @@ async def cmd_manage_users(message: Message, state: FSMContext):
     
     # Вызываем общую функцию для обработки
     await handle_user_management(message, state)
+    

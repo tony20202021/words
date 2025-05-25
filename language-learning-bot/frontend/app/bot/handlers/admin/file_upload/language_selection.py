@@ -1,5 +1,6 @@
 """
 Handlers for language selection during file upload.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -51,6 +52,9 @@ async def process_language_selection_for_upload(callback: CallbackQuery, state: 
     # Сохраняем данные в состоянии
     await state.update_data(selected_language_id=language_id)
     
+    # ✅ НОВОЕ: Устанавливаем состояние ожидания файла
+    await state.set_state(AdminStates.waiting_file)
+    
     await callback.message.answer(
         f"📤 Отправьте Excel-файл со списком слов для языка: {language['name_ru']}.\n\n"
         "Требования к файлу:\n"
@@ -60,6 +64,49 @@ async def process_language_selection_for_upload(callback: CallbackQuery, state: 
         "- Порядок колонок можно будет настроить после загрузки"
     )
     
-    # Переходим в состояние ожидания файла
-    await state.set_state(AdminStates.waiting_file)
+    # Отвечаем на callback
     await callback.answer()
+
+# ✅ НОВОЕ: Обработчик для отмены выбора языка (возврат к выбору языка)
+@language_router.callback_query(AdminStates.waiting_file, F.data == "cancel_language_selection")
+async def process_cancel_language_selection(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle canceling language selection and returning to language list.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Cancel language selection for upload")
+    
+    # Очищаем выбранный язык из состояния
+    user_data = await state.get_data()
+    if 'selected_language_id' in user_data:
+        del user_data['selected_language_id']
+        await state.set_data(user_data)
+    
+    # Возвращаемся к выбору языка (эмулируем команду /upload)
+    from app.bot.handlers.admin.file_upload.file_processing import cmd_upload
+    
+    # Создаем фиктивное сообщение для переиспользования логики
+    fake_message = callback.message
+    fake_message.from_user = callback.from_user
+    
+    await cmd_upload(fake_message, state)
+    await callback.answer()
+
+# ✅ НОВОЕ: Обработчик для команд в состоянии ожидания файла
+@language_router.callback_query(AdminStates.waiting_file, F.data.startswith("upload_to_lang_"))
+async def process_change_language_during_upload(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle changing language selection during file upload process.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Changing language selection during upload process")
+    
+    # Обрабатываем как обычный выбор языка
+    await process_language_selection_for_upload(callback, state)
+    

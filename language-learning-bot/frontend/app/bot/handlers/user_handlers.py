@@ -10,11 +10,14 @@ from app.bot.handlers.user.settings_handlers import settings_router
 from app.bot.handlers.user.help_handlers import help_router
 from app.bot.handlers.user.stats_handlers import stats_router
 from app.bot.handlers.user.hint_handlers import hint_router
+from app.bot.handlers.user.cancel_handlers import cancel_router
 
 # Создаем общий роутер для пользователя
 user_router = Router()
 
 # Включаем все подроутеры в основной роутер пользователя
+# Обработчики отмены должны быть первыми (высокий приоритет)
+user_router.include_router(cancel_router)
 user_router.include_router(basic_router)
 user_router.include_router(settings_router)
 user_router.include_router(help_router)
@@ -30,3 +33,4 @@ def register_handlers(dp: Dispatcher):
     """
     # Для aiogram 3.x используем include_router
     dp.include_router(user_router)
+    

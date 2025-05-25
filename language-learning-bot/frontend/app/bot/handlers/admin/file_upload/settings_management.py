@@ -1,5 +1,6 @@
 """
 Handlers for settings management during file upload.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -15,6 +16,7 @@ logger = setup_logger(__name__)
 # Создаем роутер для обработчиков управления настройками
 settings_router = Router()
 
+@settings_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.TOGGLE_HEADERS)
 @settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.TOGGLE_HEADERS)
 async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     """
@@ -24,6 +26,8 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
         callback: The callback query from Telegram
         state: The FSM state context
     """
+    logger.info("Toggling headers setting")
+    
     # Получаем текущие настройки
     user_data = await state.get_data()
     current_value = user_data.get('has_headers', False)
@@ -31,6 +35,11 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     # Инвертируем значение
     new_value = not current_value
     await state.update_data(has_headers=new_value)
+    
+    # ✅ НОВОЕ: Убеждаемся, что мы в правильном состоянии
+    current_state = await state.get_state()
+    if current_state != AdminStates.configuring_columns.state:
+        await state.set_state(AdminStates.configuring_upload_settings)
     
     # Получаем обновленные данные
     user_data = await state.get_data()
@@ -90,6 +99,7 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
+@settings_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.TOGGLE_CLEAR_EXISTING)
 @settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.TOGGLE_CLEAR_EXISTING)
 async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMContext):
     """
@@ -99,6 +109,8 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
         callback: The callback query from Telegram
         state: The FSM state context
     """
+    logger.info("Toggling clear existing setting")
+    
     # Получаем текущие настройки
     user_data = await state.get_data()
     current_value = user_data.get('clear_existing', False)
@@ -106,6 +118,11 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     # Инвертируем значение
     new_value = not current_value
     await state.update_data(clear_existing=new_value)
+    
+    # ✅ НОВОЕ: Убеждаемся, что мы в правильном состоянии
+    current_state = await state.get_state()
+    if current_state != AdminStates.configuring_columns.state:
+        await state.set_state(AdminStates.configuring_upload_settings)
     
     # Получаем обновленные данные
     user_data = await state.get_data()
@@ -117,17 +134,17 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     
     # Тексты для кнопок (без использования f-строк с экранированными кавычками)
     headers_btn_text = "📝 Файл содержит заголовки: поменять на \"Нет\"" if has_headers else "📝 Файл содержит заголовки: поменять на \"Да\""
-    clear_btn_text = "🗑️ Очистить существующие слова: поменять на \"Нет\"" if clear_existing else "🗑️ Очистить существующие слова: поменять на \"Да\""
+    clear_btn_text = "🗑️ Очистить существующие слова: поменять на \"Нет\"" if clear_existing else "🗑️ Очистить существующие слова: поmenять на \"Да\""
     
     # Обновляем сообщение
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text=headers_btn_text, 
-        callback_data="toggle_headers"
+        callback_data=CallbackData.TOGGLE_HEADERS
     ))
     builder.add(InlineKeyboardButton(
         text=clear_btn_text, 
-        callback_data="toggle_clear_existing"
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
@@ -141,12 +158,12 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     # Добавляем кнопку подтверждения загрузки
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить", 
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     
     builder.add(InlineKeyboardButton(
         text="⬅️ Отмена", 
-        callback_data="back_to_admin"
+        callback_data=CallbackData.BACK_TO_ADMIN
     ))
     builder.adjust(1)
     
@@ -161,6 +178,7 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     
     await callback.answer()
 
+@settings_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.BACK_TO_SETTINGS)
 @settings_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.BACK_TO_SETTINGS)
 async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     """
@@ -170,6 +188,11 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
         callback: The callback query from Telegram
         state: The FSM state context
     """
+    logger.info("Back to upload settings")
+    
+    # ✅ НОВОЕ: Устанавливаем состояние настроек загрузки
+    await state.set_state(AdminStates.configuring_upload_settings)
+    
     # Получаем данные состояния
     user_data = await state.get_data()
     has_headers = user_data.get('has_headers', False)
@@ -186,11 +209,11 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text=headers_btn_text, 
-        callback_data="toggle_headers"
+        callback_data=CallbackData.TOGGLE_HEADERS
     ))
     builder.add(InlineKeyboardButton(
         text=clear_btn_text, 
-        callback_data="toggle_clear_existing"
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
@@ -204,12 +227,12 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     # Добавляем кнопку подтверждения загрузки
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить", 
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     
     builder.add(InlineKeyboardButton(
         text="⬅️ Отмена", 
-        callback_data="back_to_admin"
+        callback_data=CallbackData.BACK_TO_ADMIN
     ))
     builder.adjust(1)
     
@@ -221,6 +244,27 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
         "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла.",
         reply_markup=builder.as_markup()
     )
+    
+    await callback.answer()
+
+# ✅ НОВОЕ: Обработчик возврата в админку из настроек загрузки
+@settings_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.BACK_TO_ADMIN)
+async def process_back_to_admin_from_settings(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to admin menu from upload settings.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to admin from upload settings")
+    
+    # Очищаем состояние загрузки файла
+    await state.clear()
+    
+    # Импортируем и вызываем функцию возврата в административное меню
+    from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+    await handle_admin_mode(callback, state, is_callback=True)
     
     await callback.answer()
 
@@ -271,3 +315,66 @@ def get_column_info_text(user_data):
         return f"(сейчас: {', '.join(column_values)})"
     
     return ""
+
+# ✅ НОВОЕ: Функция для создания общего интерфейса настроек загрузки
+def create_upload_settings_interface(user_data: dict) -> tuple:
+    """
+    Создает интерфейс настроек загрузки файла.
+    
+    Args:
+        user_data: Данные состояния пользователя
+        
+    Returns:
+        tuple: (message_text, keyboard_markup)
+    """
+    has_headers = user_data.get('has_headers', False)
+    clear_existing = user_data.get('clear_existing', False)
+    language_id = user_data.get('selected_language_id')
+    
+    # Формируем строку с текущими настройками колонок
+    column_settings_str = format_column_settings(user_data)
+    
+    # Тексты для кнопок
+    headers_btn_text = "📝 Файл содержит заголовки: поменять на \"Нет\"" if has_headers else "📝 Файл содержит заголовки: поменять на \"Да\""
+    clear_btn_text = "🗑️ Очистить существующие слова: поменять на \"Нет\"" if clear_existing else "🗑️ Очистить существующие слова: поменять на \"Да\""
+    
+    # Создаем клавиатуру
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text=headers_btn_text, 
+        callback_data=CallbackData.TOGGLE_HEADERS
+    ))
+    builder.add(InlineKeyboardButton(
+        text=clear_btn_text, 
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
+    ))
+    
+    # Добавляем информацию о настройках колонок в кнопку
+    column_info = get_column_info_text(user_data)
+    builder.add(InlineKeyboardButton(
+        text=f"🔧 Настроить колонки {column_info}", 
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
+    ))
+    
+    # Добавляем кнопку подтверждения загрузки
+    builder.add(InlineKeyboardButton(
+        text="✅ Подтвердить и загрузить", 
+        callback_data=CallbackData.CONFIRM_UPLOAD
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Отмена", 
+        callback_data=CallbackData.BACK_TO_ADMIN
+    ))
+    builder.adjust(1)
+    
+    # Создаем текст сообщения
+    message_text = (
+        "⚙️ Настройки загрузки файла:\n\n"
+        f"✅ Файл содержит заголовки: \"{('Да' if has_headers else 'Нет')}\"\n"
+        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n"
+        f"{column_settings_str}\n"
+        "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла."
+    )
+    
+    return message_text, builder.as_markup()

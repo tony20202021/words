@@ -13,9 +13,6 @@ from app.utils.callback_constants import CallbackData, format_hint_callback
 
 from app.utils.hint_constants import (
     get_all_hint_types,
-    get_hint_key,
-    get_hint_name,
-    get_hint_icon,
     format_hint_button,
     has_hint
 )
@@ -57,19 +54,17 @@ def create_word_keyboard(
             text="➡️ Следующее слово",
             callback_data=CallbackData.NEXT_WORD
         ))
-        button_layout = [1]  # 1 button in first row
     else:
         # Word not shown yet - show evaluation buttons
         builder.add(InlineKeyboardButton(
-            text="✅ Я знаю это слово, к следующему",
+            text="✅ Знаю, к следующему",
             callback_data=CallbackData.WORD_KNOW
         ))
 
         builder.add(InlineKeyboardButton(
-            text="❓ Не знаю / не помню / не уверен, показать",
+            text="❓ Не знаю / не уверен, показать",
             callback_data=CallbackData.SHOW_WORD
         ))
-        button_layout = [2]  # 2 buttons in first row
 
     # Get word ID for hint callbacks
     word_id = _extract_word_id(word)
@@ -78,21 +73,18 @@ def create_word_keyboard(
     hint_buttons_added = 0
     if word_id and show_hints:
         hint_buttons_added = _add_hint_buttons(builder, word, word_id, used_hints)
-        if hint_buttons_added > 0:
-            button_layout.append(hint_buttons_added)
 
     # Add word skip toggle button
     user_word_data = word.get("user_word_data", {})
     is_skipped = user_word_data.get("is_skipped", False)
     
     builder.add(InlineKeyboardButton(
-        text=f"⏩ Флаг: сменить на \"{'Не пропускать' if is_skipped else 'Пропускать'}\"",
+        text=f"⏩ {'Не пропускать' if is_skipped else 'Пропускать'}",
         callback_data=CallbackData.TOGGLE_WORD_SKIP
     ))
-    button_layout.append(1)  # 1 button in last row
     
     # Set dynamic layout
-    builder.adjust(*button_layout)
+    builder.adjust(1)
 
     return builder.as_markup()
 

@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
+from app.bot.states.centralized_states import UserStates
 
 # Создаем роутер для справочных обработчиков
 help_router = Router()
@@ -25,8 +26,8 @@ async def cmd_help(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    # Сначала очищаем состояние для предотвращения конфликтов
-    await state.clear()
+    # Устанавливаем состояние просмотра справки
+    await state.set_state(UserStates.viewing_help)
 
     user_id = message.from_user.id
     username = message.from_user.username
@@ -84,3 +85,7 @@ async def cmd_help(message: Message, state: FSMContext):
     )
     
     await message.answer(help_text)
+    
+    # Очищаем состояние после показа справки
+    await state.set_state(None)
+    

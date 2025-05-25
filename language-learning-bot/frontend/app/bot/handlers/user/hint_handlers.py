@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
+from app.bot.states.centralized_states import UserStates
 
 # Создаем роутер для обработчиков подсказок
 hint_router = Router()
@@ -25,10 +26,11 @@ async def cmd_hint(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    # Сначала очищаем состояние для предотвращения конфликтов
-    # Но в данном случае мы хотим сохранить данные пользователя
+    # Устанавливаем состояние просмотра информации о подсказках
+    await state.set_state(UserStates.viewing_hint_info)
+    
+    # Сохраняем данные пользователя
     current_data = await state.get_data()
-    await state.set_state(None)
     await state.update_data(**current_data)
     
     user_id = message.from_user.id
@@ -81,3 +83,7 @@ async def cmd_hint(message: Message, state: FSMContext):
         "❗️ Помните: использование подсказки автоматически устанавливает оценку 0 "
         "для этого слова, и оно будет показано для повторения через 1 день."
     )
+    
+    # Очищаем состояние после показа информации
+    await state.set_state(None)
+    

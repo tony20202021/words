@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 # Словарь соответствия типов подсказок их API ключам и отображаемым именам
 HINT_TYPE_MAP: Dict[str, Tuple[str, str]] = {
-    "meaning": ("hint_meaning", "Ассоциация для значения на русском"),
+    "meaning": ("hint_meaning", "Ассоциация на русском"),
     "phoneticassociation": ("hint_association", "Ассоциация для фонетики"),
-    "phoneticsound": ("hint_syllables", "Фонетическое звучание"),
+    "phoneticsound": ("hint_syllables", "Звучание по слогам"),
     "writing": ("hint_writing", "Ассоциация для написания")
 }
 
@@ -112,13 +112,13 @@ def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool =
     if has_hint:
         if is_active:
             # Подсказка активна (показывается)
-            return f"✓ {icon} {name}: ✏️ Редактировать"
+            return f"✓ {icon} {name}: ✏️"
         else:
             # Подсказка есть, но не активна
-            return f"{icon} {name}: 👁️ Показать"
+            return f"{icon} {name}: 👁️"
     else:
         # Подсказки нет
-        return f"{icon} {name} (отсутствует): ➕ Создать"
+        return f"{icon} {name}: ➕"
 
 def has_hint(word_data: Dict, hint_type: str) -> bool:
     """

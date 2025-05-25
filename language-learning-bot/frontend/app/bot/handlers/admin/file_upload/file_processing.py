@@ -1,5 +1,6 @@
 """
 Handlers for file upload processing.
+Updated with FSM states for better navigation control.
 """
 
 from aiogram import Router, F
@@ -165,6 +166,9 @@ async def process_file_upload(message: Message, state: FSMContext):
         column_translation=DEFAULT_COLUMN_TRANSLATION
     )
     
+    # ✅ НОВОЕ: Устанавливаем состояние настроек загрузки
+    await state.set_state(AdminStates.configuring_upload_settings)
+    
     # Получаем обновленные данные состояния
     user_data = await state.get_data()
     
@@ -174,11 +178,11 @@ async def process_file_upload(message: Message, state: FSMContext):
     # Кнопки для настройки файла
     builder.add(InlineKeyboardButton(
         text='📝 Файл содержит заголовки: поменять на "Да"', 
-        callback_data="toggle_headers"
+        callback_data=CallbackData.TOGGLE_HEADERS
     ))
     builder.add(InlineKeyboardButton(
         text='🗑️ Очистить существующие слова: поменять на "Да"', 
-        callback_data="toggle_clear_existing"
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
@@ -191,12 +195,12 @@ async def process_file_upload(message: Message, state: FSMContext):
     # Добавляем кнопку подтверждения загрузки
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить", 
-        callback_data="confirm_upload"
+        callback_data=CallbackData.CONFIRM_UPLOAD
     ))
     
     builder.add(InlineKeyboardButton(
         text="⬅️ Отмена", 
-        callback_data="back_to_admin"
+        callback_data=CallbackData.BACK_TO_ADMIN
     ))
     
     # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)
@@ -220,6 +224,45 @@ async def process_file_upload(message: Message, state: FSMContext):
         "Настройте параметры или нажмите 'Подтвердить и загрузить' для продолжения.",
         reply_markup=builder.as_markup()
     )
+
+# ✅ НОВОЕ: Обработчик для состояния настроек загрузки с подтверждением
+@file_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.CONFIRM_UPLOAD)
+async def process_upload_confirmation_from_settings(callback: CallbackQuery, state: FSMContext):
+    """
+    Process upload confirmation from upload settings state.
     
-    # Переходим в состояние настройки параметров
-    await state.set_state(AdminStates.configuring_columns)
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Upload confirmation from settings state")
+    
+    # ✅ НОВОЕ: Переходим в состояние подтверждения загрузки файла
+    await state.set_state(AdminStates.confirming_file_upload)
+    
+    # Импортируем и вызываем обработчик подтверждения загрузки
+    from app.bot.handlers.admin.file_upload.column_configuration import process_upload_confirmation
+    await process_upload_confirmation(callback, state)
+
+# ✅ НОВОЕ: Обработчик возврата в админку из настроек загрузки
+@file_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.BACK_TO_ADMIN)
+@file_router.callback_query(AdminStates.waiting_file, F.data == CallbackData.BACK_TO_ADMIN)
+async def process_back_to_admin_from_upload(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to admin menu from file upload process.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info("Back to admin from file upload process")
+    
+    # Очищаем состояние загрузки файла
+    await state.clear()
+    
+    # Импортируем и вызываем функцию возврата в административное меню
+    from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+    await handle_admin_mode(callback, state, is_callback=True)
+    
+    await callback.answer()
+    
