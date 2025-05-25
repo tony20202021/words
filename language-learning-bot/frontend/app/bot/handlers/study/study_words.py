@@ -14,6 +14,9 @@ from app.utils.formatting_utils import format_date
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.formatting_utils import format_used_hints
 
+# Импортируем централизованные состояния
+from app.bot.states.centralized_states import StudyStates
+
 logger = setup_logger(__name__)
 
 async def get_words_for_study(message: Message, state: FSMContext, user_id: str, language_id: str, study_settings: dict):
@@ -106,9 +109,14 @@ async def get_words_for_study(message: Message, state: FSMContext, user_id: str,
         if not study_words or len(study_words) == 0:
             logger.warning(f"No words found for study with settings: {study_params}")
             
+            # НОВОЕ: Переходим в состояние завершения изучения
+            await state.set_state(StudyStates.study_completed)
+            
             await message.answer(
-                "⚠️ Нет доступных слов для изучения с текущими настройками.\n"
-                "Попробуйте изменить настройки в меню /settings."
+                "⚠️ Нет доступных слов для изучения с текущими настройками.\n\n"
+                "📊 Возможно, вы уже изучили все слова! Используйте /stats для просмотра статистики\n"
+                "⚙️ Или измените настройки в меню /settings\n"
+                "🔄 Либо начните изучение заново с помощью /study"
             )
             return False
         
@@ -137,6 +145,9 @@ async def get_words_for_study(message: Message, state: FSMContext, user_id: str,
         
         # Save to state
         await user_word_state.save_to_state(state)
+        
+        # НОВОЕ: Устанавливаем правильное состояние изучения
+        await state.set_state(StudyStates.studying)
         
         # Show first word
         await show_study_word(message, state)
@@ -168,9 +179,14 @@ async def show_study_word(message_obj, state: FSMContext):
         return
     
     if not user_word_state.has_more_words():
-        # Нет слов для изучения
+        # НОВОЕ: Переходим в состояние завершения изучения
+        await state.set_state(StudyStates.study_completed)
+        
         await message_obj.answer(
-            "📝 Вы изучили все доступные слова! Выберите другие параметры с помощью команды /settings."
+            "🎉 Поздравляем! Вы изучили все доступные слова!\n\n"
+            "📊 Чтобы посмотреть статистику, используйте команду /stats\n"
+            "⚙️ Чтобы изменить настройки и продолжить изучение, используйте /settings\n"
+            "🔄 Чтобы начать изучение заново, используйте /study"
         )
         return
     
@@ -280,6 +296,11 @@ async def show_study_word(message_obj, state: FSMContext):
         used_hints=used_hints
     )
     
+    # НОВОЕ: Убеждаемся, что мы в правильном состоянии при показе слова
+    current_state = await state.get_state()
+    if current_state != StudyStates.studying.state and current_state != StudyStates.viewing_word_details.state:
+        await state.set_state(StudyStates.studying)
+    
     # Update current message instead of sending a new one
     if is_callback:
         # Если это callback, обновляем существующее сообщение
@@ -304,3 +325,4 @@ async def show_study_word(message_obj, state: FSMContext):
             reply_markup=keyboard,
             parse_mode="HTML"
         )
+        

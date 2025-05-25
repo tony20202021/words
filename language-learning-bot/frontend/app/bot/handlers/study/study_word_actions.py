@@ -21,13 +21,15 @@ from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_date, format_study_word_message, format_used_hints
 from app.utils.settings_utils import get_user_language_settings
 
+# Импортируем централизованные состояния
+from app.bot.states.centralized_states import StudyStates
 
 # Создаем роутер для обработчиков действий со словами
 word_router = Router()
 
 logger = setup_logger(__name__)
 
-@word_router.callback_query(F.data == "show_word")
+@word_router.callback_query(F.data == "show_word", StudyStates.studying)
 async def process_show_word(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user wants to see the word.
@@ -85,7 +87,7 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
         score=0,
         word=current_word,
         message_obj=callback,
-        is_skipped=current_skipped # оставляем старое значени
+        is_skipped=current_skipped # оставляем старое значение
     )
     
     if not success:
@@ -136,6 +138,9 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     
     # Save updated state
     await user_word_state.save_to_state(state)
+    
+    # НОВОЕ: Переходим в состояние просмотра деталей слова
+    await state.set_state(StudyStates.viewing_word_details)
     
     # Get used hints
     used_hints = user_word_state.get_flag("used_hints", [])
@@ -212,8 +217,8 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
             )
     
     await callback.answer()
-        
-@word_router.callback_query(F.data == "next_word")
+
+@word_router.callback_query(F.data == "next_word", StudyStates.viewing_word_details)        
 async def process_next_word(callback: CallbackQuery, state: FSMContext):
     """
     Process callback to go to the next word without changing score.
@@ -268,12 +273,26 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         user_word_state.set_flag('word_shown', False)
         
         # Advance to next word
-        user_word_state.advance_to_next_word()
+        success = user_word_state.advance_to_next_word()
+        
+        if not success:
+            # НОВОЕ: Переходим в состояние завершения изучения
+            await state.set_state(StudyStates.study_completed)
+            await callback.message.answer(
+                "🎉 Поздравляем! Вы изучили все доступные слова!\n\n"
+                "📊 Чтобы посмотреть статистику, используйте команду /stats\n"
+                "⚙️ Чтобы изменить настройки и продолжить изучение, используйте /settings\n"
+                "🔄 Чтобы начать изучение заново, используйте /study"
+            )
+            return
         
         # Save updated state
         await user_word_state.save_to_state(state)
         
-        # Show next word (используем callback.message вместо callback)
+        # НОВОЕ: Возвращаемся в основное состояние изучения
+        await state.set_state(StudyStates.studying)
+        
+        # Show next word
         await show_study_word(callback.message, state)
     else:
         # Fallback to old approach if state model is invalid
@@ -283,18 +302,53 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         user_data = await state.get_data()
         current_index = user_data.get("current_study_index", 0) + 1
         
+        study_words = user_data.get("study_words", [])
+        
+        if current_index >= len(study_words):
+            # НОВОЕ: Переходим в состояние завершения изучения
+            await state.set_state(StudyStates.study_completed)
+            await callback.message.answer(
+                "🎉 Поздравляем! Вы изучили все доступные слова!\n\n"
+                "📊 Чтобы посмотреть статистику, используйте команду /stats\n"
+                "⚙️ Чтобы изменить настройки и продолжить изучение, используйте /settings\n"
+                "🔄 Чтобы начать изучение заново, используйте /study"
+            )
+            return
+        
         # Update state with new index
         await state.update_data(current_study_index=current_index)
         
         # ИСПРАВЛЕНО: Промежуточное сообщение для fallback случая
         await callback.message.answer("🔄 Переходим к следующему слову...")
         
-        # Show next word (используем callback.message вместо callback)
+        # НОВОЕ: Возвращаемся в основное состояние изучения
+        await state.set_state(StudyStates.studying)
+        
+        # Show next word
         await show_study_word(callback.message, state)
     
     await callback.answer()
 
-@word_router.callback_query(F.data == "toggle_word_skip")
+@word_router.callback_query(F.data == "show_word", StudyStates.confirming_word_knowledge)
+async def process_show_word_from_confirmation(callback: CallbackQuery, state: FSMContext):
+    """
+    Process show_word callback from the confirmation state.
+    This handles when user clicks "Ой, все-таки не знаю" after confirming they know the word.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'show_word' callback from confirmation state from {callback.from_user.full_name}")
+    
+    # НОВОЕ: Возвращаемся в основное состояние изучения перед обработкой
+    await state.set_state(StudyStates.studying)
+    
+    # Используем основной обработчик show_word
+    await process_show_word(callback, state)
+
+@word_router.callback_query(F.data == "toggle_word_skip", StudyStates.studying)
+@word_router.callback_query(F.data == "toggle_word_skip", StudyStates.viewing_word_details)
 async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user wants to toggle the skip flag for the word.
@@ -411,7 +465,7 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-@word_router.callback_query(F.data == "word_know")
+@word_router.callback_query(F.data == "word_know", StudyStates.studying)
 async def process_word_know(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user knows the word.
@@ -510,6 +564,9 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
         )
         keyboard.adjust(1)  # Размещаем кнопки одну под другой
         
+        # НОВОЕ: Переходим в состояние подтверждения знания слова
+        await state.set_state(StudyStates.confirming_word_knowledge)
+        
         await callback.message.answer(
             message_text,
             parse_mode="HTML",
@@ -533,7 +590,7 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-@word_router.callback_query(F.data == "confirm_next_word")
+@word_router.callback_query(F.data == "confirm_next_word", StudyStates.confirming_word_knowledge)
 async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
     """
     Process confirmation to go to the next word.
@@ -620,10 +677,24 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
         user_word_state.remove_flag('pending_word_know')
         
         # Advance to next word
-        user_word_state.advance_to_next_word()
+        success = user_word_state.advance_to_next_word()
+        
+        if not success:
+            # НОВОЕ: Переходим в состояние завершения изучения
+            await state.set_state(StudyStates.study_completed)
+            await callback.message.answer(
+                "🎉 Поздравляем! Вы изучили все доступные слова!\n\n"
+                "📊 Чтобы посмотреть статистику, используйте команду /stats\n"
+                "⚙️ Чтобы изменить настройки и продолжить изучение, используйте /settings\n"
+                "🔄 Чтобы начать изучение заново, используйте /study"
+            )
+            return
         
         # Save updated state
         await user_word_state.save_to_state(state)
+        
+        # НОВОЕ: Возвращаемся в основное состояние изучения
+        await state.set_state(StudyStates.studying)
         
         # Show next word
         await show_study_word(callback.message, state)
@@ -635,13 +706,148 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
         user_data = await state.get_data()
         current_index = user_data.get("current_study_index", 0) + 1
         
+        study_words = user_data.get("study_words", [])
+        
+        if current_index >= len(study_words):
+            # НОВОЕ: Переходим в состояние завершения изучения
+            await state.set_state(StudyStates.study_completed)
+            await callback.message.answer(
+                "🎉 Поздравляем! Вы изучили все доступные слова!\n\n"
+                "📊 Чтобы посмотреть статистику, используйте команду /stats\n"
+                "⚙️ Чтобы изменить настройки и продолжить изучение, используйте /settings\n"
+                "🔄 Чтобы начать изучение заново, используйте /study"
+            )
+            return
+        
         # Update state with new index
         await state.update_data(current_study_index=current_index)
         
         # ИСПРАВЛЕНО: Промежуточное сообщение для fallback случая
         await callback.message.answer("🔄 Переходим к следующему слову...")
         
+        # НОВОЕ: Возвращаемся в основное состояние изучения
+        await state.set_state(StudyStates.studying)
+        
         # Show next word
         await show_study_word(callback.message, state)
     
     await callback.answer()
+
+@word_router.callback_query(F.data == "word_dont_know", StudyStates.studying)
+async def process_word_dont_know(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback when user doesn't know the word.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    user_id = callback.from_user.id
+    username = callback.from_user.username
+    full_name = callback.from_user.full_name
+
+    logger.info(f"'word_dont_know' callback from {full_name} ({username})")
+    
+    # Validate state data
+    is_valid, state_data = await validate_state_data(
+        state, 
+        ["current_word", "current_word_id", "db_user_id"],
+        callback,
+        "Ошибка: недостаточно данных для оценки слова"
+    )
+    
+    if not is_valid:
+        logger.error(f"not is_valid")
+        return
+    
+    # Get required data
+    current_word = state_data["current_word"]
+    current_word_id = state_data["current_word_id"]
+    db_user_id = state_data["db_user_id"]
+    
+    # Проверим, включена ли отладочная информация
+    settings = await get_user_language_settings(callback, state)
+    show_debug = settings.get("show_debug", False)
+    
+    try:
+        # Update word score to 0 (not known)
+        success, result = await update_word_score(
+            callback.bot,
+            db_user_id,
+            current_word_id,
+            score=0,  # Устанавливаем оценку 0
+            word=current_word,
+            message_obj=callback
+        )
+        
+        if not success:
+            logger.error(f"Failed to update word score")
+            await callback.answer("Ошибка при обновлении оценки слова")
+            return
+        
+        # Обновляем данные слова в состоянии
+        if 'user_word_data' not in current_word:
+            current_word['user_word_data'] = {}
+        current_word['user_word_data'].update(result)
+        
+        # Show word information
+        word_foreign = current_word.get("word_foreign")
+        transcription = current_word.get("transcription", "")
+        translation = current_word.get("translation", "")
+        
+        # ИЗМЕНЕНО: Получаем НОВЫЕ данные из результата обновления
+        new_check_interval = result.get("check_interval", 0)
+        new_next_check_date = result.get("next_check_date")
+        
+        # Формируем сообщение с ОБНОВЛЕННОЙ информацией
+        message_text = f"📚 Не страшно! Изучаем это слово.\n\n"
+        message_text += f"Перевод: <b>{translation}</b>\n\n"
+        message_text += f"Слово: <code>{word_foreign}</code>\n\n"
+        message_text += f"Транскрипция: <b>[{transcription}]</b>\n\n"
+        
+        # Показываем обновленную информацию об интервалах
+        if show_debug:
+            message_text += f"📝 Оценка установлена на 0\n"
+            message_text += f"⏱ Интервал: {new_check_interval} (дней)\n"
+            if new_next_check_date:
+                formatted_date = format_date(new_next_check_date)
+                message_text += f"🔄 Следующее повторение: {formatted_date}\n\n"
+            else:
+                message_text += "🔄 Дата повторения обновлена\n\n"
+        else:
+            # Для обычных пользователей показываем упрощенную информацию
+            message_text += f"💡 Это слово будет показано снова при следующем изучении.\n\n"
+        
+        # Создаем клавиатуру с кнопкой перехода к следующему слову
+        keyboard = InlineKeyboardBuilder()
+        keyboard.button(
+            text="➡️ К следующему слову",
+            callback_data="confirm_next_word"
+        )
+        
+        # НОВОЕ: Переходим в состояние подтверждения знания слова
+        await state.set_state(StudyStates.confirming_word_knowledge)
+        
+        await callback.message.answer(
+            message_text,
+            parse_mode="HTML",
+            reply_markup=keyboard.as_markup()
+        )
+        
+        # Сохраняем флаг, что нужно перейти к следующему слову при подтверждении
+        user_word_state = await UserWordState.from_state(state)
+        if user_word_state.is_valid():
+            user_word_state.set_flag('pending_next_word', True)
+            user_word_state.set_flag('word_shown', True)  # Помечаем слово как показанное
+            # Обновляем данные слова в состоянии
+            user_word_state.word_data = current_word
+            await user_word_state.save_to_state(state)
+        
+    except Exception as e:
+        logger.error(f"Error processing word_dont_know: {e}", exc_info=True)
+        await callback.message.answer(
+            f"❌ Ошибка при обработке слова: {str(e)}"
+        )
+    
+    await callback.answer()
+    

@@ -4,7 +4,15 @@ State models for working with FSM state.
 
 from typing import Dict, List, Any, Optional, Union
 from aiogram.fsm.context import FSMContext
+
+# Импортируем централизованные состояния
+from app.bot.states.centralized_states import StudyStates, HintStates
+
 from app.utils.hint_constants import DB_FIELD_HINT_KEY_MAPPING
+from app.utils.logger import setup_logger
+
+logger = setup_logger(__name__)
+
 class UserWordState:
     """
     Класс для хранения и управления данными текущего слова и процесса изучения.
@@ -94,6 +102,7 @@ class UserWordState:
             skip_marked=self.study_settings.get("skip_marked", False),
             use_check_date=self.study_settings.get("use_check_date", True),
             show_hints=self.study_settings.get("show_hints", True),
+            show_debug=self.study_settings.get("show_debug", True),
             user_word_flags=self.flags
         )
     
@@ -234,6 +243,51 @@ class UserWordState:
         """
         if flag_name in self.flags:
             del self.flags[flag_name]
+            
+    # НОВОЕ: Методы для работы с FSM состояниями
+    
+    async def get_appropriate_study_state(self, state: FSMContext):
+        """
+        Определить подходящее состояние изучения на основе текущих флагов.
+        
+        Args:
+            state: Объект состояния FSM
+            
+        Returns:
+            State: Подходящее состояние для установки
+        """
+        word_shown = self.get_flag("word_shown", False)
+        pending_next_word = self.get_flag("pending_next_word", False)
+        pending_word_know = self.get_flag("pending_word_know", False)
+        
+        if pending_word_know and pending_next_word:
+            return StudyStates.confirming_word_knowledge
+        elif word_shown:
+            return StudyStates.viewing_word_details
+        elif not self.has_more_words():
+            return StudyStates.study_completed
+        else:
+            return StudyStates.studying
+    
+    async def transition_to_appropriate_state(self, state: FSMContext):
+        """
+        Перейти в подходящее состояние изучения.
+        
+        Args:
+            state: Объект состояния FSM
+        """
+        appropriate_state = await self.get_appropriate_study_state(state)
+        await state.set_state(appropriate_state)
+        logger.info(f"Transitioned to state: {appropriate_state.state}")
+    
+    def is_in_completion_state(self):
+        """
+        Проверить, должно ли состояние быть study_completed.
+        
+        Returns:
+            bool: True если нет больше слов для изучения
+        """
+        return not self.has_more_words()
 
 
 class HintState:
@@ -311,3 +365,118 @@ class HintState:
         """
         
         return DB_FIELD_HINT_KEY_MAPPING.get(self.hint_key)
+    
+    # НОВОЕ: Методы для работы с FSM состояниями подсказок
+    
+    async def get_appropriate_hint_state(self, action: str = "viewing"):
+        """
+        Определить подходящее состояние подсказки на основе действия.
+        
+        Args:
+            action: Тип действия ("creating", "editing", "viewing", "deleting")
+            
+        Returns:
+            State: Подходящее состояние для установки
+        """
+        if action == "creating":
+            return HintStates.creating
+        elif action == "editing":
+            return HintStates.editing
+        elif action == "viewing":
+            return HintStates.viewing
+        elif action == "deleting":
+            return HintStates.confirming_deletion
+        else:
+            logger.warning(f"Unknown hint action: {action}, defaulting to viewing")
+            return HintStates.viewing
+    
+    async def clear_from_state(self, state: FSMContext):
+        """
+        Очистить данные подсказки из состояния FSM.
+        
+        Args:
+            state: Контекст состояния FSM
+        """
+        state_data = await state.get_data()
+        if "hint_state" in state_data:
+            state_data.pop("hint_state")
+            await state.set_data(state_data)
+            logger.info("Hint state cleared from FSM")
+
+
+# НОВОЕ: Класс для управления состояниями системы
+class StateManager:
+    """
+    Менеджер для управления переходами между состояниями.
+    """
+    
+    @staticmethod
+    async def safe_transition_to_study(state: FSMContext, user_word_state: UserWordState = None):
+        """
+        Безопасный переход к состоянию изучения с автоматическим определением подходящего состояния.
+        
+        Args:
+            state: Контекст состояния FSM
+            user_word_state: Состояние слова пользователя (опционально)
+        """
+        if user_word_state is None:
+            user_word_state = await UserWordState.from_state(state)
+        
+        if user_word_state.is_valid():
+            await user_word_state.transition_to_appropriate_state(state)
+        else:
+            # Fallback к основному состоянию изучения
+            await state.set_state(StudyStates.studying)
+            logger.warning("Invalid user word state, fell back to StudyStates.studying")
+    
+    @staticmethod
+    async def transition_from_hint_to_study(state: FSMContext, word_shown: bool = False):
+        """
+        Переход от состояний подсказки к соответствующему состоянию изучения.
+        
+        Args:
+            state: Контекст состояния FSM
+            word_shown: Было ли показано слово
+        """
+        if word_shown:
+            await state.set_state(StudyStates.viewing_word_details)
+        else:
+            await state.set_state(StudyStates.studying)
+        logger.info(f"Transitioned from hint to {'viewing_word_details' if word_shown else 'studying'}")
+    
+    @staticmethod
+    async def handle_study_completion(state: FSMContext):
+        """
+        Обработка завершения изучения всех слов.
+        
+        Args:
+            state: Контекст состояния FSM
+        """
+        await state.set_state(StudyStates.study_completed)
+        logger.info("Transitioned to study completion state")
+    
+    @staticmethod
+    async def get_current_state_info(state: FSMContext) -> Dict[str, Any]:
+        """
+        Получить информацию о текущем состоянии для отладки.
+        
+        Args:
+            state: Контекст состояния FSM
+            
+        Returns:
+            Dict: Информация о состоянии
+        """
+        current_state = await state.get_state()
+        state_data = await state.get_data()
+        user_word_state = await UserWordState.from_state(state)
+        
+        return {
+            "current_fsm_state": current_state,
+            "user_word_state_valid": user_word_state.is_valid(),
+            "has_more_words": user_word_state.has_more_words(),
+            "word_shown": user_word_state.get_flag("word_shown", False),
+            "used_hints": user_word_state.get_used_hints(),
+            "current_study_index": user_word_state.current_study_index,
+            "total_study_words": len(user_word_state.study_words)
+        }
+    

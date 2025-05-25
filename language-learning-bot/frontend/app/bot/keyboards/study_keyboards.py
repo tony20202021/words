@@ -25,18 +25,20 @@ def create_word_keyboard(
     word: dict, 
     word_shown: bool = False, 
     show_hints: bool = True, 
-    used_hints: List[str] = None
+    used_hints: List[str] = None,
+    current_state: str = None
 ) -> InlineKeyboardMarkup:
     """
     Create an inline keyboard for word interaction during study process.
     Shows hint buttons based on settings and existing hints.
-    Now uses centralized callback constants.
+    Now uses centralized callback constants and considers FSM states.
     
     Args:
         word: The word data
         word_shown: Whether the word has been shown to the user
         show_hints: Whether to show hint buttons
         used_hints: List of hints already used by the user
+        current_state: Current FSM state (optional, for context)
         
     Returns:
         InlineKeyboardMarkup: The keyboard markup
@@ -47,7 +49,7 @@ def create_word_keyboard(
     if used_hints is None:
         used_hints = []
     
-    # Main action buttons based on word state
+    # Main action buttons based on word state and FSM state
     if word_shown or (len(used_hints) > 0):
         # Word has been shown or hints used - show next word button
         builder.add(InlineKeyboardButton(
@@ -321,3 +323,274 @@ def create_word_confirmation_keyboard() -> InlineKeyboardMarkup:
     
     builder.adjust(1)  # One button per row
     return builder.as_markup()
+
+# НОВОЕ: Клавиатуры для специфических FSM состояний
+
+def create_study_completed_keyboard() -> InlineKeyboardMarkup:
+    """
+    Create keyboard for study completed state.
+    
+    Returns:
+        InlineKeyboardMarkup: Study completed keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="🔄 Начать изучение заново",
+        callback_data="restart_study"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="📊 Посмотреть статистику",
+        callback_data="view_stats"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⚙️ Изменить настройки",
+        callback_data="change_settings"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🌐 Выбрать другой язык",
+        callback_data="change_language"
+    ))
+    
+    builder.adjust(2, 2)  # 2x2 layout
+    return builder.as_markup()
+
+
+def create_word_details_keyboard(
+    word: dict,
+    show_hints: bool = True,
+    used_hints: List[str] = None
+) -> InlineKeyboardMarkup:
+    """
+    Create keyboard specifically for viewing word details state.
+    
+    Args:
+        word: Word data
+        show_hints: Whether to show hint buttons
+        used_hints: List of used hints
+        
+    Returns:
+        InlineKeyboardMarkup: Word details keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    if used_hints is None:
+        used_hints = []
+    
+    # Main navigation button
+    builder.add(InlineKeyboardButton(
+        text="➡️ К следующему слову",
+        callback_data=CallbackData.NEXT_WORD
+    ))
+    
+    # Get word ID for hint callbacks
+    word_id = _extract_word_id(word)
+    
+    # Add hint management buttons if enabled
+    if word_id and show_hints:
+        _add_hint_buttons(builder, word, word_id, used_hints)
+    
+    # Skip toggle button
+    user_word_data = word.get("user_word_data", {})
+    is_skipped = user_word_data.get("is_skipped", False)
+    
+    builder.add(InlineKeyboardButton(
+        text=f"⏩ {'Не пропускать' if is_skipped else 'Пропускать'}",
+        callback_data=CallbackData.TOGGLE_WORD_SKIP
+    ))
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+
+def create_hint_viewing_keyboard(
+    word_id: str,
+    hint_type: str,
+    show_edit_button: bool = True
+) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for hint viewing state.
+    
+    Args:
+        word_id: Word ID
+        hint_type: Type of hint being viewed
+        show_edit_button: Whether to show edit button
+        
+    Returns:
+        InlineKeyboardMarkup: Hint viewing keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    if show_edit_button:
+        builder.add(InlineKeyboardButton(
+            text="✏️ Редактировать подсказку",
+            callback_data=format_hint_callback("edit", hint_type, word_id)
+        ))
+    
+    # НОВОЕ: Кнопка для удаления подсказки
+    builder.add(InlineKeyboardButton(
+        text="🗑️ Удалить подсказку",
+        callback_data=format_hint_callback("delete", hint_type, word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к слову",
+        callback_data=CallbackData.BACK_TO_WORD
+    ))
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+
+def create_hint_deletion_confirmation_keyboard(
+    hint_type: str,
+    word_id: str
+) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for hint deletion confirmation.
+    
+    Args:
+        hint_type: Type of hint to delete
+        word_id: Word ID
+        
+    Returns:
+        InlineKeyboardMarkup: Deletion confirmation keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="✅ Да, удалить",
+        callback_data=f"confirm_delete_hint_{hint_type}_{word_id}"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="❌ Отменить",
+        callback_data="cancel_delete_hint"
+    ))
+    
+    builder.adjust(2)  # Two buttons in one row
+    return builder.as_markup()
+
+
+# НОВОЕ: Адаптивные клавиатуры в зависимости от состояния
+
+def create_adaptive_study_keyboard(
+    word: dict,
+    word_shown: bool = False,
+    show_hints: bool = True,
+    used_hints: List[str] = None,
+    current_state: str = None,
+    pending_confirmation: bool = False
+) -> InlineKeyboardMarkup:
+    """
+    Create adaptive keyboard that changes based on current FSM state and word status.
+    
+    Args:
+        word: Word data
+        word_shown: Whether word has been shown
+        show_hints: Whether to show hint buttons
+        used_hints: List of used hints
+        current_state: Current FSM state
+        pending_confirmation: Whether user is pending confirmation
+        
+    Returns:
+        InlineKeyboardMarkup: Adaptive keyboard
+    """
+    # Import states here to avoid circular import
+    from app.bot.states.centralized_states import StudyStates
+    
+    if used_hints is None:
+        used_hints = []
+    
+    # Choose keyboard based on state
+    if current_state == StudyStates.study_completed.state:
+        return create_study_completed_keyboard()
+    elif current_state == StudyStates.viewing_word_details.state:
+        return create_word_details_keyboard(word, show_hints, used_hints)
+    elif current_state == StudyStates.confirming_word_knowledge.state or pending_confirmation:
+        return create_word_confirmation_keyboard()
+    else:
+        # Default to standard word keyboard
+        return create_word_keyboard(word, word_shown, show_hints, used_hints, current_state)
+
+
+# НОВОЕ: Утилиты для работы с клавиатурами
+
+def add_common_navigation_buttons(
+    builder: InlineKeyboardBuilder,
+    show_cancel: bool = True,
+    show_help: bool = False,
+    custom_buttons: List[InlineKeyboardButton] = None
+) -> None:
+    """
+    Add common navigation buttons to a keyboard builder.
+    
+    Args:
+        builder: Keyboard builder to modify
+        show_cancel: Whether to show cancel button
+        show_help: Whether to show help button
+        custom_buttons: Additional custom buttons to add
+    """
+    if custom_buttons:
+        for button in custom_buttons:
+            builder.add(button)
+    
+    if show_help:
+        builder.add(InlineKeyboardButton(
+            text="❓ Помощь",
+            callback_data="show_help"
+        ))
+    
+    if show_cancel:
+        builder.add(InlineKeyboardButton(
+            text="❌ Отменить",
+            callback_data=CallbackData.CANCEL_ACTION
+        ))
+
+
+def create_empty_state_keyboard(message: str = "Нет доступных действий") -> InlineKeyboardMarkup:
+    """
+    Create keyboard for states where no actions are available.
+    
+    Args:
+        message: Message to display as button text
+        
+    Returns:
+        InlineKeyboardMarkup: Empty state keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text=f"ℹ️ {message}",
+        callback_data="no_action"
+    ))
+    
+    return builder.as_markup()
+
+
+def validate_keyboard_state(
+    word: dict,
+    required_fields: List[str] = None
+) -> bool:
+    """
+    Validate that word data contains required fields for keyboard creation.
+    
+    Args:
+        word: Word data dictionary
+        required_fields: List of required fields
+        
+    Returns:
+        bool: True if validation passes
+    """
+    if required_fields is None:
+        required_fields = ["_id", "word_foreign", "translation"]
+    
+    for field in required_fields:
+        if field not in word or not word.get(field):
+            logger.warning(f"Missing required field for keyboard: {field}")
+            return False
+    
+    return True

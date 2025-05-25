@@ -33,11 +33,12 @@ create_router = Router()
 logger = setup_logger(__name__)
 
 
-@create_router.callback_query(F.data.startswith("hint_create_"))
+@create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.studying)
+@create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.viewing_word_details)
 async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     """
     Process callback when user wants to create a new hint.
-    Now uses improved callback parsing.
+    Now uses improved callback parsing and FSM states.
     
     Args:
         callback: The callback query from Telegram
@@ -109,23 +110,24 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     
     # Send creation prompt
     await callback.message.answer(
-        f"Слово: <code>{word_foreign}</code>\n\n"
-        f"Транскрипция: <b>[{transcription}]</b>\n\n"
-        f"Перевод:\n<b>{translation}</b>\n\n"
-        f"📝 Создание подсказки типа «{hint_name}»\n\n"
+        f"📝 <b>Создание подсказки</b>\n\n"
+        f"Слово: <code>{word_foreign}</code>\n"
+        f"Транскрипция: <b>[{transcription}]</b>\n"
+        f"Перевод: <b>{translation}</b>\n\n"
+        f"💡 Создание подсказки типа «{hint_name}»\n\n"
         f"Пожалуйста, введите текст подсказки,\n"
         f"или запишите голосовое сообщение,\n"
         f"или отправьте /cancel для отмены:",
         parse_mode="HTML",
     )
     
-    await callback.answer()
+    await callback.answer(f"Создание подсказки «{hint_name}»")
 
 @create_router.message(HintStates.creating)
 async def process_hint_text(message: Message, state: FSMContext):
     """
     Process the hint text entered by the user as text or voice message.
-    Now uses centralized voice processing utilities.
+    Now uses centralized voice processing utilities and FSM states.
     
     Args:
         message: The message object from Telegram
@@ -202,7 +204,93 @@ async def process_hint_text(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
     
-    # Return to studying state using centralized state
-    await state.set_state(StudyStates.studying)
-    await show_study_word(message, state)
+    # НОВОЕ: Определяем в какое состояние вернуться
+    word_shown = user_word_state.get_flag("word_shown", False)
+    if word_shown:
+        # Если слово было показано, возвращаемся в состояние просмотра деталей
+        await state.set_state(StudyStates.viewing_word_details)
+    else:
+        # Если слово не было показано, возвращаемся в основное состояние изучения
+        await state.set_state(StudyStates.studying)
     
+    # Return to studying and show word
+    await show_study_word(message, state)
+
+# НОВОЕ: Обработчик отмены создания подсказки
+@create_router.message(F.text == "/cancel", HintStates.creating)
+async def cancel_hint_creation(message: Message, state: FSMContext):
+    """
+    Handle cancellation of hint creation.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"Hint creation cancelled by {message.from_user.full_name}")
+    
+    # Get user word state to determine correct return state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if user_word_state.is_valid():
+        word_shown = user_word_state.get_flag("word_shown", False)
+        
+        # Return to appropriate study state
+        if word_shown:
+            await state.set_state(StudyStates.viewing_word_details)
+        else:
+            await state.set_state(StudyStates.studying)
+        
+        await message.answer("❌ Создание подсказки отменено. Продолжаем изучение слов.")
+        
+        # Show the study word again
+        await show_study_word(message, state)
+    else:
+        logger.error("Invalid user word state when cancelling hint creation")
+        
+        # Fallback to main study state
+        await state.set_state(StudyStates.studying)
+        await message.answer(
+            "❌ Создание подсказки отменено.\n"
+            "⚠️ Произошла ошибка с данными сессии.\n"
+            "Используйте команду /study для продолжения изучения."
+        )
+
+# НОВОЕ: Обработчик неизвестных сообщений во время создания подсказки
+@create_router.message(HintStates.creating)
+async def handle_unknown_message_during_creation(message: Message, state: FSMContext):
+    """
+    Handle unknown messages during hint creation.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"Unknown message during hint creation from {message.from_user.full_name}")
+    
+    # Проверяем, не является ли это командой
+    from app.utils.error_utils import is_command
+    
+    if message.text and is_command(message.text):
+        # Это команда
+        command = message.text.split()[0]
+        if command == "/cancel":
+            # Отменяем создание подсказки
+            await cancel_hint_creation(message, state)
+        else:
+            # Другая команда - недоступна во время создания подсказки
+            await message.answer(
+                f"⚠️ Команда {command} недоступна во время создания подсказки.\n\n"
+                "Пожалуйста:\n"
+                "• Введите текст подсказки\n"
+                "• Или запишите голосовое сообщение\n"
+                "• Или отправьте /cancel для отмены"
+            )
+    else:
+        # Обычное сообщение, но не текст и не голос
+        if not message.text and not message.voice:
+            await message.answer(
+                "⚠️ Пожалуйста, отправьте текст подсказки или голосовое сообщение.\n\n"
+                "Или используйте /cancel для отмены создания подсказки."
+            )
+        # Если это текст или голос, то обработается основным обработчиком process_hint_text
+        
