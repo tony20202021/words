@@ -97,5 +97,6 @@ def process_errors_in_json(input_file):
 
 if __name__ == "__main__":
     # Определение имени файла как константы
-    input_file = "chinese_characters_0_10000.json"
+    # input_file = "chinese_characters_0_10000.json"
+    input_file = "chinese_characters_0_10000_description.json"
     process_errors_in_json(input_file)

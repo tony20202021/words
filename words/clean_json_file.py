@@ -87,7 +87,8 @@ def clean_json(input_path, output_path):
     
 if __name__ == "__main__":
     # INPUT_FILE = "chinese_characters_0_10000.json"
-    # OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
+    INPUT_FILE = "chinese_characters_0_10000_description.valid.json"
+    OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
 
     # INPUT_FILE = "../data/fr.json"
     # OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
@@ -98,7 +99,7 @@ if __name__ == "__main__":
     # INPUT_FILE = "../data/deutch.json"
     # OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
 
-    INPUT_FILE = "../data/spain.json"
-    OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
+    # INPUT_FILE = "../data/spain.json"
+    # OUTPUT_FILE_JSON = INPUT_FILE + ".cleaned.json"
 
     clean_json(INPUT_FILE, OUTPUT_FILE_JSON)

@@ -321,8 +321,9 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
 if __name__ == "__main__":
     # Задаем параметры как константы
     # INPUT_FILE = "chinese_characters_0_10000.json"
-    # OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
-    # OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
+    INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
+    OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"
@@ -336,9 +337,9 @@ if __name__ == "__main__":
     # OUTPUT_FILE_WORD = "deutch_10_000.docx"
     # OUTPUT_FILE_EXCEL = "deutch_10_000.xlsx"
 
-    INPUT_FILE = "../data/spain.json.cleaned.json"
-    OUTPUT_FILE_WORD = "spain_10_000.docx"
-    OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
+    # INPUT_FILE = "../data/spain.json.cleaned.json"
+    # OUTPUT_FILE_WORD = "spain_10_000.docx"
+    # OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
 
     # Поле с основным словом
     WORD_FIELD_NAME = "word"
