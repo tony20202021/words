@@ -2,7 +2,7 @@
 """
 Entry point for the frontend application.
 This is the main script that initializes and starts the Telegram bot.
-Enhanced with common handlers registration and improved error handling.
+FIXED: Corrected handler registration, removed missing imports, improved error handling.
 """
 
 import asyncio
@@ -31,7 +31,7 @@ import app.bot.handlers.admin_handlers as admin_handlers
 import app.bot.handlers.language_handlers as language_handlers
 import app.bot.handlers.study_handlers as study_handlers
 import app.bot.handlers.user_handlers as user_handlers
-# НОВОЕ: Импорт обработчиков для meta-состояний
+# ВОССТАНОВЛЕНО: Импорт существующего common_handlers
 import app.bot.handlers.common_handlers as common_handlers
 from app.bot.middleware.auth_middleware import AuthMiddleware, StateValidationMiddleware
 from app.utils.logger import setup_logger
@@ -39,6 +39,8 @@ from app.utils.api_utils import store_api_client, get_api_client_from_bot
 
 # Load environment variables from .env file
 load_dotenv()
+
+print(os.listdir('../'))
 
 # Initialize Hydra configuration
 initialize(config_path="../conf/config", version_base=None)
@@ -56,43 +58,75 @@ logger = setup_logger(
     log_dir=log_dir
 )
 
-# ОБНОВЛЕНО: Добавлен common_handlers в список модулей
+# ВОССТАНОВЛЕНО: common_handlers добавлен обратно в список модулей
 HANDLER_MODULES = [
-    common_handlers,    # НОВОЕ: Обработчики meta-состояний должны быть первыми
+    common_handlers,    # ВАЖНО: Обработчики meta-состояний должны быть первыми
     admin_handlers,
     user_handlers,
     language_handlers,
     study_handlers,
 ]
 
+# ОБНОВЛЕНО: Добавлен mapping для common_handlers
+HANDLER_REGISTRATION_MAP = {
+    common_handlers: 'register_common_handlers',
+    admin_handlers: 'register_admin_handlers',
+    user_handlers: 'register_user_handlers',
+    language_handlers: 'register_language_handlers',
+    study_handlers: 'register_study_handlers',
+}
+
 def register_all_handlers(dispatcher: Dispatcher) -> None:
     """
     Register all handlers for the bot.
-    Enhanced with common handlers registration.
+    ИСПРАВЛЕНО: Использует правильные имена функций регистрации для каждого модуля.
     
     Args:
         dispatcher: Aiogram dispatcher
     """
     logger.info("Starting handler registration...")
     
+    registered_count = 0
+    failed_count = 0
+    
     # Регистрируем обработчики в правильном порядке
-    for i, module in enumerate(HANDLER_MODULES):
+    for module in HANDLER_MODULES:
         try:
-            if hasattr(module, 'register_handlers'):
+            # Получаем правильное имя функции регистрации
+            registration_function_name = HANDLER_REGISTRATION_MAP.get(module)
+            
+            if registration_function_name and hasattr(module, registration_function_name):
+                # Вызываем специфичную функцию регистрации
+                registration_function = getattr(module, registration_function_name)
+                registration_function(dispatcher)
+                logger.info(f"✅ Registered handlers from {module.__name__} using {registration_function_name}")
+                registered_count += 1
+                
+            elif hasattr(module, 'register_handlers'):
+                # Fallback на стандартную функцию
                 module.register_handlers(dispatcher)
-                logger.info(f"✅ Registered handlers from {module.__name__}")
-            elif hasattr(module, 'register_common_handlers'):
-                # Специальная обработка для common_handlers
-                module.register_common_handlers(dispatcher)
-                logger.info(f"✅ Registered common handlers from {module.__name__}")
+                logger.info(f"✅ Registered handlers from {module.__name__} using register_handlers")
+                registered_count += 1
+                
             else:
-                logger.warning(f"⚠️ Module {module.__name__} has no register_handlers function")
+                logger.error(f"❌ Module {module.__name__} has no suitable registration function")
+                logger.info(f"Available attributes: {[attr for attr in dir(module) if 'register' in attr.lower()]}")
+                failed_count += 1
+                
         except Exception as e:
             logger.error(f"❌ Failed to register handlers from {module.__name__}: {e}", exc_info=True)
-            # Не прерываем запуск бота из-за ошибки в одном модуле
+            failed_count += 1
+            # Продолжаем регистрацию других модулей
             continue
     
-    logger.info("Handler registration completed")
+    logger.info(f"Handler registration completed: {registered_count} successful, {failed_count} failed")
+    
+    if failed_count > 0:
+        logger.warning(f"⚠️ Some handlers failed to register. Bot functionality may be limited.")
+    
+    if registered_count == 0:
+        logger.error("❌ No handlers were registered! Bot will not function properly.")
+        raise RuntimeError("Critical error: No handlers registered")
 
 def get_admin_ids_from_config(cfg) -> List[int]:
     """
@@ -111,14 +145,17 @@ def get_admin_ids_from_config(cfg) -> List[int]:
         try:
             admin_ids_str = cfg.bot.admin_ids.split(",")
             admin_ids = [int(admin_id.strip()) for admin_id in admin_ids_str if admin_id.strip()]
+            logger.info(f"Loaded {len(admin_ids)} admin IDs from config")
         except (ValueError, AttributeError) as e:
             logger.error(f"Failed to parse admin IDs from config: {e}")
+    else:
+        logger.info("No admin IDs configured")
     
     return admin_ids
 
 async def check_system_health(bot: Bot, api_client: APIClient) -> dict:
     """
-    НОВОЕ: Проверяет состояние системы при запуске.
+    Проверяет состояние системы при запуске.
     
     Args:
         bot: Экземпляр бота
@@ -137,32 +174,29 @@ async def check_system_health(bot: Bot, api_client: APIClient) -> dict:
     try:
         # Проверяем API соединение
         logger.info("Checking API connection...")
-        health_response = await api_client._make_request("GET", "/health")
-        health_status["api_connection"] = health_response.get("success", False)
+        
+        # ИСПРАВЛЕНО: Используем простую проверку через get_languages вместо /health
+        languages_response = await api_client.get_languages()
+        health_status["api_connection"] = languages_response.get("success", False)
+        health_status["database"] = languages_response.get("success", False)
         
         if health_status["api_connection"]:
-            logger.info("✅ API connection successful")
-            
-            # Проверяем доступность базы данных через API
-            logger.info("Checking database connectivity...")
-            languages_response = await api_client.get_languages()
-            health_status["database"] = languages_response.get("success", False)
-            
-            if health_status["database"]:
-                logger.info("✅ Database connectivity successful")
-            else:
-                logger.error("❌ Database connectivity failed")
+            logger.info("✅ API connection and database connectivity successful")
         else:
-            logger.error("❌ API connection failed")
+            logger.error("❌ API connection or database connectivity failed")
+            error_details = languages_response.get("error", "Unknown error")
+            logger.error(f"Error details: {error_details}")
             
     except Exception as e:
         logger.error(f"❌ Health check failed: {e}", exc_info=True)
+        health_status["api_connection"] = False
+        health_status["database"] = False
     
     return health_status
 
 async def notify_admins_about_startup(bot: Bot, health_status: dict, admin_ids: List[int]) -> bool:
     """
-    НОВОЕ: Уведомляет администраторов о запуске бота и статусе системы.
+    Уведомляет администраторов о запуске бота и статусе системы.
     
     Args:
         bot: Экземпляр бота
@@ -177,7 +211,8 @@ async def notify_admins_about_startup(bot: Bot, health_status: dict, admin_ids: 
         return False
     
     # Формируем сообщение о статусе
-    status_icon = "✅" if all([health_status["api_connection"], health_status["database"]]) else "⚠️"
+    all_systems_ok = health_status["api_connection"] and health_status["database"]
+    status_icon = "✅" if all_systems_ok else "⚠️"
     
     startup_message = (
         f"{status_icon} **Бот запущен**\n\n"
@@ -188,7 +223,7 @@ async def notify_admins_about_startup(bot: Bot, health_status: dict, admin_ids: 
         f"Версия: Language Learning Bot v1.0"
     )
     
-    if not health_status["api_connection"] or not health_status["database"]:
+    if not all_systems_ok:
         startup_message += (
             f"\n\n⚠️ **Внимание!** Обнаружены проблемы с системой.\n"
             f"Бот может работать некорректно."
@@ -213,7 +248,8 @@ async def notify_admins_about_startup(bot: Bot, health_status: dict, admin_ids: 
 
 async def setup_middleware(dispatcher: Dispatcher) -> None:
     """
-    НОВОЕ: Настройка middleware с улучшенной обработкой ошибок.
+    Настройка middleware с улучшенной обработкой ошибок.
+    ИСПРАВЛЕНО: Восстановлен StateValidationMiddleware.
     
     Args:
         dispatcher: Диспетчер aiogram
@@ -226,7 +262,7 @@ async def setup_middleware(dispatcher: Dispatcher) -> None:
         dispatcher.update.middleware(auth_middleware)
         logger.info("✅ AuthMiddleware registered")
         
-        # НОВОЕ: Middleware для валидации состояний FSM
+        # ВОССТАНОВЛЕНО: Middleware для валидации состояний FSM
         state_validation_middleware = StateValidationMiddleware(
             validate_states=True,
             auto_recover=True
@@ -256,7 +292,7 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot) -> None:
     # Получаем API client, который был создан в main()
     api_client = get_api_client_from_bot(bot)
     
-    # НОВОЕ: Проверяем состояние системы
+    # Проверяем состояние системы
     health_status = await check_system_health(bot, api_client)
     
     # Получаем список администраторов
@@ -275,7 +311,7 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot) -> None:
         health_status["api_connection"] = False
         health_status["database"] = False
     
-    # НОВОЕ: Уведомляем администраторов о запуске
+    # Уведомляем администраторов о запуске
     if admin_ids:
         health_status["admin_notification_sent"] = await notify_admins_about_startup(
             bot, health_status, admin_ids
@@ -295,6 +331,8 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot) -> None:
             logger.info("✅ Bot commands configured")
         except Exception as e:
             logger.error(f"❌ Failed to setup bot commands: {e}")
+    else:
+        logger.warning("⚠️ Bot manager not found, commands may not be configured")
     
     logger.info("=" * 50)
     logger.info("🎉 Bot started successfully!")
@@ -312,11 +350,25 @@ async def on_shutdown(dispatcher: Dispatcher) -> None:
     logger.info("🛑 Shutting down bot...")
     logger.info("=" * 30)
     
-    # НОВОЕ: Уведомляем администраторов об остановке
+    # Уведомляем администраторов об остановке
     try:
         admin_ids = get_admin_ids_from_config(cfg)
         if admin_ids:
-            bot = dispatcher.get("bot")  # Попробуем получить бот из диспетчера
+            # Попробуем получить бот из диспетчера или глобального контекста
+            bot = dispatcher.get("bot")
+            if not bot:
+                # Fallback - попробуем получить из глобальных переменных
+                import inspect
+                frame = inspect.currentframe()
+                try:
+                    while frame:
+                        if 'bot' in frame.f_locals:
+                            bot = frame.f_locals['bot']
+                            break
+                        frame = frame.f_back
+                finally:
+                    del frame
+            
             if bot:
                 shutdown_message = (
                     f"🛑 **Бот остановлен**\n\n"
@@ -329,10 +381,12 @@ async def on_shutdown(dispatcher: Dispatcher) -> None:
                         logger.info(f"✅ Shutdown notification sent to admin {admin_id}")
                     except Exception as e:
                         logger.error(f"❌ Failed to send shutdown notification to admin {admin_id}: {e}")
+            else:
+                logger.warning("⚠️ Bot instance not available for shutdown notifications")
+                
     except Exception as e:
         logger.error(f"Error during admin shutdown notification: {e}")
     
-    # В aiogram 3.x нет необходимости явно закрывать хранилище
     logger.info("🏁 Bot stopped successfully!")
 
 def load_secrets(cfg, path):
@@ -356,11 +410,52 @@ def load_secrets(cfg, path):
                 cfg.bot.token = secrets['bot']['token']
                 logger.info("✅ Bot token successfully loaded from external file")
                 return True
+            else:
+                logger.warning("⚠️ Secrets file found but no valid bot token")
+                
     except Exception as e:
         logger.error(f"Error loading secrets from {path}: {e}")
     
-    logger.error("❌ Failed to load secrets from external files")
+    logger.info("ℹ️ External secrets not loaded, using environment variables")
     return False
+
+def validate_configuration(cfg) -> bool:
+    """
+    НОВОЕ: Валидация конфигурации перед запуском.
+    
+    Args:
+        cfg: Объект конфигурации
+        
+    Returns:
+        bool: True если конфигурация валидна
+    """
+    logger.info("Validating configuration...")
+    
+    issues = []
+    
+    # Проверяем токен бота
+    if not hasattr(cfg, "bot") or not hasattr(cfg.bot, "token") or not cfg.bot.token:
+        issues.append("Bot token is not configured")
+    
+    # Проверяем API настройки
+    if not hasattr(cfg, "api"):
+        issues.append("API configuration is missing")
+    else:
+        if not hasattr(cfg.api, "base_url"):
+            issues.append("API base_url is not configured")
+    
+    # Проверяем настройки логирования
+    if not hasattr(cfg, "logging"):
+        logger.warning("⚠️ Logging configuration is missing, using defaults")
+    
+    if issues:
+        logger.error("❌ Configuration validation failed:")
+        for issue in issues:
+            logger.error(f"  - {issue}")
+        return False
+    
+    logger.info("✅ Configuration validation passed")
+    return True
 
 async def main() -> None:
     """
@@ -371,14 +466,15 @@ async def main() -> None:
         # Загружаем секреты
         secrets_loaded = load_secrets(cfg, "~/.ssh/bot.yaml")
         if not secrets_loaded:
-            logger.warning("⚠️ External secrets not loaded, using environment variables")
+            logger.info("Using environment variables for configuration")
+        
+        # Валидируем конфигурацию
+        if not validate_configuration(cfg):
+            logger.error("❌ Configuration validation failed!")
+            sys.exit(1)
 
         # Get bot token from configuration
-        bot_token = cfg.bot.token if hasattr(cfg, "bot") and hasattr(cfg.bot, "token") else None
-        if not bot_token:
-            logger.error("❌ Bot token is not set in configuration!")
-            sys.exit(1)
-        
+        bot_token = cfg.bot.token
         logger.info("✅ Bot token configured")
         
         # Create bot and dispatcher instances
@@ -416,12 +512,12 @@ async def main() -> None:
         
         # Сохраняем bot_manager в диспетчере для доступа в других местах
         dp["bot_manager"] = bot_manager
+        dp["bot"] = bot  # НОВОЕ: Сохраняем бот для доступа при shutdown
         
         # Связываем диспетчера с ботом для возможности доступа к диспетчеру через бот
-        # Это нестандартная операция, но она поможет в обработчиках получать api_client через message.bot.dispatcher
         setattr(bot, "dispatcher", dp)
         
-        # НОВОЕ: Регистрация обработчиков для запуска и остановки с улучшенной обработкой ошибок
+        # Регистрация обработчиков для запуска и остановки
         dp.startup.register(on_startup)
         dp.shutdown.register(on_shutdown)
         
@@ -442,7 +538,7 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"❌ Critical error during bot startup: {e}", exc_info=True)
         
-        # НОВОЕ: Попытка уведомить администраторов о критической ошибке
+        # Попытка уведомить администраторов о критической ошибке
         try:
             admin_ids = get_admin_ids_from_config(cfg)
             if admin_ids and 'bot' in locals():
@@ -468,13 +564,18 @@ if __name__ == "__main__":
     try:
         parser = argparse.ArgumentParser(description='Запуск Language Learning Bot')
         
-        # Добавляем аргумент process-name для идентификации процесса
+        # Добавляем аргументы командной строки
         parser.add_argument('--process-name', type=str, help='Имя процесса для идентификации')
         parser.add_argument('--debug', action='store_true', help='Включить отладочный режим')
         parser.add_argument('--no-admin-notifications', action='store_true', help='Отключить уведомления администраторов')
+        parser.add_argument('--validate-only', action='store_true', help='Только проверить конфигурацию и выйти')
         
         # Парсим аргументы, но не выходим при ошибке для обратной совместимости
         args, unknown = parser.parse_known_args()
+        
+        # Предупреждаем о неизвестных аргументах
+        if unknown:
+            logger.warning(f"⚠️ Unknown arguments: {unknown}")
         
         # Устанавливаем уровень логирования в зависимости от режима отладки
         if args.debug:
@@ -493,10 +594,25 @@ if __name__ == "__main__":
         logger.info(f"🆔 Process ID (PID): {pid}")
         logger.info(f"📁 Working directory: {os.getcwd()}")
         logger.info(f"🐍 Python version: {sys.version}")
-        
-        # НОВОЕ: Добавляем информацию о системе
         logger.info(f"💾 Platform: {sys.platform}")
-        logger.info(f"🖥️ Architecture: {os.uname().machine if hasattr(os, 'uname') else 'Unknown'}")
+        
+        # Добавляем информацию о системе если доступно
+        try:
+            if hasattr(os, 'uname'):
+                logger.info(f"🖥️ Architecture: {os.uname().machine}")
+        except:
+            logger.info("🖥️ Architecture: Unknown")
+        
+        # Режим только валидации
+        if args.validate_only:
+            logger.info("🔍 Validation-only mode enabled")
+            secrets_loaded = load_secrets(cfg, "~/.ssh/bot.yaml")
+            if validate_configuration(cfg):
+                logger.info("✅ Configuration is valid")
+                sys.exit(0)
+            else:
+                logger.error("❌ Configuration validation failed")
+                sys.exit(1)
 
         # Запускаем основной цикл
         asyncio.run(main())

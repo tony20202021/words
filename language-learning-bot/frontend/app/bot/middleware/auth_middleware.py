@@ -58,6 +58,13 @@ class AuthMiddleware(BaseMiddleware):
         Returns:
             The result of the handler call.
         """
+        if isinstance(event, Message) and event.text:
+            logger.info(f"🔍 MIDDLEWARE DEBUG: Got '{event.text}' from user {event.from_user.id}")
+        
+        user = self._extract_user(event)
+        if user:
+            logger.info(f"🔍 MIDDLEWARE DEBUG: Processing user {user.full_name} ({user.id})")
+
         # Get user and state from the event
         user = self._extract_user(event)
         state = data.get("state")
@@ -566,6 +573,13 @@ class StateValidationMiddleware(BaseMiddleware):
         Returns:
             The result of the handler call
         """
+        if isinstance(event, Message) and event.text:
+            logger.info(f"🔍 StateValidationMiddleware DEBUG: Got '{event.text}' from user {event.from_user.id}")
+            
+        # user = self._extract_user(event)
+        # if user:
+        #     logger.info(f"🔍 StateValidationMiddleware DEBUG: Processing user {user.full_name} ({user.id})")
+
         if not self.validate_states:
             return await handler(event, data)
         

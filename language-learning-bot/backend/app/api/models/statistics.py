@@ -11,8 +11,8 @@ class UserStatisticsBase(BaseModel):
     user_id: str = Field(..., description="User ID")
     word_id: str = Field(..., description="Word ID")
     language_id: str = Field(..., description="Language ID")
-    hint_syllables: Optional[str] = Field(None, description="Syllables hint")
-    hint_association: Optional[str] = Field(None, description="Association hint")
+    hint_phoneticsound: Optional[str] = Field(None, description="Syllables hint")
+    hint_phoneticassociation: Optional[str] = Field(None, description="Association hint")
     hint_meaning: Optional[str] = Field(None, description="Meaning hint")
     hint_writing: Optional[str] = Field(None, description="Writing hint")
     score: int = Field(0, description="Score (0 or 1)")
@@ -24,8 +24,8 @@ class UserStatisticsCreate(BaseModel):
     """Create model for user statistics."""
     word_id: str = Field(..., description="Word ID")
     language_id: str = Field(..., description="Language ID")
-    hint_syllables: Optional[str] = Field(None, description="Syllables hint")
-    hint_association: Optional[str] = Field(None, description="Association hint")
+    hint_phoneticsound: Optional[str] = Field(None, description="Syllables hint")
+    hint_phoneticassociation: Optional[str] = Field(None, description="Association hint")
     hint_meaning: Optional[str] = Field(None, description="Meaning hint")
     hint_writing: Optional[str] = Field(None, description="Writing hint")
     score: int = Field(0, description="Score (0 or 1)")
@@ -33,8 +33,8 @@ class UserStatisticsCreate(BaseModel):
 
 class UserStatisticsUpdate(BaseModel):
     """Update model for user statistics."""
-    hint_syllables: Optional[str] = Field(None, description="Syllables hint")
-    hint_association: Optional[str] = Field(None, description="Association hint")
+    hint_phoneticsound: Optional[str] = Field(None, description="Syllables hint")
+    hint_phoneticassociation: Optional[str] = Field(None, description="Association hint")
     hint_meaning: Optional[str] = Field(None, description="Meaning hint")
     hint_writing: Optional[str] = Field(None, description="Writing hint")
     score: Optional[int] = Field(None, description="Score (0 or 1)")
@@ -56,8 +56,8 @@ class UserStatisticsInDB(UserStatisticsBase):
                 "user_id": "5f9b3b3b9c9d440000b3b3b3",
                 "word_id": "5f9b3b3b9c9d440000b3b3b3",
                 "language_id": "5f9b3b3b9c9d440000b3b3b3",
-                "hint_syllables": "бон-жур",
-                "hint_association": "бонус за журнал",
+                "hint_phoneticsound": "бон-жур",
+                "hint_phoneticassociation": "бонус за журнал",
                 "hint_meaning": "приветствие при встрече",
                 "hint_writing": None,
                 "score": 1,

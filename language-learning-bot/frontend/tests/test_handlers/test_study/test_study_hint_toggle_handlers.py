@@ -40,8 +40,8 @@ class TestStudyHintHandlers:
                 "transcription": "haʊs",
                 "language_id": "lang123",
                 "user_word_data": {
-                    "hint_syllables": "х-ауз",
-                    "hint_association": "существующая подсказка",
+                    "hint_phoneticsound": "х-ауз",
+                    "hint_phoneticassociation": "существующая подсказка",
                     "check_interval": 1,
                     "next_check_date": "2025-05-15"
                 }
@@ -96,7 +96,7 @@ class TestStudyHintHandlers:
                 "transcription": "haʊs",
                 "language_id": "lang123",
                 "user_word_data": {
-                    "hint_association": "существующая подсказка",
+                    "hint_phoneticassociation": "существующая подсказка",
                     "check_interval": 1,
                     "next_check_date": "2025-05-15"
                 }
@@ -117,7 +117,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 200,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -128,7 +128,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 200,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -139,7 +139,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 201,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -192,7 +192,7 @@ class TestStudyHintHandlers:
                 "transcription": "haʊs",
                 "language_id": "lang123",
                 "user_word_data": {
-                    "hint_association": "существующая подсказка"
+                    "hint_phoneticassociation": "существующая подсказка"
                 }
             },
             "db_user_id": "user123"
@@ -203,7 +203,7 @@ class TestStudyHintHandlers:
         
         # Создаем моки для необходимых функций
         validate_state_data_mock = AsyncMock(return_value=(True, state.get_data.return_value))
-        get_hint_key_mock = MagicMock(return_value="hint_association")
+        get_hint_key_mock = MagicMock(return_value="hint_phoneticassociation")
         get_hint_name_mock = MagicMock(return_value="Ассоциация")
         get_hint_icon_mock = MagicMock(return_value="🔤")
         get_hint_text_mock = AsyncMock(return_value="существующая подсказка")

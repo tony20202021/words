@@ -171,3 +171,79 @@ class UserLanguageSettingsService:
         """
         default_settings = UserLanguageSettingsCreate()
         return default_settings.dict()
+
+    async def toggle_hint_setting(
+        self, user_id: str, language_id: str, hint_type: str, enabled: bool
+    ) -> Optional[UserLanguageSettingsInDB]:
+        """
+        Toggle a specific hint setting for a user and language.
+        
+        Args:
+            user_id: ID of the user
+            language_id: ID of the language
+            hint_type: Type of hint ('syllables', 'association', 'meaning', 'writing')
+            enabled: Whether to enable or disable the hint
+            
+        Returns:
+            Updated settings object or None if not found
+        """
+        # Validate hint type
+        valid_hint_types = ['syllables', 'association', 'meaning', 'writing']
+        if hint_type not in valid_hint_types:
+            logger.error(f"Invalid hint type: {hint_type}. Valid types: {valid_hint_types}")
+            return None
+        
+        # Create update data for the specific hint type
+        hint_field = f"show_hint_{hint_type}"
+        update_data = {hint_field: enabled}
+        
+        # Update settings
+        settings_update = UserLanguageSettingsUpdate(**update_data)
+        return await self.update_settings(user_id, language_id, settings_update)
+
+    async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, bool]:
+        """
+        Get hint settings for a specific user and language.
+        
+        Args:
+            user_id: ID of the user
+            language_id: ID of the language
+            
+        Returns:
+            Dictionary with hint settings or default values if not found
+        """
+        settings = await self.get_settings(user_id, language_id)
+        
+        if settings:
+            return {
+                'show_hint_phoneticsound': settings.show_hint_phoneticsound,
+                'association': settings.show_hint_phoneticassociation,
+                'meaning': settings.show_hint_meaning,
+                'writing': settings.show_hint_writing
+            }
+        else:
+            # Return default values if no settings found
+            return {
+                'show_hint_phoneticsound': True,
+                'association': True,
+                'meaning': True,
+                'writing': True
+            }
+
+    async def migrate_existing_settings(self) -> int:
+        """
+        Migrate existing user settings to include new hint fields.
+        
+        Returns:
+            Number of updated settings
+        """
+        logger.info("Starting migration of existing user language settings")
+        
+        try:
+            count = await self.repository.migrate_existing_settings()
+            logger.info(f"Successfully migrated {count} user language settings")
+            return count
+        except Exception as e:
+            logger.error(f"Error during migration: {e}")
+            raise
+        

@@ -1,6 +1,8 @@
+
 """
-Refactored handlers for hint creation.
+Handlers for hint creation.
 Now uses centralized utilities and constants.
+FIXED: Corrected imports and function references, removed duplicated code.
 """
 
 from aiogram import Router, F
@@ -20,10 +22,6 @@ from app.bot.states.centralized_states import HintStates, StudyStates
 # Import callback utilities
 from app.utils.callback_constants import CallbackParser
 
-# Import voice utilities
-from app.utils.voice_utils import process_hint_input
-
-# Import study utilities
 from app.bot.handlers.study.study_words import show_study_word
 
 # Создаем вложенный роутер для обработчиков создания подсказок
@@ -31,6 +29,26 @@ create_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
+
+# Простая обработка текста (без голосовых утилит)
+async def process_hint_input(message: Message, hint_name: str) -> str:
+    """
+    Process hint input from text message.
+    
+    Args:
+        message: The message object from Telegram
+        hint_name: Name of the hint being processed
+        
+    Returns:
+        str: Processed hint text or empty string if invalid
+    """
+    if message.text:
+        hint_text = message.text.strip()
+        if hint_text:
+            return hint_text
+    
+    await message.answer("❌ Пожалуйста, введите текст подсказки.")
+    return ""
 
 
 @create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.studying)
@@ -158,8 +176,9 @@ async def process_hint_text(message: Message, state: FSMContext):
     )
     
     if not hint_text:
-        logger.error("not hint_text")
-        return  # Error already handled by voice utilities
+        logger.error("No hint text provided")
+        await message.answer("❌ Пожалуйста, введите текст подсказки или запишите голосовое сообщение.")
+        return
     
     # Save hint to database
     update_data = {hint_state.hint_key: hint_text}
@@ -195,8 +214,11 @@ async def process_hint_text(message: Message, state: FSMContext):
         if hint_type and hint_type not in used_hints:
             used_hints.append(hint_type)
             user_word_state.set_flag("used_hints", used_hints)
+        
+        # Save updated word data to state
+        await user_word_state.save_to_state(state)
     
-    # ИСПРАВЛЕНО: Сообщение об успешном создании подсказки
+    # Send success message
     await message.answer(
         f"✅ Подсказка «{hint_state.hint_name}» успешно создана!\n\n"
         f"💡 Текст подсказки:\n<code>{hint_text}</code>\n\n"

@@ -108,8 +108,8 @@ def setup_api_mock_for_common_scenarios(api_client: AsyncMock):
         "result": {
             "word_id": "word123",
             "score": 0,
-            "hint_syllables": None,
-            "hint_association": None,
+            "hint_phoneticsound": None,
+            "hint_phoneticassociation": None,
             "hint_meaning": None,
             "hint_writing": None,
             "check_interval": 0,
@@ -164,7 +164,7 @@ def setup_api_mock_for_study_testing(api_client: AsyncMock):
                 },
                 "error": None
             }
-        elif "hint_syllables" in data:
+        elif "hint_phoneticsound" in data:
             # Если создается фонетическая подсказка, возвращаем данные с подсказкой
             return {
                 "success": True,
@@ -174,12 +174,12 @@ def setup_api_mock_for_study_testing(api_client: AsyncMock):
                     "score": 0,  # При создании подсказки оценка 0
                     "check_interval": 0,
                     "next_check_date": None,
-                    "hint_syllables": data["hint_syllables"],
+                    "hint_phoneticsound": data["hint_phoneticsound"],
                     "is_skipped": False
                 },
                 "error": None
             }
-        elif "hint_association" in data:
+        elif "hint_phoneticassociation" in data:
             # Если создается подсказка ассоциации, возвращаем данные с подсказкой
             return {
                 "success": True,
@@ -189,7 +189,7 @@ def setup_api_mock_for_study_testing(api_client: AsyncMock):
                     "score": 0,  # При создании подсказки оценка 0
                     "check_interval": 0,
                     "next_check_date": None,
-                    "hint_association": data["hint_association"],
+                    "hint_phoneticassociation": data["hint_phoneticassociation"],
                     "is_skipped": False
                 },
                 "error": None

@@ -1,10 +1,14 @@
 """
 Utility functions for formatting.
+UPDATED: Support for individual hint settings display.
 """
 
 from datetime import datetime
 import locale
+from typing import Dict, Any, List, Optional
+
 from app.utils.logger import setup_logger
+from app.utils.hint_constants import HINT_SETTING_KEYS, get_hint_setting_name
 
 logger = setup_logger(__name__)
 
@@ -54,16 +58,26 @@ def format_date(date_str):
 # Сохраняем совместимость со старым кодом
 format_date_standard = format_date
 
-def format_settings_text(start_word, skip_marked, use_check_date, show_hints, show_debug, prefix="", suffix=""):
+def format_settings_text(
+    start_word, 
+    skip_marked, 
+    use_check_date, 
+    show_debug, 
+    hint_settings,
+    prefix="", 
+    suffix=""
+):
     """
     Форматирует текст настроек обучения.
+    ОБНОВЛЕНО: Поддержка индивидуальных настроек подсказок.
     
     Args:
         start_word: Номер слова для начала обучения
         skip_marked: Пропускать ли помеченные слова
         use_check_date: Учитывать ли дату проверки
-        show_hints: Показывать ли кнопки подсказок
         show_debug: Показывать ли отладочную информацию
+        hint_settings: Словарь с индивидуальными настройками подсказок (НОВОЕ)
+        show_hints: Общая настройка подсказок (DEPRECATED, для обратной совместимости)
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -73,23 +87,28 @@ def format_settings_text(start_word, skip_marked, use_check_date, show_hints, sh
     settings_text = f"{prefix}"
     
     # Форматируем настройки
-    settings_text += f"🔢 Начальное слово: <b>{start_word}</b>\n"
+    settings_text += f"Начальное слово: <b>{start_word}</b>\n"
     
     # Статус пропуска помеченных слов
     skip_status = "Пропускать ❌" if skip_marked else "Показывать ✅"
-    settings_text += f"⏩ Слова, помеченные как пропущенные: <b>{skip_status}</b>\n"
+    settings_text += f"Исключенные слова: <b>{skip_status}</b>\n"
     
     # Статус учета даты проверки
     date_status = "Учитывать ✅ (показывать слово только после даты проверки)" if use_check_date else "Не учитывать ❌ (показывать слова каждый день)"
-    settings_text += f"📅 Период повторения: <b>{date_status}</b>\n"
+    settings_text += f"Период повторения: <b>{date_status}</b>\n"
     
-    # Статус отображения кнопок подсказок
-    hints_status = "Придумывать ✅" if show_hints else "Пропускать ❌"
-    settings_text += f"💡 Подсказки: <b>{hints_status}</b>\n"
+    # Отображение настроек подсказок
+    settings_text += f"💡 <b>Настройки подсказок:</b>\n"
+    
+    for setting_key in HINT_SETTING_KEYS:
+        setting_name = get_hint_setting_name(setting_key)
+        setting_value = hint_settings.get(setting_key, True)
+        status = "Включено ✅" if setting_value else "Отключено ❌"
+        settings_text += f"   • {setting_name}: <b>{status}</b>\n"
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
-    settings_text += f"🔍 Отладочная информация: <b>{debug_status}</b>"
+    settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>"
     
     # Добавляем суффикс
     if suffix:
@@ -106,6 +125,7 @@ def format_study_word_message(
     score,
     check_interval, 
     next_check_date,
+    score_changed=False,
     show_word=False,
     word_foreign=None,
     transcription=None
@@ -129,11 +149,9 @@ def format_study_word_message(
         str: Отформатированное сообщение
     """
     message = (
-        f"📝 Переведите на \"{language_name_ru} ({language_name_foreign})\":\n\n"
-        f"слово номер: <b>{word_number}</b>\n\n" 
+        f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
+        f"Слово номер: <b>{word_number}</b>\n\n" 
     )
-    
-    message += f"Перевод:\n🔍  <b>{translation}</b>\n\n"
     
     # Добавляем информацию о статусе пропуска - исправлено условие
     if is_skipped:
@@ -141,16 +159,26 @@ def format_study_word_message(
     
     # Добавляем информацию о периоде повторения
     if (score == 1):
-        message += f"⏱ Вы знали это слово:\n"
-        if check_interval and check_interval > 0:
-            message += f"⏱ Предыдущий интервал: {check_interval} (дней)\n"
-        if next_check_date:
-            formatted_date = format_date(next_check_date)
-            message += f"🔄 Запланированное повторение: {formatted_date} \n\n" 
+        if score_changed:
+            if check_interval and check_interval > 0:
+                message += f"Следующий интервал: {check_interval} (дней)\n"
+            if next_check_date:
+                formatted_date = format_date(next_check_date)
+                message += f"Следующее повторение: {formatted_date} \n\n" 
+        else:
+            if (check_interval > 0) or (next_check_date):
+                message += f"⏱ Вы знали это слово:\n"
+            if check_interval and check_interval > 0:
+                message += f"Предыдущий интервал: {check_interval} (дней)\n"
+            if next_check_date:
+                formatted_date = format_date(next_check_date)
+                message += f"Запланированное повторение: {formatted_date} \n\n" 
+    
+    message += f"🔍 Перевод:\n<b>{translation}</b>\n\n"
     
     # Если нужно показать слово, добавляем его
     if show_word and word_foreign:
-        message += f"📝 Слово: <code>{word_foreign}</code>\n"
+        message += f"📝 Слово: <code>{word_foreign}</code>\n\n"
         if transcription:
             message += f"🔊 Транскрипция: <b>[{transcription}]</b>\n\n"
         else:
@@ -217,3 +245,108 @@ async def format_used_hints(
             result += f"\n\t<b>{active_hint_icon} {active_hint_name}:</b>\n\t\t\t{active_hint_text}\n"
     
     return result
+
+# НОВОЕ: Функции для форматирования настроек подсказок
+def format_hint_settings_summary(hint_settings: Dict[str, bool]) -> str:
+    """
+    Форматирует краткую сводку настроек подсказок.
+    
+    Args:
+        hint_settings: Словарь с настройками подсказок
+        
+    Returns:
+        str: Краткая сводка настроек
+    """
+    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
+    total_count = len(hint_settings)
+    
+    if enabled_count == total_count:
+        return "Все включены ✅"
+    elif enabled_count == 0:
+        return "Все отключены ❌"
+    else:
+        return f"{enabled_count} из {total_count} включено 🔄"
+
+def format_hint_settings_detailed(hint_settings: Dict[str, bool]) -> str:
+    """
+    Форматирует подробное описание настроек подсказок.
+    
+    Args:
+        hint_settings: Словарь с настройками подсказок
+        
+    Returns:
+        str: Подробное описание настроек
+    """
+    result = "💡 <b>Подробные настройки подсказок:</b>\n"
+    
+    for setting_key in HINT_SETTING_KEYS:
+        setting_name = get_hint_setting_name(setting_key)
+        setting_value = hint_settings.get(setting_key, True)
+        status = "✅" if setting_value else "❌"
+        result += f"   {status} {setting_name}\n"
+    
+    return result
+
+def get_hint_settings_status_text(hint_settings: Dict[str, bool]) -> str:
+    """
+    Получить текст статуса настроек подсказок для кнопок.
+    
+    Args:
+        hint_settings: Словарь с настройками подсказок
+        
+    Returns:
+        str: Текст статуса для отображения в кнопках
+    """
+    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
+    total_count = len(hint_settings)
+    
+    return f"({enabled_count}/{total_count})"
+
+# НОВОЕ: Функция для валидации настроек подсказок
+def validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
+    """
+    Валидирует и нормализует настройки подсказок.
+    
+    Args:
+        hint_settings: Словарь с настройками подсказок (могут быть любого типа)
+        
+    Returns:
+        Dict[str, bool]: Нормализованный словарь с булевыми значениями
+    """
+    validated_settings = {}
+    
+    for setting_key in HINT_SETTING_KEYS:
+        value = hint_settings.get(setting_key, True)
+        
+        # Нормализуем значение к булевому типу
+        if isinstance(value, bool):
+            validated_settings[setting_key] = value
+        elif isinstance(value, str):
+            validated_settings[setting_key] = value.lower() in ('true', '1', 'yes', 'on')
+        elif isinstance(value, (int, float)):
+            validated_settings[setting_key] = bool(value)
+        else:
+            # По умолчанию включаем
+            validated_settings[setting_key] = True
+            logger.warning(f"Invalid hint setting value for {setting_key}: {value}, defaulting to True")
+    
+    return validated_settings
+
+# НОВОЕ: Функция для миграции старых настроек
+def migrate_legacy_hint_setting(show_hints: bool) -> Dict[str, bool]:
+    """
+    Миграция старой настройки show_hints к новым индивидуальным настройкам.
+    
+    Args:
+        show_hints: Старое значение общей настройки подсказок
+        
+    Returns:
+        Dict[str, bool]: Новые индивидуальные настройки подсказок
+    """
+    migrated_settings = {}
+    
+    for setting_key in HINT_SETTING_KEYS:
+        migrated_settings[setting_key] = show_hints
+    
+    logger.info(f"Migrated legacy show_hints={show_hints} to individual settings: {migrated_settings}")
+    return migrated_settings

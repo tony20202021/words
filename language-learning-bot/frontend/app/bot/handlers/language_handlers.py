@@ -325,7 +325,10 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         start_word=settings.get("start_word", 1),
         skip_marked=settings.get("skip_marked", False),
         use_check_date=settings.get("use_check_date", True),
-        show_hints=settings.get("show_hints", True),
+        show_hint_phoneticsound=settings.get("show_hint_phoneticsound", True),
+        show_hint_phoneticassociation=settings.get("show_hint_phoneticassociation", True),
+        show_hint_meaning=settings.get("show_hint_meaning", True),
+        show_hint_writing=settings.get("show_hints", True),
         show_debug=settings.get("show_debug", True),
     )
 
@@ -338,7 +341,12 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         start_word=settings.get("start_word", 1),
         skip_marked=settings.get("skip_marked", False),
         use_check_date=settings.get("use_check_date", True),
-        show_hints=settings.get("show_hints", True),
+        hint_settings={
+            "show_hint_phoneticsound": settings.get("show_hint_phoneticsound", True),
+            "show_hint_phoneticassociation": settings.get("show_hint_phoneticassociation", True),
+            "show_hint_meaning": settings.get("show_hint_meaning", True),
+            "show_hint_writing": settings.get("show_hint_writing", True),
+        },
         show_debug=settings.get("show_debug", True),
         prefix=settings_prefix
     )
@@ -354,9 +362,9 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"Прогресс: {progress.get('progress_percentage', 0):.1f}%\n\n"
         f"{settings_text}\n\n"
         f"Теперь вы можете:\n"
-        f"- Начать изучение с помощью команды /study\n"
-        f"- Настроить процесс обучения с помощью команды /settings\n"
-        f"- Посмотреть подробную статистику с помощью команды /stats",
+        f"- Начать изучение: /study\n"
+        f"- Настроить процесс обучения: /settings\n"
+        f"- Посмотреть статистику: /stats",
         parse_mode="HTML",
     )    
 

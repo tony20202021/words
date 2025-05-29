@@ -1,163 +1,411 @@
 """
-Refactored keyboards for user interactions.
-Now uses centralized callback constants.
+User keyboards for Language Learning Bot.
+UPDATED: Support for individual hint settings in user interface.
+FIXED: Proper separation of keyboard creation from handlers.
 """
 
-from aiogram.types import InlineKeyboardButton
+from typing import Dict, List, Optional
+
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# Import callback constants
-from app.utils.callback_constants import CallbackData
+from app.utils.callback_constants import (
+    CallbackData, 
+    format_language_callback,
+    get_hint_setting_callback,
+    HINT_SETTINGS_CALLBACKS
+)
+from app.utils.hint_constants import (
+    HINT_SETTING_KEYS,
+    get_hint_setting_name
+)
+from app.utils.formatting_utils import get_hint_settings_status_text
+from app.utils.logger import setup_logger
 
+logger = setup_logger(__name__)
 
-def create_settings_keyboard(skip_marked: bool, use_check_date: bool, show_hints: bool, show_debug: bool):
+def create_settings_keyboard(
+    skip_marked: bool = False,
+    use_check_date: bool = True,
+    show_debug: bool = False,
+    hint_settings: Optional[Dict[str, bool]] = None
+) -> InlineKeyboardMarkup:
     """
-    Create keyboard for settings menu.
-    Now uses centralized callback constants.
+    Create keyboard for user settings with individual hint settings.
+    UPDATED: Support for individual hint settings instead of general show_hints.
     
     Args:
         skip_marked: Whether to skip marked words
         use_check_date: Whether to use check date
-        show_hints: Whether to show hint buttons
-        show_debug: Whether to show debug information
+        show_debug: Whether to show debug info
+        hint_settings: Individual hint settings dictionary
         
     Returns:
-        InlineKeyboardMarkup: Settings keyboard markup
+        InlineKeyboardMarkup: Settings keyboard
     """
-    # Create keyboard builder
     builder = InlineKeyboardBuilder()
     
-    # Add buttons using constants
+    # Basic settings buttons
     builder.add(InlineKeyboardButton(
         text="🔢 Изменить начальное слово",
         callback_data=CallbackData.SETTINGS_START_WORD
     ))
     
+    skip_text = "❌ Исключенные слова" if skip_marked else "✅ Исключенные слова"
     builder.add(InlineKeyboardButton(
-        text=f"⏩ Помеченные слова: сменить на \"{'Показывать' if skip_marked else 'Пропускать'}\"",
+        text=f"{skip_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
     ))
-
+    
+    date_text = "✅ Учитывать дату" if use_check_date else "❌ Не учитывать дату"
     builder.add(InlineKeyboardButton(
-        text=f"📅 Период проверки: сменить на \"{'Не учитывать' if use_check_date else 'Учитывать'}\"",
+        text=f"{date_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_CHECK_DATE
     ))
     
-    builder.add(InlineKeyboardButton(
-        text=f"💡 Подсказки: сменить на \"{'Пропускать' if show_hints else 'Придумывать'}\"",
-        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_HINTS
-    ))
+    # НОВОЕ: Individual hint settings buttons
+    if hint_settings:
+        _add_individual_hint_buttons(builder, hint_settings)
+    else:
+        # Fallback if no hint settings provided
+        builder.add(InlineKeyboardButton(
+            text="💡 Настройки подсказок недоступны",
+            callback_data="no_action"
+        ))
     
-    # Add debug information toggle button
+    # Debug setting
+    debug_text = "✅ Отладочная информация" if show_debug else "❌ Отладочная информация"
     builder.add(InlineKeyboardButton(
-        text=f"🔍 Отладочная информация: сменить на \"{'Скрывать' if show_debug else 'Показывать'}\"",
+        text=f"{debug_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG
     ))
     
-    # Set layout: 1 button per row
+    # Set layout: one button per row
     builder.adjust(1)
     
     return builder.as_markup()
 
-
-def get_skip_marked_button_text(skip_marked: bool) -> str:
+def _add_individual_hint_buttons(
+    builder: InlineKeyboardBuilder,
+    hint_settings: Dict[str, bool]
+) -> None:
     """
-    Get text for skip marked button based on current state.
+    Add individual hint setting buttons to keyboard.
+    НОВОЕ: Создает отдельные кнопки для каждого типа подсказки.
     
     Args:
-        skip_marked: Current skip marked state
+        builder: Keyboard builder
+        hint_settings: Individual hint settings
+    """
+    # Add individual hint toggle buttons
+    for setting_key in HINT_SETTING_KEYS:
+        setting_name = get_hint_setting_name(setting_key)
+        if not setting_name:
+            continue
+            
+        is_enabled = hint_settings.get(setting_key, True)
+        status_emoji = "✅" if is_enabled else "❌"
         
-    Returns:
-        str: Button text
-    """
-    return f"⏩ Помеченные слова: сменить на \"{'Показывать' if skip_marked else 'Пропускать'}\""
+        # Get callback data for this setting
+        callback_data = get_hint_setting_callback(setting_key)
+        if not callback_data:
+            logger.warning(f"No callback found for hint setting: {setting_key}")
+            continue
+        
+        button_text = f"   {status_emoji} {setting_name}"
+        builder.add(InlineKeyboardButton(
+            text=button_text,
+            callback_data=callback_data
+        ))
 
-
-def get_check_date_button_text(use_check_date: bool) -> str:
+def create_language_selection_keyboard(languages: List[Dict]) -> InlineKeyboardMarkup:
     """
-    Get text for check date button based on current state.
+    Create keyboard for language selection.
     
     Args:
-        use_check_date: Current check date state
+        languages: List of available languages
         
     Returns:
-        str: Button text
+        InlineKeyboardMarkup: Language selection keyboard
     """
-    return f"📅 Период проверки: сменить на \"{'Не учитывать' if use_check_date else 'Учитывать'}\""
+    builder = InlineKeyboardBuilder()
+    
+    for language in languages:
+        language_id = language.get("id")
+        name_ru = language.get("name_ru", "Неизвестный")
+        name_foreign = language.get("name_foreign", "")
+        
+        # Format button text
+        if name_foreign:
+            button_text = f"🌐 {name_ru} ({name_foreign})"
+        else:
+            button_text = f"🌐 {name_ru}"
+        
+        builder.add(InlineKeyboardButton(
+            text=button_text,
+            callback_data=format_language_callback(language_id)
+        ))
+    
+    # Set layout: one language per row
+    builder.adjust(1)
+    
+    return builder.as_markup()
 
-
-def get_start_word_button_text() -> str:
+def create_start_word_input_keyboard() -> InlineKeyboardMarkup:
     """
-    Get text for start word button.
+    Create keyboard for start word input with quick options.
     
     Returns:
-        str: Button text
+        InlineKeyboardMarkup: Start word input keyboard
     """
-    return "🔢 Изменить начальное слово"
+    builder = InlineKeyboardBuilder()
+    
+    # Quick options for common start words
+    quick_options = [1, 10, 50, 100, 500, 1000]
+    
+    for word_num in quick_options:
+        builder.add(InlineKeyboardButton(
+            text=f"📖 Слово #{word_num}",
+            callback_data=f"quick_start_word_{word_num}"
+        ))
+    
+    # Cancel button
+    builder.add(InlineKeyboardButton(
+        text="❌ Отменить",
+        callback_data=CallbackData.CANCEL_ACTION
+    ))
+    
+    # Layout: 2 options per row, cancel on separate row
+    builder.adjust(2, 2, 2, 1)
+    
+    return builder.as_markup()
 
-
-def get_show_hints_button_text(show_hints: bool) -> str:
+def create_help_keyboard() -> InlineKeyboardMarkup:
     """
-    Get text for show hints button based on current state.
+    Create keyboard for help command.
+    
+    Returns:
+        InlineKeyboardMarkup: Help keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="📚 Начать изучение",
+        callback_data="start_study"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🌐 Выбрать язык",
+        callback_data="select_language"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⚙️ Настройки",
+        callback_data="show_settings"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="📊 Статистика",
+        callback_data="show_stats"
+    ))
+    
+    builder.adjust(2, 2)
+    
+    return builder.as_markup()
+
+def create_stats_keyboard() -> InlineKeyboardMarkup:
+    """
+    Create keyboard for statistics display.
+    
+    Returns:
+        InlineKeyboardMarkup: Stats keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="🔄 Обновить статистику",
+        callback_data="refresh_stats"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="📚 Начать изучение",
+        callback_data="start_study_from_stats"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⚙️ Изменить настройки",
+        callback_data="settings_from_stats"
+    ))
+    
+    builder.adjust(1)
+    
+    return builder.as_markup()
+
+# НОВОЕ: Specialized keyboards for hint settings management
+def create_hint_settings_keyboard(hint_settings: Dict[str, bool]) -> InlineKeyboardMarkup:
+    """
+    Create specialized keyboard for hint settings management.
     
     Args:
-        show_hints: Current show hints state
+        hint_settings: Individual hint settings
         
     Returns:
-        str: Button text
+        InlineKeyboardMarkup: Hint settings keyboard
     """
-    return f"💡 Подсказки: сменить на \"{'Пропускать' if show_hints else 'Придумывать'}\""
+    builder = InlineKeyboardBuilder()
+    
+    # Header with current status
+    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
+    total_count = len(hint_settings)
+    
+    builder.add(InlineKeyboardButton(
+        text=f"💡 Настройки подсказок ({enabled_count}/{total_count})",
+        callback_data="no_action"
+    ))
+    
+    # Individual hint toggles
+    for setting_key in HINT_SETTING_KEYS:
+        setting_name = get_hint_setting_name(setting_key)
+        if not setting_name:
+            continue
+            
+        is_enabled = hint_settings.get(setting_key, True)
+        status_emoji = "✅" if is_enabled else "❌"
+        
+        callback_data = get_hint_setting_callback(setting_key)
+        if callback_data:
+            builder.add(InlineKeyboardButton(
+                text=f"{status_emoji} {setting_name}",
+                callback_data=callback_data
+            ))
+    
+    # Bulk actions
+    if enabled_count < total_count:
+        builder.add(InlineKeyboardButton(
+            text="✅ Включить все подсказки",
+            callback_data="enable_all_hints"
+        ))
+    
+    if enabled_count > 0:
+        builder.add(InlineKeyboardButton(
+            text="❌ Отключить все подсказки", 
+            callback_data="disable_all_hints"
+        ))
+    
+    # Back button
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к настройкам",
+        callback_data="back_to_settings"
+    ))
+    
+    builder.adjust(1)
+    
+    return builder.as_markup()
 
-
-def get_show_debug_button_text(show_debug: bool) -> str:
+def create_confirmation_keyboard(
+    confirm_text: str = "✅ Подтвердить",
+    cancel_text: str = "❌ Отменить",
+    confirm_callback: str = "confirm_action",
+    cancel_callback: str = "cancel_action"
+) -> InlineKeyboardMarkup:
     """
-    Get text for show debug button based on current state.
+    Create generic confirmation keyboard.
     
     Args:
-        show_debug: Current show debug state
+        confirm_text: Text for confirm button
+        cancel_text: Text for cancel button
+        confirm_callback: Callback data for confirm
+        cancel_callback: Callback data for cancel
         
     Returns:
-        str: Button text
+        InlineKeyboardMarkup: Confirmation keyboard
     """
-    return f"🔍 Отладочная информация: сменить на \"{'Скрывать' if show_debug else 'Показывать'}\""
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text=confirm_text,
+        callback_data=confirm_callback
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text=cancel_text,
+        callback_data=cancel_callback
+    ))
+    
+    builder.adjust(2)
+    
+    return builder.as_markup()
 
+# НОВОЕ: Utility functions for keyboard creation
+def create_back_button_keyboard(back_callback: str = "back_to_menu") -> InlineKeyboardMarkup:
+    """
+    Create keyboard with just a back button.
+    
+    Args:
+        back_callback: Callback data for back button
+        
+    Returns:
+        InlineKeyboardMarkup: Back button keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад",
+        callback_data=back_callback
+    ))
+    
+    return builder.as_markup()
 
-# Convenience functions for creating individual buttons
-def create_settings_start_word_button() -> InlineKeyboardButton:
-    """Create start word settings button."""
-    return InlineKeyboardButton(
-        text=get_start_word_button_text(),
-        callback_data=CallbackData.SETTINGS_START_WORD
-    )
+def validate_hint_settings_for_keyboard(hint_settings: Optional[Dict[str, bool]]) -> Dict[str, bool]:
+    """
+    Validate hint settings before creating keyboard.
+    
+    Args:
+        hint_settings: Raw hint settings
+        
+    Returns:
+        Dict: Validated hint settings
+    """
+    if not hint_settings:
+        from app.utils.hint_settings_utils import DEFAULT_HINT_SETTINGS
+        return DEFAULT_HINT_SETTINGS.copy()
+    
+    validated = {}
+    for key in HINT_SETTING_KEYS:
+        validated[key] = hint_settings.get(key, True)
+    
+    return validated
 
+def get_hint_settings_summary_text(hint_settings: Dict[str, bool]) -> str:
+    """
+    Get summary text for hint settings status.
+    
+    Args:
+        hint_settings: Individual hint settings
+        
+    Returns:
+        str: Summary text
+    """
+    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
+    total_count = len(hint_settings)
+    
+    if enabled_count == total_count:
+        return "Все включены ✅"
+    elif enabled_count == 0:
+        return "Все отключены ❌"
+    else:
+        return f"{enabled_count}/{total_count} включено 🔄"
 
-def create_settings_skip_marked_button(skip_marked: bool) -> InlineKeyboardButton:
-    """Create skip marked settings button."""
-    return InlineKeyboardButton(
-        text=get_skip_marked_button_text(skip_marked),
-        callback_data=CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
-    )
-
-
-def create_settings_check_date_button(use_check_date: bool) -> InlineKeyboardButton:
-    """Create check date settings button."""
-    return InlineKeyboardButton(
-        text=get_check_date_button_text(use_check_date),
-        callback_data=CallbackData.SETTINGS_TOGGLE_CHECK_DATE
-    )
-
-
-def create_settings_show_hints_button(show_hints: bool) -> InlineKeyboardButton:
-    """Create show hints settings button."""
-    return InlineKeyboardButton(
-        text=get_show_hints_button_text(show_hints),
-        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_HINTS
-    )
-
-
-def create_settings_show_debug_button(show_debug: bool) -> InlineKeyboardButton:
-    """Create show debug settings button."""
-    return InlineKeyboardButton(
-        text=get_show_debug_button_text(show_debug),
-        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG
-    )
+# Export main functions
+__all__ = [
+    'create_settings_keyboard',
+    'create_language_selection_keyboard',
+    'create_start_word_input_keyboard',
+    'create_help_keyboard',
+    'create_stats_keyboard',
+    'create_hint_settings_keyboard',
+    'create_confirmation_keyboard',
+    'create_back_button_keyboard',
+    'validate_hint_settings_for_keyboard',
+    'get_hint_settings_summary_text'
+]

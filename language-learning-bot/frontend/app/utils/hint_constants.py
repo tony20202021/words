@@ -1,5 +1,6 @@
 """
 Constants and mapping utilities for hint management.
+UPDATED: Added individual hint settings constants.
 """
 
 from typing import Dict, Tuple, List, Optional
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 # Словарь соответствия типов подсказок их API ключам и отображаемым именам
 HINT_TYPE_MAP: Dict[str, Tuple[str, str]] = {
     "meaning": ("hint_meaning", "Ассоциация на русском"),
-    "phoneticassociation": ("hint_association", "Ассоциация для фонетики"),
-    "phoneticsound": ("hint_syllables", "Звучание по слогам"),
+    "phoneticassociation": ("hint_phoneticassociation", "Ассоциация для фонетики"),
+    "phoneticsound": ("hint_phoneticsound", "Звучание по слогам"),
     "writing": ("hint_writing", "Ассоциация для написания")
 }
 
@@ -33,15 +34,35 @@ HINT_ORDER: List[str] = [
 ]
 
 DB_FIELD_HINT_KEY_MAPPING = {
-    "hint_syllables": "phoneticsound",
-    "hint_association": "phoneticassociation",
+    "hint_phoneticsound": "phoneticsound",
+    "hint_phoneticassociation": "phoneticassociation",
     "hint_meaning": "meaning",
     "hint_writing": "writing"
 }
 
+# НОВОЕ: Маппинг типов подсказок к их настройкам
+HINT_SETTINGS_MAP: Dict[str, str] = {
+    "meaning": "show_hint_meaning",
+    "phoneticassociation": "show_hint_phoneticassociation", 
+    "phoneticsound": "show_hint_phoneticsound",
+    "writing": "show_hint_writing"
+}
+
+# НОВОЕ: Краткие названия для настроек подсказок (для UI)
+HINT_SETTINGS_NAMES: Dict[str, str] = {
+    "show_hint_meaning": "Ассоциация на русском",
+    "show_hint_phoneticassociation": "Ассоциация звучания",
+    "show_hint_phoneticsound": "Звучание по слогам", 
+    "show_hint_writing": "Ассоциация написания"
+}
+
+# НОВОЕ: Все ключи настроек подсказок
+HINT_SETTING_KEYS = list(HINT_SETTINGS_MAP.values())
+
 # Логирование констант при загрузке модуля для отладки
 logger.info(f"Loaded hint types: {list(HINT_TYPE_MAP.keys())}")
 logger.info(f"Loaded hint icons: {HINT_ICONS}")
+logger.info(f"Loaded hint settings: {HINT_SETTING_KEYS}")
 
 def get_hint_key(hint_type: str) -> Optional[str]:
     """
@@ -91,7 +112,65 @@ def get_all_hint_types() -> List[str]:
     """
     return HINT_ORDER
 
-def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool = False) -> str:
+# НОВОЕ: Функции для работы с настройками подсказок
+def get_hint_setting_key(hint_type: str) -> Optional[str]:
+    """
+    Get setting key for a hint type.
+    
+    Args:
+        hint_type: Hint type string
+        
+    Returns:
+        str: Setting key for the hint type or None if not found
+    """
+    return HINT_SETTINGS_MAP.get(hint_type)
+
+def get_hint_setting_name(setting_key: str) -> Optional[str]:
+    """
+    Get display name for a hint setting.
+    
+    Args:
+        setting_key: Setting key string
+        
+    Returns:
+        str: Display name for the setting or None if not found
+    """
+    return HINT_SETTINGS_NAMES.get(setting_key)
+
+def is_hint_enabled(hint_type: str, settings: Dict) -> bool:
+    """
+    Check if a specific hint type is enabled in settings.
+    
+    Args:
+        hint_type: Hint type string
+        settings: User settings dictionary
+        
+    Returns:
+        bool: True if hint is enabled, False otherwise
+    """
+    setting_key = get_hint_setting_key(hint_type)
+    if not setting_key:
+        return True  # Default to enabled if setting not found
+    
+    return settings.get(setting_key, True)  # Default to True
+
+def get_enabled_hint_types(settings: Dict) -> List[str]:
+    """
+    Get list of enabled hint types based on settings.
+    
+    Args:
+        settings: User settings dictionary
+        
+    Returns:
+        List[str]: List of enabled hint type strings
+    """
+    enabled_hints = []
+    for hint_type in HINT_ORDER:
+        if is_hint_enabled(hint_type, settings):
+            enabled_hints.append(hint_type)
+    return enabled_hints
+
+def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool = False, is_enabled: bool = True) -> str:
     """
     Format button text for a hint type.
     
@@ -99,6 +178,7 @@ def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool =
         hint_type: Hint type string
         has_hint: Whether hint exists
         is_active: Whether hint is currently active
+        is_enabled: Whether hint type is enabled in settings
         
     Returns:
         str: Formatted button text
@@ -108,6 +188,10 @@ def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool =
     
     if not name:
         name = hint_type.capitalize()
+    
+    # If disabled in settings, show as disabled
+    if not is_enabled:
+        return f"🚫 {icon} {name}: Отключено"
     
     if has_hint:
         if is_active:

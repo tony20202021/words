@@ -243,7 +243,7 @@ class TestGetHintsFromWordData:
             "translation": "книга",
             "hint_meaning": "книжка, том",  # Подсказка в основных данных
             "user_word_data": {
-                "hint_association": "бук (дерево)",  # Подсказка в user_word_data
+                "hint_phoneticassociation": "бук (дерево)",  # Подсказка в user_word_data
                 "hint_writing": "бу(к)"  # Еще одна подсказка в user_word_data
             }
         }

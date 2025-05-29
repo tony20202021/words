@@ -1,5 +1,6 @@
 """
-Utility functions for working with user language settings.
+Updated utility functions for working with user language settings.
+UPDATED: Integrated individual hint settings support.
 """
 
 from typing import Dict, Any, Optional, Union
@@ -13,84 +14,89 @@ from app.utils.formatting_utils import format_settings_text
 
 logger = setup_logger(__name__)
 
-# Значения настроек по умолчанию
+# UPDATED: Default settings now include individual hint settings
 DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
     "use_check_date": True,
-    "show_hints": False,
     "show_debug": False,
+    # Individual hint settings (новые настройки)
+    "show_hint_meaning": True,
+    "show_hint_phoneticassociation": True,
+    "show_hint_phoneticsound": True,
+    "show_hint_writing": True,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
     """
-    Получение настроек пользователя для конкретного языка.
-    Если настройки не найдены, возвращаются значения по умолчанию.
+    Get user settings for specific language including individual hint settings.
+    UPDATED: Integrates individual hint settings.
     
     Args:
-        message_or_callback: Объект сообщения или callback от Telegram
-        state: Контекст состояния FSM
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
         
     Returns:
-        Dict с настройками пользователя для текущего языка
+        Dict with user settings for current language
     """
-    # Получаем объект бота и данные состояния
-    bot = message_or_callback.bot if isinstance(message_or_callback, Message) else message_or_callback.bot
     state_data = await state.get_data()
     
-    # Проверяем наличие необходимых данных
+    # Check required data
     db_user_id = state_data.get("db_user_id")
     current_language = state_data.get("current_language", {})
     language_id = current_language.get("id") if current_language else None
+
+    result = await get_user_language_settings_without_state(message_or_callback, db_user_id, language_id)
+    return result
+
+async def get_user_language_settings_without_state(message_or_callback, db_user_id, language_id) -> Dict[str, Any]:
+    # Get bot and state data
+    bot = message_or_callback.bot if isinstance(message_or_callback, Message) else message_or_callback.bot
     
     if not db_user_id or not language_id:
         logger.warning(f"Missing user_id or language_id in state: user_id={db_user_id}, language_id={language_id}")
         return DEFAULT_SETTINGS.copy()
     
-    # Получаем API клиент
+    # Get API client
     api_client = get_api_client_from_bot(bot)
     
-    try:
-        # Запрашиваем настройки из API
-        settings_response = await api_client.get_user_language_settings(db_user_id, language_id)
-        
-        if settings_response["success"] and settings_response["result"]:
-            # Получаем настройки из ответа API
-            settings = settings_response["result"]
-            
-            # Обеспечиваем наличие всех необходимых полей
-            for key, default_value in DEFAULT_SETTINGS.items():
-                if key not in settings:
-                    settings[key] = default_value
-            
-            logger.info(f"Retrieved settings for user {db_user_id}, language {language_id}: {settings}")
-            return settings
-        else:
-            # Если настройки не найдены, возвращаем значения по умолчанию
-            logger.info(f"Settings not found for user {db_user_id}, language {language_id}, using defaults")
-            return DEFAULT_SETTINGS.copy()
+    # Get settings from API
+    settings_response = await api_client.get_user_language_settings(db_user_id, language_id)
     
-    except Exception as e:
-        logger.error(f"Error getting user language settings: {e}", exc_info=True)
+    if settings_response["success"] and settings_response["result"]:
+        settings = settings_response["result"]
+        
+        # Ensure all required fields are present
+        for key, default_value in DEFAULT_SETTINGS.items():
+            if key not in settings:
+                settings[key] = default_value
+        
+        logger.info(f"Retrieved settings for user {db_user_id}, language {language_id}: settings={settings}")
+        return settings
+    else:
+        # Settings not found, return defaults
+        logger.info(f"Settings not found for user {db_user_id}, language {language_id}, using defaults")
         return DEFAULT_SETTINGS.copy()
+    
 
 async def save_user_language_settings(message_or_callback, state: FSMContext, settings: Dict[str, Any]) -> bool:
     """
-    Сохранение настроек пользователя для конкретного языка.
+    Save user settings for specific language.
+    UPDATED: Handles individual hint settings.
     
     Args:
-        message_or_callback: Объект сообщения или callback от Telegram
-        state: Контекст состояния FSM
-        settings: Словарь с настройками для сохранения
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        settings: Settings dictionary to save
         
     Returns:
-        bool: True если настройки успешно сохранены, False в противном случае
+        bool: True if settings were saved successfully
     """
-    # Получаем объект бота и данные состояния
+    # Get bot and state data
     bot = message_or_callback.bot if isinstance(message_or_callback, Message) else message_or_callback.bot
     state_data = await state.get_data()
     
-    # Проверяем наличие необходимых данных
+    # Check required data
     db_user_id = state_data.get("db_user_id")
     current_language = state_data.get("current_language", {})
     language_id = current_language.get("id") if current_language else None
@@ -99,24 +105,38 @@ async def save_user_language_settings(message_or_callback, state: FSMContext, se
         logger.warning(f"Missing user_id or language_id in state: user_id={db_user_id}, language_id={language_id}")
         return False
     
-    # Получаем API клиент
+    # Get API client
     api_client = get_api_client_from_bot(bot)
     
     try:
-        # Сохраняем настройки через API
-        settings_response = await api_client.update_user_language_settings(db_user_id, language_id, settings)
+        # Clean settings before saving
+        settings_to_save = settings.copy()
+        
+        # Remove deprecated show_hints setting
+        settings_to_save.pop("show_hints", None)
+        
+        # Validate individual hint settings
+        from app.utils.hint_constants import HINT_SETTING_KEYS
+        
+        hint_settings = {k: v for k, v in settings_to_save.items() if k in HINT_SETTING_KEYS}
+        if hint_settings:
+            validated_hints = _validate_hint_settings(hint_settings)
+            settings_to_save.update(validated_hints)
+        
+        # Save settings via API
+        settings_response = await api_client.update_user_language_settings(db_user_id, language_id, settings_to_save)
         
         if settings_response["success"]:
-            # Обновляем настройки в состоянии FSM
-            await state.update_data(**settings)
-            logger.info(f"Saved settings for user {db_user_id}, language {language_id}: {settings}")
+            # Update FSM state
+            await state.update_data(**settings_to_save)
+            logger.info(f"Saved settings for user {db_user_id}, language {language_id}")
             return True
         else:
-            # В случае ошибки логируем её и возвращаем False
+            # Handle error
             error_msg = settings_response.get("error", "Unknown error")
             logger.error(f"Failed to save settings: {error_msg}")
             
-            # Выводим ошибку пользователю, если это сообщение
+            # Show error to user if it's a message
             if isinstance(message_or_callback, Message):
                 await handle_api_error(
                     settings_response,
@@ -131,48 +151,54 @@ async def save_user_language_settings(message_or_callback, state: FSMContext, se
         logger.error(f"Error saving user language settings: {e}", exc_info=True)
         return False
 
-async def display_language_settings(message_or_callback, state: FSMContext, prefix: str = "", suffix: str = "", is_callback: bool = False):
+async def display_language_settings(
+    message_or_callback, 
+    state: FSMContext, 
+    prefix: str = "", 
+    suffix: str = "", 
+    is_callback: bool = False
+):
     """
-    Отображение настроек языка пользователя.
+    Display user's language settings with individual hint settings.
+    UPDATED: Uses individual hint settings display.
     
     Args:
-        message_or_callback: Объект сообщения или callback от Telegram
-        state: Контекст состояния FSM
-        prefix: Префикс для сообщения с настройками
-        suffix: Суффикс для сообщения с настройками
-        is_callback: Флаг, указывающий, что это callback
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        prefix: Prefix for settings message
+        suffix: Suffix for settings message
+        is_callback: Flag indicating if this is from callback
     """
-    # Получаем настройки пользователя для текущего языка
+    # Get user settings
     settings = await get_user_language_settings(message_or_callback, state)
     
-    # Извлекаем значения настроек
+    # Extract basic settings
     start_word = settings.get("start_word", DEFAULT_SETTINGS["start_word"])
     skip_marked = settings.get("skip_marked", DEFAULT_SETTINGS["skip_marked"])
     use_check_date = settings.get("use_check_date", DEFAULT_SETTINGS["use_check_date"])
-    show_hints = settings.get("show_hints", DEFAULT_SETTINGS["show_hints"])
-    show_debug = settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])  # Получаем новую настройку
+    show_debug = settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
     
-    # Получаем информацию о текущем языке из состояния
+    # Extract individual hint settings
+    from app.utils.hint_constants import HINT_SETTING_KEYS
+    hint_settings = {}
+    for hint_key in HINT_SETTING_KEYS:
+        hint_settings[hint_key] = settings.get(hint_key, DEFAULT_SETTINGS[hint_key])
+    
+    # Get language info
     state_data = await state.get_data()
     current_language = state_data.get("current_language", {})
     language_name = current_language.get("name_ru", "Не выбран")
     language_name_foreign = current_language.get("name_foreign", "")
     
-    # Формируем заголовок с информацией о языке
+    # Format language info
     language_info = f"🌐 Язык: {language_name}"
     if language_name_foreign:
         language_info += f" ({language_name_foreign})"
     
-    # Добавляем информацию о языке перед настройками
-    language_prefix = prefix + language_info + "\n\n⚙️ Настройки процесса обучения:\n\n"
+    # Add language info to prefix
+    language_prefix = language_info + "\n\n" + prefix + "⚙️ Текущие настройки:\n"
     
-    # Импортируем функцию для создания клавиатуры настроек
-    from app.bot.keyboards.user_keyboards import create_settings_keyboard
-    
-    # Создаем клавиатуру настроек с учетом новой настройки
-    keyboard = create_settings_keyboard(skip_marked, use_check_date, show_hints, show_debug)
-    
-    # Если не указан суффикс, добавляем информацию о других доступных командах
+    # Default suffix if not provided
     if not suffix:
         suffix = (
             "\n\nДругие доступные команды:\n"
@@ -184,53 +210,72 @@ async def display_language_settings(message_or_callback, state: FSMContext, pref
             "/start - Вернуться на главный экран"
         )
     
-    # Формируем текст настроек с учетом новой настройки
-    settings_text = format_settings_text(
-        start_word, skip_marked, use_check_date, show_hints, show_debug,
-        prefix=language_prefix, suffix=suffix
+    # Import keyboard creation function
+    from app.bot.keyboards.user_keyboards import create_settings_keyboard
+    
+    # Create keyboard with individual hint settings
+    keyboard = create_settings_keyboard(
+        skip_marked=skip_marked, 
+        use_check_date=use_check_date, 
+        show_debug=show_debug,
+        hint_settings=hint_settings
     )
     
-    # Отправляем сообщение с настройками
+    # Format settings text with individual hint settings
+    settings_text = format_settings_text(
+        start_word=start_word, 
+        skip_marked=skip_marked, 
+        use_check_date=use_check_date, 
+        show_debug=show_debug,
+        hint_settings=hint_settings,
+        prefix=language_prefix, 
+        suffix=suffix
+    )
+    
+    # Send message with settings
     if isinstance(message_or_callback, CallbackQuery):
-        # Для callback обновляем существующее сообщение
+        # For callback update existing message
         await message_or_callback.message.edit_text(
             settings_text,
             reply_markup=keyboard,
             parse_mode="HTML"
         )
     else:
-        # Для нового сообщения отправляем новое
+        # For new message send new
         await message_or_callback.answer(
             settings_text,
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-        
-async def get_show_hints_setting(state_or_message, state=None):
+
+# НОВОЕ: Функция для проверки включения конкретного типа подсказки
+async def is_hint_type_enabled(hint_type: str, state_or_message, state=None) -> bool:
     """
-    Get show_hints setting from user's state or settings.
+    Check if specific hint type is enabled in user settings.
     
     Args:
+        hint_type: The hint type to check
         state_or_message: The state object or message/callback object
         state: Optional state object if state_or_message is a message/callback
         
     Returns:
-        bool: True if hints should be shown, False otherwise
+        bool: True if hint type is enabled, False otherwise
     """
+    from app.utils.hint_constants import get_hint_setting_key
+    
+    setting_key = get_hint_setting_key(hint_type)
+    if not setting_key:
+        return True  # Default to enabled if setting not found
+    
+    # Get settings based on parameter type
     if state is None:
-        # state_or_message is the state itself
-        state_data = await state_or_message.get_data()
+        # state_or_message is the state itself - not supported in this function
+        return True
     else:
         # state_or_message is a message/callback and state is provided separately
-        state_data = await state.get_data()
+        settings = await get_user_language_settings(state_or_message, state)
     
-    # First try to get from user_language_settings
-    settings = await get_user_language_settings(state_or_message, state)
-    if settings is not None and "show_hints" in settings:
-        return settings.get("show_hints", True)
-    
-    # Fallback to state data
-    return state_data.get("show_hints", True)
+    return settings.get(setting_key, True)
 
 async def get_show_debug_setting(state_or_message, state=None):
     """
@@ -246,14 +291,72 @@ async def get_show_debug_setting(state_or_message, state=None):
     if state is None:
         # state_or_message is the state itself
         state_data = await state_or_message.get_data()
+        return state_data.get("show_debug", DEFAULT_SETTINGS["show_debug"])
     else:
         # state_or_message is a message/callback and state is provided separately
-        state_data = await state.get_data()
+        settings = await get_user_language_settings(state_or_message, state)
+        return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
+
+# ОБНОВЛЕНО: Функции совместимости для старого API
+async def get_show_hints_setting(message_or_callback, state: FSMContext) -> bool:
+    """
+    Get show_hints setting - DEPRECATED: kept for backward compatibility.
+    Now checks if any individual hint is enabled.
     
-    # First try to get from user_language_settings
-    settings = await get_user_language_settings(state_or_message, state)
-    if settings is not None and "show_debug" in settings:
-        return settings.get("show_debug", False)
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        
+    Returns:
+        bool: True if any hint type is enabled
+    """
+    settings = await get_user_language_settings(message_or_callback, state)
     
-    # Fallback to state data
-    return state_data.get("show_debug", False)
+    # Check if any individual hint is enabled
+    from app.utils.hint_constants import HINT_SETTING_KEYS
+    return any(settings.get(key, True) for key in HINT_SETTING_KEYS)
+
+async def get_hint_settings(message_or_callback, state: FSMContext) -> Dict[str, bool]:
+    """
+    Get individual hint settings - NEW: wrapper for hint_settings_utils.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        
+    Returns:
+        Dict with individual hint settings
+    """
+    # Import here to avoid circular imports
+    from app.utils.hint_settings_utils import get_individual_hint_settings
+    return await get_individual_hint_settings(message_or_callback, state)
+
+def _validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
+    """
+    Validate and normalize hint settings.
+    
+    Args:
+        hint_settings: Raw hint settings dictionary
+        
+    Returns:
+        Dict with validated boolean settings
+    """
+    from app.utils.hint_constants import HINT_SETTING_KEYS
+    
+    validated = {}
+    
+    for key in HINT_SETTING_KEYS:
+        raw_value = hint_settings.get(key, True)
+        
+        # Normalize to boolean
+        if isinstance(raw_value, bool):
+            validated[key] = raw_value
+        elif isinstance(raw_value, str):
+            validated[key] = raw_value.lower() in ('true', '1', 'yes', 'on')
+        elif isinstance(raw_value, (int, float)):
+            validated[key] = bool(raw_value)
+        else:
+            validated[key] = True
+            logger.warning(f"Invalid hint setting value for {key}: {raw_value}, defaulting to True")
+    
+    return validated

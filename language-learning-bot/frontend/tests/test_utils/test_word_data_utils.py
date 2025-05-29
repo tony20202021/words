@@ -244,7 +244,7 @@ class TestGetHintText:
         bot.return_value = api_client
         
         word_data = {
-            "hint_syllables": "Тестовая фонетическая подсказка"
+            "hint_phoneticsound": "Тестовая фонетическая подсказка"
         }
         
         with patch('app.utils.word_data_utils.get_api_client_from_bot', return_value=api_client):
@@ -253,7 +253,7 @@ class TestGetHintText:
                 bot,
                 "user123",
                 "word123",
-                "hint_syllables",
+                "hint_phoneticsound",
                 word_data
             )
             
@@ -272,7 +272,7 @@ class TestGetHintText:
         
         word_data = {
             "user_word_data": {
-                "hint_syllables": "Тестовая фонетическая подсказка"
+                "hint_phoneticsound": "Тестовая фонетическая подсказка"
             }
         }
         
@@ -282,7 +282,7 @@ class TestGetHintText:
                 bot,
                 "user123",
                 "word123",
-                "hint_syllables",
+                "hint_phoneticsound",
                 word_data
             )
             
@@ -299,7 +299,7 @@ class TestGetHintText:
         api_client.get_user_word_data.return_value = {
             "success": True,
             "result": {
-                "hint_syllables": "Тестовая фонетическая подсказка"
+                "hint_phoneticsound": "Тестовая фонетическая подсказка"
             }
         }
         
@@ -313,7 +313,7 @@ class TestGetHintText:
                 bot,
                 "user123",
                 "word123",
-                "hint_syllables",
+                "hint_phoneticsound",
                 word_data
             )
             
@@ -342,7 +342,7 @@ class TestGetHintText:
                 bot,
                 "user123",
                 "word123",
-                "hint_syllables",
+                "hint_phoneticsound",
                 word_data
             )
             

@@ -2,7 +2,6 @@
 Utilities for working with word data and user word data.
 """
 
-import logging
 from typing import Dict, Any, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
@@ -10,7 +9,7 @@ from aiogram.types import Message, CallbackQuery
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.error_utils import handle_api_error
 from app.utils.logger import setup_logger
-from app.utils.settings_utils import get_user_language_settings
+from app.utils.settings_utils import get_user_language_settings_without_state
 
 logger = setup_logger(__name__)
 
@@ -97,9 +96,6 @@ async def ensure_user_word_data(
             
         return create_response["success"], create_response.get("result")
 
-"""
-Update word score and calculate next check date based on score.
-"""
 async def update_word_score(
     bot, 
     user_id: str, 
@@ -124,10 +120,12 @@ async def update_word_score(
     Returns:
         Tuple[bool, Optional[Dict[str, Any]]]: (success, result_data) tuple
     """
-    logger.info(f"update_word_score for user: {user_id}, score: {score}, word: {word}")
+    logger.info(f"update_word_score for user: {user_id}, score: {score}, word_id: {word_id}, word: {word}")
 
     # Get API client
     api_client = get_api_client_from_bot(bot)
+    
+    language_id = word.get("language_id", None)
     
     # Get current word data
     word_data_response = await api_client.get_user_word_data(user_id, word_id)
@@ -135,21 +133,21 @@ async def update_word_score(
         logger.error(f"get_user_word_data: not success")
         logger.error(f"word_data_response: {word_data_response}")
         return False, None
+    logger.info(f"word_data_response: {word_data_response}")
 
     if (word_data_response["result"] is None):
         word_data = {}
     else:
         word_data = word_data_response["result"]
-    
+    logger.info(f"word_data: {word_data}")
+
     # Проверим, включена ли отладочная информация
-    try:
-        settings = await get_user_language_settings(message_obj if message_obj else bot, None)
-        show_debug = settings.get("show_debug", False)
-        if show_debug:
-            logger.info(f"Debug mode enabled. Current word_data: {word_data}")
-    except Exception as e:
-        # Если не удалось получить настройку, просто игнорируем
-        logger.warning(f"Failed to get show_debug setting: {e}")
+    settings = await get_user_language_settings_without_state(message_obj if message_obj else bot, db_user_id=user_id, language_id=language_id)
+
+    logger.info(f"settings: {settings}")
+    show_debug = settings.get("show_debug", False)
+    if show_debug:
+        logger.info(f"Debug mode enabled. Current word_data: {word_data}")
     
     # Prepare update data
     update_data = {
@@ -208,26 +206,20 @@ async def update_word_score(
             hour=0, minute=0, second=0, microsecond=0
         ).isoformat()
     
-    # Вывод отладочной информации о будущем интервале
-    try:
-        settings = await get_user_language_settings(message_obj if message_obj else bot, None)
-        show_debug = settings.get("show_debug", False)
-        if show_debug:
-            logger.info(f"Debug mode enabled. Update data to be applied: {update_data}")
-            
-            # Если есть объект сообщения и включен отладочный режим, можно показать детали обновления
-            if message_obj and isinstance(message_obj, Message):
-                debug_text = (
-                    f"🔍 Отладочная информация обновления слова:\n"
-                    f"Новая оценка: {score}\n"
-                    f"Новый интервал: {update_data.get('check_interval')} дней\n"
-                    f"Следующая проверка: {update_data.get('next_check_date')}\n"
-                    f"Пропускать слово: {is_skipped}\n"
-                )
-                await message_obj.answer(debug_text)
-    except Exception as e:
-        # Если не удалось получить настройку или отправить сообщение, просто игнорируем
-        logger.warning(f"Failed to process debug info: {e}")
+    show_debug = settings.get("show_debug", False)
+    if show_debug:
+        logger.info(f"Debug mode enabled. Update data to be applied: {update_data}")
+        
+        # Если есть объект сообщения и включен отладочный режим, можно показать детали обновления
+        if message_obj and isinstance(message_obj, Message):
+            debug_text = (
+                f"🔍 Отладочная информация обновления слова:\n"
+                f"Новая оценка: {score}\n"
+                f"Новый интервал: {update_data.get('check_interval')} дней\n"
+                f"Следующая проверка: {update_data.get('next_check_date')}\n"
+                f"Пропускать слово: {is_skipped}\n"
+            )
+            await message_obj.answer(debug_text)
     
     # Update or create word data
     return await ensure_user_word_data(bot, user_id, word_id, update_data, word, message_obj)
@@ -246,7 +238,7 @@ async def get_hint_text(
         bot: Bot instance to get API client
         user_id: User ID in database
         word_id: Word ID
-        hint_key: Hint key (e.g., 'hint_syllables')
+        hint_key: Hint key (e.g., 'hint_phoneticsound')
         word: Word data
         
     Returns:

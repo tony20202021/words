@@ -272,8 +272,8 @@ mkdir -p backup
   "user_id": ObjectId("..."),        // Ссылка на пользователя
   "word_id": ObjectId("..."),        // Ссылка на слово
   "language_id": ObjectId("..."),    // Ссылка на язык
-  "hint_syllables": "хэл-лоу",       // Подсказка по слогам
-  "hint_association": "...",         // Ассоциативная подсказка
+  "hint_phoneticsound": "хэл-лоу",       // Подсказка по слогам
+  "hint_phoneticassociation": "...",         // Ассоциативная подсказка
   "hint_meaning": "...",             // Подсказка по значению
   "hint_writing": null,              // Подсказка по написанию
   "score": 0,                        // Оценка (0 - не знаю, 1 - знаю)

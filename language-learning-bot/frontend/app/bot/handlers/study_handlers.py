@@ -1,28 +1,47 @@
 """
-Main study handlers module that imports and combines all study routers.
+Main study handlers router for Language Learning Bot.
+This module only handles router organization - no handler implementations.
+FIXED: Properly separated router imports from handler implementations.
 """
 
-from aiogram import Dispatcher, Router
+from aiogram import Router
 
-# Импортируем все роутеры из подмодулей
+from app.utils.logger import setup_logger
+
+# Import all study sub-routers (only routers, no implementations)
 from app.bot.handlers.study.study_commands import study_router as commands_router
-from app.bot.handlers.study.study_word_actions import word_router
+from app.bot.handlers.study.study_words import word_display_router
+from app.bot.handlers.study.study_word_actions import word_actions_router
 from app.bot.handlers.study.study_hint_handlers import hint_router
 
-# Создаем общий роутер для процесса изучения
+# Create main study router
 study_router = Router()
-# Включаем все подроутеры в основной роутер изучения
+
+# Set up logging
+logger = setup_logger(__name__)
+
+# Include sub-routers in correct priority order
+# Commands have highest priority
 study_router.include_router(commands_router)
-study_router.include_router(word_router)
+
+# Word display and actions
+study_router.include_router(word_display_router)
+study_router.include_router(word_actions_router)
+
+# Hint handlers have lower priority (more specific)
 study_router.include_router(hint_router)
 
+logger.info("Study handlers router initialized with sub-routers")
 
-def register_handlers(dp: Dispatcher):
+def register_study_handlers(dp):
     """
-    Register all study handlers.
+    Register study handlers with dispatcher.
     
     Args:
-        dp: The dispatcher instance
+        dp: Dispatcher instance
     """
-    # Для aiogram 3.x используем include_router
     dp.include_router(study_router)
+    logger.info("Study handlers registered with dispatcher")
+
+# Export router for use in parent modules
+__all__ = ['study_router', 'register_study_handlers']

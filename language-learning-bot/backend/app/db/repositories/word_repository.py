@@ -344,8 +344,8 @@ class WordRepository:
                     "score": "$statistics.score",
                     "check_interval": "$statistics.check_interval",
                     "next_check_date": "$statistics.next_check_date",
-                    "hint_association": "$statistics.hint_association",
-                    "hint_syllables": "$statistics.hint_syllables",
+                    "hint_phoneticassociation": "$statistics.hint_phoneticassociation",
+                    "hint_phoneticsound": "$statistics.hint_phoneticsound",
                     "hint_meaning": "$statistics.hint_meaning",
                     "hint_writing": "$statistics.hint_writing"
                 }

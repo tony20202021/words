@@ -1,535 +1,505 @@
 """
-Settings command handlers for Language Learning Bot.
-Handles all settings-related operations.
+Settings handlers for Language Learning Bot.
+UPDATED: Support for individual hint settings management.
+FIXED: Removed code duplication, improved architecture, separated concerns.
 """
 
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.dispatcher.router import Router
-from aiogram.dispatcher.event.bases import SkipHandler
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.settings_utils import get_user_language_settings, save_user_language_settings, display_language_settings
+from app.utils.error_utils import handle_api_error, validate_state_data, safe_api_call
+from app.utils.settings_utils import (
+    get_user_language_settings, 
+    save_user_language_settings,
+    display_language_settings
+)
+from app.utils.hint_settings_utils import (
+    toggle_individual_hint_setting,
+    bulk_update_hint_settings
+)
+from app.utils.callback_constants import (
+    CallbackData,
+    is_hint_setting_callback,
+    get_hint_setting_from_callback
+)
+from app.utils.hint_constants import get_hint_setting_name
 from app.bot.states.centralized_states import SettingsStates
 
 # Создаем роутер для обработчиков настроек
 settings_router = Router()
 
-# Set up logging
 logger = setup_logger(__name__)
+
+# НОВОЕ: Вынесенная общая функция для получения или создания пользователя
+async def _ensure_user_exists(message_or_callback, api_client) -> str:
+    """
+    Ensure user exists in database and return user ID.
+    НОВОЕ: Вынесена общая логика создания/получения пользователя.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        api_client: API client instance
+        
+    Returns:
+        str: Database user ID or None if failed
+    """
+    # Extract user info regardless of message type
+    if hasattr(message_or_callback, 'from_user'):
+        user = message_or_callback.from_user
+    else:
+        user = message_or_callback.message.from_user
+    
+    user_id = user.id
+    username = user.username
+    
+    # Try to get existing user
+    success, users = await safe_api_call(
+        lambda: api_client.get_user_by_telegram_id(user_id),
+        message_or_callback,
+        "получение данных пользователя"
+    )
+    
+    if not success:
+        return None
+    
+    # Check if user exists
+    existing_user = users[0] if users and len(users) > 0 else None
+    
+    if existing_user:
+        return existing_user.get("id")
+    
+    # Create new user if doesn't exist
+    new_user_data = {
+        "telegram_id": user_id,
+        "username": username,
+        "first_name": user.first_name,
+        "last_name": user.last_name
+    }
+    
+    success, created_user = await safe_api_call(
+        lambda: api_client.create_user(new_user_data),
+        message_or_callback,
+        "создание пользователя"
+    )
+    
+    return created_user.get("id") if success and created_user else None
+
+async def _validate_language_selected(state: FSMContext, message_or_callback) -> bool:
+    """
+    Validate that user has selected a language.
+    НОВОЕ: Вынесена общая логика проверки выбранного языка.
+    
+    Args:
+        state: FSM context
+        message_or_callback: Message or CallbackQuery object
+        
+    Returns:
+        bool: True if language is selected
+    """
+    state_data = await state.get_data()
+    current_language = state_data.get("current_language")
+    
+    if not current_language or not current_language.get("id"):
+        error_message = (
+            "⚠️ Сначала выберите язык для изучения с помощью команды /language\n\n"
+            "После выбора языка вы сможете настроить параметры обучения."
+        )
+        
+        if isinstance(message_or_callback, CallbackQuery):
+            await message_or_callback.answer("Язык не выбран", show_alert=True)
+            await message_or_callback.message.answer(error_message)
+        else:
+            await message_or_callback.answer(error_message)
+        
+        return False
+    
+    return True
 
 @settings_router.message(Command("settings"))
 async def cmd_settings(message: Message, state: FSMContext):
     """
     Handle the /settings command which shows and allows changing learning settings.
-    If language is not selected, redirects to language selection.
+    UPDATED: Simplified using common utilities, better error handling.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    # Устанавливаем состояние просмотра настроек
-    await state.set_state(SettingsStates.viewing_settings)
-    
-    # Сохраняем данные пользователя
-    current_data = await state.get_data()
-    await state.update_data(**current_data)
-    
     user_id = message.from_user.id
     username = message.from_user.username
     full_name = message.from_user.full_name
 
     logger.info(f"'/settings' command from {full_name} ({username})")
 
-    # Получаем клиент API с помощью утилиты
+    # Get API client
     api_client = get_api_client_from_bot(message.bot)
-    
-    # Проверяем, зарегистрирован ли пользователь
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    db_user_id = None
-    if not user_response["success"]:
-        logger.error(f"Failed to get user with Telegram ID {user_id}: {user_response['error']}")
-        await message.answer("Ошибка при получении данных пользователя. Попробуйте позже.")
+    if not api_client:
+        await message.answer("❌ Ошибка подключения к серверу. Попробуйте позже.")
         return
-        
-    users = user_response["result"]
-    user = users[0] if users and len(users) > 0 else None
-    
-    if not user:
-        # Пользователь не найден, создаем его
-        new_user_data = {
-            "telegram_id": user_id,
-            "username": username,
-            "first_name": message.from_user.first_name,
-            "last_name": message.from_user.last_name
-        }
-        create_response = await api_client.create_user(new_user_data)
-        if not create_response["success"]:
-            logger.error(f"Failed to create user with Telegram ID {user_id}: {create_response['error']}")
-            await message.answer("Ошибка при регистрации пользователя. Попробуйте позже.")
-            return
-        db_user_id = create_response["result"].get("id") if create_response["result"] else None
-    else:
-        db_user_id = user.get("id") if user else None
-    
-    # Сохраняем ID пользователя в базе данных в состоянии
-    await state.update_data(db_user_id=db_user_id)
-    
-    # Проверяем, выбран ли язык
-    current_language = current_data.get("current_language")
-    
-    if not current_language:
-        # Если язык не выбран, предлагаем выбрать его сразу
-        await message.answer(
-            "⚠️ Вы еще не выбрали язык для изучения!\n"
-            "Сейчас я помогу вам выбрать язык."
-        )
-        
-        # Переиспользуем существующий обработчик для выбора языка
-        from app.bot.handlers.language_handlers import cmd_language
-        await cmd_language(message, state)
-        return
-    
-    # Если язык выбран, используем функцию для отображения настроек
-    await display_language_settings(message, state)
-    
-    # Очищаем состояние после показа настроек
-    await state.set_state(None)
 
-@settings_router.callback_query(F.data == "settings_toggle_skip_marked")
-async def process_settings_toggle_skip_marked(callback: CallbackQuery, state: FSMContext):
+    # Ensure user exists
+    db_user_id = await _ensure_user_exists(message, api_client)
+    if not db_user_id:
+        return  # Error already handled in _ensure_user_exists
+
+    # Update state with user ID
+    await state.update_data(db_user_id=db_user_id)
+
+    # Validate language selection
+    if not await _validate_language_selected(state, message):
+        return
+    
+    # Set state for settings viewing
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Display current settings with individual hint settings
+    await display_language_settings(
+        message_or_callback=message,
+        state=state,
+        prefix="",
+        suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
+        is_callback=False
+    )
+
+# ОБНОВЛЕНО: Улучшенный обработчик индивидуальных настроек подсказок
+@settings_router.callback_query(lambda c: is_hint_setting_callback(c.data))
+async def process_hint_setting_toggle(callback: CallbackQuery, state: FSMContext):
     """
-    Process callback to toggle skipping marked words.
+    Process callback to toggle individual hint setting.
+    ОБНОВЛЕНО: Улучшена обработка ошибок и валидация.
     
     Args:
         callback: The callback query from Telegram
         state: The FSM state context
     """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
     full_name = callback.from_user.full_name
+    username = callback.from_user.username
 
-    logger.info(f"'settings_toggle_skip_marked' callback from {full_name} ({username})")
+    # Get setting key from callback data
+    setting_key = get_hint_setting_from_callback(callback.data)
+    if not setting_key:
+        await callback.answer("❌ Неизвестная настройка подсказки")
+        logger.warning(f"Unknown hint setting callback: {callback.data}")
+        return
     
-    # Получаем настройки пользователя с помощью функции
-    settings = await get_user_language_settings(callback, state)
+    setting_name = get_hint_setting_name(setting_key)
+    logger.info(f"'{callback.data}' callback from {full_name} ({username}) - toggling {setting_name}")
     
-    # Инвертируем настройку пропуска помеченных слов
-    new_skip_marked = not settings.get("skip_marked", False)
+    # Validate language selection
+    if not await _validate_language_selected(state, callback):
+        return
     
-    # Переходим в состояние подтверждения для критически важной настройки
-    await state.set_state(SettingsStates.confirming_changes)
-    
-    # Сохраняем данные о предстоящем изменении
-    await state.update_data(
-        pending_setting_key="skip_marked",
-        pending_setting_value=new_skip_marked,
-        pending_setting_name="пропуск помеченных слов"
+    # Toggle the setting using centralized utility
+    success, new_value = await toggle_individual_hint_setting(
+        message_or_callback=callback,
+        state=state,
+        setting_key=setting_key
     )
     
-    # Создаем клавиатуру подтверждения
-    keyboard = InlineKeyboardBuilder()
-    keyboard.button(
-        text="✅ Подтвердить изменение",
-        callback_data="confirm_setting_change"
-    )
-    keyboard.button(
-        text="❌ Отменить",
-        callback_data="cancel_setting_change"
-    )
-    keyboard.adjust(1)
+    if success:
+        status_text = "включена" if new_value else "отключена"
+        await callback.answer(f"✅ {setting_name}: {status_text}")
+        
+        # Refresh settings display
+        await display_language_settings(
+            message_or_callback=callback,
+            state=state,
+            prefix=f"✅ Настройка «{setting_name}» {status_text}!\n\n",
+            suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
+            is_callback=True
+        )
+    else:
+        await callback.answer("❌ Ошибка изменения настройки")
+
+# ОБНОВЛЕНО: Улучшенные обработчики основных настроек с общими утилитами
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_START_WORD)
+async def process_settings_start_word(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle start word setting change.
+    ОБНОВЛЕНО: Улучшена валидация и обработка ошибок.
+    """
+    logger.info(f"Start word setting from {callback.from_user.full_name}")
     
-    # Показываем подтверждение
-    current_status = "Пропускать ❌" if settings.get("skip_marked", False) else "Показывать ✅"
-    new_status = "Пропускать ❌" if new_skip_marked else "Показывать ✅"
+    # Validate language selection
+    if not await _validate_language_selected(state, callback):
+        return
+    
+    await state.set_state(SettingsStates.waiting_start_word)
     
     await callback.message.answer(
-        f"⚠️ Подтвердите изменение настройки:\n\n"
-        f"📝 <b>Слова, помеченные как пропущенные</b>\n\n"
-        f"Текущее значение: <b>{current_status}</b>\n"
-        f"Новое значение: <b>{new_status}</b>\n\n"
-        f"Это изменение повлияет на то, какие слова будут показываться при изучении.",
-        reply_markup=keyboard.as_markup(),
+        "🔢 <b>Изменение начального слова</b>\n\n"
+        "Введите номер слова, с которого хотите начать изучение.\n\n"
+        "Например: <code>1</code> - начать с первого слова\n"
+        "Например: <code>100</code> - начать со 100-го слова\n\n"
+        "Или отправьте /cancel для отмены.",
         parse_mode="HTML"
     )
     
     await callback.answer()
 
-@settings_router.callback_query(F.data == "confirm_setting_change")
-async def process_confirm_setting_change(callback: CallbackQuery, state: FSMContext):
-    """
-    Process confirmation of setting change.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'confirm_setting_change' callback from {full_name} ({username})")
-    
-    # Получаем данные о предстоящем изменении
-    state_data = await state.get_data()
-    setting_key = state_data.get("pending_setting_key")
-    setting_value = state_data.get("pending_setting_value")
-    setting_name = state_data.get("pending_setting_name")
-    
-    if not setting_key:
-        await callback.answer("Ошибка: данные об изменении не найдены")
-        return
-    
-    # Получаем настройки пользователя
-    settings = await get_user_language_settings(callback, state)
-    
-    # Применяем изменение
-    settings[setting_key] = setting_value
-    
-    # Сохраняем обновленные настройки
-    success = await save_user_language_settings(callback, state, settings)
-    
-    if success:
-        # Обновляем состояние FSM для совместимости со старым кодом
-        await state.update_data(**{setting_key: setting_value})
-        
-        # Очищаем данные о предстоящем изменении
-        await state.update_data(
-            pending_setting_key=None,
-            pending_setting_value=None,
-            pending_setting_name=None
-        )
-        
-        # Возвращаемся к состоянию просмотра настроек
-        await state.set_state(SettingsStates.viewing_settings)
-        
-        # Показываем обновленные настройки
-        await display_language_settings(callback, state, 
-                                       prefix=f"✅ Настройка «{setting_name}» успешно изменена!\n\n", 
-                                       is_callback=True)
-    else:
-        # В случае ошибки сообщаем пользователю
-        await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
-    
-    await callback.answer()
-
-@settings_router.callback_query(F.data == "cancel_setting_change")
-async def process_cancel_setting_change(callback: CallbackQuery, state: FSMContext):
-    """
-    Process cancellation of setting change.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'cancel_setting_change' callback from {full_name} ({username})")
-    
-    # Очищаем данные о предстоящем изменении
-    await state.update_data(
-        pending_setting_key=None,
-        pending_setting_value=None,
-        pending_setting_name=None
-    )
-    
-    # Возвращаемся к состоянию просмотра настроек
-    await state.set_state(SettingsStates.viewing_settings)
-    
-    # Показываем настройки без изменений
-    await display_language_settings(callback, state, 
-                                   prefix="⚙️ Изменение настройки отменено.\n\n", 
-                                   is_callback=True)
-    
-    await callback.answer("Изменение отменено")
-
-@settings_router.callback_query(F.data == "settings_toggle_check_date")
-async def process_settings_toggle_check_date(callback: CallbackQuery, state: FSMContext):
-    """
-    Process callback to toggle using check date.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'settings_toggle_check_date' callback from {full_name} ({username})")
-    
-    # Получаем настройки пользователя с помощью функции
-    settings = await get_user_language_settings(callback, state)
-    
-    # Инвертируем настройку использования даты проверки
-    settings["use_check_date"] = not settings.get("use_check_date", True)
-    
-    # Сохраняем обновленные настройки
-    success = await save_user_language_settings(callback, state, settings)
-    
-    if success:
-        # Обновляем состояние FSM для совместимости со старым кодом
-        await state.update_data(use_check_date=settings["use_check_date"])
-        
-        # Используем функцию для отображения настроек
-        await display_language_settings(callback, state, 
-                                       prefix="✅ Настройки успешно обновлены!\n\n", 
-                                       is_callback=True)
-    else:
-        # В случае ошибки сообщаем пользователю
-        await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
-    
-    await callback.answer()
-
-
-@settings_router.callback_query(F.data == "settings_start_word")
-async def process_settings_start_word(callback: CallbackQuery, state: FSMContext):
-    """
-    Process callback to change the starting word number.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'settings_start_word' callback from {full_name} ({username})")
-    
-    # Получаем настройки пользователя с помощью функции
-    settings = await get_user_language_settings(callback, state)
-    
-    # Получаем текущее начальное слово
-    current_start_word = settings.get("start_word", 1)
-    
-    # Переходим в состояние ожидания ввода начального слова
-    await state.set_state(SettingsStates.waiting_start_word)
-    
-    await callback.message.answer(
-        f"🔢 Введите номер слова, с которого хотите начать изучение.\n"
-        f"Текущее значение: {current_start_word}\n\n"
-        f"Введите целое число (например, 1, 10, 100).\n\n"
-        f"Для отмены и возврата к настройкам введите команду /cancel"
-    )
-    
-    # Сохраняем сведения о callback чтобы потом проверить изменился ли callback
-    await state.update_data(last_callback="settings_start_word")
-    
-    await callback.answer()
-
-
 @settings_router.message(SettingsStates.waiting_start_word)
 async def process_start_word_input(message: Message, state: FSMContext):
     """
-    Process input for starting word number.
-    
-    Args:
-        message: The message object from Telegram
-        state: The FSM state context
+    Process start word input from user.
+    ОБНОВЛЕНО: Улучшена валидация входных данных.
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
-
-    # Проверяем, является ли сообщение командой отмены
-    if message.text and message.text.strip() == '/cancel':
-        logger.info(f"'/cancel' command from {full_name} ({username}) while in start_word input")
-        
-        # Получаем текущие данные состояния
-        current_data = await state.get_data()
-        
-        # Очищаем состояние, но сохраняем данные
-        await state.set_state(None)
-        await state.update_data(**current_data)
-        
-        # Отображаем экран настроек с помощью функции
-        await display_language_settings(message, state, prefix="⚙️ Ввод отменен. Настройки процесса обучения\n\n")
-        return
-
-    # Добавляем логирование введенного пользователем значения
-    logger.info(f"User {full_name} ({username}) entered start_word value: {message.text}")
-    
-    # Проверяем, что введено число
     try:
-        start_word = int(message.text)
+        start_word = int(message.text.strip())
         
+        # Validate input range
         if start_word < 1:
-            await message.answer(
-                "❌ Номер слова должен быть положительным числом.\n"
-                "Введите целое число больше 0.\n\n"
-                "Для отмены и возврата к настройкам введите команду /cancel"
-            )
+            await message.answer("❌ Номер слова должен быть больше 0. Попробуйте еще раз.")
             return
         
-        # Получаем API клиент
-        api_client = get_api_client_from_bot(message.bot)
+        if start_word > 50000:  # Increased reasonable limit
+            await message.answer("❌ Номер слова слишком большой. Максимум: 50000. Попробуйте еще раз.")
+            return
         
-        # Получаем данные состояния
-        state_data = await state.get_data()
-        current_language = state_data.get("current_language")
-        
-        # Проверка на максимальный номер слова
-        if current_language and "id" in current_language:
-            language_id = current_language["id"]
-            
-            # Получаем количество слов в языке
-            word_count_response = await api_client.get_word_count_by_language(language_id)
-            
-            if word_count_response["success"] and "count" in word_count_response["result"]:
-                word_count = word_count_response["result"]["count"]
-                
-                if start_word > word_count:
-                    await message.answer(
-                        f"❌ Введенный номер слова ({start_word}) превышает количество слов в языке ({word_count}).\n"
-                        f"Введите число от 1 до {word_count}.\n\n"
-                        f"Для отмены и возврата к настройкам введите команду /cancel"
-                    )
-                    return
-        
-        # Получаем настройки пользователя
-        settings = await get_user_language_settings(message, state)
-        
-        # Обновляем значение начального слова
-        settings["start_word"] = start_word
-        
-        # Сохраняем обновленные настройки
-        success = await save_user_language_settings(message, state, settings)
+        # Get and update settings
+        success = await _update_setting(message, state, "start_word", start_word)
         
         if success:
-            # Обновляем состояние FSM для совместимости со старым кодом
-            await state.update_data(start_word=start_word)
-            
-            # Очищаем состояние FSM, но сохраняем данные
-            current_data = await state.get_data()
-            await state.set_state(None)
-            await state.update_data(**current_data)
-            
-            # Отображаем экран настроек с обновленными данными
-            await display_language_settings(message, state, prefix="✅ Настройки успешно обновлены!\n\n")
-        else:
-            # В случае ошибки сообщаем пользователю
             await message.answer(
-                "❌ Не удалось сохранить настройки. Попробуйте позже.\n\n"
-                "Нажмите /settings, чтобы вернуться к настройкам."
+                f"✅ Начальное слово изменено на: <b>{start_word}</b>\n\n"
+                "Теперь изучение будет начинаться с этого слова.",
+                parse_mode="HTML"
             )
+            
+            # Return to settings view
+            await state.set_state(SettingsStates.viewing_settings)
+            
+            # Show updated settings
+            await display_language_settings(
+                message_or_callback=message,
+                state=state,
+                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
+                is_callback=False
+            )
+        else:
+            await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
             
     except ValueError:
         await message.answer(
-            "❌ Некорректный ввод. Введите целое число (например, 1, 10, 100).\n\n"
-            "Для отмены и возврата к настройкам введите команду /cancel"
+            "❌ Введите корректный номер слова (число).\n\n"
+            "Например: <code>1</code> или <code>100</code>",
+            parse_mode="HTML"
         )
 
-
-@settings_router.message(Command("cancel"), SettingsStates.waiting_start_word, flags={"command_priority": 10})
-async def cancel_start_word_input(message: Message, state: FSMContext):
+# НОВОЕ: Общая функция для обновления настроек
+async def _update_setting(message_or_callback, state: FSMContext, setting_key: str, new_value) -> bool:
     """
-    Обработчик команды /cancel для выхода из режима ввода начального слова.
+    Update a single setting value.
+    НОВОЕ: Общая функция для обновления любой настройки.
     
     Args:
-        message: Объект сообщения от Telegram
-        state: Контекст состояния FSM
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        setting_key: Setting key to update
+        new_value: New value for the setting
+        
+    Returns:
+        bool: True if successful
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
-    
-    logger.info(f"'/cancel' command from {full_name} ({username}) while in start_word input")
-    
-    # Получаем текущие данные состояния
-    current_data = await state.get_data()
-    
-    # Очищаем состояние, но сохраняем данные
-    await state.set_state(None)
-    await state.update_data(**current_data)
-    
-    # Отображаем экран настроек
-    await display_language_settings(message, state, prefix="⚙️ Ввод отменен. Настройки процесса обучения\n\n")
-    
-    # Важно: предотвращаем дальнейшую обработку этого сообщения другими обработчиками
-    raise SkipHandler()
+    try:
+        # Get current settings
+        current_settings = await get_user_language_settings(message_or_callback, state)
+        current_settings[setting_key] = new_value
+        
+        # Save updated settings
+        return await save_user_language_settings(message_or_callback, state, current_settings)
+        
+    except Exception as e:
+        logger.error(f"Error updating setting {setting_key}: {e}")
+        return False
 
-@settings_router.callback_query(F.data == "settings_toggle_show_hints")
-async def process_settings_toggle_show_hints(callback: CallbackQuery, state: FSMContext):
+# ОБНОВЛЕНО: Упрощенные обработчики toggle с общей функцией
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SKIP_MARKED)
+async def process_toggle_skip_marked(callback: CallbackQuery, state: FSMContext):
+    """Handle skip marked words toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "skip_marked", 
+        true_text="пропускать", false_text="показывать",
+        setting_name="Помеченные слова"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_CHECK_DATE)
+async def process_toggle_check_date(callback: CallbackQuery, state: FSMContext):
+    """Handle check date toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "use_check_date", 
+        true_text="учитывать", false_text="не учитывать",
+        setting_name="Дата проверки"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG)
+async def process_toggle_show_debug(callback: CallbackQuery, state: FSMContext):
+    """Handle debug info toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_debug", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Отладочная информация"
+    )
+
+# НОВОЕ: Общая функция для обработки boolean toggle
+async def _handle_boolean_toggle(
+    callback: CallbackQuery, 
+    state: FSMContext, 
+    setting_key: str, 
+    true_text: str, 
+    false_text: str, 
+    setting_name: str
+):
     """
-    Process callback to toggle showing hint buttons.
+    Handle boolean setting toggle.
+    НОВОЕ: Общая функция для всех boolean настроек.
     
     Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
+        callback: The callback query
+        state: FSM context
+        setting_key: Setting key to toggle
+        true_text: Text to show when value is True
+        false_text: Text to show when value is False
+        setting_name: Human-readable setting name
     """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
+    logger.info(f"Toggle {setting_key} from {callback.from_user.full_name}")
+    
+    # Validate language selection
+    if not await _validate_language_selected(state, callback):
+        return
+    
+    # Get current settings
+    try:
+        current_settings = await get_user_language_settings(callback, state)
+        current_value = current_settings.get(setting_key, False)
+        new_value = not current_value
+        
+        # Update settings
+        success = await _update_setting(callback, state, setting_key, new_value)
+        
+        if success:
+            status_text = true_text if new_value else false_text
+            await callback.answer(f"✅ {setting_name}: {status_text}")
+            
+            # Refresh display
+            await display_language_settings(
+                message_or_callback=callback,
+                state=state,
+                prefix="⚙️ <b>Настройки обучения</b>\n\n",
+                is_callback=True
+            )
+        else:
+            await callback.answer("❌ Ошибка изменения настройки")
+            
+    except Exception as e:
+        logger.error(f"Error toggling {setting_key}: {e}")
+        await callback.answer("❌ Ошибка изменения настройки")
 
-    logger.info(f"'settings_toggle_show_hints' callback from {full_name} ({username})")
+# ОБНОВЛЕНО: Bulk operations для настроек подсказок
+@settings_router.callback_query(F.data == "enable_all_hints")
+async def process_enable_all_hints(callback: CallbackQuery, state: FSMContext):
+    """Handle enable all hints action."""
+    await _handle_bulk_hints_action(callback, state, enable_all=True)
+
+@settings_router.callback_query(F.data == "disable_all_hints")
+async def process_disable_all_hints(callback: CallbackQuery, state: FSMContext):
+    """Handle disable all hints action."""
+    await _handle_bulk_hints_action(callback, state, enable_all=False)
+
+# НОВОЕ: Общая функция для bulk операций с подсказками
+async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, enable_all: bool):
+    """
+    Handle bulk hint settings action.
+    НОВОЕ: Общая функция для включения/отключения всех подсказок.
     
-    # Получаем настройки пользователя с помощью функции
-    settings = await get_user_language_settings(callback, state)
+    Args:
+        callback: The callback query
+        state: FSM context
+        enable_all: True to enable all hints, False to disable all
+    """
+    action_text = "включить" if enable_all else "отключить"
+    logger.info(f"{action_text.capitalize()} all hints from {callback.from_user.full_name}")
     
-    # Инвертируем настройку отображения кнопок подсказок
-    settings["show_hints"] = not settings.get("show_hints", True)
+    # Validate language selection
+    if not await _validate_language_selected(state, callback):
+        return
     
-    # Сохраняем обновленные настройки
-    success = await save_user_language_settings(callback, state, settings)
+    success = await bulk_update_hint_settings(callback, state, enable_all=enable_all)
     
     if success:
-        # Обновляем состояние FSM для совместимости со старым кодом
-        await state.update_data(show_hints=settings["show_hints"])
+        result_text = "включены" if enable_all else "отключены"
+        await callback.answer(f"✅ Все подсказки {result_text}")
         
-        # Используем функцию для отображения настроек
-        await display_language_settings(callback, state, 
-                                       prefix="✅ Настройки успешно обновлены!\n\n", 
-                                       is_callback=True)
+        # Refresh display
+        await display_language_settings(
+            message_or_callback=callback,
+            state=state,
+            prefix="⚙️ <b>Настройки обучения</b>\n\n",
+            is_callback=True
+        )
     else:
-        # В случае ошибки сообщаем пользователю
-        await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
-    
-    await callback.answer()
+        await callback.answer("❌ Ошибка изменения настроек")
 
-@settings_router.callback_query(F.data == "settings_toggle_show_debug")
-async def process_settings_toggle_show_debug(callback: CallbackQuery, state: FSMContext):
+# Quick start word options - ОБНОВЛЕНО с общими функциями
+@settings_router.callback_query(F.data.startswith("quick_start_word_"))
+async def process_quick_start_word(callback: CallbackQuery, state: FSMContext):
     """
-    Process callback to toggle showing debug information.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
+    Handle quick start word selection.
+    ОБНОВЛЕНО: Улучшена обработка ошибок.
     """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'settings_toggle_show_debug' callback from {full_name} ({username})")
-    
-    # Получаем настройки пользователя с помощью функции
-    settings = await get_user_language_settings(callback, state)
-    
-    # Инвертируем настройку отображения отладочной информации
-    settings["show_debug"] = not settings.get("show_debug", False)
-    
-    # Сохраняем обновленные настройки
-    success = await save_user_language_settings(callback, state, settings)
-    
-    if success:
-        # Обновляем состояние FSM для совместимости со старым кодом
-        await state.update_data(show_debug=settings["show_debug"])
+    try:
+        # Extract word number from callback data
+        word_num_str = callback.data.replace("quick_start_word_", "")
+        start_word = int(word_num_str)
         
-        # Используем функцию для отображения настроек
-        await display_language_settings(callback, state, 
-                                       prefix="✅ Настройки успешно обновлены!\n\n", 
-                                       is_callback=True)
-    else:
-        # В случае ошибки сообщаем пользователю
-        await callback.message.answer("❌ Не удалось сохранить настройки. Попробуйте позже.")
-    
-    await callback.answer()
-    
+        logger.info(f"Quick start word {start_word} from {callback.from_user.full_name}")
+        
+        # Validate language selection
+        if not await _validate_language_selected(state, callback):
+            return
+        
+        # Update setting
+        success = await _update_setting(callback, state, "start_word", start_word)
+        
+        if success:
+            await callback.answer(f"✅ Начальное слово: {start_word}")
+            
+            # Return to settings view
+            await state.set_state(SettingsStates.viewing_settings)
+            
+            # Show updated settings
+            await display_language_settings(
+                message_or_callback=callback,
+                state=state,
+                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
+                is_callback=True
+            )
+        else:
+            await callback.answer("❌ Ошибка сохранения настройки")
+            
+    except (ValueError, IndexError) as e:
+        logger.error(f"Error processing quick start word: {e}")
+        await callback.answer("❌ Ошибка обработки выбора")
+
+# Cancel handlers - moved to cancel_handlers.py, these are just for invalid input
+@settings_router.message(SettingsStates.waiting_start_word)
+async def handle_invalid_start_word(message: Message, state: FSMContext):
+    """
+    Handle invalid input during start word setting.
+    ОБНОВЛЕНО: Улучшено сообщение об ошибке.
+    """
+    await message.answer(
+        "❌ Пожалуйста, введите корректный номер слова (число от 1 до 50000).\n\n"
+        "Примеры корректного ввода:\n"
+        "• <code>1</code> - первое слово\n"
+        "• <code>50</code> - пятидесятое слово\n"
+        "• <code>100</code> - сотое слово\n\n"
+        "Или отправьте /cancel для отмены.",
+        parse_mode="HTML"
+    )
+
+# Export router
+__all__ = ['settings_router']

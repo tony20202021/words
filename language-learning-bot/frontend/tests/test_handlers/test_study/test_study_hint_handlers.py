@@ -42,8 +42,8 @@ class TestStudyHintHandlers:
                 "transcription": "haʊs",
                 "language_id": "lang123",
                 "user_word_data": {
-                    "hint_syllables": "х-ауз",
-                    "hint_association": "существующая подсказка",
+                    "hint_phoneticsound": "х-ауз",
+                    "hint_phoneticassociation": "существующая подсказка",
                     "check_interval": 1,
                     "next_check_date": "2025-05-15"
                 }
@@ -98,7 +98,7 @@ class TestStudyHintHandlers:
                 "transcription": "haʊs",
                 "language_id": "lang123",
                 "user_word_data": {
-                    "hint_association": "существующая подсказка",
+                    "hint_phoneticassociation": "существующая подсказка",
                     "check_interval": 1,
                     "next_check_date": "2025-05-15"
                 }
@@ -119,7 +119,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 200,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -130,7 +130,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 200,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -141,7 +141,7 @@ class TestStudyHintHandlers:
             "success": True,
             "status": 201,
             "result": {
-                "hint_syllables": "х-ауз",
+                "hint_phoneticsound": "х-ауз",
                 "score": 0,
                 "check_interval": 1,
                 "next_check_date": "2025-05-15"
@@ -200,7 +200,7 @@ class TestStudyHintHandlers:
         
         # Устанавливаем state_data для hint creation
         hint_state_data = {
-            "hint_key": "hint_association",
+            "hint_key": "hint_phoneticassociation",
             "hint_name": "Ассоциация",
             "hint_word_id": "word123",
             "db_user_id": "user123",
@@ -217,7 +217,7 @@ class TestStudyHintHandlers:
             patch('app.utils.state_models.UserWordState.from_state') as mock_user_state, \
             patch('app.utils.state_models.HintState.from_state') as mock_hint_state, \
             patch('app.utils.word_data_utils.ensure_user_word_data', 
-                AsyncMock(return_value=(True, {"hint_association": "домик на холме"}))), \
+                AsyncMock(return_value=(True, {"hint_phoneticassociation": "домик на холме"}))), \
             patch('app.bot.handlers.study.hint.create_handlers.process_hint_input', 
                 AsyncMock(return_value="домик на холме")) as mock_voice_utils:
             
@@ -235,7 +235,7 @@ class TestStudyHintHandlers:
             # Настройка mock_hint_state
             hint_state_obj = MagicMock()
             hint_state_obj.is_valid.return_value = True
-            hint_state_obj.hint_key = "hint_association"
+            hint_state_obj.hint_key = "hint_phoneticassociation"
             hint_state_obj.hint_name = "Ассоциация"
             hint_state_obj.hint_word_id = "word123"
             hint_state_obj.get_hint_type = MagicMock(return_value="association")
@@ -292,7 +292,7 @@ class TestStudyHintHandlers:
         import app.bot.handlers.study.hint.edit_handlers as edit_handlers_module
         
         # Создаем моки с возможностью отслеживания вызовов
-        get_hint_key_mock = MagicMock(return_value="hint_association")
+        get_hint_key_mock = MagicMock(return_value="hint_phoneticassociation")
         get_hint_name_mock = MagicMock(return_value="Ассоциация")
         get_hint_text_mock = AsyncMock(return_value="существующая подсказка")
         
@@ -329,7 +329,7 @@ class TestStudyHintHandlers:
             
             # Проверяем, что HintState был создан с правильными параметрами
             MockHintState.assert_called_once_with(
-                hint_key="hint_association",
+                hint_key="hint_phoneticassociation",
                 hint_name="Ассоциация",
                 hint_word_id="word123",
                 current_hint_text="существующая подсказка"
@@ -435,7 +435,7 @@ class TestStudyHintHandlers:
         
         # Создаем моки для всех зависимостей
         validate_state_data_mock = AsyncMock(return_value=(True, state_data))
-        get_hint_key_mock = MagicMock(return_value="hint_association")
+        get_hint_key_mock = MagicMock(return_value="hint_phoneticassociation")
         get_hint_name_mock = MagicMock(return_value="Ассоциация")
         get_all_hint_types_mock = MagicMock(return_value=["meaning", "association", "phonetic"])
         get_api_client_from_bot_mock = MagicMock(return_value=api_client)
@@ -471,7 +471,7 @@ class TestStudyHintHandlers:
             
             # Проверяем, что HintState был создан с правильными параметрами
             HintState_mock.assert_called_once_with(
-                hint_key="hint_association",
+                hint_key="hint_phoneticassociation",
                 hint_name="Ассоциация",
                 hint_word_id="word123"
             )

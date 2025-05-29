@@ -24,17 +24,17 @@ class SettingsStates(StatesGroup):
 class StudyStates(StatesGroup):
     """States for the word learning process."""
     studying = State()                      # Основной процесс изучения слов
-    confirming_word_knowledge = State()     # НОВОЕ: Подтверждение знания слова
-    viewing_word_details = State()          # НОВОЕ: Просмотр деталей слова после оценки
-    study_completed = State()               # НОВОЕ: Завершение изучения (все слова изучены)
+    confirming_word_knowledge = State()     # Подтверждение знания слова
+    viewing_word_details = State()          # Просмотр деталей слова после оценки
+    study_completed = State()               # Завершение изучения (все слова изучены)
 
 
 class HintStates(StatesGroup):
     """States for hint management."""
     creating = State()                      # Состояние создания подсказки
     editing = State()                       # Состояние редактирования подсказки
-    viewing = State()                       # НОВОЕ: Просмотр существующей подсказки
-    confirming_deletion = State()           # НОВОЕ: Подтверждение удаления подсказки
+    viewing = State()                       # Просмотр существующей подсказки
+    confirming_deletion = State()           # Подтверждение удаления подсказки
 
 
 class AdminStates(StatesGroup):

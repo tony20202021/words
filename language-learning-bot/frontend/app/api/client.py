@@ -49,7 +49,7 @@ class APIClient:
         Make a request to the API.
         
         Args:
-            method: HTTP method (GET, POST, PUT, DELETE)
+            method: HTTP method (GET, POST, PUT, DELETE, PATCH)
             endpoint: API endpoint
             data: Request data
             params: Query parameters
@@ -377,6 +377,7 @@ class APIClient:
     async def get_study_words(self, user_id: str, language_id: str, params: Dict, limit: int = 100) -> Optional[Dict]:
         """
         Get words for study with various filters.
+        ОБНОВЛЕНО: Поддержка параметра skip для пагинации.
         """
         # Добавляем limit к существующим параметрам
         if params is None:
@@ -391,6 +392,10 @@ class APIClient:
                 processed_params[key] = value
                 
         processed_params["limit"] = limit
+        
+        # НОВОЕ: Поддержка skip для пагинации
+        if "skip" in params:
+            processed_params["skip"] = params["skip"]
         
         # Логируем финальные параметры запроса
         logger.info(f"Making request to get_study_words for user_id={user_id}, language_id={language_id}, "
@@ -498,6 +503,8 @@ class APIClient:
         endpoint = f"/users/{user_id}/daily_stats"
         return await self._make_request("GET", endpoint, params=params)
 
+    # User Language Settings - Базовые методы
+
     async def get_user_language_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
         """
         Get settings for a specific user and language.
@@ -525,5 +532,100 @@ class APIClient:
             API response with updated settings in result field
         """
         endpoint = f"/users/{user_id}/languages/{language_id}/settings"
-        print(settings)
+        logger.info(f"Updating user language settings: {settings}")
         return await self._make_request("PUT", endpoint, data=settings)
+
+    # НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ИНДИВИДУАЛЬНЫМИ НАСТРОЙКАМИ ПОДСКАЗОК
+
+    async def toggle_hint_setting(self, user_id: str, language_id: str, hint_type: str, enabled: bool) -> Dict[str, Any]:
+        """
+        Toggle a specific hint setting for a user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            hint_type: Type of hint ('syllables', 'association', 'meaning', 'writing')
+            enabled: Whether to enable or disable the hint
+            
+        Returns:
+            API response with updated settings
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/settings/hints/{hint_type}"
+        data = {"enabled": enabled}
+        
+        logger.info(f"Toggling hint setting: user_id={user_id}, language_id={language_id}, "
+                    f"hint_type={hint_type}, enabled={enabled}")
+        
+        return await self._make_request("PATCH", endpoint, data=data)
+
+    async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
+        """
+        Get hint settings for a specific user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            
+        Returns:
+            API response with hint settings in result field
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/settings/hints"
+        
+        logger.info(f"Getting hint settings for user_id={user_id}, language_id={language_id}")
+        
+        return await self._make_request("GET", endpoint)
+
+    async def update_multiple_hint_settings(self, user_id: str, language_id: str, hint_settings: Dict[str, bool]) -> Dict[str, Any]:
+        """
+        Update multiple hint settings at once for a user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            hint_settings: Dictionary with hint settings to update
+                          Expected keys: 'syllables', 'association', 'meaning', 'writing'
+            
+        Returns:
+            API response with updated settings
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/settings/hints/bulk"
+        
+        logger.info(f"Updating multiple hint settings for user_id={user_id}, language_id={language_id}, "
+                    f"settings={hint_settings}")
+        
+        return await self._make_request("POST", endpoint, data=hint_settings)
+
+    # Удобные методы для работы с конкретными типами подсказок
+
+    async def toggle_syllables_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
+        """Toggle syllables hint setting."""
+        return await self.toggle_hint_setting(user_id, language_id, "syllables", enabled)
+
+    async def toggle_association_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
+        """Toggle association hint setting."""
+        return await self.toggle_hint_setting(user_id, language_id, "association", enabled)
+
+    async def toggle_meaning_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
+        """Toggle meaning hint setting."""
+        return await self.toggle_hint_setting(user_id, language_id, "meaning", enabled)
+
+    async def toggle_writing_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
+        """Toggle writing hint setting."""
+        return await self.toggle_hint_setting(user_id, language_id, "writing", enabled)
+
+    # Административные методы
+
+    async def migrate_hint_settings(self) -> Dict[str, Any]:
+        """
+        Migrate existing user language settings to include individual hint flags.
+        This method is for administrative use only.
+        
+        Returns:
+            API response with migration results
+        """
+        endpoint = "/admin/migrate-hint-settings"
+        
+        logger.info("Starting migration of user language settings")
+        
+        return await self._make_request("POST", endpoint)
+    

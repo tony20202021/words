@@ -13,8 +13,13 @@ class UserLanguageSettingsBase(BaseModel):
     start_word: int = Field(1, description="Word number to start learning from")
     skip_marked: bool = Field(False, description="Whether to skip marked words")
     use_check_date: bool = Field(True, description="Whether to use check date for spaced repetition")
-    show_hints: bool = Field(True, description="Whether to show hint buttons")
     show_debug: bool = Field(False, description="Whether to show debug information")
+    
+    # Раздельные настройки для каждого типа подсказки
+    show_hint_phoneticsound: bool = Field(True, description="Whether to show syllables hint button")
+    show_hint_phoneticassociation: bool = Field(True, description="Whether to show association hint button") 
+    show_hint_meaning: bool = Field(True, description="Whether to show meaning hint button")
+    show_hint_writing: bool = Field(True, description="Whether to show writing hint button")
 
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
@@ -27,8 +32,13 @@ class UserLanguageSettingsUpdate(BaseModel):
     start_word: Optional[int] = None
     skip_marked: Optional[bool] = None
     use_check_date: Optional[bool] = None
-    show_hints: Optional[bool] = None
     show_debug: Optional[bool] = None
+    
+    # Раздельные настройки для каждого типа подсказки
+    show_hint_phoneticsound: Optional[bool] = None
+    show_hint_phoneticassociation: Optional[bool] = None
+    show_hint_meaning: Optional[bool] = None
+    show_hint_writing: Optional[bool] = None
 
 
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):
@@ -53,3 +63,4 @@ class UserLanguageSettings(UserLanguageSettingsBase):
 
     class Config:
         orm_mode = True
+        

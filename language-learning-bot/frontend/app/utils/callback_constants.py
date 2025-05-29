@@ -1,6 +1,7 @@
 """
 Constants for callback_data used throughout the bot.
 This helps avoid typos and makes callback management easier.
+UPDATED: Added individual hint settings callbacks.
 """
 
 import re
@@ -28,8 +29,15 @@ class CallbackData:
     SETTINGS_START_WORD = "settings_start_word"
     SETTINGS_TOGGLE_SKIP_MARKED = "settings_toggle_skip_marked"
     SETTINGS_TOGGLE_CHECK_DATE = "settings_toggle_check_date"
-    SETTINGS_TOGGLE_SHOW_HINTS = "settings_toggle_show_hints"
     SETTINGS_TOGGLE_SHOW_DEBUG = "settings_toggle_show_debug"
+    
+    # УДАЛЕНО: SETTINGS_TOGGLE_SHOW_HINTS - заменено на индивидуальные настройки
+    
+    # НОВОЕ: Индивидуальные настройки подсказок
+    SETTINGS_TOGGLE_HINT_MEANING = "settings_toggle_hint_meaning"
+    SETTINGS_TOGGLE_HINT_PHONETICASSOCIATION = "settings_toggle_hint_phoneticassociation"
+    SETTINGS_TOGGLE_HINT_PHONETICSOUND = "settings_toggle_hint_phoneticsound"
+    SETTINGS_TOGGLE_HINT_WRITING = "settings_toggle_hint_writing"
     
     # Language selection
     LANG_SELECT_TEMPLATE = "lang_select_{language_id}"
@@ -46,8 +54,8 @@ class CallbackData:
     EDIT_LANGUAGE_TEMPLATE = "edit_language_{language_id}"
     DELETE_LANGUAGE_TEMPLATE = "delete_language_{language_id}"
 
-    CONFIRM_DELETE_TEMPLATE = "confirm_{action}_{entity_id}"  # Было: "confirm_delete_{action}_{entity_id}"
-    CANCEL_DELETE_TEMPLATE = "cancel_{action}_{entity_id}"    # Было: "cancel_delete_{action}_{entity_id}"
+    CONFIRM_DELETE_TEMPLATE = "confirm_{action}_{entity_id}"
+    CANCEL_DELETE_TEMPLATE = "cancel_{action}_{entity_id}"
     
     # Admin file upload
     UPLOAD_TO_LANG_TEMPLATE = "upload_to_lang_{language_id}"
@@ -83,6 +91,18 @@ class CallbackData:
     PAGE_INFO = "page_info"
 
 
+# НОВОЕ: Словарь для маппинга callback'ов индивидуальных настроек подсказок
+HINT_SETTINGS_CALLBACKS = {
+    "show_hint_meaning": CallbackData.SETTINGS_TOGGLE_HINT_MEANING,
+    "show_hint_phoneticassociation": CallbackData.SETTINGS_TOGGLE_HINT_PHONETICASSOCIATION,
+    "show_hint_phoneticsound": CallbackData.SETTINGS_TOGGLE_HINT_PHONETICSOUND,
+    "show_hint_writing": CallbackData.SETTINGS_TOGGLE_HINT_WRITING,
+}
+
+# НОВОЕ: Обратный маппинг для парсинга callback'ов
+HINT_SETTINGS_CALLBACKS_REVERSE = {v: k for k, v in HINT_SETTINGS_CALLBACKS.items()}
+
+
 class CallbackParser:
     """Helper class for parsing callback data."""
     
@@ -97,6 +117,8 @@ class CallbackParser:
         'upload_to_lang': re.compile(r"upload_to_lang_(.+)"),
         'column_template': re.compile(r"column_template_(\d+)_(.+)"),
         'users_page': re.compile(r"users_page_(\d+)"),
+        # НОВОЕ: Паттерн для индивидуальных настроек подсказок
+        'hint_setting_toggle': re.compile(r"settings_toggle_hint_(\w+)"),
     }
     
     @classmethod
@@ -178,6 +200,23 @@ class CallbackParser:
         if match:
             return int(match.group(1))
         return None
+    
+    # НОВОЕ: Парсер для индивидуальных настроек подсказок
+    @classmethod
+    def parse_hint_setting_toggle(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse hint setting toggle callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Hint type or None if no match
+        """
+        match = cls.PATTERNS['hint_setting_toggle'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
 
 
 def format_hint_callback(action: str, hint_type: str, word_id: str) -> str:
@@ -222,3 +261,67 @@ def format_admin_callback(action: str, entity_id: str = None) -> str:
     if entity_id:
         return f"{action}_{entity_id}"
     return action
+
+
+# НОВОЕ: Функции для работы с индивидуальными настройками подсказок
+def get_hint_setting_callback(setting_key: str) -> Optional[str]:
+    """
+    Get callback data for a hint setting.
+    
+    Args:
+        setting_key: The hint setting key (e.g., 'show_hint_meaning')
+        
+    Returns:
+        Callback data string or None if not found
+    """
+    return HINT_SETTINGS_CALLBACKS.get(setting_key)
+
+
+def get_hint_setting_from_callback(callback_data: str) -> Optional[str]:
+    """
+    Get hint setting key from callback data.
+    
+    Args:
+        callback_data: The callback data string
+        
+    Returns:
+        Setting key string or None if not found
+    """
+    return HINT_SETTINGS_CALLBACKS_REVERSE.get(callback_data)
+
+
+def is_hint_setting_callback(callback_data: str) -> bool:
+    """
+    Check if callback data is for a hint setting toggle.
+    
+    Args:
+        callback_data: The callback data string
+        
+    Returns:
+        True if it's a hint setting callback, False otherwise
+    """
+    return callback_data in HINT_SETTINGS_CALLBACKS_REVERSE
+
+
+# НОВОЕ: Функция для генерации всех callback'ов настроек подсказок
+def get_all_hint_setting_callbacks() -> Dict[str, str]:
+    """
+    Get all hint setting callbacks.
+    
+    Returns:
+        Dictionary mapping setting keys to callback data
+    """
+    return HINT_SETTINGS_CALLBACKS.copy()
+
+
+def format_hint_setting_callback(hint_type: str) -> str:
+    """
+    Format callback data for hint setting toggle.
+    
+    Args:
+        hint_type: The hint type (meaning, phoneticassociation, etc.)
+        
+    Returns:
+        Formatted callback data string
+    """
+    return f"settings_toggle_hint_{hint_type}"

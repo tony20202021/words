@@ -121,7 +121,7 @@ steps:
       - type: state_contains
         data: ["_state", "<State 'HintStates:editing'>"]
       - type: state_contains
-        data: ["hint_state", {"hint_key": "hint_association"}]
+        data: ["hint_state", {"hint_key": "hint_phoneticassociation"}]
 
   # Шаг 9: Отправляем новый текст
   - type: message

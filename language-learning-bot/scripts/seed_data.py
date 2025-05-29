@@ -85,9 +85,9 @@ USERS = [
 
 # Sample hints for statistics
 SAMPLE_HINTS = [
-    {"hint_syllables": "дэ", "hint_association": "ДЭнь наступил", "hint_meaning": "день", "hint_writing": ""},
-    {"hint_syllables": "ту-дэй", "hint_association": "ТУшь ДАЙ", "hint_meaning": "сегодня", "hint_writing": ""},
-    {"hint_syllables": "пи-пл", "hint_association": "ПИанино для ПЛемени", "hint_meaning": "люди", "hint_writing": ""},
+    {"hint_phoneticsound": "дэ", "hint_phoneticassociation": "ДЭнь наступил", "hint_meaning": "день", "hint_writing": ""},
+    {"hint_sylhint_phoneticsoundlables": "ту-дэй", "hint_phoneticassociation": "ТУшь ДАЙ", "hint_meaning": "сегодня", "hint_writing": ""},
+    {"hint_phoneticsound": "пи-пл", "hint_phoneticassociation": "ПИанино для ПЛемени", "hint_meaning": "люди", "hint_writing": ""},
 ]
 
 async def seed_db():

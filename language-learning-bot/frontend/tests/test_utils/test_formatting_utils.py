@@ -157,7 +157,7 @@ class TestFormatUsedHints:
             "Подсказка для фонетики"
         ]), \
         patch('app.utils.formatting_utils.get_hint_key', side_effect=[
-            "hint_meaning", "hint_syllables"
+            "hint_meaning", "hint_phoneticsound"
         ]), \
         patch('app.utils.formatting_utils.get_hint_name', side_effect=[
             "Ассоциация для значения на русском", "Фонетическое звучание"

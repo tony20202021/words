@@ -419,7 +419,7 @@ class TestHintState:
         # Define state data for the mock
         state_data = {
             "hint_state": {
-                "hint_key": "hint_syllables",
+                "hint_key": "hint_phoneticsound",
                 "hint_name": "Фонетика",
                 "hint_word_id": "word123",
                 "current_hint_text": "Test hint"
@@ -439,7 +439,7 @@ class TestHintState:
         state.get_data.assert_called_once()
         
         # Verify attributes are set correctly
-        assert hint_state.hint_key == "hint_syllables"
+        assert hint_state.hint_key == "hint_phoneticsound"
         assert hint_state.hint_name == "Фонетика"
         assert hint_state.hint_word_id == "word123"
         assert hint_state.current_hint_text == "Test hint"
@@ -456,7 +456,7 @@ class TestHintState:
         
         # Create a HintState instance with test data
         hint_state = HintState(
-            hint_key="hint_syllables",
+            hint_key="hint_phoneticsound",
             hint_name="Фонетика",
             hint_word_id="word123",
             current_hint_text="Test hint"
@@ -478,7 +478,7 @@ class TestHintState:
         
         # Verify the hint_state field was saved correctly
         assert "hint_state" in update_data
-        assert update_data["hint_state"]["hint_key"] == "hint_syllables"
+        assert update_data["hint_state"]["hint_key"] == "hint_phoneticsound"
         assert update_data["hint_state"]["hint_name"] == "Фонетика"
         assert update_data["hint_state"]["hint_word_id"] == "word123"
         assert update_data["hint_state"]["current_hint_text"] == "Test hint"
@@ -490,7 +490,7 @@ class TestHintState:
         
         # Setup & Execute - valid state
         valid_state = HintState(
-            hint_key="hint_syllables",
+            hint_key="hint_phoneticsound",
             hint_name="Фонетика",
             hint_word_id="word123"
         )
@@ -510,7 +510,7 @@ class TestHintState:
         
         # Setup & Execute - invalid state (missing hint_name)
         invalid_state_2 = HintState(
-            hint_key="hint_syllables",
+            hint_key="hint_phoneticsound",
             hint_name=None,
             hint_word_id="word123"
         )
@@ -520,7 +520,7 @@ class TestHintState:
         
         # Setup & Execute - invalid state (missing hint_word_id)
         invalid_state_3 = HintState(
-            hint_key="hint_syllables",
+            hint_key="hint_phoneticsound",
             hint_name="Фонетика",
             hint_word_id=None
         )
@@ -545,13 +545,13 @@ class TestHintState:
         
         # Create test instances for different hint types
         syllables_hint = HintState(
-            hint_key="hint_syllables",
+            hint_key="hint_phoneticsound",
             hint_name="Фонетика",
             hint_word_id="word123"
         )
         
         association_hint = HintState(
-            hint_key="hint_association",
+            hint_key="hint_phoneticassociation",
             hint_name="Ассоциация",
             hint_word_id="word123"
         )

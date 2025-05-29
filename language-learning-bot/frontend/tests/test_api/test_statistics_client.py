@@ -44,8 +44,8 @@ class TestStatisticsClient:
                 "user_id": user_id,
                 "word_id": word_id,
                 "language_id": "123abc",
-                "hint_syllables": "hel-lo",
-                "hint_association": "привет когда встречаешь друга",
+                "hint_phoneticsound": "hel-lo",
+                "hint_phoneticassociation": "привет когда встречаешь друга",
                 "hint_meaning": "приветствие при встрече",
                 "hint_writing": "пишется с двумя l",
                 "score": 1,
@@ -124,7 +124,7 @@ class TestStatisticsClient:
         word_data = {
             "word_id": "word3",
             "language_id": "123abc",
-            "hint_association": "новая подсказка",
+            "hint_phoneticassociation": "новая подсказка",
             "score": 0,
             "is_skipped": False
         }
@@ -137,8 +137,8 @@ class TestStatisticsClient:
                 "user_id": user_id,
                 "word_id": "word3",
                 "language_id": "123abc",
-                "hint_syllables": None,
-                "hint_association": "новая подсказка",
+                "hint_phoneticsound": None,
+                "hint_phoneticassociation": "новая подсказка",
                 "hint_meaning": None,
                 "hint_writing": None,
                 "score": 0,
@@ -181,7 +181,7 @@ class TestStatisticsClient:
         word_data = {
             "word_id": "word3",
             "language_id": "123abc",
-            "hint_association": "новая подсказка",
+            "hint_phoneticassociation": "новая подсказка",
             "score": 0,
             "is_skipped": False
         }
@@ -224,7 +224,7 @@ class TestStatisticsClient:
         user_id = "user123"
         word_id = "word1"
         update_data = {
-            "hint_association": "обновленная подсказка",
+            "hint_phoneticassociation": "обновленная подсказка",
             "score": 1,
             "check_interval": 2
         }
@@ -237,8 +237,8 @@ class TestStatisticsClient:
                 "user_id": user_id,
                 "word_id": word_id,
                 "language_id": "123abc",
-                "hint_syllables": "hel-lo",
-                "hint_association": "обновленная подсказка",
+                "hint_phoneticsound": "hel-lo",
+                "hint_phoneticassociation": "обновленная подсказка",
                 "hint_meaning": "приветствие при встрече",
                 "hint_writing": "пишется с двумя l",
                 "score": 1,
@@ -280,7 +280,7 @@ class TestStatisticsClient:
         user_id = "user123"
         word_id = "word1"
         update_data = {
-            "hint_association": "обновленная подсказка",
+            "hint_phoneticassociation": "обновленная подсказка",
             "score": 1,
             "check_interval": 2
         }

@@ -333,8 +333,8 @@ if word_data_response["success"]:
         print(f"Следующая проверка: {word_data.get('next_check_date')}")
         
         # Подсказки
-        print(f"Фонетика: {word_data.get('hint_syllables')}")
-        print(f"Ассоциация: {word_data.get('hint_association')}")
+        print(f"Фонетика: {word_data.get('hint_phoneticsound')}")
+        print(f"Ассоциация: {word_data.get('hint_phoneticassociation')}")
         print(f"Значение: {word_data.get('hint_meaning')}")
         print(f"Написание: {word_data.get('hint_writing')}")
     else:
@@ -349,7 +349,7 @@ if word_data_response["success"]:
 word_data = {
     "word_id": "word123",
     "language_id": "123abc",
-    "hint_association": "моя подсказка",
+    "hint_phoneticassociation": "моя подсказка",
     "score": 0,
     "is_skipped": False
 }
@@ -367,7 +367,7 @@ if result["success"]:
 update_data = {
     "score": 1,
     "check_interval": 2,
-    "hint_association": "новая подсказка"
+    "hint_phoneticassociation": "новая подсказка"
 }
 result = await api_client.update_user_word_data("user123", "word123", update_data)
 if result["success"]:
@@ -440,7 +440,7 @@ if words_response["success"]:
         user_word_data = word.get("user_word_data")
         if user_word_data:
             print(f"Оценка: {user_word_data.get('score')}")
-            print(f"Подсказка: {user_word_data.get('hint_association')}")
+            print(f"Подсказка: {user_word_data.get('hint_phoneticassociation')}")
     else:
         print("Нет слов для изучения с текущими настройками")
 ```

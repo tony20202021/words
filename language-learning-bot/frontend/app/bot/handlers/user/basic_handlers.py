@@ -1,6 +1,7 @@
 """
 Basic user command handlers for Language Learning Bot.
 Handles start, help, and other basic commands.
+FIXED: Removed code duplication, improved architecture, better error handling.
 """
 
 from aiogram import Router, F
@@ -10,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error
+from app.utils.error_utils import handle_api_error, safe_api_call
 
 # Создаем роутер для базовых обработчиков
 basic_router = Router()
@@ -18,163 +19,142 @@ basic_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-async def handle_start_command(message, state: FSMContext, user_id=None, username=None, full_name=None, is_callback=False):
+# НОВОЕ: Вынесенные общие функции для работы с пользователями
+async def _get_or_create_user(user_info, api_client) -> tuple[str, dict]:
     """
-    Common handler logic for start command.
+    Get existing user or create new one.
+    НОВОЕ: Централизованная логика создания/получения пользователя.
     
     Args:
-        message: The message object from Telegram (или callback.message при is_callback=True)
-        state: The FSM state context
-        user_id: User ID (опционально, если вызов из callback)
-        username: Username (опционально, если вызов из callback)
-        full_name: Full name (опционально, если вызов из callback)
-        is_callback: Whether this is called from a callback handler
+        user_info: User information from Telegram
+        api_client: API client instance
+        
+    Returns:
+        tuple: (db_user_id, user_data) or (None, None) if failed
     """
-    # Сначала очищаем состояние для предотвращения конфликтов
-    await state.clear()
-
-    # Используем либо переданные данные пользователя, либо берем из message
-    if not user_id:
-        user_id = message.from_user.id
-    if not username:
-        username = message.from_user.username
-    if not full_name:
-        full_name = message.from_user.first_name
+    user_id = user_info.id
+    username = user_info.username
     
-    logger.info(f"Start command handler for {full_name} ({username})")
-
-    # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(message.bot)
-    
-    # Проверяем доступность API клиента
-    if api_client is None:
-        await message.answer(
-            "⚠️ Не удалось установить соединение с сервером. "
-            "Бот может работать некорректно. Пожалуйста, попробуйте позже или "
-            "обратитесь к администратору."
-        )
-        logger.error(f"API client not available during start command from {full_name} ({username})")
-        return
-    
-    # Получение данных состояния
-    user_data = await state.get_data()
-    logger.debug("User data: %s", user_data)
-
-    # Формируем базовое приветственное сообщение, которое отправим в любом случае
-    welcome_message = (
-        f"👋 Здравствуйте, {full_name}!\n\n"
-        f"Добро пожаловать в бот для изучения иностранных слов!\n\n"
-    )
-
-    # Получаем информацию о пользователе
+    # Try to get existing user
     user_response = await api_client.get_user_by_telegram_id(user_id)
     
-    # Проверяем успешность запроса
     if not user_response["success"]:
-        error_msg = user_response.get("error", "Неизвестная ошибка")
-        welcome_message += (
-            f"⚠️ Не удалось получить данные с сервера.\n"
-            f"Причина: {error_msg}\n\n"
-            f"Функциональность бота ограничена. Попробуйте позже или обратитесь к администратору.\n"
-            f"Вы можете воспользоваться справкой: /help"
-        )
-        await message.answer(welcome_message)
-        logger.error(f"Failed to get user data during start command. Error: {error_msg}")
-        return
-
-    # Получаем пользователя из ответа
+        logger.error(f"Failed to get user with Telegram ID {user_id}: {user_response['error']}")
+        return None, {"error": user_response.get("error", "Неизвестная ошибка")}
+    
     users = user_response["result"]
-    user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
+    existing_user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
+    
+    if existing_user:
+        return existing_user.get("id"), existing_user
+    
+    # Create new user if doesn't exist
+    new_user_data = {
+        "telegram_id": user_id,
+        "username": username,
+        "first_name": user_info.first_name,
+        "last_name": user_info.last_name
+    }
+    
+    create_response = await api_client.create_user(new_user_data)
+    
+    if not create_response["success"]:
+        logger.error(f"Failed to create user with Telegram ID {user_id}: {create_response['error']}")
+        return None, {"error": create_response.get("error", "Неизвестная ошибка")}
+    
+    created_user = create_response["result"]
+    return created_user.get("id") if created_user else None, created_user
 
-    # Создаем пользователя, если он не найден
-    db_user_id = None
-    if not user:
-        # Создаем нового пользователя
-        new_user_data = {
-            "telegram_id": user_id,
-            "username": username,
-            "first_name": message.from_user.first_name if not is_callback else full_name,
-            "last_name": message.from_user.last_name if not is_callback else None
-        }
+async def _get_user_progress_summary(db_user_id: str, languages: list, api_client) -> list:
+    """
+    Get user progress summary for all languages.
+    НОВОЕ: Вынесена логика получения прогресса пользователя.
+    
+    Args:
+        db_user_id: Database user ID
+        languages: List of available languages
+        api_client: API client instance
         
-        create_response = await api_client.create_user(new_user_data)
-        
-        if not create_response["success"]:
-            error_msg = create_response.get("error", "Неизвестная ошибка")
-            welcome_message += (
-                f"⚠️ Не удалось создать пользователя.\n"
-                f"Причина: {error_msg}\n\n"
-                f"Пожалуйста, попробуйте позже или обратитесь к администратору."
-            )
-            await message.answer(welcome_message)
-            logger.error(f"Failed to create user during start command. Error: {error_msg}")
-            return
+    Returns:
+        list: List of progress data for languages with progress
+    """
+    user_progress_by_language = []
+    
+    for language in languages:
+        try:
+            progress_response = await api_client.get_user_progress(db_user_id, language.get("id"))
             
-        created_user = create_response["result"]
-        db_user_id = created_user.get("id") if created_user else None
-    else:
-        # Пользователь найден
-        db_user_id = user.get("id")
+            if progress_response["success"] and progress_response["result"]:
+                progress_data = progress_response["result"]
+                # Only include languages with actual progress
+                if progress_data.get("words_studied", 0) > 0:
+                    user_progress_by_language.append(progress_data)
+                    
+        except Exception as e:
+            logger.error(f"Error getting progress for language {language.get('id')}: {e}")
+            continue
     
-    # Получаем список языков из API
-    languages_response = await api_client.get_languages()
+    return user_progress_by_language
+
+def _format_welcome_message(
+    full_name: str, 
+    languages: list, 
+    user_progress: list, 
+    has_error: bool = False, 
+    error_msg: str = ""
+) -> str:
+    """
+    Format welcome message based on user data and system state.
+    НОВОЕ: Централизованное форматирование приветственного сообщения.
     
-    if not languages_response["success"]:
-        error_msg = languages_response.get("error", "Неизвестная ошибка")
-        welcome_message += (
-            f"⚠️ Не удалось получить список языков.\n"
+    Args:
+        full_name: User's full name
+        languages: List of available languages
+        user_progress: User's progress data
+        has_error: Whether there was an error
+        error_msg: Error message if any
+        
+    Returns:
+        str: Formatted welcome message
+    """
+    message = f"👋 Здравствуйте, {full_name}!\n\n"
+    message += "Добро пожаловать в бот для изучения иностранных слов!\n\n"
+    
+    # Handle error state
+    if has_error:
+        message += (
+            f"⚠️ Не удалось получить полные данные с сервера.\n"
             f"Причина: {error_msg}\n\n"
-            f"Пожалуйста, попробуйте позже."
+            f"Функциональность может быть ограничена. Попробуйте позже или обратитесь к администратору.\n\n"
+            f"Доступная справка: /help"
         )
-        await message.answer(welcome_message)
-        logger.error(f"Failed to get languages during start command. Error: {error_msg}")
-        return
+        return message
     
-    languages = languages_response["result"] or []
-    
-    # Дополняем приветственное сообщение информацией о языках
+    # Add languages information
     if languages:
-        welcome_message += f"🌍 В системе доступно {len(languages)} языков для изучения.\n\n"
+        message += f"🌍 В системе доступно для изучения:\n"
+        message += f"{len(languages)} языков.\n\n"
     else:
-        welcome_message += "🌍 В системе пока нет доступных языков. Обратитесь к администратору.\n\n"
+        message += "🌍 В системе пока нет доступных языков. Обратитесь к администратору.\n\n"
     
-    # Если у пользователя уже есть ID в базе данных, получаем его статистику
-    if db_user_id:
-        # Сохраняем ID пользователя в состоянии
-        await state.update_data(db_user_id=db_user_id)
-        
-        # Собираем статистику по всем языкам
-        user_progress_by_language = []
-        
-        for language in languages:
-            # Получаем прогресс пользователя для конкретного языка
-            try:
-                progress_response = await api_client.get_user_progress(db_user_id, language.get("id"))
-                
-                if progress_response["success"] and progress_response["result"]:
-                    user_progress_by_language.append(progress_response["result"])
-            except Exception as e:
-                logger.error(f"Error getting progress for language {language.get('id')}: {e}")
-        
-        if user_progress_by_language:
-            welcome_message += "📊 Ваш прогресс по языкам:\n"
-            for progress in user_progress_by_language:
-                lang_name = progress.get("language_name_ru")
-                progress_percentage = progress.get("progress_percentage", 0)
-                welcome_message += f"- {lang_name}: {progress_percentage:.1f}%\n"
-        else:
-            welcome_message += (
-                "У вас пока нет прогресса по изучению языков.\n"
-                "Начните с выбора языка с помощью команды /language\n"
-            )
+    # Add progress information
+    if user_progress:
+        message += "📊 Ваш прогресс по языкам:\n"
+        for progress in user_progress:
+            lang_name = progress.get("language_name_ru", "Неизвестный язык")
+            progress_percentage = progress.get("progress_percentage", 0)
+            words_studied = progress.get("words_studied", 0)
+            message += f"• {lang_name}: {progress_percentage:.1f}% ({words_studied} слов)\n"
+        message += "\n"
     else:
-        welcome_message += (
+        message += (
             "У вас пока нет прогресса по изучению языков.\n"
-            "Начните с выбора языка с помощью команды /language\n"
+            "Начните с выбора языка с помощью команды /language\n\n"
         )
     
-    welcome_message += (
-        "\nОсновные команды:\n"
+    # Add command menu
+    message += (
+        "📋 Основные команды:\n"
         "/language - Выбрать язык для изучения\n"
         "/study - Начать изучение слов\n"
         "/settings - Настройки процесса обучения\n"
@@ -182,9 +162,96 @@ async def handle_start_command(message, state: FSMContext, user_id=None, usernam
         "/help - Показать справку"
     )
     
-    await message.answer(welcome_message)
+    return message
+
+async def handle_start_command(
+    message_or_callback, 
+    state: FSMContext, 
+    is_callback: bool = False
+):
+    """
+    Common handler logic for start command.
+    ОБНОВЛЕНО: Упрощена архитектура, улучшена обработка ошибок.
     
-    return True
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: The FSM state context
+        is_callback: Whether this is called from a callback handler
+    """
+    # Clear state to prevent conflicts
+    await state.clear()
+
+    # Extract user info and message object
+    if is_callback:
+        user_info = message_or_callback.from_user
+        message = message_or_callback.message
+        bot = message_or_callback.bot
+    else:
+        user_info = message_or_callback.from_user
+        message = message_or_callback
+        bot = message_or_callback.bot
+    
+    full_name = user_info.full_name or user_info.first_name or "Пользователь"
+    
+    logger.info(f"Start command handler for {full_name} ({user_info.username})")
+
+    # Get API client
+    api_client = get_api_client_from_bot(bot)
+    if not api_client:
+        error_msg = (
+            "⚠️ Не удалось установить соединение с сервером. "
+            "Бот может работать некорректно. Пожалуйста, попробуйте позже или "
+            "обратитесь к администратору."
+        )
+        await message.answer(error_msg)
+        logger.error(f"API client not available during start command from {full_name}")
+        return
+
+    # Get or create user
+    db_user_id, user_data = await _get_or_create_user(user_info, api_client)
+    
+    # Get languages list
+    success, languages = await safe_api_call(
+        lambda: api_client.get_languages(),
+        message,
+        "получение списка языков",
+        handle_errors=False
+    )
+    
+    if not success:
+        # Show welcome with error state
+        welcome_message = _format_welcome_message(
+            full_name, [], [], 
+            has_error=True, 
+            error_msg="Не удалось получить список языков"
+        )
+        await message.answer(welcome_message)
+        return
+    
+    languages = languages or []
+    
+    # Get user progress if user exists
+    user_progress = []
+    if db_user_id:
+        # Save user ID to state
+        await state.update_data(db_user_id=db_user_id)
+        
+        # Get progress summary
+        user_progress = await _get_user_progress_summary(db_user_id, languages, api_client)
+    
+    # Handle user creation errors
+    if not db_user_id and "error" in user_data:
+        welcome_message = _format_welcome_message(
+            full_name, languages, [],
+            has_error=True,
+            error_msg=user_data["error"]
+        )
+        await message.answer(welcome_message)
+        return
+    
+    # Format and send welcome message
+    welcome_message = _format_welcome_message(full_name, languages, user_progress)
+    await message.answer(welcome_message)
 
 @basic_router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
@@ -195,7 +262,13 @@ async def cmd_start(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    await handle_start_command(message, state)
+    user_id = message.from_user.id
+    username = message.from_user.username
+    full_name = message.from_user.full_name
+
+    logger.info(f"'/start' message from {full_name} ({username})")
+
+    await handle_start_command(message, state, is_callback=False)
 
 @basic_router.callback_query(F.data == "back_to_start")
 async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
@@ -212,14 +285,131 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
 
     logger.info(f"'back_to_start' callback from {full_name} ({username})")
     
-    # Вызываем общую функцию обработки команды /start
-    await handle_start_command(
-        callback.message, 
-        state, 
-        user_id=callback.from_user.id,
-        username=callback.from_user.username,
-        full_name=callback.from_user.full_name,
-        is_callback=True
-    )
+    # Use common handler logic
+    await handle_start_command(callback, state, is_callback=True)
     
-    await callback.answer()
+    await callback.answer("🏠 Возврат в главное меню")
+
+# НОВОЕ: Дополнительные callback обработчики для навигации
+@basic_router.callback_query(F.data == "start_study")
+async def process_start_study_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to start studying words.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'start_study' callback from {callback.from_user.full_name}")
+    
+    # Check if language is selected
+    state_data = await state.get_data()
+    current_language = state_data.get("current_language")
+    
+    if not current_language or not current_language.get("id"):
+        await callback.answer("Сначала выберите язык", show_alert=True)
+        await callback.message.answer(
+            "⚠️ Сначала выберите язык для изучения с помощью команды /language"
+        )
+        return
+    
+    await callback.answer("🎓 Запуск изучения...")
+    await callback.message.answer(
+        "🎓 Для начала изучения используйте команду /study\n\n"
+        "Если нужно изменить настройки, используйте /settings"
+    )
+
+@basic_router.callback_query(F.data == "select_language")
+async def process_select_language_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to select language.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'select_language' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("🌍 Выбор языка...")
+    await callback.message.answer(
+        "🌍 Для выбора языка используйте команду /language\n\n"
+        "Вам будет показан список доступных языков для изучения."
+    )
+
+@basic_router.callback_query(F.data == "show_settings")
+async def process_show_settings_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to show settings.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'show_settings' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("⚙️ Настройки...")
+    await callback.message.answer(
+        "⚙️ Для просмотра настроек используйте команду /settings\n\n"
+        "В настройках вы можете изменить параметры обучения."
+    )
+
+@basic_router.callback_query(F.data == "show_stats")
+async def process_show_stats_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to show statistics.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'show_stats' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("📊 Статистика...")
+    await callback.message.answer(
+        "📊 Для просмотра статистики используйте команду /stats\n\n"
+        "В статистике вы увидите свой прогресс по изучению языков."
+    )
+
+# НОВОЕ: Utility functions for other modules
+def get_user_display_name(user) -> str:
+    """
+    Get user display name with fallback options.
+    НОВОЕ: Утилита для получения отображаемого имени пользователя.
+    
+    Args:
+        user: User object from Telegram
+        
+    Returns:
+        str: Display name for the user
+    """
+    return (
+        user.full_name or 
+        user.first_name or 
+        user.username or 
+        f"User_{user.id}"
+    )
+
+async def ensure_api_client(bot) -> tuple[bool, object]:
+    """
+    Ensure API client is available.
+    НОВОЕ: Утилита для проверки доступности API клиента.
+    
+    Args:
+        bot: Bot instance
+        
+    Returns:
+        tuple: (is_available, api_client_or_none)
+    """
+    api_client = get_api_client_from_bot(bot)
+    if not api_client:
+        logger.error("API client not available")
+        return False, None
+    return True, api_client
+
+# Export router and utilities
+__all__ = [
+    'basic_router',
+    'handle_start_command',
+    'get_user_display_name', 
+    'ensure_api_client'
+]

@@ -97,8 +97,14 @@ class UserLanguageSettingsRepository:
             "start_word": settings_dict.get("start_word", 1),
             "skip_marked": settings_dict.get("skip_marked", False),
             "use_check_date": settings_dict.get("use_check_date", True),
-            "show_hints": settings_dict.get("show_hints", True),
-            "show_debug": settings_dict.get("show_debug", False),  # Добавлено поле show_debug
+            "show_debug": settings_dict.get("show_debug", False),
+            
+            # Раздельные настройки подсказок
+            "show_hint_phoneticsound": settings_dict.get("show_hint_phoneticsound", True),
+            "show_hint_phoneticassociation": settings_dict.get("show_hint_phoneticassociation", True),
+            "show_hint_meaning": settings_dict.get("show_hint_meaning", True),
+            "show_hint_writing": settings_dict.get("show_hint_writing", True),
+            
             "created_at": now,
             "updated_at": now
         }
@@ -242,4 +248,37 @@ class UserLanguageSettingsRepository:
             setting["language_id"] = str(setting["language_id"])
 
         return [UserLanguageSettingsInDB(**setting) for setting in settings]
+
+    async def migrate_existing_settings(self):
+        """
+        Migrate existing settings to add new hint fields.
+        This method can be called to update existing documents.
+        """
+        logger.info("Starting migration of existing settings")
+        
+        # Find all documents that don't have the new hint fields
+        query = {
+            "$or": [
+                {"show_hint_phoneticsound": {"$exists": False}},
+                {"show_hint_phoneticassociation": {"$exists": False}},
+                {"show_hint_meaning": {"$exists": False}},
+                {"show_hint_writing": {"$exists": False}},
+            ]
+        }
+        
+        # Update documents to add missing fields with default values
+        update = {
+            "$set": {
+                "show_hint_phoneticsound": True,
+                "show_hint_phoneticassociation": True, 
+                "show_hint_meaning": True,
+                "show_hint_writing": True,
+                "updated_at": datetime.now()
+            }
+        }
+        
+        result = await self.collection.update_many(query, update)
+        logger.info(f"Migration completed. Updated {result.modified_count} documents")
+        
+        return result.modified_count
     

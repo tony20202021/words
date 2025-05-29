@@ -226,8 +226,8 @@ API использует JSON для всех запросов и ответов
           "user_id": "user123",
           "word_id": "word123",
           "language_id": "123abc",
-          "hint_syllables": "хэ-лоу",
-          "hint_association": "привет-привет",
+          "hint_phoneticsound": "хэ-лоу",
+          "hint_phoneticassociation": "привет-привет",
           "hint_meaning": "приветствие",
           "hint_writing": null,
           "score": 0,
@@ -646,8 +646,8 @@ API использует JSON для всех запросов и ответов
       "user_id": "user123",
       "word_id": "word456",
       "language_id": "123abc",
-      "hint_syllables": "бон-жур",
-      "hint_association": "бонус за журнал",
+      "hint_phoneticsound": "бон-жур",
+      "hint_phoneticassociation": "бонус за журнал",
       "hint_meaning": "приветствие при встрече",
       "hint_writing": null,
       "score": 1,
@@ -683,7 +683,7 @@ API использует JSON для всех запросов и ответов
   {
     "word_id": "word456",
     "language_id": "123abc",
-    "hint_association": "моя подсказка",
+    "hint_phoneticassociation": "моя подсказка",
     "score": 0,
     "is_skipped": false
   }
@@ -698,8 +698,8 @@ API использует JSON для всех запросов и ответов
       "user_id": "user123",
       "word_id": "word456",
       "language_id": "123abc",
-      "hint_syllables": null,
-      "hint_association": "моя подсказка",
+      "hint_phoneticsound": null,
+      "hint_phoneticassociation": "моя подсказка",
       "hint_meaning": null,
       "hint_writing": null,
       "score": 0,
@@ -727,7 +727,7 @@ API использует JSON для всех запросов и ответов
   {
     "score": 1,
     "check_interval": 2,
-    "hint_association": "новая подсказка"
+    "hint_phoneticassociation": "новая подсказка"
   }
   ```
 - **Успешный ответ**:
@@ -740,8 +740,8 @@ API использует JSON для всех запросов и ответов
       "user_id": "user123",
       "word_id": "word456",
       "language_id": "123abc",
-      "hint_syllables": null,
-      "hint_association": "новая подсказка",
+      "hint_phoneticsound": null,
+      "hint_phoneticassociation": "новая подсказка",
       "hint_meaning": null,
       "hint_writing": null,
       "score": 1,
