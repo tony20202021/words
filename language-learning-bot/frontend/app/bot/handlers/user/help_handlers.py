@@ -20,11 +20,10 @@ help_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-# НОВОЕ: Централизованная функция для обеспечения существования пользователя
+# Централизованная функция для обеспечения существования пользователя
 async def _ensure_user_exists(user_info, api_client) -> bool:
     """
     Ensure user exists in database (simplified version for help context).
-    НОВОЕ: Упрощенная версия для контекста справки - не требует детального результата.
     
     Args:
         user_info: User information from Telegram
@@ -70,7 +69,6 @@ async def _ensure_user_exists(user_info, api_client) -> bool:
 def _get_help_content() -> dict:
     """
     Get structured help content.
-    НОВОЕ: Централизованный контент справки для лучшей поддерживаемости.
     
     Returns:
         dict: Structured help content with sections
@@ -101,38 +99,39 @@ def _get_help_content() -> dict:
                     "2. Настройте процесс обучения командой /settings",
                     "3. Начните изучение командой /study",
                     "4. Для каждого слова вы можете:",
-                    "   • Использовать подсказки",
-                    "   • Отметить слово как изученное",
+                    "   • Придумывать и использовать свои собственные подсказки",
+                    "   • Отметить слово как запомненое/неизвестное",
                     "   • Пропустить слово"
                 ]
             },
             "repetition": {
                 "title": "🔹 Система интервального повторения:",
                 "items": [
-                    "• Если вы отметили слово как изученное, его интервал повторения увеличивается в 2 раза",
+                    "• Если вы отметили слово как запомненое, его интервал повторения увеличивается в 2 раза",
                     "• Интервалы повторения: 1, 2, 4, 8, 16, 32 дня",
                     "• Если вы не знаете слово, интервал сбрасывается до 1 дня",
-                    "• При использовании подсказки интервал также сбрасывается"
+                    "• При просмотре подсказки интервал также сбрасывается"
                 ]
             },
             "hints": {
                 "title": "🔹 Система подсказок:",
                 "items": [
+                    "Подсказки придумываются самостоятельно самим пользователем.",
+                    "• Значение - ассоциация для слова на русском",
+                    "• Фонетическая ассоциация - связь с похожими по звучанию словами",
                     "• Фонетика - разбиение слова на слоги",
-                    "• Ассоциация - связь с похожими по звучанию словами",
-                    "• Значение - дополнительные значения и контекст",
                     "• Написание - мнемонические приемы для запоминания",
                     "• В настройках можно индивидуально включать/отключать типы подсказок"
                 ]
             }
         },
-        "footer": "Если у вас остались вопросы, обратитесь к администратору бота (@Anton_Mikhalev)."
+        "footer": "Если у вас остались вопросы, обратитесь к администратору бота (@Anton_Mikhalev).",
+        "use_start": "Вызвать главное меню и начать обучение - можно по команде /start",
     }
 
 def _format_help_text(help_content: dict) -> str:
     """
     Format help content into readable text.
-    НОВОЕ: Форматирование справки из структурированных данных.
     
     Args:
         help_content: Structured help content
@@ -150,22 +149,43 @@ def _format_help_text(help_content: dict) -> str:
         text += "\n"
     
     text += help_content['footer']
+    text += "\n"
+    text += "\n"
+
+    text += help_content['use_start']    
     
     return text
 
 @help_router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
+    await process_help(message, state)
+
+@help_router.callback_query(F.data == "show_help")
+async def process_show_help_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to show help.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'show_help' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("📚 Справка...")
+    
+    await process_help(callback, state)
+
+async def process_help(message_or_callback, state: FSMContext):
     """
     Handle the /help command which shows bot instructions.
-    ОБНОВЛЕНО: Упрощена архитектура, улучшен пользовательский опыт.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/help' command from {full_name} ({username})")
 
@@ -177,9 +197,9 @@ async def cmd_help(message: Message, state: FSMContext):
     await state.update_data(**current_data)
 
     # Get API client and ensure user exists (best effort, non-blocking)
-    api_client = get_api_client_from_bot(message.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
     if api_client:
-        user_exists = await _ensure_user_exists(message.from_user, api_client)
+        user_exists = await _ensure_user_exists(message_or_callback.from_user, api_client)
         if user_exists:
             logger.debug(f"User {user_id} ensured in database")
         else:
@@ -194,114 +214,17 @@ async def cmd_help(message: Message, state: FSMContext):
     # Create interactive keyboard for better UX
     keyboard = create_help_keyboard()
     
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Send help message
     await message.answer(
         help_text,
         reply_markup=keyboard,
         parse_mode="HTML" if "<" in help_text else None
     )
-
-# НОВОЕ: Обработчики callback'ов из клавиатуры помощи
-@help_router.callback_query(F.data == "start_study_from_help")
-async def process_start_study_from_help(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle study start from help keyboard.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Start study from help by {callback.from_user.full_name}")
-    
-    # Check if language is selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        await callback.answer("Сначала выберите язык!", show_alert=True)
-        await callback.message.answer(
-            "⚠️ Для начала изучения сначала выберите язык командой /language"
-        )
-        return
-    
-    await callback.answer("🎓 Переход к изучению...")
-    await callback.message.answer(
-        "🎓 Отлично! Используйте команду /study для начала изучения слов.\n\n"
-        "Если нужно настроить параметры обучения, используйте /settings"
-    )
-
-@help_router.callback_query(F.data == "select_language_from_help")
-async def process_select_language_from_help(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle language selection from help keyboard.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Select language from help by {callback.from_user.full_name}")
-    
-    await callback.answer("🌍 Выбор языка...")
-    await callback.message.answer(
-        "🌍 Используйте команду /language для выбора языка изучения.\n\n"
-        "Вам будет показан список всех доступных языков."
-    )
-
-@help_router.callback_query(F.data == "show_settings_from_help")
-async def process_show_settings_from_help(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle settings display from help keyboard.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Show settings from help by {callback.from_user.full_name}")
-    
-    # Check if language is selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        await callback.answer("Сначала выберите язык!", show_alert=True)
-        await callback.message.answer(
-            "⚠️ Для доступа к настройкам сначала выберите язык командой /language"
-        )
-        return
-    
-    await callback.answer("⚙️ Настройки...")
-    await callback.message.answer(
-        "⚙️ Используйте команду /settings для просмотра и изменения настроек обучения.\n\n"
-        "В настройках вы можете:\n"
-        "• Изменить начальное слово\n"
-        "• Настроить пропуск помеченных слов\n"
-        "• Включить/отключить учет даты проверки\n"
-        "• Индивидуально настроить типы подсказок\n"
-        "• Включить/отключить отладочную информацию"
-    )
-
-@help_router.callback_query(F.data == "show_stats_from_help")
-async def process_show_stats_from_help(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle statistics display from help keyboard.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Show stats from help by {callback.from_user.full_name}")
-    
-    await callback.answer("📊 Статистика...")
-    await callback.message.answer(
-        "📊 Используйте команду /stats для просмотра статистики изучения.\n\n"
-        "В статистике вы увидите:\n"
-        "• Прогресс по каждому языку\n"
-        "• Количество изученных слов\n"
-        "• Процент освоения языка\n"
-        "• Дату последнего изучения\n"
-        "• Список доступных языков без прогресса"
-    )
-
 # НОВОЕ: Дополнительные утилитарные обработчики
 @help_router.callback_query(F.data == "help_about_hints")
 async def process_help_about_hints(callback: CallbackQuery, state: FSMContext):

@@ -33,8 +33,6 @@ class HintStates(StatesGroup):
     """States for hint management."""
     creating = State()                      # Состояние создания подсказки
     editing = State()                       # Состояние редактирования подсказки
-    viewing = State()                       # Просмотр существующей подсказки
-    confirming_deletion = State()           # Подтверждение удаления подсказки
 
 
 class AdminStates(StatesGroup):

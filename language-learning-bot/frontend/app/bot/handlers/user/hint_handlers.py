@@ -27,7 +27,7 @@ hint_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-# НОВОЕ: Централизованная функция для обеспечения существования пользователя
+# Централизованная функция для обеспечения существования пользователя
 async def _ensure_user_exists_quietly(user_info, api_client) -> bool:
     """
     Ensure user exists in database (quiet version for info context).
@@ -76,8 +76,7 @@ async def _ensure_user_exists_quietly(user_info, api_client) -> bool:
 
 def _get_hint_info_content() -> dict:
     """
-    Get structured hint information content.
-    НОВОЕ: Централизованная информация о подсказках для лучшей поддерживаемости.
+    Централизованная информация о подсказках для лучшей поддерживаемости.
     
     Returns:
         dict: Structured hint information with all details
@@ -86,7 +85,7 @@ def _get_hint_info_content() -> dict:
         "title": "💡 Система подсказок",
         "description": (
             "Подсказки помогают вам лучше запоминать иностранные слова! "
-            "Каждый тип подсказки работает по-своему и может быть настроен индивидуально."
+            "Они выстроены в логическую цепочку, которая помогает вспомнить иностранный перевод для русского слова."
         ),
         "hint_types": {
             hint_type: {
@@ -116,20 +115,20 @@ def _get_hint_info_content() -> dict:
         "important": {
             "title": "❗️ Важная информация:",
             "points": [
-                "• Использование любой подсказки автоматически устанавливает оценку 0 для слова",
+                "• Использование любой подсказки означает, что пользователь не помнит слово",
                 "• Слово с использованной подсказкой будет показано для повторения через 1 день",
                 "• Подсказки сохраняются индивидуально для каждого пользователя",
                 "• Вы можете создавать текстовые подсказки или записывать голосовые заметки",
-                "• Подсказки можно редактировать и удалять в любое время"
+                "• Подсказки можно редактировать в любое время"
             ]
         },
-        "footer": "Для получения дополнительной справки используйте команду /help"
+        "use_settings": "Используйте /settings для настройки отдельных типов подсказок",
+        "footer": "Для получения дополнительной справки используйте команду /help",
     }
 
 def _get_hint_type_description(hint_type: str) -> str:
     """
-    Get detailed description for a specific hint type.
-    НОВОЕ: Детальные описания для каждого типа подсказки.
+    Детальные описания для каждого типа подсказки.
     
     Args:
         hint_type: Type of hint
@@ -138,20 +137,23 @@ def _get_hint_type_description(hint_type: str) -> str:
         str: Detailed description of the hint type
     """
     descriptions = {
-        "phoneticsound": (
-            "Разбиение слова на слоги и звуки для лучшего произношения. "
-            "Помогает понять, как правильно произносить слово по частям."
+        "meaning": (
+            "Дополнительные образы, контекст слова. "
+            "Помогает придумать переход к фонетической ассоциации."
         ),
         "phoneticassociation": (
-            "Ассоциации звучания слова с знакомыми русскими словами или звуками. "
-            "Помогает запомнить произношение через знакомые звуковые образы."
+            "Ассоциации звучания слогов или частей слова - с знакомыми русскими словами или звуками. "
+            "Основывается на ассоциации русского значения."
+            "Помогает придумать переход к фонетическому звучанию."
         ),
-        "meaning": (
-            "Дополнительные значения, синонимы, контекст использования слова. "
-            "Помогает лучше понять смысл и случаи применения слова."
+        "phoneticsound": (
+            "Разбиение слова на слоги и звуки для лучшего запоминания. "
+            "Основывается на ассоциации фонетического звучания."
+            "Помогает запомнить, как правильно произносить слово по частям."
         ),
         "writing": (
             "Мнемонические приемы для запоминания написания слова. "
+            "Может основываться на любой из предыдущих ассоциаций."
             "Особенно полезно для языков с нелатинскими алфавитами или сложным написанием."
         )
     }
@@ -160,8 +162,7 @@ def _get_hint_type_description(hint_type: str) -> str:
 
 def _format_hint_info_text(hint_info: dict, user_hint_settings: dict = None) -> str:
     """
-    Format hint information into readable text.
-    НОВОЕ: Форматирование информации о подсказках с учетом пользовательских настроек.
+    Форматирование информации о подсказках с учетом пользовательских настроек.
     
     Args:
         hint_info: Structured hint information  
@@ -215,67 +216,59 @@ def _format_hint_info_text(hint_info: dict, user_hint_settings: dict = None) -> 
         text += f"{point}\n"
     text += "\n"
     
+    text += hint_info['use_settings']
+    text += "\n"
+    text += "\n"
+
     text += hint_info['footer']
     
     return text
 
 @hint_router.message(Command("hint"))
 async def cmd_hint(message: Message, state: FSMContext):
+    await process_hint(message, state)
+
+@hint_router.callback_query(F.data == "show_hint_info")
+async def process_show_hint_info_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to show hint information.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'show_hint_info' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("💡 О подсказках...")
+    
+    await process_hint(callback, state)
+
+async def process_hint(message_or_callback, state: FSMContext):
     """
     Handle the /hint command which provides information about hint functionality.
-    ОБНОВЛЕНО: Улучшена архитектура, добавлена информация о пользовательских настройках.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/hint' command from {full_name} ({username})")
 
     # Set state for viewing hint info
     await state.set_state(UserStates.viewing_hint_info)
     
-    # Preserve existing state data
-    current_data = await state.get_data()
-    await state.update_data(**current_data)
-
-    # Get API client and try to ensure user exists (best effort)
-    api_client = get_api_client_from_bot(message.bot)
-    user_hint_settings = None
-    
-    if api_client:
-        user_exists = await _ensure_user_exists_quietly(message.from_user, api_client)
-        if user_exists:
-            logger.debug(f"User {user_id} ensured in database for hint info")
-            
-            # Try to get user's individual hint settings
-            try:
-                user_hint_settings = await get_individual_hint_settings(message, state)
-                logger.debug(f"Retrieved hint settings for user {user_id}")
-            except Exception as e:
-                logger.warning(f"Could not retrieve hint settings for user {user_id}: {e}")
-        else:
-            logger.warning(f"Could not ensure user {user_id} exists for hint info")
-    else:
-        logger.warning("API client not available for hint info")
-
     # Get and format hint information
     hint_info = _get_hint_info_content()
-    hint_text = _format_hint_info_text(hint_info, user_hint_settings)
+    hint_text = _format_hint_info_text(hint_info, user_hint_settings=None)
     
-    # Add personalized footer if we have user settings
-    if user_hint_settings:
-        enabled_count = sum(1 for enabled in user_hint_settings.values() if enabled)
-        total_count = len(user_hint_settings)
-        
-        hint_text += f"\n\n📊 <b>Ваши настройки:</b> {enabled_count}/{total_count} типов подсказок включено"
-        
-        if enabled_count < total_count:
-            hint_text += f"\n💡 Используйте /settings для настройки отдельных типов подсказок"
-    
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Send hint information
     await message.answer(hint_text, parse_mode="HTML")
 

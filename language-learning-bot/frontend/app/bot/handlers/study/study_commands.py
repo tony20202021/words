@@ -24,28 +24,43 @@ logger = setup_logger(__name__)
 
 @study_router.message(Command("study"))
 async def cmd_study(message: Message, state: FSMContext):
+    await process_study(message, state)
+
+@study_router.callback_query(F.data == "show_study")
+async def process_study_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"'show_study' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("💡 Начинаем обучение...")
+    
+    await process_study(callback, state)
+
+async def process_study(message_or_callback: Message, state: FSMContext):
     """
     Handle the /study command to start word learning process.
-    UPDATED: Loads and validates individual hint settings.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/study' command from {full_name} ({username})")
     
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Get API client
-    api_client = get_api_client_from_bot(message.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
     if not api_client:
         await message.answer("❌ Ошибка подключения к серверу. Попробуйте позже.")
         return
     
     # Get or create user
-    db_user_id = await _get_or_create_user(message, api_client)
+    db_user_id = await _get_or_create_user(message_or_callback, api_client)
     if not db_user_id:
         logger.error(f"not db_user_id")
         return
@@ -65,8 +80,8 @@ async def cmd_study(message: Message, state: FSMContext):
     language_name = current_language.get("name_ru", "Неизвестный")
     
     # Load user settings including individual hint settings
-    settings = await get_user_language_settings(message, state)
-    hint_settings = await get_hint_settings(message, state)
+    settings = await get_user_language_settings(message_or_callback, state)
+    hint_settings = await get_hint_settings(message_or_callback, state)
     show_debug = settings.get('show_debug', False)
     
     logger.info(f"Loaded settings for user {db_user_id}, language_id {language_id}: {settings}")
@@ -88,39 +103,6 @@ async def cmd_study(message: Message, state: FSMContext):
 
     (study_words, batch_info) = await load_next_batch(message, batch_info, api_client, db_user_id, language_id, settings, shift)
 
-    # # Load study words with user settings
-    # limit = 10
-    # study_words = []
-    # while ((len(study_words) == 0)
-    #     #    and (user_word_state.total_words_processed < language_id) # TODO - добавить правильное условие, что еще не кончились слова в БД
-    #     ):
-    #     words_response = await _load_study_words(api_client, db_user_id, language_id, settings, batch_info["batch_start_index"], limit)
-
-    #     if not words_response:
-    #         logger.error(f"not words_response")
-    #         return
-    
-    #     study_words = words_response["result"]
-    #     batch_info["batch_requested_num"] = limit
-    #     batch_info["batch_received_num"] = len(study_words)
-
-    #     if show_debug:
-    #         debug_message = (
-    #             f"current_batch_number={batch_info['current_batch_number']}\n"
-    #             f"batch_start_index={batch_info['batch_start_index']}\n"
-    #             f"batch_requested_num={batch_info['batch_requested_num']}\n"
-    #             f"batch_received_num={batch_info['batch_received_num']}\n"
-    #         )
-            
-    #         await message.answer(debug_message, parse_mode="HTML")
-
-    #     if len(study_words) > 0:
-    #         break
-
-    #     batch_info["current_batch_number"] += 1
-    #     batch_info["batch_start_index"] += limit
-
-    
     if not study_words:
         logger.error(f"study_words: {study_words}")
         await _handle_no_words_available(message, language_name, settings)

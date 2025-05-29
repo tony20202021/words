@@ -1,8 +1,8 @@
-
 """
 Handlers for hint creation.
 Now uses centralized utilities and constants.
 FIXED: Corrected imports and function references, removed duplicated code.
+FIXED: Added proper voice input support by importing from voice_utils.
 """
 
 from aiogram import Router, F
@@ -22,6 +22,9 @@ from app.bot.states.centralized_states import HintStates, StudyStates
 # Import callback utilities
 from app.utils.callback_constants import CallbackParser
 
+# FIXED: Import voice utilities for proper voice input support
+from app.utils.voice_utils import process_hint_input
+
 from app.bot.handlers.study.study_words import show_study_word
 
 # Создаем вложенный роутер для обработчиков создания подсказок
@@ -30,25 +33,7 @@ create_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-# Простая обработка текста (без голосовых утилит)
-async def process_hint_input(message: Message, hint_name: str) -> str:
-    """
-    Process hint input from text message.
-    
-    Args:
-        message: The message object from Telegram
-        hint_name: Name of the hint being processed
-        
-    Returns:
-        str: Processed hint text or empty string if invalid
-    """
-    if message.text:
-        hint_text = message.text.strip()
-        if hint_text:
-            return hint_text
-    
-    await message.answer("❌ Пожалуйста, введите текст подсказки.")
-    return ""
+# REMOVED: Local process_hint_input function - now using centralized voice utilities
 
 
 @create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.studying)
@@ -77,17 +62,17 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     # Validate state data
     is_valid, state_data = await validate_state_data(
         state, 
-        ["current_word", "db_user_id"],
+        ["word_data"],
         callback,
         "Ошибка: недостаточно данных для создания подсказки"
     )
     
     if not is_valid:
+        logger.error(f"not is_valid")
         return
     
     # Get current word and user ID
-    current_word = state_data["current_word"]
-    db_user_id = state_data["db_user_id"]
+    current_word = state_data["word_data"]
     
     # Verify word ID matches current word
     current_word_id = None
@@ -145,7 +130,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
 async def process_hint_text(message: Message, state: FSMContext):
     """
     Process the hint text entered by the user as text or voice message.
-    Now uses centralized voice processing utilities and FSM states.
+    FIXED: Now uses centralized voice processing utilities and FSM states.
     
     Args:
         message: The message object from Telegram
@@ -169,7 +154,7 @@ async def process_hint_text(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка: недостаточно данных о пользователе или слове. Используйте /cancel для отмены.")
         return
     
-    # Process hint input using voice utilities
+    # FIXED: Process hint input using centralized voice utilities
     hint_text = await process_hint_input(
         message, 
         hint_state.hint_name
@@ -177,7 +162,7 @@ async def process_hint_text(message: Message, state: FSMContext):
     
     if not hint_text:
         logger.error("No hint text provided")
-        await message.answer("❌ Пожалуйста, введите текст подсказки или запишите голосовое сообщение.")
+        # Error message already handled by process_hint_input
         return
     
     # Save hint to database
@@ -218,27 +203,34 @@ async def process_hint_text(message: Message, state: FSMContext):
         # Save updated word data to state
         await user_word_state.save_to_state(state)
     
-    # Send success message
-    await message.answer(
-        f"✅ Подсказка «{hint_state.hint_name}» успешно создана!\n\n"
-        f"💡 Текст подсказки:\n<code>{hint_text}</code>\n\n"
-        "Продолжаем изучение слов...",
-        parse_mode="HTML"
-    )
+    # IMPROVED: Check if voice input was used for custom success message
+    if message.voice:
+        await message.answer(
+            f"✅ Подсказка «{hint_state.hint_name}» успешно создана из голосового сообщения!\n\n"
+            f"💡 Распознанный текст подсказки:\n<code>{hint_text}</code>\n\n"
+            "Продолжаем изучение слов...",
+            parse_mode="HTML"
+        )
+    else:
+        await message.answer(
+            f"✅ Подсказка «{hint_state.hint_name}» успешно создана!\n\n"
+            f"💡 Текст подсказки:\n<code>{hint_text}</code>\n\n"
+            "Продолжаем изучение слов...",
+            parse_mode="HTML"
+        )
     
-    # НОВОЕ: Определяем в какое состояние вернуться
+    # Determine which state to return to
     word_shown = user_word_state.get_flag("word_shown", False)
     if word_shown:
-        # Если слово было показано, возвращаемся в состояние просмотра деталей
+        # If word was shown, return to viewing word details state
         await state.set_state(StudyStates.viewing_word_details)
     else:
-        # Если слово не было показано, возвращаемся в основное состояние изучения
+        # If word wasn't shown, return to main studying state
         await state.set_state(StudyStates.studying)
     
     # Return to studying and show word
-    await show_study_word(message, state)
+    await show_study_word(message, state, need_new_message=True)
 
-# НОВОЕ: Обработчик отмены создания подсказки
 @create_router.message(F.text == "/cancel", HintStates.creating)
 async def cancel_hint_creation(message: Message, state: FSMContext):
     """
@@ -277,11 +269,11 @@ async def cancel_hint_creation(message: Message, state: FSMContext):
             "Используйте команду /study для продолжения изучения."
         )
 
-# НОВОЕ: Обработчик неизвестных сообщений во время создания подсказки
 @create_router.message(HintStates.creating)
 async def handle_unknown_message_during_creation(message: Message, state: FSMContext):
     """
     Handle unknown messages during hint creation.
+    IMPROVED: Better handling of different message types and commands.
     
     Args:
         message: The message object from Telegram
@@ -289,17 +281,17 @@ async def handle_unknown_message_during_creation(message: Message, state: FSMCon
     """
     logger.info(f"Unknown message during hint creation from {message.from_user.full_name}")
     
-    # Проверяем, не является ли это командой
+    # Check if this is a command
     from app.utils.error_utils import is_command
     
     if message.text and is_command(message.text):
-        # Это команда
+        # This is a command
         command = message.text.split()[0]
         if command == "/cancel":
-            # Отменяем создание подсказки
+            # Cancel hint creation
             await cancel_hint_creation(message, state)
         else:
-            # Другая команда - недоступна во время создания подсказки
+            # Other command - not available during hint creation
             await message.answer(
                 f"⚠️ Команда {command} недоступна во время создания подсказки.\n\n"
                 "Пожалуйста:\n"
@@ -307,12 +299,21 @@ async def handle_unknown_message_during_creation(message: Message, state: FSMCon
                 "• Или запишите голосовое сообщение\n"
                 "• Или отправьте /cancel для отмены"
             )
+    elif message.photo or message.document or message.video or message.sticker:
+        # Unsupported media types
+        await message.answer(
+            "⚠️ Поддерживаются только текстовые и голосовые сообщения для создания подсказок.\n\n"
+            "Пожалуйста:\n"
+            "• Введите текст подсказки\n"
+            "• Или запишите голосовое сообщение\n"
+            "• Или используйте /cancel для отмены"
+        )
     else:
-        # Обычное сообщение, но не текст и не голос
+        # Regular message, but not text and not voice
         if not message.text and not message.voice:
             await message.answer(
                 "⚠️ Пожалуйста, отправьте текст подсказки или голосовое сообщение.\n\n"
                 "Или используйте /cancel для отмены создания подсказки."
             )
-        # Если это текст или голос, то обработается основным обработчиком process_hint_text
+        # If it's text or voice, it will be handled by the main process_hint_text handler
         

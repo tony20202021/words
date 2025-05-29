@@ -11,14 +11,12 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
 from app.utils.state_models import UserWordState, StateManager
 from app.utils.settings_utils import get_user_language_settings
-from app.utils.hint_settings_utils import get_individual_hint_settings  # ИСПРАВЛЕНО: правильный импорт
-from app.bot.keyboards.study_keyboards import create_word_keyboard, create_adaptive_study_keyboard
+from app.utils.hint_settings_utils import get_individual_hint_settings
+from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
 from app.bot.states.centralized_states import StudyStates
 
 # Создаем роутер для отображения слов
@@ -26,11 +24,13 @@ word_display_router = Router()
 
 logger = setup_logger(__name__)
 
+BATCH_LIMIT = 100
+
 async def show_study_word(
     message_or_callback, 
     state: FSMContext, 
     user_word_state: Optional[UserWordState] = None,
-    need_new_message: bool = False
+    need_new_message: bool = True
 ):
     """
     Display current study word with appropriate keyboard.
@@ -216,115 +216,23 @@ async def handle_no_more_words(
         logger.error(f"Error displaying completion message: {e}")
         await _send_error_message(message_or_callback, "Ошибка отображения завершения")
 
-# async def load_next_batch(
-#     message_or_callback,
-#     state: FSMContext,
-#     user_word_state: UserWordState,
-#     api_client
-# ) -> bool:
-#     """
-#     Load next batch of words for study.
-#     НОВОЕ: Функция для загрузки следующей партии слов.
-    
-#     Args:
-#         message_or_callback: Message or CallbackQuery object
-#         state: FSM context
-#         user_word_state: Current word state
-#         api_client: API client
-        
-#     Returns:
-#         bool: True if next batch was loaded successfully
-#     """
-#     try:
-#         if isinstance(message_or_callback, CallbackQuery):
-#             message = message_or_callback.message
-#         else:
-#             message = message_or_callback
-
-#         # Get language and settings
-#         state_data = await state.get_data()
-#         current_language = state_data.get("current_language", {})
-#         language_id = current_language.get("id")
-        
-#         if not language_id:
-#             logger.error("No language_id available for loading next batch")
-#             return False
-        
-#         # Prepare parameters for next batch
-#         settings = user_word_state.study_settings
-#         show_debug = settings.get('show_debug', False)
-#         # params = {
-#         #     "start_word": skip_words,
-#         #     "skip_marked": settings.get("skip_marked", False),
-#         #     "use_check_date": settings.get("use_check_date", True),
-#         #     "skip": 0,
-#         # }
-        
-#         # logger.info(f"Loading next batch with params: {params}")
-        
-#         # # Load next batch
-#         # words_response = await api_client.get_study_words(
-#         #     user_id=user_word_state.user_id,
-#         #     language_id=language_id,
-#         #     params=params,
-#         #     limit=10,
-#         # )
-#         shift = user_word_state.get_next_batch_skip()
-#         limit = 10
-#         words_response = await _load_study_words(
-#             api_client=api_client,
-#             db_user_id=user_word_state.user_id,
-#             language_id=language_id,
-#             settings=settings,
-#             shift=shift,
-#             limit=limit,
-#         )
-
-#         if show_debug:
-#             debug_message = (
-#                 f"current_batch_number={user_word_state.batch_info['current_batch_number']}\n"
-#                 f"batch_start_index={user_word_state.batch_info['batch_start_index']}\n"
-#                 f"batch_requested_num={user_word_state.batch_info['batch_requested_num']}\n"
-#                 f"batch_received_num={user_word_state.batch_info['batch_received_num']}\n"
-#             )
-            
-#             await message.answer(debug_message, parse_mode="HTML")
-
-#         if words_response["success"] and words_response["result"]:
-#             new_words = words_response["result"]
-            
-#             if new_words:
-#                 # Load new batch
-#                 success = user_word_state.load_new_batch(new_words)
-#                 if success:
-#                     await user_word_state.save_to_state(state)
-#                     logger.info(f"Successfully loaded next batch: {len(new_words)} words")
-#                     return True
-        
-#         logger.info("No more words available for next batch")
-#         return False
-        
-#     except Exception as e:
-#         logger.error(f"Error loading next batch: {e}", exc_info=True)
-#         return False
 
 async def load_next_batch(message, batch_info, api_client, db_user_id: str, language_id: str, settings: dict, shift):
     batch_info["batch_start_number"] = shift
-    limit = 10
     show_debug = settings.get('show_debug', False)
 
     study_words = []
     while ((len(study_words) == 0)
         #    and (user_word_state.total_words_processed < language_id) # TODO - добавить правильное условие, что еще не кончились слова в БД
         ):
-        words_response = await _load_study_words(api_client, db_user_id, language_id, settings, batch_info["batch_start_number"], limit)
+        words_response = await _load_study_words(api_client, db_user_id, language_id, settings, batch_info["batch_start_number"], BATCH_LIMIT)
 
         if not words_response:
             logger.error(f"not words_response")
             return
     
         study_words = words_response["result"]
-        batch_info["batch_requested_count"] = limit
+        batch_info["batch_requested_count"] = BATCH_LIMIT
         batch_info["batch_received_count"] = len(study_words)
 
         if show_debug:
@@ -341,7 +249,7 @@ async def load_next_batch(message, batch_info, api_client, db_user_id: str, lang
             break
 
         batch_info["current_batch_index"] += 1
-        batch_info["batch_start_number"] += limit
+        batch_info["batch_start_number"] += BATCH_LIMIT
     
     return (study_words, batch_info)
 

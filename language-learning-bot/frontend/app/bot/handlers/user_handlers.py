@@ -14,7 +14,6 @@ from app.bot.handlers.user.settings_handlers import settings_router
 from app.bot.handlers.user.help_handlers import help_router
 from app.bot.handlers.user.stats_handlers import stats_router
 from app.bot.handlers.user.hint_handlers import hint_router
-from app.bot.handlers.user.cancel_handlers import cancel_router  # FIXED: Corrected import
 
 # Create main user router
 user_router = Router()
@@ -24,9 +23,6 @@ logger = setup_logger(__name__)
 
 # Include sub-routers in correct priority order
 # IMPORTANT: Order matters for handler processing!
-
-# 1. Cancel handlers have highest priority (handle /cancel in any state)
-user_router.include_router(cancel_router)
 
 # 2. Basic handlers (start, main menu) - high priority for core commands
 user_router.include_router(basic_router)

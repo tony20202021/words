@@ -7,7 +7,8 @@ Contains handlers for hint creation, viewing, editing and toggling.
 from app.bot.handlers.study.hint.create_handlers import create_router
 from app.bot.handlers.study.hint.edit_handlers import edit_router
 from app.bot.handlers.study.hint.toggle_handlers import toggle_router
-from app.bot.handlers.study.hint.common import cancel_router
+from app.bot.handlers.study.hint.common import common_router
+from app.bot.handlers.study.hint.unknown import unknown_router
 
 # Экспорт функций для обратной совместимости
 from app.bot.handlers.study.hint.create_handlers import process_hint_create, process_hint_text

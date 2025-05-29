@@ -14,7 +14,6 @@ from app.utils.state_models import UserWordState
 from app.utils.word_data_utils import update_word_score
 from app.bot.keyboards.study_keyboards import create_word_keyboard
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
-from app.utils.settings_utils import get_show_hints_setting
 
 # Импортируем централизованные состояния
 from app.bot.states.centralized_states import StudyStates
@@ -141,9 +140,6 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     # Get used hints
     used_hints = user_word_state.get_flag("used_hints", [])
     
-    # Get show_hints setting
-    show_hints = await get_show_hints_setting(callback, state)
-    
     # Формируем обновленное сообщение
     updated_message = format_study_word_message(
         language.get('name_ru'),
@@ -175,7 +171,6 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     keyboard = create_word_keyboard(
         current_word, 
         word_shown=True, 
-        show_hints=show_hints,
         used_hints=used_hints
     )
     

@@ -29,12 +29,10 @@ def create_word_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for word interaction during study process.
-    UPDATED: Uses individual hint settings instead of general show_hints flag.
     
     Args:
         word: The word data
         word_shown: Whether the word has been shown to the user
-        show_hints: Whether to show hint buttons (DEPRECATED)
         hint_settings: Individual hint settings dictionary (NEW)
         used_hints: List of hints already used by the user
         current_state: Current FSM state (optional, for context)
@@ -177,7 +175,6 @@ def create_adaptive_study_keyboard(
     Args:
         word: Word data
         word_shown: Whether word has been shown
-        show_hints: Whether to show hint buttons (DEPRECATED)
         hint_settings: Individual hint settings (NEW)
         used_hints: List of used hints
         current_state: Current FSM state

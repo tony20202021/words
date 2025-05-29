@@ -112,9 +112,6 @@ async def save_user_language_settings(message_or_callback, state: FSMContext, se
         # Clean settings before saving
         settings_to_save = settings.copy()
         
-        # Remove deprecated show_hints setting
-        settings_to_save.pop("show_hints", None)
-        
         # Validate individual hint settings
         from app.utils.hint_constants import HINT_SETTING_KEYS
         
@@ -296,25 +293,6 @@ async def get_show_debug_setting(state_or_message, state=None):
         # state_or_message is a message/callback and state is provided separately
         settings = await get_user_language_settings(state_or_message, state)
         return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
-
-# ОБНОВЛЕНО: Функции совместимости для старого API
-async def get_show_hints_setting(message_or_callback, state: FSMContext) -> bool:
-    """
-    Get show_hints setting - DEPRECATED: kept for backward compatibility.
-    Now checks if any individual hint is enabled.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        
-    Returns:
-        bool: True if any hint type is enabled
-    """
-    settings = await get_user_language_settings(message_or_callback, state)
-    
-    # Check if any individual hint is enabled
-    from app.utils.hint_constants import HINT_SETTING_KEYS
-    return any(settings.get(key, True) for key in HINT_SETTING_KEYS)
 
 async def get_hint_settings(message_or_callback, state: FSMContext) -> Dict[str, bool]:
     """

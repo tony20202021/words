@@ -124,13 +124,6 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
             # Сохраняем обновленное состояние
             await user_word_state.save_to_state(state)
             
-            # Get show_hints setting
-            from app.utils.settings_utils import get_show_hints_setting
-            show_hints = await get_show_hints_setting(callback, state)
-            
-            # Получаем список использованных подсказок
-            used_hints = user_word_state.get_flag("used_hints", [])
-            
             # Показываем слово снова с обновленной клавиатурой и флагом пропуска
             await show_study_word(callback.message, state, need_new_message=False)
             

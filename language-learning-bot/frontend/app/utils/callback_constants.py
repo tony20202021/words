@@ -31,9 +31,7 @@ class CallbackData:
     SETTINGS_TOGGLE_CHECK_DATE = "settings_toggle_check_date"
     SETTINGS_TOGGLE_SHOW_DEBUG = "settings_toggle_show_debug"
     
-    # УДАЛЕНО: SETTINGS_TOGGLE_SHOW_HINTS - заменено на индивидуальные настройки
-    
-    # НОВОЕ: Индивидуальные настройки подсказок
+    # Индивидуальные настройки подсказок
     SETTINGS_TOGGLE_HINT_MEANING = "settings_toggle_hint_meaning"
     SETTINGS_TOGGLE_HINT_PHONETICASSOCIATION = "settings_toggle_hint_phoneticassociation"
     SETTINGS_TOGGLE_HINT_PHONETICSOUND = "settings_toggle_hint_phoneticsound"
@@ -91,7 +89,7 @@ class CallbackData:
     PAGE_INFO = "page_info"
 
 
-# НОВОЕ: Словарь для маппинга callback'ов индивидуальных настроек подсказок
+# Словарь для маппинга callback'ов индивидуальных настроек подсказок
 HINT_SETTINGS_CALLBACKS = {
     "show_hint_meaning": CallbackData.SETTINGS_TOGGLE_HINT_MEANING,
     "show_hint_phoneticassociation": CallbackData.SETTINGS_TOGGLE_HINT_PHONETICASSOCIATION,
@@ -99,7 +97,7 @@ HINT_SETTINGS_CALLBACKS = {
     "show_hint_writing": CallbackData.SETTINGS_TOGGLE_HINT_WRITING,
 }
 
-# НОВОЕ: Обратный маппинг для парсинга callback'ов
+# Обратный маппинг для парсинга callback'ов
 HINT_SETTINGS_CALLBACKS_REVERSE = {v: k for k, v in HINT_SETTINGS_CALLBACKS.items()}
 
 
@@ -117,7 +115,6 @@ class CallbackParser:
         'upload_to_lang': re.compile(r"upload_to_lang_(.+)"),
         'column_template': re.compile(r"column_template_(\d+)_(.+)"),
         'users_page': re.compile(r"users_page_(\d+)"),
-        # НОВОЕ: Паттерн для индивидуальных настроек подсказок
         'hint_setting_toggle': re.compile(r"settings_toggle_hint_(\w+)"),
     }
     

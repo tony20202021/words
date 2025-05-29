@@ -12,7 +12,7 @@ from typing import List, Dict, Optional, Tuple
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import safe_api_call, handle_api_error
+from app.utils.error_utils import safe_api_call
 from app.bot.states.centralized_states import UserStates
 from app.bot.keyboards.user_keyboards import create_stats_keyboard
 
@@ -22,7 +22,6 @@ stats_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-# НОВОЕ: Централизованная функция для получения или создания пользователя
 async def _get_or_create_user_for_stats(user_info, api_client) -> Tuple[Optional[str], Optional[str]]:
     """
     Get existing user or create new one for statistics context.
@@ -337,20 +336,35 @@ def _get_stats_summary(progress_data: List[Dict], available_languages: List[Dict
 
 @stats_router.message(Command("stats"))
 async def cmd_stats(message: Message, state: FSMContext):
+    await process_stats(message, state)
+
+@stats_router.callback_query(F.data == "show_stats")
+async def process_show_stats_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"'show_stats' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("📊 Статистика...")
+    
+    await process_stats(callback, state)
+
+async def process_stats(message_or_callback, state: FSMContext):
     """
     Handle the /stats command which shows user statistics.
-    ОБНОВЛЕНО: Упрощена архитектура, улучшено представление данных.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/stats' command from {full_name} ({username})")
     
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Set state for viewing statistics
     await state.set_state(UserStates.viewing_stats)
     
@@ -359,13 +373,13 @@ async def cmd_stats(message: Message, state: FSMContext):
     await state.update_data(**current_data)
 
     # Get API client
-    api_client = get_api_client_from_bot(message.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
     if not api_client:
         await message.answer("❌ Ошибка подключения к серверу. Попробуйте позже.")
         return
 
     # Get or create user
-    db_user_id, user_error = await _get_or_create_user_for_stats(message.from_user, api_client)
+    db_user_id, user_error = await _get_or_create_user_for_stats(message_or_callback.from_user, api_client)
     if not db_user_id:
         await message.answer(f"❌ {user_error}. Попробуйте позже.")
         return
@@ -424,11 +438,10 @@ async def cmd_stats(message: Message, state: FSMContext):
     # Add command menu
     stats_text += (
         "📋 <b>Доступные команды:</b>\n"
-        "/language - Выбор языка для изучения\n"
-        "/study - Начать изучение слов\n"
-        "/settings - Настройки обучения\n"
+        "/start - Главное меню\n"
         "/help - Справка\n"
-        "/start - Главное меню"
+        "/hint - Информация о подсказках\n"
+        "/language - Выбор языка для изучения\n"
     )
 
     # Create interactive keyboard

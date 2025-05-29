@@ -19,10 +19,57 @@ from app.utils.hint_constants import (
     HINT_SETTING_KEYS,
     get_hint_setting_name
 )
-from app.utils.formatting_utils import get_hint_settings_status_text
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+def create_welcome_keyboard(has_error: bool = False):
+    """
+    Создает клавиатуру с основными командами для приветственного сообщения.
+    
+    Args:
+        has_error: Whether there was an error loading data
+        
+    Returns:
+        InlineKeyboardMarkup: Welcome keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    if has_error:
+        # Limited functionality when there's an error
+        builder.add(InlineKeyboardButton(
+            text="📚 Помощь",
+            callback_data="show_help"
+        ))
+        builder.add(InlineKeyboardButton(
+            text="🔄 Попробовать снова",
+            callback_data="retry_start"
+        ))
+        builder.adjust(2)
+    else:
+        # Full functionality keyboard
+        builder.add(InlineKeyboardButton(
+            text="🌐 Выбрать язык",
+            callback_data="select_language"
+        ))
+        builder.add(InlineKeyboardButton(
+            text="📚 Помощь",
+            callback_data="show_help"
+        ))
+        builder.add(InlineKeyboardButton(
+            text="💡 О подсказках",
+            callback_data="show_hint_info"
+        ))
+        builder.add(InlineKeyboardButton(
+            text="📊 Статистика",
+            callback_data="show_stats"
+        ))
+        
+        # Layout: 2x2 grid
+        builder.adjust(2, 2)
+    
+    return builder.as_markup()
 
 def create_settings_keyboard(
     skip_marked: bool = False,
@@ -32,7 +79,6 @@ def create_settings_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for user settings with individual hint settings.
-    UPDATED: Support for individual hint settings instead of general show_hints.
     
     Args:
         skip_marked: Whether to skip marked words
@@ -190,18 +236,42 @@ def create_help_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text="📚 Начать изучение",
-        callback_data="start_study"
-    ))
-    
-    builder.add(InlineKeyboardButton(
         text="🌐 Выбрать язык",
         callback_data="select_language"
     ))
     
     builder.add(InlineKeyboardButton(
+        text="📊 Статистика",
+        callback_data="show_stats"
+    ))
+    
+    builder.adjust(2, 2)
+    
+    return builder.as_markup()
+
+def create_language_selected_keyboard() -> InlineKeyboardMarkup:
+    """
+    Create keyboard for when language is selected.
+    Shows main actions available after language selection.
+    
+    Returns:
+        InlineKeyboardMarkup: Language selected keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="📚 Начать изучение",
+        callback_data="show_study"
+    ))
+    
+    builder.add(InlineKeyboardButton(
         text="⚙️ Настройки",
         callback_data="show_settings"
+    ))
+
+    builder.add(InlineKeyboardButton(
+        text="🌐 Другой язык",
+        callback_data="select_language"
     ))
     
     builder.add(InlineKeyboardButton(
@@ -223,18 +293,16 @@ def create_stats_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text="🔄 Обновить статистику",
-        callback_data="refresh_stats"
+        text="🌐 Выбрать язык",
+        callback_data="select_language"
     ))
-    
     builder.add(InlineKeyboardButton(
-        text="📚 Начать изучение",
-        callback_data="start_study_from_stats"
+        text="📚 Помощь",
+        callback_data="show_help"
     ))
-    
     builder.add(InlineKeyboardButton(
-        text="⚙️ Изменить настройки",
-        callback_data="settings_from_stats"
+        text="💡 О подсказках",
+        callback_data="show_hint_info"
     ))
     
     builder.adjust(1)

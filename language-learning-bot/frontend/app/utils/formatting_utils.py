@@ -69,7 +69,6 @@ def format_settings_text(
 ):
     """
     Форматирует текст настроек обучения.
-    ОБНОВЛЕНО: Поддержка индивидуальных настроек подсказок.
     
     Args:
         start_word: Номер слова для начала обучения
@@ -77,7 +76,6 @@ def format_settings_text(
         use_check_date: Учитывать ли дату проверки
         show_debug: Показывать ли отладочную информацию
         hint_settings: Словарь с индивидуальными настройками подсказок (НОВОЕ)
-        show_hints: Общая настройка подсказок (DEPRECATED, для обратной совместимости)
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -174,22 +172,20 @@ def format_study_word_message(
                 formatted_date = format_date(next_check_date)
                 message += f"Запланированное повторение: {formatted_date} \n\n" 
     
-    message += f"🔍 Перевод:\n<b>{translation}</b>\n\n"
+    message += f"🔍 Перевод:\n<b>{translation}</b>\n"
     
     # Если нужно показать слово, добавляем его
     if show_word and word_foreign:
-        message += f"📝 Слово: <code>{word_foreign}</code>\n\n"
+        message += f"\n📝 Слово: <code>{word_foreign}</code>\n"
         if transcription:
-            message += f"🔊 Транскрипция: <b>[{transcription}]</b>\n\n"
-        else:
-            message += "\n"
+            message += f"🔊 Транскрипция: <b>[{transcription}]</b>\n"
 
     return message
 
 from typing import List, Dict, Any, Optional
 from aiogram.client.bot import Bot
 
-from app.utils.hint_constants import HINT_ORDER, get_hint_key, get_hint_name, get_hint_icon
+from app.utils.hint_constants import HINT_ORDER, get_hint_key, get_hint_short
 from app.utils.word_data_utils import get_hint_text
 
 async def format_used_hints(
@@ -217,7 +213,7 @@ async def format_used_hints(
     if not used_hints:
         return ""
     
-    result = "\n\n📌 Использованные подсказки:\n" if include_header else ""
+    result = "\n📌 Подсказки:\n" if include_header else ""
     
     # Сортируем активные подсказки в соответствии с порядком HINT_ORDER
     sorted_hints = [hint_type for hint_type in HINT_ORDER if hint_type in used_hints]
@@ -230,8 +226,7 @@ async def format_used_hints(
     # Теперь перебираем отсортированный список активных подсказок
     for active_hint_type in sorted_hints:
         active_hint_key = get_hint_key(active_hint_type)
-        active_hint_name = get_hint_name(active_hint_type)
-        active_hint_icon = get_hint_icon(active_hint_type)
+        active_hint_short = get_hint_short(active_hint_type)        
         
         active_hint_text = await get_hint_text(
             bot, 
@@ -242,9 +237,10 @@ async def format_used_hints(
         )
         
         if active_hint_text:
-            result += f"\n\t<b>{active_hint_icon} {active_hint_name}:</b>\n\t\t\t{active_hint_text}\n"
+            result += f"<b>{active_hint_short}:</b>\t{active_hint_text}\n"
     
     return result
+
 
 # НОВОЕ: Функции для форматирования настроек подсказок
 def format_hint_settings_summary(hint_settings: Dict[str, bool]) -> str:
@@ -331,22 +327,3 @@ def validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
             logger.warning(f"Invalid hint setting value for {setting_key}: {value}, defaulting to True")
     
     return validated_settings
-
-# НОВОЕ: Функция для миграции старых настроек
-def migrate_legacy_hint_setting(show_hints: bool) -> Dict[str, bool]:
-    """
-    Миграция старой настройки show_hints к новым индивидуальным настройкам.
-    
-    Args:
-        show_hints: Старое значение общей настройки подсказок
-        
-    Returns:
-        Dict[str, bool]: Новые индивидуальные настройки подсказок
-    """
-    migrated_settings = {}
-    
-    for setting_key in HINT_SETTING_KEYS:
-        migrated_settings[setting_key] = show_hints
-    
-    logger.info(f"Migrated legacy show_hints={show_hints} to individual settings: {migrated_settings}")
-    return migrated_settings

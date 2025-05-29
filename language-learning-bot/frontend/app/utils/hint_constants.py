@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 # Словарь соответствия типов подсказок их API ключам и отображаемым именам
 HINT_TYPE_MAP: Dict[str, Tuple[str, str]] = {
-    "meaning": ("hint_meaning", "Ассоциация на русском"),
-    "phoneticassociation": ("hint_phoneticassociation", "Ассоциация для фонетики"),
-    "phoneticsound": ("hint_phoneticsound", "Звучание по слогам"),
-    "writing": ("hint_writing", "Ассоциация для написания")
+    "meaning": ("hint_meaning", "Ассоциация на русском", "(рус)"),
+    "phoneticassociation": ("hint_phoneticassociation", "Ассоциация для фонетики", "(фонетик)"),
+    "phoneticsound": ("hint_phoneticsound", "Звучание по слогам", "(звук)"),
+    "writing": ("hint_writing", "Ассоциация для написания", "(запись)")
 }
 
 # Иконки для разных типов подсказок - используем оригинальные
@@ -88,6 +88,10 @@ def get_hint_name(hint_type: str) -> Optional[str]:
         str: Display name for the hint type or None if not found
     """
     result = HINT_TYPE_MAP.get(hint_type, (None, None))[1]
+    return result
+
+def get_hint_short(hint_type: str) -> Optional[str]:
+    result = HINT_TYPE_MAP.get(hint_type, (None, None))[2]
     return result
 
 def get_hint_icon(hint_type: str) -> str:

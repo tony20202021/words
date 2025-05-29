@@ -213,6 +213,7 @@ async def validate_state_data(
     if missing_keys:
         # Log the error
         logger.error(f"Missing required state data: {', '.join(missing_keys)}")
+        # logger.error(f"{state_data}")
         
         # Create contextual error message
         detailed_message = f"{error_message}\n\nОтсутствующие данные: {', '.join(missing_keys)}"

@@ -12,7 +12,8 @@ from app.utils.logger import setup_logger
 from app.bot.handlers.study.hint.create_handlers import create_router
 from app.bot.handlers.study.hint.edit_handlers import edit_router
 from app.bot.handlers.study.hint.toggle_handlers import toggle_router
-from app.bot.handlers.study.hint.common import cancel_router
+from app.bot.handlers.study.hint.common import common_router
+from app.bot.handlers.study.hint.unknown import unknown_router
 
 # Create main hint router
 hint_router = Router()
@@ -22,7 +23,7 @@ logger = setup_logger(__name__)
 
 # Include sub-routers in correct priority order
 # Cancel handlers have highest priority (handle /cancel in any state)
-hint_router.include_router(cancel_router)
+hint_router.include_router(common_router)
 
 # Create handlers (for new hints)
 hint_router.include_router(create_router)
@@ -32,6 +33,8 @@ hint_router.include_router(edit_router)
 
 # Toggle handlers (for showing/hiding hints)
 hint_router.include_router(toggle_router)
+
+hint_router.include_router(unknown_router)
 
 logger.info("Hint handlers router initialized with sub-routers")
 

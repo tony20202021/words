@@ -13,6 +13,7 @@ from app.utils.logger import setup_logger
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.formatting_utils import format_settings_text
 from app.bot.states.centralized_states import UserStates
+from app.bot.keyboards.user_keyboards import create_language_selected_keyboard
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -20,60 +21,52 @@ language_router = Router()
 logger = setup_logger(__name__)
 
 
-async def get_available_languages(api_client):
-    """
-    Get list of available languages.
-    
-    Args:
-        api_client: API client instance
-    
-    Returns:
-        API response with languages list in result field
-    """
-    # Получаем список языков через API клиент
-    response = await api_client.get_languages()
-    return response
-
-
-async def get_language_by_id(api_client, language_id):
-    """
-    Get language by ID.
-    
-    Args:
-        api_client: API client instance
-        language_id: Language ID to retrieve
-    
-    Returns:
-        API response with language data in result field
-    """
-    # Получаем язык по ID через API клиент
-    response = await api_client.get_language(language_id)
-    return response
-
-
 @language_router.message(Command("language"))
 async def cmd_language(message: Message, state: FSMContext):
+    await process_language(message, state)
+
+@language_router.callback_query(F.data == "select_language")
+async def process_select_language_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to select language.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"'select_language' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("🌍 Выбор языка...")
+    
+    await process_language(callback, state)
+
+async def process_language(message_or_callback: Message, state: FSMContext):
     """
     Handle the /language command which shows available languages.
     
     Args:
         message: The message object from Telegram
     """
-    # ИСПРАВЛЕНО: Устанавливаем состояние выбора языка и НЕ сбрасываем его
+    # Устанавливаем состояние выбора языка и НЕ сбрасываем его
     await state.set_state(UserStates.selecting_language)
     
     # Сохраняем данные пользователя, но очищаем другие состояния
     current_data = await state.get_data()
     await state.update_data(**current_data)
 
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/language' command from {full_name} ({username})")
     
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(message.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
 
     if not api_client:
         logger.error(f"Ошибка при получении списка языков: (API client not found in bot or dispatcher)")
@@ -204,12 +197,10 @@ async def cmd_language(message: Message, state: FSMContext):
     
     # Добавляем информацию о доступных командах
     languages_text += "\n\nДругие доступные команды:\n"
-    languages_text += "/help - Получить справку\n"
-    languages_text += "/study - Начать изучение слов\n"
-    languages_text += "/settings - Настройки процесса обучения\n"
-    languages_text += "/stats - Показать статистику\n"
     languages_text += "/start - Вернуться на начальный экран\n"
-    languages_text += "/cancel - Отменить выбор языка"
+    languages_text += "/help - Получить справку\n"
+    languages_text += "/hint - Информация о подсказках\n"
+    languages_text += "/stats - Показать статистику\n"
     
     # Создаем клавиатуру с кнопками для выбора языка
     keyboard_builder = InlineKeyboardBuilder()
@@ -322,14 +313,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     
     # Обновляем настройки в состоянии FSM
     await state.update_data(
-        start_word=settings.get("start_word", 1),
-        skip_marked=settings.get("skip_marked", False),
-        use_check_date=settings.get("use_check_date", True),
-        show_hint_phoneticsound=settings.get("show_hint_phoneticsound", True),
-        show_hint_phoneticassociation=settings.get("show_hint_phoneticassociation", True),
-        show_hint_meaning=settings.get("show_hint_meaning", True),
-        show_hint_writing=settings.get("show_hints", True),
-        show_debug=settings.get("show_debug", True),
+        settings=settings,
     )
 
     # ИСПРАВЛЕНО: Очищаем состояние выбора языка после успешного выбора
@@ -350,6 +334,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         show_debug=settings.get("show_debug", True),
         prefix=settings_prefix
     )
+    keyboard = create_language_selected_keyboard()
 
     # Показываем информацию о выбранном языке и статистику
     await callback.message.answer(
@@ -363,12 +348,43 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"{settings_text}\n\n"
         f"Теперь вы можете:\n"
         f"- Начать изучение: /study\n"
-        f"- Настроить процесс обучения: /settings\n"
-        f"- Посмотреть статистику: /stats",
+        f"- Настроить процесс обучения: /settings\n",
         parse_mode="HTML",
+        reply_markup=keyboard,
     )    
 
     await callback.answer()
+
+async def get_available_languages(api_client):
+    """
+    Get list of available languages.
+    
+    Args:
+        api_client: API client instance
+    
+    Returns:
+        API response with languages list in result field
+    """
+    # Получаем список языков через API клиент
+    response = await api_client.get_languages()
+    return response
+
+async def get_language_by_id(api_client, language_id):
+    """
+    Get language by ID.
+    
+    Args:
+        api_client: API client instance
+        language_id: Language ID to retrieve
+    
+    Returns:
+        API response with language data in result field
+    """
+    # Получаем язык по ID через API клиент
+    response = await api_client.get_language(language_id)
+    return response
+
+
 
 def register_handlers(dp: Dispatcher):
     """

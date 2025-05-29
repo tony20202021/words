@@ -191,8 +191,6 @@ async def process_hint_input(
     Returns:
         Hint text or None if processing failed
     """
-    print("real process_hint_input")
-
     hint_text = await get_text_or_voice(
         message,
         voice_processing_message=f"🎙️ Распознаю голосовую подсказку для «{hint_name}»...",

@@ -9,9 +9,6 @@ from aiogram.types import BotCommand
 BOT_COMMANDS = [
     {"command": "start", "description": "Начать работу с ботом"},
     {"command": "help", "description": "Получить справку"},
-    {"command": "language", "description": "Выбрать язык для изучения"},
-    {"command": "settings", "description": "Настройки процесса обучения"},
-    {"command": "study", "description": "Начать изучение слов"},
     {"command": "stats", "description": "Показать статистику"},
     {"command": "hint", "description": "Информация о подсказках"},
     {"command": "admin", "description": "Режим администратора"},

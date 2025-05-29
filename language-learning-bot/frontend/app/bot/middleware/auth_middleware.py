@@ -15,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.bot.states.centralized_states import CommonStates
-from app.utils.error_utils import handle_api_error, handle_unknown_command, is_command
+from app.utils.error_utils import handle_unknown_command, is_command
 
 logger = setup_logger(__name__)
 
@@ -576,9 +576,9 @@ class StateValidationMiddleware(BaseMiddleware):
         if isinstance(event, Message) and event.text:
             logger.info(f"🔍 StateValidationMiddleware DEBUG: Got '{event.text}' from user {event.from_user.id}")
             
-        # user = self._extract_user(event)
-        # if user:
-        #     logger.info(f"🔍 StateValidationMiddleware DEBUG: Processing user {user.full_name} ({user.id})")
+        user = self._extract_user(event)
+        if user:
+            logger.info(f"🔍 StateValidationMiddleware DEBUG: Processing user {user.full_name} ({user.id})")
 
         if not self.validate_states:
             return await handler(event, data)
@@ -599,6 +599,22 @@ class StateValidationMiddleware(BaseMiddleware):
         
         return await handler(event, data)
     
+    def _extract_user(self, event: TelegramObject) -> Optional[User]:
+        """
+        Extract user from event.
+        
+        Args:
+            event: The telegram event
+            
+        Returns:
+            User object or None
+        """
+        if isinstance(event, (Message, CallbackQuery)):
+            return event.from_user
+        
+        # Try to get user from other event types
+        return getattr(event, "from_user", None)
+
     async def _is_state_corrupted(self, state: FSMContext, current_state: str) -> bool:
         """
         Check if current state is corrupted or invalid.

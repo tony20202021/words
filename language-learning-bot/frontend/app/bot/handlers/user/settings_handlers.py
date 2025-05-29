@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error, validate_state_data, safe_api_call
+from app.utils.error_utils import safe_api_call
 from app.utils.settings_utils import (
     get_user_language_settings, 
     save_user_language_settings,
@@ -34,7 +34,7 @@ settings_router = Router()
 
 logger = setup_logger(__name__)
 
-# НОВОЕ: Вынесенная общая функция для получения или создания пользователя
+# Вынесенная общая функция для получения или создания пользователя
 async def _ensure_user_exists(message_or_callback, api_client) -> str:
     """
     Ensure user exists in database and return user ID.
@@ -91,7 +91,6 @@ async def _ensure_user_exists(message_or_callback, api_client) -> str:
 async def _validate_language_selected(state: FSMContext, message_or_callback) -> bool:
     """
     Validate that user has selected a language.
-    НОВОЕ: Вынесена общая логика проверки выбранного языка.
     
     Args:
         state: FSM context
@@ -121,28 +120,43 @@ async def _validate_language_selected(state: FSMContext, message_or_callback) ->
 
 @settings_router.message(Command("settings"))
 async def cmd_settings(message: Message, state: FSMContext):
+    await process_settings(message, state)
+
+@settings_router.callback_query(F.data == "show_settings")
+async def process_settings_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"'show_settings' callback from {callback.from_user.full_name}")
+    
+    await callback.answer("💡 Настройки")
+    
+    await process_settings(callback, state)
+
+async def process_settings(message_or_callback: Message, state: FSMContext):
     """
     Handle the /settings command which shows and allows changing learning settings.
-    UPDATED: Simplified using common utilities, better error handling.
     
     Args:
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
 
     logger.info(f"'/settings' command from {full_name} ({username})")
 
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     # Get API client
-    api_client = get_api_client_from_bot(message.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
     if not api_client:
         await message.answer("❌ Ошибка подключения к серверу. Попробуйте позже.")
         return
 
     # Ensure user exists
-    db_user_id = await _ensure_user_exists(message, api_client)
+    db_user_id = await _ensure_user_exists(message_or_callback, api_client)
     if not db_user_id:
         return  # Error already handled in _ensure_user_exists
 
@@ -150,18 +164,25 @@ async def cmd_settings(message: Message, state: FSMContext):
     await state.update_data(db_user_id=db_user_id)
 
     # Validate language selection
-    if not await _validate_language_selected(state, message):
+    if not await _validate_language_selected(state, message_or_callback):
         return
     
     # Set state for settings viewing
     await state.set_state(SettingsStates.viewing_settings)
     
+    suffix = (
+        "\n\n💡 Нажмите на кнопки ниже, чтобы изменить нужную настройку.\n\n"
+        "Другие доступные команды:\n"
+        "/study - начать изучение слов\n"
+        "/language - выбрать другой язык для изучения\n"
+    )
+    
     # Display current settings with individual hint settings
     await display_language_settings(
-        message_or_callback=message,
+        message_or_callback=message_or_callback,
         state=state,
         prefix="",
-        suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
+        suffix=suffix,
         is_callback=False
     )
 

@@ -89,18 +89,18 @@ class StateHandlerConfig:
     
     # Hint states configuration
     HINT_STATES = {
-        HintStates.viewing.state: {
+        HintStates.creating.state: {
+            "message": "Выход из создания подсказки. Возвращаемся к изучению слов.",
+            "clear_state": False,
+            "new_state": StudyStates.studying,
+            "show_study_menu": False
+        },
+        HintStates.editing.state: {
             "message": "Выход из просмотра подсказки. Возвращаемся к изучению слов.",
             "clear_state": False,
             "new_state": StudyStates.studying,
-            "show_study_menu": True
+            "show_study_menu": False
         },
-        HintStates.confirming_deletion.state: {
-            "message": "Удаление подсказки отменено.",
-            "clear_state": False,
-            "new_state": HintStates.viewing,
-            "additional_message": "Используйте /cancel еще раз для возврата к изучению слов."
-        }
     }
     
     # Admin states configuration
@@ -298,8 +298,8 @@ async def _process_state_cancel(
     
     await message.answer(response_message)
 
-# НОВОЕ: Универсальный обработчик cancel с высоким приоритетом
-@cancel_router.message(Command("cancel"), flags={"priority": 100})
+# НОВОЕ: Универсальный обработчик cancel
+@cancel_router.message(Command("cancel"))
 async def cmd_cancel_universal(message: Message, state: FSMContext):
     """
     Universal cancel handler for all states.
@@ -538,10 +538,7 @@ async def get_state_help_text(state_string: str) -> str:
     
     return "Используйте /cancel для выхода или /help для получения справки."
 
-# Export router and utilities
-__all__ = [
-    'cancel_router',
-    'get_state_category',
-    'is_cancellable_state', 
-    'get_state_help_text'
-]
+
+def register_cancel_handlers(dp):
+    dp.include_router(cancel_router)
+    logger.info("cancel handlers registered successfully")

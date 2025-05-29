@@ -6,6 +6,7 @@ Now uses centralized utilities and constants.
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
@@ -59,7 +60,7 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
     # Validate state data
     is_valid, state_data = await validate_state_data(
         state, 
-        ["current_word", "db_user_id"],
+        ["word_data", "db_user_id"],
         callback,
         "Ошибка: недостаточно данных для редактирования подсказки"
     )
@@ -68,7 +69,7 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
         return
     
     # Get current word and user ID
-    current_word = state_data["current_word"]
+    current_word = state_data["word_data"]
     db_user_id = state_data["db_user_id"]
     
     # Verify word ID matches current word
@@ -142,6 +143,47 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(message_text, parse_mode="HTML")
     await callback.answer(f"Редактирование подсказки «{hint_name}»")
 
+@edit_router.message(Command("cancel"), flags={"priority": 50})
+async def cmd_cancel_universal(message: Message, state: FSMContext):
+    logger.info(f"Hint editing cancelled by {message.from_user.full_name}")
+
+@edit_router.message(F.text == "/cancel", HintStates.editing, flags={"priority": 200})
+async def cancel_hint_editing(message: Message, state: FSMContext):
+    """
+    Handle cancellation of hint editing.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"Hint editing cancelled by {message.from_user.full_name}")
+    
+    # Get user word state to determine correct return state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if user_word_state.is_valid():
+        word_shown = user_word_state.get_flag("word_shown", False)
+        
+        # Return to appropriate study state
+        if word_shown:
+            await state.set_state(StudyStates.viewing_word_details)
+        else:
+            await state.set_state(StudyStates.studying)
+        
+        await message.answer("❌ Редактирование подсказки отменено. Продолжаем изучение слов.")
+        
+        # Show the study word again
+        await show_study_word(message, state)
+    else:
+        logger.error("Invalid user word state when cancelling hint editing")
+        
+        # Fallback to main study state
+        await state.set_state(StudyStates.studying)
+        await message.answer(
+            "❌ Редактирование подсказки отменено.\n"
+            "⚠️ Произошла ошибка с данными сессии.\n"
+            "Используйте команду /study для продолжения изучения."
+        )
 
 @edit_router.message(HintStates.editing)
 async def process_hint_edit_text(message: Message, state: FSMContext):
@@ -153,6 +195,8 @@ async def process_hint_edit_text(message: Message, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
+    logger.info(f"Hint text by {message.from_user.full_name}")
+
     # Load hint state from FSM
     hint_state = await HintState.from_state(state)
     
@@ -244,215 +288,3 @@ async def process_hint_edit_text(message: Message, state: FSMContext):
     
     # Return to studying and show word
     await show_study_word(message, state)
-
-# НОВОЕ: Обработчик отмены редактирования подсказки
-@edit_router.message(F.text == "/cancel", HintStates.editing)
-async def cancel_hint_editing(message: Message, state: FSMContext):
-    """
-    Handle cancellation of hint editing.
-    
-    Args:
-        message: The message object from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"Hint editing cancelled by {message.from_user.full_name}")
-    
-    # Get user word state to determine correct return state
-    user_word_state = await UserWordState.from_state(state)
-    
-    if user_word_state.is_valid():
-        word_shown = user_word_state.get_flag("word_shown", False)
-        
-        # Return to appropriate study state
-        if word_shown:
-            await state.set_state(StudyStates.viewing_word_details)
-        else:
-            await state.set_state(StudyStates.studying)
-        
-        await message.answer("❌ Редактирование подсказки отменено. Продолжаем изучение слов.")
-        
-        # Show the study word again
-        await show_study_word(message, state)
-    else:
-        logger.error("Invalid user word state when cancelling hint editing")
-        
-        # Fallback to main study state
-        await state.set_state(StudyStates.studying)
-        await message.answer(
-            "❌ Редактирование подсказки отменено.\n"
-            "⚠️ Произошла ошибка с данными сессии.\n"
-            "Используйте команду /study для продолжения изучения."
-        )
-
-# НОВОЕ: Обработчик неизвестных сообщений во время редактирования подсказки
-@edit_router.message(HintStates.editing)
-async def handle_unknown_message_during_editing(message: Message, state: FSMContext):
-    """
-    Handle unknown messages during hint editing.
-    
-    Args:
-        message: The message object from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"Unknown message during hint editing from {message.from_user.full_name}")
-    
-    # Проверяем, не является ли это командой
-    from app.utils.error_utils import is_command
-    
-    if message.text and is_command(message.text):
-        # Это команда
-        command = message.text.split()[0]
-        if command == "/cancel":
-            # Отменяем редактирование подсказки
-            await cancel_hint_editing(message, state)
-        else:
-            # Другая команда - недоступна во время редактирования подсказки
-            await message.answer(
-                f"⚠️ Команда {command} недоступна во время редактирования подсказки.\n\n"
-                "Пожалуйста:\n"
-                "• Введите новый текст подсказки\n"
-                "• Или запишите голосовое сообщение\n"
-                "• Или отправьте /cancel для отмены"
-            )
-    else:
-        # Обычное сообщение, но не текст и не голос
-        if not message.text and not message.voice:
-            await message.answer(
-                "⚠️ Пожалуйста, отправьте новый текст подсказки или голосовое сообщение.\n\n"
-                "Или используйте /cancel для отмены редактирования подсказки."
-            )
-        # Если это текст или голос, то обработается основным обработчиком process_hint_edit_text
-
-# НОВОЕ: Обработчик для подтверждения удаления подсказки (если потребуется в будущем)
-@edit_router.callback_query(F.data.startswith("hint_delete_"), StudyStates.studying)
-@edit_router.callback_query(F.data.startswith("hint_delete_"), StudyStates.viewing_word_details)
-async def process_hint_delete_request(callback: CallbackQuery, state: FSMContext):
-    """
-    Process callback when user wants to delete a hint.
-    This starts the deletion confirmation process.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"Received hint delete request callback: {callback.data}")
-    
-    # Parse callback data using the new parser
-    parsed = CallbackParser.parse_hint_action(callback.data)
-    if not parsed:
-        logger.error(f"Could not parse callback_data: {callback.data}")
-        await callback.answer("Ошибка формата данных")
-        return
-    
-    action, hint_type, word_id = parsed
-    logger.info(f"Parsed delete request: hint_type={hint_type}, word_id={word_id}")
-    
-    # Get hint name for display
-    hint_name = get_hint_name(hint_type)
-    if not hint_name:
-        await callback.answer("Ошибка: неизвестный тип подсказки")
-        return
-    
-    # НОВОЕ: Переходим в состояние подтверждения удаления
-    await state.set_state(HintStates.confirming_deletion)
-    
-    # Save deletion context to state
-    await state.update_data(
-        deletion_context={
-            "hint_type": hint_type,
-            "word_id": word_id,
-            "hint_name": hint_name
-        }
-    )
-    
-    # Create confirmation keyboard
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    keyboard = InlineKeyboardBuilder()
-    keyboard.button(text="✅ Да, удалить", callback_data=f"confirm_delete_hint_{hint_type}_{word_id}")
-    keyboard.button(text="❌ Отменить", callback_data="cancel_delete_hint")
-    keyboard.adjust(2)
-    
-    await callback.message.answer(
-        f"⚠️ <b>Подтверждение удаления</b>\n\n"
-        f"Вы действительно хотите удалить подсказку «{hint_name}»?\n\n"
-        f"⚠️ <b>Это действие нельзя отменить!</b>",
-        reply_markup=keyboard.as_markup(),
-        parse_mode="HTML"
-    )
-    
-    await callback.answer()
-
-@edit_router.callback_query(F.data.startswith("confirm_delete_hint_"), HintStates.confirming_deletion)
-async def process_hint_delete_confirm(callback: CallbackQuery, state: FSMContext):
-    """
-    Process confirmation of hint deletion.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"Hint deletion confirmed by {callback.from_user.full_name}")
-    
-    # Get deletion context
-    state_data = await state.get_data()
-    deletion_context = state_data.get("deletion_context", {})
-    
-    if not deletion_context:
-        await callback.answer("Ошибка: контекст удаления не найден")
-        return
-    
-    hint_name = deletion_context.get("hint_name", "подсказка")
-    
-    # TODO: Implement actual deletion logic here
-    # This would involve calling API to remove the hint
-    
-    await callback.message.answer(
-        f"✅ Подсказка «{hint_name}» была удалена.\n\n"
-        "Продолжаем изучение слов..."
-    )
-    
-    # Return to appropriate study state
-    user_word_state = await UserWordState.from_state(state)
-    if user_word_state.is_valid():
-        word_shown = user_word_state.get_flag("word_shown", False)
-        if word_shown:
-            await state.set_state(StudyStates.viewing_word_details)
-        else:
-            await state.set_state(StudyStates.studying)
-        
-        # Show the study word again
-        await show_study_word(callback, state)
-    else:
-        await state.set_state(StudyStates.studying)
-    
-    await callback.answer()
-
-@edit_router.callback_query(F.data == "cancel_delete_hint", HintStates.confirming_deletion)
-async def process_hint_delete_cancel(callback: CallbackQuery, state: FSMContext):
-    """
-    Process cancellation of hint deletion.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"Hint deletion cancelled by {callback.from_user.full_name}")
-    
-    await callback.message.answer("❌ Удаление подсказки отменено.")
-    
-    # Return to appropriate study state
-    user_word_state = await UserWordState.from_state(state)
-    if user_word_state.is_valid():
-        word_shown = user_word_state.get_flag("word_shown", False)
-        if word_shown:
-            await state.set_state(StudyStates.viewing_word_details)
-        else:
-            await state.set_state(StudyStates.studying)
-        
-        # Show the study word again
-        await show_study_word(callback, state)
-    else:
-        await state.set_state(StudyStates.studying)
-    
-    await callback.answer()
-    

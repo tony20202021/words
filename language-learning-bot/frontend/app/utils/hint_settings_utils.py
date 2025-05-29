@@ -295,48 +295,6 @@ def create_hint_settings_display_text(hint_settings: Dict[str, bool]) -> str:
     
     return text
 
-async def migrate_legacy_hint_settings(
-    message_or_callback: Union[Message, CallbackQuery],
-    state: FSMContext
-) -> bool:
-    """
-    Migrate legacy show_hints setting to individual settings.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        
-    Returns:
-        bool: True if migration was performed
-    """
-    try:
-        # Import here to avoid circular imports
-        from app.utils.settings_utils import get_user_language_settings
-        
-        all_settings = await get_user_language_settings(message_or_callback, state)
-        
-        # Check if migration is needed
-        has_legacy = "show_hints" in all_settings
-        has_individual = any(key in all_settings for key in HINT_SETTING_KEYS)
-        
-        if has_legacy and not has_individual:
-            logger.info("Performing legacy hint settings migration")
-            
-            legacy_value = all_settings.get("show_hints", True)
-            hint_settings = {key: legacy_value for key in HINT_SETTING_KEYS}
-            
-            success = await save_individual_hint_settings(message_or_callback, state, hint_settings)
-            
-            if success:
-                logger.info(f"Successfully migrated show_hints={legacy_value} to individual settings")
-                return True
-        
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error migrating legacy hint settings: {e}")
-        return False
-
 # Export main functions
 __all__ = [
     'get_individual_hint_settings',

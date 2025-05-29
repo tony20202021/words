@@ -31,8 +31,9 @@ import app.bot.handlers.admin_handlers as admin_handlers
 import app.bot.handlers.language_handlers as language_handlers
 import app.bot.handlers.study_handlers as study_handlers
 import app.bot.handlers.user_handlers as user_handlers
-# ВОССТАНОВЛЕНО: Импорт существующего common_handlers
 import app.bot.handlers.common_handlers as common_handlers
+import app.bot.handlers.cancel_handlers as cancel_handlers
+
 from app.bot.middleware.auth_middleware import AuthMiddleware, StateValidationMiddleware
 from app.utils.logger import setup_logger
 from app.utils.api_utils import store_api_client, get_api_client_from_bot
@@ -58,28 +59,27 @@ logger = setup_logger(
     log_dir=log_dir
 )
 
-# ВОССТАНОВЛЕНО: common_handlers добавлен обратно в список модулей
 HANDLER_MODULES = [
     common_handlers,    # ВАЖНО: Обработчики meta-состояний должны быть первыми
     admin_handlers,
+    study_handlers,
     user_handlers,
     language_handlers,
-    study_handlers,
-]
+    cancel_handlers, # ВАЖНО: Обработчики отмен - должны быть последними
+] 
 
-# ОБНОВЛЕНО: Добавлен mapping для common_handlers
 HANDLER_REGISTRATION_MAP = {
     common_handlers: 'register_common_handlers',
     admin_handlers: 'register_admin_handlers',
     user_handlers: 'register_user_handlers',
     language_handlers: 'register_language_handlers',
     study_handlers: 'register_study_handlers',
+    cancel_handlers: 'register_cancel_handlers',
 }
 
 def register_all_handlers(dispatcher: Dispatcher) -> None:
     """
     Register all handlers for the bot.
-    ИСПРАВЛЕНО: Использует правильные имена функций регистрации для каждого модуля.
     
     Args:
         dispatcher: Aiogram dispatcher
@@ -175,7 +175,7 @@ async def check_system_health(bot: Bot, api_client: APIClient) -> dict:
         # Проверяем API соединение
         logger.info("Checking API connection...")
         
-        # ИСПРАВЛЕНО: Используем простую проверку через get_languages вместо /health
+        # Используем простую проверку через get_languages вместо /health
         languages_response = await api_client.get_languages()
         health_status["api_connection"] = languages_response.get("success", False)
         health_status["database"] = languages_response.get("success", False)
@@ -262,7 +262,7 @@ async def setup_middleware(dispatcher: Dispatcher) -> None:
         dispatcher.update.middleware(auth_middleware)
         logger.info("✅ AuthMiddleware registered")
         
-        # ВОССТАНОВЛЕНО: Middleware для валидации состояний FSM
+        # Middleware для валидации состояний FSM
         state_validation_middleware = StateValidationMiddleware(
             validate_states=True,
             auto_recover=True
