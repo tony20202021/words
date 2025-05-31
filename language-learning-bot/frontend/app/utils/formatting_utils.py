@@ -1,6 +1,5 @@
 """
 Utility functions for formatting.
-UPDATED: Support for individual hint settings display.
 """
 
 from datetime import datetime
@@ -130,6 +129,7 @@ def format_study_word_message(
 ):
     """
     Форматирует сообщение для отображения слова в процессе изучения.
+    UPDATED: Added clickable link for word enlargement when word is shown.
     
     Args:
         language_name_ru: Название языка на русском
@@ -137,8 +137,10 @@ def format_study_word_message(
         word_number: Номер слова
         translation: Перевод слова
         is_skipped: Флаг пропуска слова
+        score: Оценка слова
         check_interval: Интервал проверки
         next_check_date: Дата следующей проверки
+        score_changed: Была ли изменена оценка
         show_word: Показывать ли само слово и транскрипцию
         word_foreign: Слово на иностранном языке
         transcription: Транскрипция слова
@@ -174,9 +176,10 @@ def format_study_word_message(
     
     message += f"🔍 Перевод:\n<b>{translation}</b>\n"
     
-    # Если нужно показать слово, добавляем его
+    # UPDATED: Если нужно показать слово, добавляем его с кликабельной ссылкой
     if show_word and word_foreign:
-        message += f"\n📝 Слово: <code>{word_foreign}</code>\n"
+        # Создаем кликабельную ссылку на команду /show_big
+        message += f"\n📝 Слово: [<code>{word_foreign}</code>](/show_big) 🔍\n"
         if transcription:
             message += f"🔊 Транскрипция: <b>[{transcription}]</b>\n"
 

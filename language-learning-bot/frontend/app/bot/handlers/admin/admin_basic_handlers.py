@@ -185,11 +185,8 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     
     # Вызываем общую функцию, передавая данные из callback
     await handle_start_command(
-        callback.message, 
+        callback, 
         state, 
-        user_id=user_id, 
-        username=username, 
-        full_name=full_name,
         is_callback=True
     )
     

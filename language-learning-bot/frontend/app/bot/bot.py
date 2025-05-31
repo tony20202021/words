@@ -10,7 +10,6 @@ BOT_COMMANDS = [
     {"command": "start", "description": "Начать работу с ботом"},
     {"command": "help", "description": "Получить справку"},
     {"command": "stats", "description": "Показать статистику"},
-    {"command": "hint", "description": "Информация о подсказках"},
     {"command": "admin", "description": "Режим администратора"},
 ]
 

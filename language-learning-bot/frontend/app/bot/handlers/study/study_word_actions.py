@@ -2,21 +2,23 @@
 Study word actions handlers for Language Learning Bot.
 Handles word evaluation and navigation during study process.
 FIXED: Proper imports, removed code duplication, improved architecture.
+UPDATED: Added word image display functionality.
 """
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error
 from app.utils.word_data_utils import update_word_score, ensure_user_word_data
-from app.utils.state_models import UserWordState, StateManager
-from app.utils.hint_settings_utils import get_individual_hint_settings  # ИСПРАВЛЕНО: правильный импорт
+from app.utils.state_models import UserWordState
+from app.utils.hint_settings_utils import get_individual_hint_settings
 from app.utils.settings_utils import get_show_debug_setting
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
-from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
+from app.utils.word_image_generator import generate_word_image
+from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard, create_word_image_keyboard
 from app.bot.handlers.study.study_words import show_study_word, load_next_batch
 from app.bot.states.centralized_states import StudyStates
 from app.utils.callback_constants import CallbackData
@@ -26,6 +28,172 @@ word_actions_router = Router()
 
 logger = setup_logger(__name__)
 
+
+@word_actions_router.message(Command("show_big"))
+async def cmd_show_big_word(message: Message, state: FSMContext):
+    """
+    Обработчик команды /show_big для показа увеличенного слова.
+    
+    Args:
+        message: The message object
+        state: FSM context
+    """
+    logger.info(f"'/show_big' command from {message.from_user.full_name}")
+    
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if not user_word_state.is_valid() or not user_word_state.has_more_words():
+        await message.answer("❌ Нет активного слова для увеличения")
+        return
+    
+    # Get current word
+    current_word = user_word_state.get_current_word()
+    if not current_word:
+        await message.answer("❌ Ошибка получения текущего слова")
+        return
+    
+    # Show word image using common function
+    await _show_word_image(message, state, current_word)
+
+@word_actions_router.callback_query(F.data == CallbackData.SHOW_WORD_IMAGE)
+async def process_show_word_image_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик callback для показа увеличенного слова.
+    
+    Args:
+        callback: The callback query
+        state: FSM context
+    """
+    logger.info(f"'show_word_image' callback from {callback.from_user.full_name}")
+    
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if not user_word_state.is_valid() or not user_word_state.has_more_words():
+        await callback.answer("❌ Нет активного слова для увеличения")
+        return
+    
+    # Get current word
+    current_word = user_word_state.get_current_word()
+    if not current_word:
+        await callback.answer("❌ Ошибка получения текущего слова")
+        return
+    
+    # Show word image using common function
+    await _show_word_image(callback, state, current_word)
+    await callback.answer("🔍 Показываю крупное написание")
+
+@word_actions_router.callback_query(F.data == CallbackData.BACK_FROM_IMAGE, StudyStates.viewing_word_image)
+async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик возврата от изображения к экрану изучения.
+    
+    Args:
+        callback: The callback query
+        state: FSM context
+    """
+    logger.info(f"'back_from_image' callback from {callback.from_user.full_name}")
+    
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if not user_word_state.is_valid():
+        await callback.answer("❌ Ошибка состояния изучения")
+        return
+    
+    # Determine which state to return to
+    word_shown = user_word_state.get_flag("word_shown", False)
+    if word_shown:
+        await state.set_state(StudyStates.viewing_word_details)
+    else:
+        await state.set_state(StudyStates.studying)
+    
+    # Show study word again (without creating new message)
+    await show_study_word(callback, state, user_word_state, need_new_message=True)
+    await callback.answer("⬅️ Возвращаемся к изучению")
+
+async def _show_word_image(
+    message_or_callback, 
+    state: FSMContext, 
+    current_word: dict,
+):
+    """
+    Общая функция для показа изображения слова.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        user_word_state: Current word state
+        current_word: Current word data
+    """
+    try:
+        # Extract word and transcription
+        word_foreign = current_word.get("word_foreign", "")
+        transcription = current_word.get("transcription", "")
+        
+        if not word_foreign:
+            error_msg = "❌ Слово на иностранном языке не найдено"
+            if hasattr(message_or_callback, 'answer'):
+                await message_or_callback.answer(error_msg)
+            else:
+                await message_or_callback.message.answer(error_msg)
+            return
+        
+        
+        # Generate word image
+        logger.info(f"Generating image for word: '{word_foreign}', transcription: '{transcription}'")
+        
+        image_buffer = await generate_word_image(
+            word=word_foreign,
+            transcription=transcription,
+        )
+        
+        # Create BufferedInputFile from BytesIO for Telegram
+        image_buffer.seek(0)  # Reset buffer position
+        input_file = BufferedInputFile(
+            file=image_buffer.read(),
+            filename=f"word_{word_foreign}.png"
+        )
+        
+        # Prepare caption
+        caption = ""
+        
+        # Create keyboard
+        keyboard = create_word_image_keyboard()
+        
+        # Set state
+        await state.set_state(StudyStates.viewing_word_image)
+        
+        # Send image
+        if hasattr(message_or_callback, 'answer_photo'):
+            # This is a Message object
+            await message_or_callback.answer_photo(
+                photo=input_file,
+                caption=caption,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+        else:
+            # This is a CallbackQuery object
+            await message_or_callback.message.answer_photo(
+                photo=input_file,
+                caption=caption,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+        
+        logger.info(f"Successfully sent word image for: {word_foreign}")
+        
+    except Exception as e:
+        logger.error(f"Error showing word image: {e}", exc_info=True)
+        
+        error_msg = "❌ Ошибка при создании изображения слова"
+        if hasattr(message_or_callback, 'answer'):
+            await message_or_callback.answer(error_msg)
+        else:
+            await message_or_callback.message.answer(error_msg)
+    
 @word_actions_router.callback_query(F.data == CallbackData.WORD_KNOW, StudyStates.studying)
 async def process_word_know(callback: CallbackQuery, state: FSMContext):
     """
@@ -84,7 +252,6 @@ async def process_word_know(callback: CallbackQuery, state: FSMContext):
     await state.set_state(StudyStates.confirming_word_knowledge)
     
     # Show word result
-    # await _show_word_result(callback, state, user_word_state, current_word, known=True)
     await show_study_word(callback, state, user_word_state, need_new_message=False)
     
     await callback.answer("✅ Отлично! Слово отмечено как известное")
@@ -321,109 +488,108 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Error toggling word skip status: {e}")
         await callback.answer("❌ Ошибка изменения статуса слова")
 
-# # ИСПРАВЛЕНО: Централизованные вспомогательные функции
-# async def _show_word_result(
-#     callback: CallbackQuery, 
-#     state: FSMContext, 
-#     user_word_state: UserWordState, 
-#     current_word: dict, 
-#     known: bool
-# ):
-#     """
-#     Show word result after evaluation using centralized utilities.
-#     FIXED: Removed code duplication, uses proper hint settings.
+# ИСПРАВЛЕНО: Централизованные вспомогательные функции
+async def _show_word_result(
+    callback: CallbackQuery, 
+    state: FSMContext, 
+    user_word_state: UserWordState, 
+    current_word: dict, 
+    known: bool
+):
+    """
+    Show word result after evaluation using centralized utilities.
+    FIXED: Removed code duplication, uses proper hint settings.
     
-#     Args:
-#         callback: The callback query
-#         state: FSM context
-#         user_word_state: Current word state
-#         current_word: Current word data
-#         known: Whether word was marked as known
-#     """
-#     try:
-#         # Get individual hint settings using proper import
-#         hint_settings = await get_individual_hint_settings(callback, state)
-#         show_debug = await get_show_debug_setting(callback, state)
+    Args:
+        callback: The callback query
+        state: FSM context
+        user_word_state: Current word state
+        current_word: Current word data
+        known: Whether word was marked as known
+    """
+    try:
+        # Get individual hint settings using proper import
+        hint_settings = await get_individual_hint_settings(callback, state)
+        show_debug = await get_show_debug_setting(callback, state)
         
-#         # Get language info
-#         state_data = await state.get_data()
-#         current_language = state_data.get("current_language", {})
+        # Get language info
+        state_data = await state.get_data()
+        current_language = state_data.get("current_language", {})
         
-#         # Extract word information
-#         word_number = current_word.get("word_number", "?")
-#         translation = current_word.get("translation", "Нет перевода")
-#         word_foreign = current_word.get("word_foreign", "")
-#         transcription = current_word.get("transcription", "")
+        # Extract word information
+        word_number = current_word.get("word_number", "?")
+        translation = current_word.get("translation", "Нет перевода")
+        word_foreign = current_word.get("word_foreign", "")
+        transcription = current_word.get("transcription", "")
         
-#         # Get updated user word data
-#         user_word_data = current_word.get("user_word_data", {})
-#         is_skipped = user_word_data.get("is_skipped", False)
-#         score = user_word_data.get("score", 0)
-#         check_interval = user_word_data.get("check_interval", 0)
-#         next_check_date = user_word_data.get("next_check_date")
+        # Get updated user word data
+        user_word_data = current_word.get("user_word_data", {})
+        is_skipped = user_word_data.get("is_skipped", False)
+        score = user_word_data.get("score", 0)
+        check_interval = user_word_data.get("check_interval", 0)
+        next_check_date = user_word_data.get("next_check_date")
         
-#         # Result message
-#         result_emoji = "✅" if known else "📝"
-#         result_text = "Отлично! Вы знаете это слово!" if known else "Слово для изучения"
+        # Result message
+        result_emoji = "✅" if known else "📝"
+        result_text = "Отлично! Вы знаете это слово!" if known else "Слово для изучения"
         
-#         # Format message using centralized utility
-#         message_text = f"{result_emoji} <b>{result_text}</b>\n\n"
+        # Format message using centralized utility
+        message_text = f"{result_emoji} <b>{result_text}</b>\n\n"
         
-#         message_text += format_study_word_message(
-#             language_name_ru=current_language.get("name_ru", "Неизвестный"),
-#             language_name_foreign=current_language.get("name_foreign", ""),
-#             word_number=word_number,
-#             translation=translation,
-#             is_skipped=is_skipped,
-#             score=score,
-#             check_interval=check_interval,
-#             next_check_date=next_check_date,
-#             score_changed=True,
-#             show_word=True,  # Always show word after evaluation
-#             word_foreign=word_foreign,
-#             transcription=transcription
-#         )
+        message_text += format_study_word_message(
+            language_name_ru=current_language.get("name_ru", "Неизвестный"),
+            language_name_foreign=current_language.get("name_foreign", ""),
+            word_number=word_number,
+            translation=translation,
+            is_skipped=is_skipped,
+            score=score,
+            check_interval=check_interval,
+            next_check_date=next_check_date,
+            score_changed=True,
+            show_word=True,  # Always show word after evaluation
+            word_foreign=word_foreign,
+            transcription=transcription
+        )
         
-#         # Add active hints if any using centralized utility
-#         used_hints = user_word_state.get_used_hints()
-#         if used_hints:
-#             hint_text = await format_used_hints(
-#                 bot=callback.bot,
-#                 user_id=user_word_state.user_id,
-#                 word_id=user_word_state.word_id,
-#                 current_word=current_word,
-#                 used_hints=used_hints,
-#                 include_header=True
-#             )
-#             message_text += hint_text
+        # Add active hints if any using centralized utility
+        used_hints = user_word_state.get_used_hints()
+        if used_hints:
+            hint_text = await format_used_hints(
+                bot=callback.bot,
+                user_id=user_word_state.user_id,
+                word_id=user_word_state.word_id,
+                current_word=current_word,
+                used_hints=used_hints,
+                include_header=True
+            )
+            message_text += hint_text
         
-#         # Add debug info if enabled
-#         if show_debug:
-#             # Use centralized debug function from study_words
-#             from app.bot.handlers.study.study_words import _get_debug_info
-#             debug_info = await _get_debug_info(user_word_state, current_word, hint_settings)
-#             message_text = debug_info + '\n\n' + message_text
+        # Add debug info if enabled
+        if show_debug:
+            # Use centralized debug function from study_words
+            from app.bot.handlers.study.study_words import _get_debug_info
+            debug_info = await _get_debug_info(state, user_word_state, hint_settings)
+            message_text = debug_info + '\n\n' + message_text
         
-#         # Create keyboard using centralized utility
-#         keyboard = create_adaptive_study_keyboard(
-#             word=current_word,
-#             word_shown=True,
-#             hint_settings=hint_settings,
-#             used_hints=used_hints,
-#             current_state=await state.get_state(),
-#             pending_confirmation=True
-#         )
+        # Create keyboard using centralized utility
+        keyboard = create_adaptive_study_keyboard(
+            word=current_word,
+            word_shown=True,
+            hint_settings=hint_settings,
+            used_hints=used_hints,
+            current_state=await state.get_state(),
+        )
         
-#         # Send message
-#         await callback.message.edit_text(
-#             message_text,
-#             reply_markup=keyboard,
-#             parse_mode="HTML"
-#         )
+        # Send message
+        await callback.message.edit_text(
+            message_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
         
-#     except Exception as e:
-#         logger.error(f"Error showing word result: {e}")
-#         await callback.message.answer("❌ Ошибка отображения результата")
+    except Exception as e:
+        logger.error(f"Error showing word result: {e}")
+        await callback.message.answer("❌ Ошибка отображения результата")
 
 async def _handle_batch_completion(
     callback: CallbackQuery, 
@@ -469,7 +635,7 @@ async def _handle_batch_completion(
             
             success = user_word_state.load_new_batch(study_words)
             if not success:
-                logger.error(f"Error handling batch completion: {e}")
+                logger.error(f"Error handling batch completion")
                 await callback.answer("❌ Ошибка загрузки следующих слов")
                 return False
 
@@ -493,83 +659,6 @@ async def _handle_batch_completion(
     except Exception as e:
         logger.error(f"Error handling batch completion: {e}")
         await callback.answer("❌ Ошибка загрузки следующих слов")
-
-# НОВОЕ: Utility function for word action validation
-async def _validate_word_action(
-    callback: CallbackQuery,
-    user_word_state: UserWordState,
-    action_name: str
-) -> tuple[bool, dict]:
-    """
-    Validate word action prerequisites.
-    
-    Args:
-        callback: The callback query
-        user_word_state: Current word state
-        action_name: Name of the action for logging
-        
-    Returns:
-        tuple: (is_valid, current_word)
-    """
-    if not user_word_state.is_valid():
-        await callback.answer("❌ Неверное состояние изучения")
-        logger.error(f"Invalid word state for {action_name}")
-        return False, None
-    
-    if not user_word_state.has_more_words():
-        await callback.answer("❌ Нет слов для изучения")
-        logger.error(f"No words available for {action_name}")
-        return False, None
-    
-    current_word = user_word_state.get_current_word()
-    if not current_word:
-        await callback.answer("❌ Ошибка получения текущего слова")
-        logger.error(f"No current word for {action_name}")
-        return False, None
-    
-    return True, current_word
-
-# НОВОЕ: Centralized word data update function
-async def _update_word_data_safely(
-    callback: CallbackQuery,
-    user_word_state: UserWordState,
-    current_word: dict,
-    update_data: dict
-) -> bool:
-    """
-    Safely update word data with error handling.
-    
-    Args:
-        callback: The callback query
-        user_word_state: Current word state
-        current_word: Current word data
-        update_data: Data to update
-        
-    Returns:
-        bool: True if successful
-    """
-    try:
-        success, result = await ensure_user_word_data(
-            bot=callback.bot,
-            user_id=user_word_state.user_id,
-            word_id=user_word_state.word_id,
-            update_data=update_data,
-            word=current_word,
-            message_obj=callback
-        )
-        
-        if success and result:
-            # Update local word data
-            if "user_word_data" not in current_word:
-                current_word["user_word_data"] = {}
-            current_word["user_word_data"].update(result)
-            return True
-        
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error updating word data: {e}")
-        return False
 
 # Export router
 __all__ = ['word_actions_router']

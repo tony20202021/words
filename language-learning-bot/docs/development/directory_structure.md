@@ -1,4 +1,4 @@
-Структура каталогов и файлов проекта (обновлено с Meta-состояниями)
+Структура каталогов и файлов проекта (обновлено с изображениями слов)
 Содержание
 
 Корневой каталог
@@ -33,6 +33,7 @@ language-learning-bot/
 ├── backend/                  # Каталог бэкенда (REST API)
 ├── common/                   # Каталог общих модулей
 └── scripts/                  # Каталог со служебными скриптами
+
 Каталог документации
 docs/
 ├── README.md                    # Обзор документации
@@ -64,9 +65,9 @@ docs/
 │   └── router_organization.md   # Организация роутеров и обработчиков
 │
 └── functionality/               # Функциональность бота
-    ├── bot_commands.md          # Команды и действия бота
+    ├── bot_commands.md          # 🆕 ОБНОВЛЕНО: Команды и действия бота (с изображениями)
     ├── admin_tools.md           # Инструменты администрирования
-    └── learning_system.md       # Система изучения слов
+    └── learning_system.md       # 🆕 ОБНОВЛЕНО: Система изучения слов (с изображениями)
     
 Фронтенд (Telegram-бот)
 frontend/
@@ -76,9 +77,9 @@ frontend/
 │   ├── bot/
 │   │   ├── __init__.py
 │   │   ├── bot.py            # Основной класс бота
-│   │   ├── states/           # НОВОЕ: Централизованные состояния FSM
+│   │   ├── states/           # ОБНОВЛЕНО: Централизованные состояния FSM
 │   │   │   ├── __init__.py
-│   │   │   └── centralized_states.py    # Все состояния FSM в одном файле
+│   │   │   └── centralized_states.py    # 🆕 ОБНОВЛЕНО: Все состояния FSM + viewing_word_image
 │   │   ├── handlers/
 │   │   │   ├── __init__.py
 │   │   │   ├── admin_handlers.py     # Объединяет обработчики админа
@@ -89,8 +90,7 @@ frontend/
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── admin_basic_handlers.py     # Базовые команды админа
 │   │   │   │   ├── admin_language_handlers.py  # Управление языками
-│   │   │   │   ├── admin_upload_handlers.py    # Загрузка файлов
-│   │   │   │   └── admin_states.py             # УДАЛЕНО: заменено centralized_states.py
+│   │   │   │   └── admin_upload_handlers.py    # Загрузка файлов
 │   │   │   ├── user/                # Подмодули пользователя
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── basic_handlers.py      # Базовые команды пользователя
@@ -100,10 +100,9 @@ frontend/
 │   │   │   │   └── stats_handlers.py      # Команда /stats
 │   │   │   └── study/                  # Подмодули изучения слов
 │   │   │       ├── __init__.py
-│   │   │       ├── study_states.py           # УДАЛЕНО: заменено centralized_states.py
 │   │   │       ├── study_commands.py         # Команда /study
 │   │   │       ├── study_words.py            # Получение и отображение слов
-│   │   │       ├── study_word_actions.py     # Действия со словами
+│   │   │       ├── study_word_actions.py     # 🆕 ОБНОВЛЕНО: Действия со словами + изображения
 │   │   │       ├── study_hint_handlers.py    # Регистрация обработчиков подсказок
 │   │   │       └── hint/                     # Подмодули подсказок (ВСЕ ОБНОВЛЕНЫ)
 │   │   │           ├── __init__.py
@@ -112,16 +111,12 @@ frontend/
 │   │   │           ├── edit_handlers.py      # Редактирование подсказок (РЕФАКТОРИНГ)
 │   │   │           ├── view_handlers.py      # Просмотр подсказок
 │   │   │           └── toggle_handlers.py    # Переключение видимости (РЕФАКТОРИНГ)
-│   │   ├── keyboards/                       # ВСЕ ФАЙЛЫ ОБНОВЛЕНЫ
+│   │   ├── keyboards/                       # 🆕 ОБНОВЛЕНЫ: ВСЕ ФАЙЛЫ с поддержкой изображений
 │   │   │   ├── __init__.py
 │   │   │   ├── admin_keyboards.py      # Клавиатуры для администратора (РЕФАКТОРИНГ)
 │   │   │   ├── user_keyboards.py       # Клавиатуры для пользователя (РЕФАКТОРИНГ)
 │   │   │   ├── inline_keyboards.py     # Базовые inline-клавиатуры
-│   │   │   └── study_keyboards.py      # Клавиатуры для изучения (РЕФАКТОРИНГ)
-│   │   ├── states/                     # УДАЛЕНО: файлы перенесены в bot/states/
-│   │   │   ├── __init__.py             # УДАЛЕНО
-│   │   │   ├── admin_states.py         # УДАЛЕНО: был пустой
-│   │   │   └── user_states.py          # УДАЛЕНО: был пустой
+│   │   │   └── study_keyboards.py      # 🆕 ОБНОВЛЕНО: Клавиатуры для изучения + кнопки изображений
 │   │   └── middleware/
 │   │       ├── __init__.py
 │   │       └── auth_middleware.py      # Промежуточное ПО для авторизации (УЛУЧШЕНО)
@@ -138,23 +133,25 @@ frontend/
 │       ├── logger.py                   # Настройка логирования
 │       ├── file_utils.py               # Утилиты для работы с файлами
 │       ├── api_utils.py                # Утилиты для работы с API
-│       ├── formatting_utils.py         # Утилиты для форматирования
+│       ├── formatting_utils.py         # 🆕 ОБНОВЛЕНО: Утилиты форматирования + ссылки на изображения
 │       ├── error_utils.py              # Утилиты для обработки ошибок
 │       ├── settings_utils.py           # Утилиты для настроек
 │       ├── state_models.py             # Модели для работы с FSM
 │       ├── word_data_utils.py          # Утилиты для данных слов
 │       ├── hint_constants.py           # Константы для подсказок
-│       ├── callback_constants.py       # НОВОЕ: Константы для callback_data
+│       ├── callback_constants.py       # 🆕 ОБНОВЛЕНО: Константы callback_data + изображения
 │       ├── voice_utils.py              # НОВОЕ: Утилиты для голосовых сообщений
 │       ├── voice_recognition.py        # Утилиты для распознавания речи
 │       ├── audio_utils.py              # Утилиты для работы с аудио
-│       └── ffmpeg_utils.py             # Утилиты для FFmpeg
+│       ├── ffmpeg_utils.py             # Утилиты для FFmpeg
+│       ├── hint_settings_utils.py      # Утилиты для индивидуальных настроек подсказок
+│       └── word_image_generator.py     # 🆕 НОВЫЙ: Генератор изображений слов с Unicode поддержкой
 ├── conf/
 │   ├── __init__.py
 │   └── config/
 │       ├── __init__.py
 │       ├── default.yaml                # Основной файл конфигурации
-│       ├── bot.yaml                    # Настройки бота
+│       ├── bot.yaml                    # 🆕 ОБНОВЛЕНО: Настройки бота + конфигурация изображений
 │       ├── api.yaml                    # Настройки API клиента
 │       ├── logging.yaml                # Настройки логирования
 │       └── learning.yaml               # Настройки обучения
@@ -194,7 +191,8 @@ frontend/
 │   ├── test_utils/                     # Тесты утилит
 │   │   ├── test_callback_constants.py  # НОВОЕ: Тесты констант callback
 │   │   ├── test_voice_utils.py         # НОВОЕ: Тесты голосовых утилит
-│   │   └── test_centralized_states.py  # НОВОЕ: Тесты централизованных состояний
+│   │   ├── test_centralized_states.py  # НОВОЕ: Тесты централизованных состояний
+│   │   └── test_word_image_generator.py # 🆕 НОВЫЙ: Тесты генератора изображений
 │   └── test_api/                       # Тесты API клиента
 └── watch_and_reload.py                 # Скрипт автоперезапуска
 Бэкенд (REST API)
@@ -276,46 +274,3 @@ scripts/
 ├── migrate_data.py           # Миграция данных
 ├── admin_manager.py          # Управление администраторами
 └── create_user_language_settings_collection.py  # Создание коллекции настроек
-Обновления архитектуры
-Новые файлы
-Централизованные константы
-
-frontend/app/utils/callback_constants.py - Все константы callback_data и парсеры
-frontend/app/utils/voice_utils.py - Централизованная обработка голосовых сообщений
-frontend/app/bot/states/centralized_states.py - Все состояния FSM в одном месте
-docs/development/migration_guide.md - Руководство по миграции
-
-Улучшенные файлы
-
-frontend/app/bot/middleware/auth_middleware.py - Расширенный функционал
-Все файлы в frontend/app/bot/keyboards/ - Использование констант
-Все файлы в frontend/app/bot/handlers/study/hint/ - Рефакторинг с новыми утилитами
-
-Удаленные файлы
-Пустые файлы состояний
-
-frontend/app/bot/states/admin_states.py - Был пустой
-frontend/app/bot/states/user_states.py - Был пустой
-
-Дублированные определения
-
-Локальные определения состояний в обработчиках заменены импортами из centralized_states.py
-
-Статистика изменений
-Тип измененияКоличество файловЭкономия строкНовые файлы4+800 строкРефакторинг8-400 строкУдаленные2-10 строкИтого14+390 строк
-Преимущества новой структуры
-
-Централизация - все константы и состояния в одном месте
-Типобезопасность - использование констант вместо магических строк
-DRY принцип - нет дублирования логики обработки голоса
-Легкость отладки - все callback_data управляются централизованно
-Автодополнение IDE - работает для всех констант
-Безопасность рефакторинга - изменение константы влияет на весь код
-
-Обратная совместимость
-
-Все существующие команды и функции работают без изменений
-API не изменился
-База данных не требует миграции
-Конфигурация остается той же
-

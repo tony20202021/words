@@ -1,6 +1,7 @@
 """
 Updated keyboards for word studying with individual hint settings support.
 FIXED: Removed code duplication, improved architecture, proper imports.
+UPDATED: Added word image display button.
 """
 
 from typing import List, Dict, Optional
@@ -10,11 +11,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.utils.callback_constants import CallbackData, format_hint_callback
 from app.utils.hint_constants import (
-    get_all_hint_types,
     format_hint_button,
     has_hint,
     get_enabled_hint_types,
-    is_hint_enabled
 )
 from app.utils.logger import setup_logger
 
@@ -25,10 +24,10 @@ def create_word_keyboard(
     word_shown: bool = False, 
     hint_settings: Optional[Dict[str, bool]] = None,
     used_hints: List[str] = None,
-    current_state: str = None
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for word interaction during study process.
+    UPDATED: Added word image button when word is shown.
     
     Args:
         word: The word data
@@ -52,6 +51,13 @@ def create_word_keyboard(
             text="➡️ Следующее слово",
             callback_data=CallbackData.NEXT_WORD
         ))
+        
+        # НОВОЕ: Кнопка для показа крупного изображения слова
+        if word_shown and word.get("word_foreign"):
+            builder.add(InlineKeyboardButton(
+                text="🔍 Показать крупное написание",
+                callback_data=CallbackData.SHOW_WORD_IMAGE
+            ))
     else:
         # Word not shown yet - show evaluation buttons
         builder.add(InlineKeyboardButton(
@@ -116,7 +122,6 @@ def _add_hint_buttons(
 ) -> int:
     """
     Add hint buttons for enabled hint types.
-    FIXED: Single implementation, no duplication.
     
     Args:
         builder: Keyboard builder to add buttons to
@@ -170,7 +175,7 @@ def create_adaptive_study_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create adaptive keyboard that changes based on current FSM state and word status.
-    UPDATED: Uses individual hint settings.
+    UPDATED: Uses individual hint settings and includes word image button.
     
     Args:
         word: Word data
@@ -195,9 +200,11 @@ def create_adaptive_study_keyboard(
         return create_word_details_keyboard(word, hint_settings, used_hints)
     elif current_state == StudyStates.confirming_word_knowledge.state:
         return create_word_confirmation_keyboard()
+    elif current_state == StudyStates.viewing_word_image.state:
+        return create_word_image_keyboard()
     else:
         # Default to standard word keyboard
-        return create_word_keyboard(word, word_shown, hint_settings, used_hints, current_state)
+        return create_word_keyboard(word, word_shown, hint_settings, used_hints)
 
 def create_word_details_keyboard(
     word: dict,
@@ -206,7 +213,7 @@ def create_word_details_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard specifically for viewing word details state.
-    UPDATED: Uses individual hint settings.
+    UPDATED: Uses individual hint settings and includes word image button.
     
     Args:
         word: Word data
@@ -235,6 +242,13 @@ def create_word_details_keyboard(
         enabled_hint_types = get_enabled_hint_types(hint_settings)
         if enabled_hint_types:
             _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types)
+    
+    # НОВОЕ: Кнопка для показа крупного изображения слова
+    if word.get("word_foreign"):
+        builder.add(InlineKeyboardButton(
+            text="🔍 Показать крупное написание",
+            callback_data=CallbackData.SHOW_WORD_IMAGE
+        ))
     
     # Skip toggle button
     user_word_data = word.get("user_word_data", {})
@@ -265,6 +279,24 @@ def create_word_confirmation_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(
         text="❌ Ой, все-таки не знаю",
         callback_data=CallbackData.SHOW_WORD
+    ))
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_word_image_keyboard() -> InlineKeyboardMarkup:
+    """
+    Create keyboard for word image viewing state.
+    НОВОЕ: Клавиатура для просмотра изображения слова.
+    
+    Returns:
+        InlineKeyboardMarkup: Word image keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Вернуться к слову",
+        callback_data=CallbackData.BACK_FROM_IMAGE
     ))
     
     builder.adjust(1)
@@ -301,33 +333,6 @@ def create_study_completed_keyboard() -> InlineKeyboardMarkup:
     
     builder.adjust(2, 2)  # 2x2 layout
     return builder.as_markup()
-
-# def create_word_evaluation_keyboard() -> InlineKeyboardMarkup:
-#     """
-#     Create keyboard for word evaluation (know/don't know).
-    
-#     Returns:
-#         InlineKeyboardMarkup: Evaluation keyboard
-#     """
-#     builder = InlineKeyboardBuilder()
-    
-#     builder.add(InlineKeyboardButton(
-#         text="✅ Знаю это слово",
-#         callback_data=CallbackData.WORD_KNOW
-#     ))
-    
-#     builder.add(InlineKeyboardButton(
-#         text="❌ Не знаю это слово", 
-#         callback_data=CallbackData.WORD_DONT_KNOW
-#     ))
-    
-#     builder.add(InlineKeyboardButton(
-#         text="👁️ Показать слово",
-#         callback_data=CallbackData.SHOW_WORD
-#     ))
-    
-#     builder.adjust(2, 1)
-#     return builder.as_markup()
 
 # НОВОЕ: Utility functions for keyboard validation and creation
 def validate_hint_settings_for_keyboard(hint_settings: Optional[Dict[str, bool]]) -> Dict[str, bool]:
@@ -367,14 +372,28 @@ def should_show_hint_buttons(hint_settings: Optional[Dict[str, bool]]) -> bool:
     
     return any(hint_settings.values())
 
+def should_show_word_image_button(word: dict, word_shown: bool) -> bool:
+    """
+    Determine if word image button should be shown.
+    
+    Args:
+        word: Word data
+        word_shown: Whether word has been shown
+        
+    Returns:
+        bool: True if button should be shown
+    """
+    return word_shown and bool(word.get("word_foreign"))
+
 # Export main functions
 __all__ = [
     'create_word_keyboard',
     'create_adaptive_study_keyboard', 
     'create_word_details_keyboard',
     'create_word_confirmation_keyboard',
+    'create_word_image_keyboard',
     'create_study_completed_keyboard',
-    'create_word_evaluation_keyboard',
     'validate_hint_settings_for_keyboard',
-    'should_show_hint_buttons'
+    'should_show_hint_buttons',
+    'should_show_word_image_button'
 ]

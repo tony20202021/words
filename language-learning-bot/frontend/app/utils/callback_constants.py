@@ -1,7 +1,7 @@
 """
 Constants for callback_data used throughout the bot.
 This helps avoid typos and makes callback management easier.
-UPDATED: Added individual hint settings callbacks.
+UPDATED: Added word image display callbacks.
 """
 
 import re
@@ -18,6 +18,10 @@ class CallbackData:
     NEXT_WORD = "next_word"
     CONFIRM_NEXT_WORD = "confirm_next_word"
     TOGGLE_WORD_SKIP = "toggle_word_skip"
+    
+    # НОВОЕ: Word image actions
+    SHOW_WORD_IMAGE = "show_word_image"
+    BACK_FROM_IMAGE = "back_from_image"
     
     # Hint actions (templates)
     HINT_CREATE_TEMPLATE = "hint_create_{hint_type}_{word_id}"

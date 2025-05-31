@@ -28,7 +28,7 @@ cd frontend
 # Запускаем скрипт автоматического перезапуска из каталога frontend
 python app/watch_and_reload.py \
     --script app/main_frontend.py \
-    --paths app ../conf/config \
+    --paths app ./conf/config \
     --process-name frontend_autoreload \
     --extensions .py .yaml .yml .json \
     --ignore-dirs __pycache__ .git env venv .env .venv logs

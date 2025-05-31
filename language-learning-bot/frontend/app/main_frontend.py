@@ -24,6 +24,8 @@ from dotenv import load_dotenv
 from hydra import compose, initialize
 from omegaconf import OmegaConf
 from datetime import datetime
+import os
+from pathlib import Path
 
 from app.api.client import APIClient
 from app.bot.bot import BotManager
@@ -37,15 +39,44 @@ import app.bot.handlers.cancel_handlers as cancel_handlers
 from app.bot.middleware.auth_middleware import AuthMiddleware, StateValidationMiddleware
 from app.utils.logger import setup_logger
 from app.utils.api_utils import store_api_client, get_api_client_from_bot
+from app.utils import config_holder
 
 # Load environment variables from .env file
 load_dotenv()
 
-print(os.listdir('../'))
+print("=" * 50)
+print("Диагностика Hydra:")
+
+script_dir = Path(__file__).parent  # frontend/app/
+working_dir = Path.cwd()  # frontend/
+
+print(f"Рабочая директория: \n\t{working_dir}")
+print(f"Директория скрипта (parent): \n\t{script_dir}")
+
+print(f"\nПроверка путей ОТНОСИТЕЛЬНО СКРИПТА:")
+paths_from_script = [
+    "../conf/config",  # из app/ -> conf/config
+    "conf/config",     # из app/ -> app/conf/config  
+]
+
+for path in paths_from_script:
+    abs_path = (script_dir / path).resolve()
+    exists = abs_path.exists()
+    has_default = (abs_path / "default.yaml").exists() if exists else False
+    print(f"  {path:<15} -> {abs_path}")
+    print(f"                    Существует: {exists} | default.yaml: {has_default}")
+
+print("=" * 50)
 
 # Initialize Hydra configuration
-initialize(config_path="../conf/config", version_base=None)
-cfg = compose(config_name="default")
+with initialize(config_path="../conf/config", version_base=None):
+    config_holder.cfg = compose(config_name="default")
+
+cfg = config_holder.cfg
+
+print("Hydra loaded config:")
+print(cfg)
+print("=" * 50)
 
 # Ensure logs directory exists
 log_dir = cfg.logging.log_dir if hasattr(cfg, "logging") and hasattr(cfg.logging, "log_dir") else "logs"

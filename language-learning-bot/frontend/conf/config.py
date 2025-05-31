@@ -1,4 +1,0 @@
-"""
-Configuration with Hydra
-"""
-

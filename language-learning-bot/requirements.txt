@@ -57,3 +57,4 @@ numpy>=1.22.0
 imageio-ffmpeg>=0.4.8
 
 watchdog
+pillow

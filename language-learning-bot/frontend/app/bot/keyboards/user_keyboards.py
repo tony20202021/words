@@ -137,7 +137,6 @@ def _add_individual_hint_buttons(
 ) -> None:
     """
     Add individual hint setting buttons to keyboard.
-    НОВОЕ: Создает отдельные кнопки для каждого типа подсказки.
     
     Args:
         builder: Keyboard builder
@@ -241,11 +240,16 @@ def create_help_keyboard() -> InlineKeyboardMarkup:
     ))
     
     builder.add(InlineKeyboardButton(
+        text="💡 О подсказках",
+        callback_data="show_hint_info"
+    ))
+
+    builder.add(InlineKeyboardButton(
         text="📊 Статистика",
         callback_data="show_stats"
     ))
     
-    builder.adjust(2, 2)
+    builder.adjust(1)
     
     return builder.as_markup()
 

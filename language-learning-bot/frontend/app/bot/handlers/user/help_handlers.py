@@ -127,6 +127,7 @@ def _get_help_content() -> dict:
         },
         "footer": "Если у вас остались вопросы, обратитесь к администратору бота (@Anton_Mikhalev).",
         "use_start": "Вызвать главное меню и начать обучение - можно по команде /start",
+        "use_hint": "Более подробно узнать про подсказки - команда /hint",
     }
 
 def _format_help_text(help_content: dict) -> str:
@@ -153,6 +154,10 @@ def _format_help_text(help_content: dict) -> str:
     text += "\n"
 
     text += help_content['use_start']    
+    text += "\n"
+    text += "\n"
+
+    text += help_content['use_hint']    
     
     return text
 

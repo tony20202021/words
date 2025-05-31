@@ -83,13 +83,12 @@ class UserWordState:
             study_words=data.get("study_words", []),
             study_settings=data.get("study_settings", {}),
             flags=data.get("flags") or data.get("user_word_flags", {}),
-            # данные о партиях
             batch_info=data.get("batch_info", {}),
             session_info=data.get("session_info", {}),
         )
         
-        logger.debug(f"UserWordState loaded from FSM: batch #{instance.batch_info['current_batch_index']}, "
-                    f"processed: {instance.session_info['total_words_processed']}")
+        logger.debug(f"UserWordState loaded from FSM: batch #{instance.batch_info.get('current_batch_index', '?')}, "
+                    f"processed: {instance.session_info.get('total_words_processed', '?')}")
         
         return instance
 

@@ -193,50 +193,6 @@ def get_yes_no_keyboard(action: str, entity_id: str) -> InlineKeyboardMarkup:
     builder.adjust(2)  # Two buttons in one row
     return builder.as_markup()
 
-
-def get_upload_columns_keyboard(language_id: str) -> InlineKeyboardMarkup:
-    """
-    Create keyboard for configuring upload columns.
-    Now uses centralized callback constants.
-    
-    Args:
-        language_id: ID of the language
-        
-    Returns:
-        InlineKeyboardMarkup: Column configuration keyboard
-    """
-    builder = InlineKeyboardBuilder()
-    
-    # Predefined templates
-    builder.add(InlineKeyboardButton(
-        text="1️⃣ Номер, слово, транскрипция, перевод", 
-        callback_data=CallbackData.COLUMN_TEMPLATE.format(template_id="1", language_id=language_id)
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="2️⃣ Номер, перевод, слово, транскрипция", 
-        callback_data=CallbackData.COLUMN_TEMPLATE.format(template_id="2", language_id=language_id)
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="3️⃣ Слово, транскрипция, перевод, номер", 
-        callback_data=CallbackData.COLUMN_TEMPLATE.format(template_id="3", language_id=language_id)
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="4️⃣ Настроить порядок вручную", 
-        callback_data=CallbackData.CUSTOM_COLUMNS_TEMPLATE.format(language_id=language_id)
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="⬅️ Отмена", 
-        callback_data=CallbackData.CANCEL_UPLOAD_TEMPLATE.format(language_id=language_id)
-    ))
-    
-    builder.adjust(1)  # One button per row
-    return builder.as_markup()
-
-
 def get_word_actions_keyboard(word_id: str, language_id: str) -> InlineKeyboardMarkup:
     """
     Create keyboard with word action buttons.
