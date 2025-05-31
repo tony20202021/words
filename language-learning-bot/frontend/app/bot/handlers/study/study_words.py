@@ -2,6 +2,7 @@
 Study words handlers for Language Learning Bot.
 Handles word display and navigation during study process.
 FIXED: Proper imports, removed code duplication, improved architecture.
+UPDATED: Added admin check for showing admin edit button.
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from app.utils.formatting_utils import format_study_word_message, format_used_hi
 from app.utils.state_models import UserWordState, StateManager
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.hint_settings_utils import get_individual_hint_settings
+from app.utils.admin_utils import is_user_admin  # НОВОЕ: Импорт утилиты для проверки админа
 from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
 from app.bot.states.centralized_states import StudyStates
 
@@ -34,7 +36,6 @@ async def show_study_word(
 ):
     """
     Display current study word with appropriate keyboard.
-    UPDATED: Uses individual hint settings properly.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -61,6 +62,9 @@ async def show_study_word(
     # Get basic settings for debug info
     basic_settings = await get_user_language_settings(message_or_callback, state)
     show_debug = basic_settings.get("show_debug", False)
+    
+    # НОВОЕ: Проверяем статус администратора
+    is_admin = await is_user_admin(message_or_callback, state)
     
     # Get language info from state
     state_data = await state.get_data()
@@ -121,15 +125,17 @@ async def show_study_word(
     
     # Add debug information if enabled
     if show_debug:
-        debug_info = await _get_debug_info(state, user_word_state, hint_settings)
+        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin)
         message_text = debug_info + '\n\n' + message_text
     
+    # ОБНОВЛЕНО: Передаем is_admin в создание клавиатуры
     keyboard = create_adaptive_study_keyboard(
         word=current_word,
         word_shown=word_shown,
         hint_settings=hint_settings,
         used_hints=used_hints,
         current_state=current_state,
+        is_admin=is_admin,  # НОВОЕ: Передаем статус админа
     )
 
     # Send or edit message
@@ -294,16 +300,19 @@ async def _load_study_words(api_client, db_user_id: str, language_id: str, setti
 async def _get_debug_info(
     state: FSMContext,
     user_word_state: UserWordState, 
-    hint_settings: Dict[str, bool]
+    hint_settings: Dict[str, bool],
+    is_admin: bool = False  # НОВОЕ: Добавляем информацию об админе в отладку
 ) -> str:
     """
     Get debug information for display.
     UPDATED: Uses centralized debug utilities, includes hint settings.
+    UPDATED: Added admin status to debug info.
     
     Args:
+        state: FSM state context
         user_word_state: Current word state
-        current_word: Current word data
         hint_settings: Individual hint settings
+        is_admin: Whether user is admin (NEW)
         
     Returns:
         str: Formatted debug information
@@ -338,6 +347,7 @@ async def _get_debug_info(
         f"• Использовано подсказок: {len(user_word_state.get_used_hints())}\n"
         f"• Настройки подсказок: {enabled_hints}/{total_hints} включено\n"
         f"• current_state: {current_state}\n"
+        f"• is_admin: {'Да' if is_admin else 'Нет'}\n"  # НОВОЕ: Информация об админе
     )
     
     # Add enabled hint types

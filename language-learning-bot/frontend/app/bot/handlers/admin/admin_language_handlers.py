@@ -7,17 +7,14 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.bot.states.centralized_states import AdminStates
 from app.bot.keyboards.admin_keyboards import (
-    get_admin_keyboard, 
     get_languages_keyboard,
     get_edit_language_keyboard,
-    get_back_to_languages_keyboard,
-    get_word_actions_keyboard
 )
 from app.utils.formatting_utils import format_date_standard
 from app.utils.callback_constants import CallbackData
@@ -442,175 +439,6 @@ async def process_cancel_delete_language(callback: CallbackQuery, state: FSMCont
     
     await callback.answer()
 
-@language_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("search_word_by_number_"))
-@language_router.callback_query(F.data.startswith("search_word_by_number_"))
-async def process_search_word_by_number(callback_query: CallbackQuery, state: FSMContext):
-    """
-    Обработчик для инициализации поиска слова по номеру.
-    
-    Args:
-        callback_query: Объект callback query от Telegram
-        state: Контекст состояния FSM
-    """
-    # Изменяем извлечение ID языка
-    language_id = callback_query.data.split("_")[-1]
-    
-    # Сохраняем ID языка в состоянии
-    await state.update_data(language_id=language_id)
-    
-    # Отправляем запрос на ввод номера слова
-    await callback_query.message.answer(
-        "📝 <b>Введите номер слова для поиска:</b>\n\n"
-        "Например: <code>1</code> - для поиска первого слова в списке",
-        parse_mode="HTML"
-    )
-    
-    # Устанавливаем состояние ввода номера слова
-    await state.set_state(AdminStates.input_word_number)
-    
-    # Отвечаем на callback
-    await callback_query.answer()
-
-@language_router.message(AdminStates.input_word_number)
-async def process_word_number_input(message: Message, state: FSMContext):
-    """
-    Обработчик для поиска слова по введенному номеру.
-    
-    Args:
-        message: Объект сообщения от Telegram
-        state: Контекст состояния FSM
-    """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.first_name
-
-    api_client = get_api_client_from_bot(message.bot)
-    
-    if not api_client:
-        await message.reply("Ошибка: API клиент недоступен")
-        return
-    
-    # Проверяем, что введено число
-    if not message.text.isdigit():
-        await message.reply(
-            "❌ Пожалуйста, введите корректный номер слова (только цифры)."
-        )
-        return
-    
-    word_number = int(message.text)
-    
-    # Получаем ID языка из состояния
-    data = await state.get_data()
-    language_id = data.get('language_id')
-    
-    if not language_id:
-        await message.reply(
-            "❌ Ошибка: ID языка не найден. Пожалуйста, вернитесь в меню администратора и попробуйте снова."
-        )
-        return
-    
-    # Получаем слово по номеру
-    word_response = await api_client.get_word_by_number(language_id, word_number)
-    
-    # Проверяем успешность запроса
-    if not word_response["success"]:
-        await message.reply(
-            f"❌ Ошибка при поиске слова с номером {word_number}. "
-            f"Возможно, слово с таким номером не существует."
-        )
-        return
-    
-    # Проверяем, есть ли результат
-    result = word_response["result"]
-    if not result or (isinstance(result, list) and len(result) == 0):
-        await message.reply(
-            f"⚠️ Слово с номером {word_number} не найдено в базе данных."
-        )
-        # ✅ НОВОЕ: Возвращаемся на экран редактирования языка
-        await state.set_state(AdminStates.viewing_language_details)
-        await show_language_edit_screen(message, language_id, is_callback=False)
-        return
-    
-    # ✅ НОВОЕ: Устанавливаем состояние просмотра результатов поиска слова
-    await state.set_state(AdminStates.viewing_word_search_results)
-    
-    # Получаем слово (первый элемент в списке)
-    words = result
-    word = words[0] if isinstance(words, list) else words
-    
-    # Получаем информацию о языке
-    language_response = await api_client.get_language(language_id)
-    language_name = "Неизвестный язык"
-    
-    if language_response["success"] and language_response["result"]:
-        language_name = language_response["result"]["name_ru"]
-    
-    # Получаем ID слова, проверяя разные возможные ключи
-    word_id = word.get('id') or word.get('_id') or word.get('word_id') or 'N/A'
-    
-    # Получаем данные текущего пользователя
-    user_info = ""
-    
-    # Получаем данные состояния - проверяем наличие db_user_id
-    db_user_id = data.get('db_user_id')
-    
-    if db_user_id:
-        # Получаем данные пользователя для этого слова
-        user_word_response = await api_client.get_user_word_data(db_user_id, word_id)
-        
-        if user_word_response["success"] and user_word_response["result"]:
-            user_word_data = user_word_response["result"]
-            
-            # Флаг пропуска слова
-            is_skipped = user_word_data.get("is_skipped", False)
-            
-            # Период проверки
-            check_interval = user_word_data.get("check_interval", 0)
-            
-            # Дата следующей проверки
-            next_check_date = user_word_data.get("next_check_date")
-            
-            # Форматируем дату для отображения
-            formatted_next_check_date = "Не установлена"
-            if next_check_date:
-                try:
-                    # Импортируем функцию для форматирования даты
-                    from app.utils.formatting_utils import format_date_standard
-                    formatted_next_check_date = format_date_standard(next_check_date)
-                except Exception as e:
-                    logger.error(f"Error formatting date: {e}")
-                    formatted_next_check_date = str(next_check_date).split('T')[0]
-            
-            # Добавляем информацию о пользовательских данных
-            user_info = (
-                f"\n<b>Данные для текущего пользователя ({username}):</b>\n"
-                f"Флаг пропуска: <b>{'Да' if is_skipped else 'Нет'}</b>\n"
-                f"Период проверки: <b>{check_interval} дней</b>\n"
-                f"Дата следующей проверки: <b>{formatted_next_check_date}</b>\n"
-            )
-    
-    # Формируем сообщение с информацией о слове
-    word_info = (
-        f"📖 <b>Информация о слове</b> 📖\n\n"
-        f"Язык: <b>{language_name}</b>\n"
-        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
-        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
-        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
-        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
-        f"ID: <code>{word_id}</code>\n"
-        f"{user_info}"
-    )
-    
-    # Используем готовую клавиатуру
-    keyboard = get_word_actions_keyboard(word_id, language_id)
-    
-    # Отправляем информацию о слове
-    await message.reply(
-        word_info,
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
-
 async def handle_language_management(message_or_callback, state: FSMContext, is_callback=False):
     """
     Common handler logic for language management.
@@ -833,7 +661,7 @@ async def show_language_edit_screen_callback(callback: CallbackQuery, language_i
     # Используем готовую клавиатуру
     keyboard = get_edit_language_keyboard(language_id)
     
-    await callback.message.edit_text(
+    await callback.message.answer(
         f"🔹 <b>Редактирование языка</b> 🔹\n\n"
         f"ID: {language['id']}\n"
         f"Название (рус): <b>{language['name_ru']}</b>\n"
@@ -905,4 +733,4 @@ async def process_edit_language_after_update(message: Message, language_id: str)
     """
     # Вызываем общую функцию для отображения экрана редактирования
     await show_language_edit_screen(message, language_id, is_callback=False)
-    
+   

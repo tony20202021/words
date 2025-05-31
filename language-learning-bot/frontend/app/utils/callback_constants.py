@@ -2,6 +2,8 @@
 Constants for callback_data used throughout the bot.
 This helps avoid typos and makes callback management easier.
 UPDATED: Added word image display callbacks.
+UPDATED: Added word editing and deletion callbacks.
+UPDATED: Added admin edit from study callbacks.
 """
 
 import re
@@ -22,6 +24,11 @@ class CallbackData:
     # НОВОЕ: Word image actions
     SHOW_WORD_IMAGE = "show_word_image"
     BACK_FROM_IMAGE = "back_from_image"
+    
+    # НОВОЕ: Admin edit from study
+    ADMIN_EDIT_WORD_FROM_STUDY = "admin_edit_word_from_study"
+    ADMIN_EDIT_WORD_FROM_STUDY_TEMPLATE = "admin_edit_word_from_study_{word_id}"
+    BACK_TO_STUDY_FROM_ADMIN = "back_to_study_from_admin"
     
     # Hint actions (templates)
     HINT_CREATE_TEMPLATE = "hint_create_{hint_type}_{word_id}"
@@ -56,6 +63,16 @@ class CallbackData:
     EDIT_LANGUAGE_TEMPLATE = "edit_language_{language_id}"
     DELETE_LANGUAGE_TEMPLATE = "delete_language_{language_id}"
 
+    # Admin word management
+    EDIT_WORD_TEMPLATE = "edit_word_{word_id}"
+    DELETE_WORD_TEMPLATE = "delete_word_{word_id}"
+    EDIT_WORDFIELD_FOREIGN_TEMPLATE = "edit_wordfield_foreign_{word_id}"
+    EDIT_WORDFIELD_TRANSLATION_TEMPLATE = "edit_wordfield_translation_{word_id}"
+    EDIT_WORDFIELD_TRANSCRIPTION_TEMPLATE = "edit_wordfield_transcription_{word_id}"
+    EDIT_WORDFIELD_NUMBER_TEMPLATE = "edit_wordfield_number_{word_id}"
+    CONFIRM_WORD_DELETE_TEMPLATE = "confirm_word_delete_{word_id}"
+    CANCEL_WORD_DELETE_TEMPLATE = "cancel_word_delete_{word_id}"
+
     CONFIRM_DELETE_TEMPLATE = "confirm_{action}_{entity_id}"
     CANCEL_DELETE_TEMPLATE = "cancel_{action}_{entity_id}"
     
@@ -83,6 +100,7 @@ class CallbackData:
     BACK_TO_ADMIN = "back_to_admin"
     BACK_TO_LANGUAGES = "back_to_languages"
     BACK_TO_WORD = "back_to_word"
+    BACK_TO_WORD_DETAILS = "back_to_word_details"
     
     # Additional actions
     CANCEL_ACTION = "cancel_action"
@@ -120,6 +138,13 @@ class CallbackParser:
         'column_template': re.compile(r"column_template_(\d+)_(.+)"),
         'users_page': re.compile(r"users_page_(\d+)"),
         'hint_setting_toggle': re.compile(r"settings_toggle_hint_(\w+)"),
+        'edit_word': re.compile(r"edit_word_(.+)"),
+        'delete_word': re.compile(r"delete_word_(.+)"),
+        'edit_wordfield': re.compile(r"edit_wordfield_(foreign|translation|transcription|number)_(.+)"),
+        'confirm_word_delete': re.compile(r"confirm_word_delete_(.+)"),
+        'cancel_word_delete': re.compile(r"cancel_word_delete_(.+)"),
+        # НОВОЕ: Парсеры для админ-редактирования из изучения
+        'admin_edit_from_study': re.compile(r"admin_edit_word_from_study_(.+)"),
     }
     
     @classmethod
@@ -202,7 +227,6 @@ class CallbackParser:
             return int(match.group(1))
         return None
     
-    # НОВОЕ: Парсер для индивидуальных настроек подсказок
     @classmethod
     def parse_hint_setting_toggle(cls, callback_data: str) -> Optional[str]:
         """
@@ -215,6 +239,103 @@ class CallbackParser:
             Hint type or None if no match
         """
         match = cls.PATTERNS['hint_setting_toggle'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
+
+    @classmethod
+    def parse_edit_word(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse edit word callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Word ID or None if no match
+        """
+        match = cls.PATTERNS['edit_word'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
+    
+    @classmethod
+    def parse_delete_word(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse delete word callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Word ID or None if no match
+        """
+        match = cls.PATTERNS['delete_word'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
+    
+    @classmethod
+    def parse_edit_wordfield(cls, callback_data: str) -> Optional[Tuple[str, str]]:
+        """
+        Parse edit word field callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Tuple of (field_name, word_id) or None if no match
+        """
+        match = cls.PATTERNS['edit_wordfield'].match(callback_data)
+        if match:
+            return match.groups()
+        return None
+    
+    @classmethod
+    def parse_confirm_word_delete(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse confirm word delete callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Word ID or None if no match
+        """
+        match = cls.PATTERNS['confirm_word_delete'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
+    
+    @classmethod
+    def parse_cancel_word_delete(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse cancel word delete callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Word ID or None if no match
+        """
+        match = cls.PATTERNS['cancel_word_delete'].match(callback_data)
+        if match:
+            return match.group(1)
+        return None
+
+    # НОВОЕ: Парсер для админ-редактирования из изучения
+    @classmethod
+    def parse_admin_edit_from_study(cls, callback_data: str) -> Optional[str]:
+        """
+        Parse admin edit from study callback data.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            Word ID or None if no match
+        """
+        match = cls.PATTERNS['admin_edit_from_study'].match(callback_data)
         if match:
             return match.group(1)
         return None
@@ -264,7 +385,48 @@ def format_admin_callback(action: str, entity_id: str = None) -> str:
     return action
 
 
-# НОВОЕ: Функции для работы с индивидуальными настройками подсказок
+def format_word_callback(action: str, word_id: str) -> str:
+    """
+    Format word action callback data.
+    
+    Args:
+        action: The word action (edit, delete, etc.)
+        word_id: The word ID
+        
+    Returns:
+        Formatted callback data string
+    """
+    return f"{action}_word_{word_id}"
+
+
+def format_word_field_callback(field: str, word_id: str) -> str:
+    """
+    Format word field edit callback data.
+    
+    Args:
+        field: The field to edit (foreign, translation, transcription, number)
+        word_id: The word ID
+        
+    Returns:
+        Formatted callback data string
+    """
+    return f"edit_word_{field}_{word_id}"
+
+
+# НОВОЕ: Функции для админ-редактирования из изучения
+def format_admin_edit_from_study_callback(word_id: str) -> str:
+    """
+    Format admin edit from study callback data.
+    
+    Args:
+        word_id: The word ID
+        
+    Returns:
+        Formatted callback data string
+    """
+    return CallbackData.ADMIN_EDIT_WORD_FROM_STUDY_TEMPLATE.format(word_id=word_id)
+
+
 def get_hint_setting_callback(setting_key: str) -> Optional[str]:
     """
     Get callback data for a hint setting.
@@ -304,7 +466,6 @@ def is_hint_setting_callback(callback_data: str) -> bool:
     return callback_data in HINT_SETTINGS_CALLBACKS_REVERSE
 
 
-# НОВОЕ: Функция для генерации всех callback'ов настроек подсказок
 def get_all_hint_setting_callbacks() -> Dict[str, str]:
     """
     Get all hint setting callbacks.

@@ -1,6 +1,7 @@
 """
 Refactored keyboards for admin interface.
 Now uses centralized callback constants and improved callback generation.
+UPDATED: Added word editing and deletion keyboards.
 """
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -166,36 +167,10 @@ def get_back_to_admin_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_yes_no_keyboard(action: str, entity_id: str) -> InlineKeyboardMarkup:
-    """
-    Create keyboard with Yes/No buttons for confirmation.
-    Now uses centralized callback constants.
-    
-    Args:
-        action: Action type (e.g., "delete_language")
-        entity_id: ID of the entity
-        
-    Returns:
-        InlineKeyboardMarkup: Yes/No confirmation keyboard
-    """
-    builder = InlineKeyboardBuilder()
-    
-    builder.add(InlineKeyboardButton(
-        text="✅ Да", 
-        callback_data=CallbackData.CONFIRM_DELETE_TEMPLATE.format(action=action, entity_id=entity_id)
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="❌ Нет", 
-        callback_data=CallbackData.CANCEL_DELETE_TEMPLATE.format(action=action, entity_id=entity_id)
-    ))
-    
-    builder.adjust(2)  # Two buttons in one row
-    return builder.as_markup()
-
 def get_word_actions_keyboard(word_id: str, language_id: str) -> InlineKeyboardMarkup:
     """
     Create keyboard with word action buttons.
+    UPDATED: Enhanced with new edit and delete options.
     
     Args:
         word_id: ID of the word
@@ -207,8 +182,13 @@ def get_word_actions_keyboard(word_id: str, language_id: str) -> InlineKeyboardM
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text="✏️ Редактировать", 
-        callback_data=f"edit_word_{word_id}"
+        text="✏️ Редактировать слово", 
+        callback_data=CallbackData.EDIT_WORD_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🗑️ Удалить слово", 
+        callback_data=CallbackData.DELETE_WORD_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
@@ -222,6 +202,105 @@ def get_word_actions_keyboard(word_id: str, language_id: str) -> InlineKeyboardM
     ))
     
     builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+def get_word_edit_keyboard(word_id: str, language_id: str) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for word editing menu.
+    
+    Args:
+        word_id: ID of the word
+        language_id: ID of the language
+        
+    Returns:
+        InlineKeyboardMarkup: Word editing keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="🔤 Изменить иностранное слово", 
+        callback_data=CallbackData.EDIT_WORDFIELD_FOREIGN_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🇷🇺 Изменить перевод", 
+        callback_data=CallbackData.EDIT_WORDFIELD_TRANSLATION_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔊 Изменить транскрипцию", 
+        callback_data=CallbackData.EDIT_WORDFIELD_TRANSCRIPTION_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔢 Изменить номер слова", 
+        callback_data=CallbackData.EDIT_WORDFIELD_NUMBER_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к слову", 
+        callback_data=CallbackData.BACK_TO_WORD_DETAILS
+    ))
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+
+def get_word_delete_confirmation_keyboard(word_id: str) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for word deletion confirmation.
+    
+    Args:
+        word_id: ID of the word to delete
+        
+    Returns:
+        InlineKeyboardMarkup: Word deletion confirmation keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="✅ Да, удалить слово", 
+        callback_data=CallbackData.CONFIRM_WORD_DELETE_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="❌ Отменить удаление", 
+        callback_data=CallbackData.CANCEL_WORD_DELETE_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.adjust(2)  # Two buttons in one row
+    return builder.as_markup()
+
+
+def get_word_back_keyboard(word_id: str = None, language_id: str = None) -> InlineKeyboardMarkup:
+    """
+    Create keyboard with back to word details button.
+    
+    Args:
+        word_id: ID of the word (optional)
+        language_id: ID of the language (optional)
+        
+    Returns:
+        InlineKeyboardMarkup: Back to word keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    if word_id:
+        builder.add(InlineKeyboardButton(
+            text="⬅️ Назад к слову", 
+            callback_data=CallbackData.BACK_TO_WORD_DETAILS
+        ))
+    elif language_id:
+        builder.add(InlineKeyboardButton(
+            text="⬅️ Назад к языку", 
+            callback_data=CallbackData.EDIT_LANGUAGE_TEMPLATE.format(language_id=language_id)
+        ))
+    else:
+        builder.add(InlineKeyboardButton(
+            text="⬅️ Назад", 
+            callback_data=CallbackData.BACK_TO_ADMIN
+        ))
+    
     return builder.as_markup()
 
 
@@ -331,11 +410,6 @@ def get_user_detail_keyboard(user_id: str) -> InlineKeyboardMarkup:
     ))
     
     builder.add(InlineKeyboardButton(
-        text="👑 Изменить права админа", 
-        callback_data=f"toggle_admin_{user_id}"
-    ))
-    
-    builder.add(InlineKeyboardButton(
         text="⬅️ Назад к списку", 
         callback_data=CallbackData.ADMIN_USERS
     ))
@@ -343,185 +417,146 @@ def get_user_detail_keyboard(user_id: str) -> InlineKeyboardMarkup:
     builder.adjust(1)  # One button per row
     return builder.as_markup()
 
+# Добавить в конец файла frontend/app/bot/keyboards/admin_keyboards.py
 
-def create_file_upload_keyboard(language_id: str) -> InlineKeyboardMarkup:
+def get_word_actions_keyboard_from_study(word_id: str, language_id: str) -> InlineKeyboardMarkup:
     """
-    Create keyboard for file upload options.
+    Create keyboard with word action buttons when coming from study mode.
+    This keyboard includes a "Return to Study" button instead of regular admin navigation.
     
     Args:
-        language_id: ID of the target language
+        word_id: ID of the word
+        language_id: ID of the language
         
     Returns:
-        InlineKeyboardMarkup: File upload options keyboard
+        InlineKeyboardMarkup: Word actions keyboard for study context
     """
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text="📁 Загрузить новый файл",
-        callback_data=CallbackData.UPLOAD_TO_LANG_TEMPLATE.format(language_id=language_id)
+        text="✏️ Редактировать слово", 
+        callback_data=CallbackData.EDIT_WORD_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
-        text="🔄 Заменить все слова",
-        callback_data=f"replace_all_words_{language_id}"
+        text="🗑️ Удалить слово", 
+        callback_data=CallbackData.DELETE_WORD_TEMPLATE.format(word_id=word_id)
     ))
     
+    # ОТЛИЧИЕ: Вместо обычной админ-навигации добавляем возврат к изучению
     builder.add(InlineKeyboardButton(
-        text="➕ Добавить к существующим",
-        callback_data=f"append_words_{language_id}"
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="⬅️ Отмена",
-        callback_data=CallbackData.CANCEL_UPLOAD_TEMPLATE.format(language_id=language_id)
+        text="⬅️ Вернуться к изучению", 
+        callback_data=CallbackData.BACK_TO_STUDY_FROM_ADMIN
     ))
     
     builder.adjust(1)  # One button per row
     return builder.as_markup()
 
 
-def create_language_management_keyboard() -> InlineKeyboardMarkup:
+def get_word_edit_keyboard_from_study(word_id: str, language_id: str) -> InlineKeyboardMarkup:
     """
-    Create keyboard for language management main menu.
+    Create keyboard for word editing menu when coming from study mode.
     
+    Args:
+        word_id: ID of the word
+        language_id: ID of the language
+        
     Returns:
-        InlineKeyboardMarkup: Language management keyboard
+        InlineKeyboardMarkup: Word editing keyboard for study context
     """
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text="📋 Просмотреть языки",
-        callback_data=CallbackData.VIEW_LANGUAGES
+        text="🔤 Изменить иностранное слово", 
+        callback_data=CallbackData.EDIT_WORDFIELD_FOREIGN_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
-        text="➕ Создать новый язык",
-        callback_data=CallbackData.CREATE_LANGUAGE
+        text="🇷🇺 Изменить перевод", 
+        callback_data=CallbackData.EDIT_WORDFIELD_TRANSLATION_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
-        text="📊 Статистика языков",
-        callback_data="languages_stats"
+        text="🔊 Изменить транскрипцию", 
+        callback_data=CallbackData.EDIT_WORDFIELD_TRANSCRIPTION_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
-        text="⬅️ Назад в админку",
-        callback_data=CallbackData.BACK_TO_ADMIN
+        text="🔢 Изменить номер слова", 
+        callback_data=CallbackData.EDIT_WORDFIELD_NUMBER_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    # ОТЛИЧИЕ: Возврат к изучению вместо обычной админ-навигации  
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к слову", 
+        callback_data=CallbackData.BACK_TO_WORD_DETAILS
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🏠 Вернуться к изучению", 
+        callback_data=CallbackData.BACK_TO_STUDY_FROM_ADMIN
     ))
     
     builder.adjust(1)  # One button per row
     return builder.as_markup()
 
 
-def create_confirmation_keyboard(
-    action: str, 
-    entity_id: str, 
-    confirm_text: str = "✅ Подтвердить",
-    cancel_text: str = "❌ Отменить"
-) -> InlineKeyboardMarkup:
+def get_word_delete_confirmation_keyboard_from_study(word_id: str) -> InlineKeyboardMarkup:
     """
-    Create a generic confirmation keyboard.
+    Create keyboard for word deletion confirmation when coming from study mode.
     
     Args:
-        action: Action to confirm
-        entity_id: ID of the entity
-        confirm_text: Text for confirm button
-        cancel_text: Text for cancel button
+        word_id: ID of the word to delete
         
     Returns:
-        InlineKeyboardMarkup: Confirmation keyboard
+        InlineKeyboardMarkup: Word deletion confirmation keyboard for study context
     """
     builder = InlineKeyboardBuilder()
     
     builder.add(InlineKeyboardButton(
-        text=confirm_text,
-        callback_data=CallbackData.CONFIRM_DELETE_TEMPLATE.format(action=action, entity_id=entity_id)
+        text="✅ Да, удалить слово", 
+        callback_data=CallbackData.CONFIRM_WORD_DELETE_TEMPLATE.format(word_id=word_id)
     ))
     
     builder.add(InlineKeyboardButton(
-        text=cancel_text,
-        callback_data=CallbackData.CANCEL_DELETE_TEMPLATE.format(action=action, entity_id=entity_id)
+        text="❌ Отменить удаление", 
+        callback_data=CallbackData.CANCEL_WORD_DELETE_TEMPLATE.format(word_id=word_id)
     ))
     
-    builder.adjust(2)  # Two buttons in one row
+    # ДОПОЛНИТЕЛЬНО: Быстрый возврат к изучению
+    builder.add(InlineKeyboardButton(
+        text="🏠 Вернуться к изучению", 
+        callback_data=CallbackData.BACK_TO_STUDY_FROM_ADMIN
+    ))
+    
+    builder.adjust(2, 1)  # Первая строка: 2 кнопки, вторая строка: 1 кнопка
     return builder.as_markup()
 
 
-def create_admin_stats_keyboard() -> InlineKeyboardMarkup:
+def get_word_back_keyboard_from_study(word_id: str = None, language_id: str = None) -> InlineKeyboardMarkup:
     """
-    Create keyboard for admin statistics menu.
+    Create keyboard with back to word details button when coming from study mode.
     
+    Args:
+        word_id: ID of the word (optional)
+        language_id: ID of the language (optional)
+        
     Returns:
-        InlineKeyboardMarkup: Admin stats keyboard
+        InlineKeyboardMarkup: Back to word keyboard for study context
     """
     builder = InlineKeyboardBuilder()
     
+    if word_id:
+        builder.add(InlineKeyboardButton(
+            text="⬅️ Назад к слову", 
+            callback_data=CallbackData.BACK_TO_WORD_DETAILS
+        ))
+    
+    # Всегда добавляем возврат к изучению
     builder.add(InlineKeyboardButton(
-        text="👥 Статистика пользователей",
-        callback_data="admin_users_stats"
+        text="🏠 Вернуться к изучению", 
+        callback_data=CallbackData.BACK_TO_STUDY_FROM_ADMIN
     ))
     
-    builder.add(InlineKeyboardButton(
-        text="🌐 Статистика языков",
-        callback_data="admin_languages_stats"
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="📝 Статистика слов",
-        callback_data="admin_words_stats"
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="📈 Общая статистика",
-        callback_data="admin_general_stats"
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="⬅️ Назад в админку",
-        callback_data=CallbackData.BACK_TO_ADMIN
-    ))
-    
-    builder.adjust(2, 2, 1)  # 2-2-1 layout
+    builder.adjust(1)  # One button per row
     return builder.as_markup()
-
-
-# Utility functions for creating specific button types
-def create_back_button(callback_data: str, text: str = "⬅️ Назад") -> InlineKeyboardButton:
-    """Create a back button with custom callback data."""
-    return InlineKeyboardButton(text=text, callback_data=callback_data)
-
-
-def create_admin_action_button(text: str, action: str, entity_id: str = None) -> InlineKeyboardButton:
-    """Create an admin action button with proper callback data."""
-    callback_data = format_admin_callback(action, entity_id)
-    return InlineKeyboardButton(text=text, callback_data=callback_data)
-
-
-def create_language_button(language: dict) -> InlineKeyboardButton:
-    """Create a button for language selection."""
-    lang_id = language.get('_id', language.get('id'))
-    display_text = f"{language['name_ru']} ({language['name_foreign']})"
-    callback_data = CallbackData.EDIT_LANGUAGE_TEMPLATE.format(language_id=lang_id)
-    
-    return InlineKeyboardButton(text=display_text, callback_data=callback_data)
-
-
-def create_user_button(user: dict) -> InlineKeyboardButton:
-    """Create a button for user selection."""
-    user_id = user.get('_id', user.get('id'))
-    username = user.get('username', 'Нет username')
-    first_name = user.get('first_name', 'Без имени')
-    
-    # Format display name
-    display_name = f"{first_name}"
-    if username and username != 'Нет username':
-        display_name += f" (@{username})"
-    
-    # Add admin indicator
-    if user.get('is_admin', False):
-        display_name += " 👑"
-    
-    return InlineKeyboardButton(
-        text=display_name,
-        callback_data=f"view_user_{user_id}"
-    )

@@ -1,0 +1,1337 @@
+"""
+Handlers for language management in administrative mode.
+Updated with FSM states for better navigation control.
+"""
+
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
+from app.utils.api_utils import get_api_client_from_bot
+from app.utils.logger import setup_logger
+from app.bot.states.centralized_states import AdminStates, StudyStates
+from app.bot.keyboards.admin_keyboards import (
+    get_word_actions_keyboard
+)
+from app.utils.callback_constants import CallbackData
+from app.bot.keyboards.admin_keyboards import get_word_actions_keyboard_from_study
+from app.bot.keyboards.admin_keyboards import (
+    get_word_actions_keyboard,
+    get_word_actions_keyboard_from_study,  # НОВОЕ
+)
+
+# Создаем роутер для обработчиков администрирования
+word_router = Router()
+
+logger = setup_logger(__name__)
+
+
+@word_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("search_word_by_number_"))
+async def process_search_word_by_number(callback_query: CallbackQuery, state: FSMContext):
+    """
+    Обработчик для инициализации поиска слова по номеру.
+    
+    Args:
+        callback_query: Объект callback query от Telegram
+        state: Контекст состояния FSM
+    """
+    # Изменяем извлечение ID языка
+    language_id = callback_query.data.split("_")[-1]
+    
+    # Сохраняем ID языка в состоянии
+    await state.update_data(language_id=language_id)
+    
+    # Отправляем запрос на ввод номера слова
+    await callback_query.message.answer(
+        "📝 <b>Введите номер слова для поиска:</b>\n\n"
+        "Например: <code>1</code> - для поиска первого слова в списке",
+        parse_mode="HTML"
+    )
+    
+    # Устанавливаем состояние ввода номера слова
+    await state.set_state(AdminStates.input_word_number)
+    
+    # Отвечаем на callback
+    await callback_query.answer()
+
+@word_router.message(AdminStates.input_word_number)
+async def process_word_number_input(message: Message, state: FSMContext):
+    """
+    Обработчик для поиска слова по введенному номеру.
+    
+    Args:
+        message: Объект сообщения от Telegram
+        state: Контекст состояния FSM
+    """
+    user_id = message.from_user.id
+    username = message.from_user.username
+    full_name = message.from_user.first_name
+
+    logger.info(f"'process_word_number_input' message from: {full_name}")
+
+    api_client = get_api_client_from_bot(message.bot)
+    
+    if not api_client:
+        await message.reply("Ошибка: API клиент недоступен")
+        return
+    
+    # Проверяем, что введено число
+    if not message.text.isdigit():
+        await message.reply(
+            "❌ Пожалуйста, введите корректный номер слова (только цифры)."
+        )
+        return
+    
+    word_number = int(message.text)
+    
+    # Получаем ID языка из состояния
+    data = await state.get_data()
+    language_id = data.get('language_id')
+    
+    if not language_id:
+        await message.reply(
+            "❌ Ошибка: ID языка не найден. Пожалуйста, вернитесь в меню администратора и попробуйте снова."
+        )
+        return
+    
+    # Получаем слово по номеру
+    word_response = await api_client.get_word_by_number(language_id, word_number)
+    
+    # Проверяем успешность запроса
+    if not word_response["success"]:
+        await message.reply(
+            f"❌ Ошибка при поиске слова с номером {word_number}. "
+            f"Возможно, слово с таким номером не существует."
+        )
+        return
+    
+    # Проверяем, есть ли результат
+    result = word_response["result"]
+    if not result or (isinstance(result, list) and len(result) == 0):
+        await message.reply(
+            f"⚠️ Слово с номером {word_number} не найдено в базе данных."
+        )
+        # ✅ НОВОЕ: Возвращаемся на экран редактирования языка
+        await state.set_state(AdminStates.viewing_language_details)
+        await show_language_edit_screen(message, language_id, is_callback=False)
+        return
+    
+    # ✅ НОВОЕ: Устанавливаем состояние просмотра результатов поиска слова
+    await state.set_state(AdminStates.viewing_word_search_results)
+    
+    # Получаем слово (первый элемент в списке)
+    words = result
+    word = words[0] if isinstance(words, list) else words
+    
+    # Получаем ID слова, проверяя разные возможные ключи
+    word_id = word.get('id') or word.get('_id') or word.get('word_id') or 'N/A'
+
+    await show_word_details_screen(message, word_id, state
+                                #    , word, language_id, message, 
+                                   )
+
+    
+# async def show_edit_word(word_id, word, language_id, message_or_callback, state: FSMContext):
+#     user_id = message_or_callback.from_user.id
+#     username = message_or_callback.from_user.username
+#     full_name = message_or_callback.from_user.first_name
+
+#     logger.info(f"'show_edit_word' from: {full_name}")
+
+#     api_client = get_api_client_from_bot(message_or_callback.bot)
+
+#     # Получаем данные текущего пользователя
+#     user_info = ""
+    
+#     # Получаем данные состояния 
+#     state_data = await state.get_data()
+
+#     # проверяем наличие db_user_id
+#     db_user_id = state_data.get('db_user_id')
+    
+#     if db_user_id:
+#         # Получаем данные пользователя для этого слова
+#         user_word_response = await api_client.get_user_word_data(db_user_id, word_id)
+        
+#         if user_word_response["success"] and user_word_response["result"]:
+#             user_word_data = user_word_response["result"]
+            
+#             # Флаг пропуска слова
+#             is_skipped = user_word_data.get("is_skipped", False)
+            
+#             # Период проверки
+#             check_interval = user_word_data.get("check_interval", 0)
+            
+#             # Дата следующей проверки
+#             next_check_date = user_word_data.get("next_check_date")
+            
+#             # Форматируем дату для отображения
+#             formatted_next_check_date = "Не установлена"
+#             if next_check_date:
+#                 try:
+#                     # Импортируем функцию для форматирования даты
+#                     from app.utils.formatting_utils import format_date_standard
+#                     formatted_next_check_date = format_date_standard(next_check_date)
+#                 except Exception as e:
+#                     logger.error(f"Error formatting date: {e}")
+#                     formatted_next_check_date = str(next_check_date).split('T')[0]
+            
+#             # Добавляем информацию о пользовательских данных
+#             user_info = (
+#                 f"\n<b>Данные для текущего пользователя ({username}):</b>\n"
+#                 f"Флаг пропуска: <b>{'Да' if is_skipped else 'Нет'}</b>\n"
+#                 f"Период проверки: <b>{check_interval} дней</b>\n"
+#                 f"Дата следующей проверки: <b>{formatted_next_check_date}</b>\n"
+#             )
+    
+#     # Получаем информацию о языке
+#     language_response = await api_client.get_language(language_id)
+#     language_name = "Неизвестный язык"
+    
+#     if language_response["success"] and language_response["result"]:
+#         language_name = language_response["result"]["name_ru"]
+    
+#     # Формируем сообщение с информацией о слове
+#     word_info = (
+#         f"📖 <b>Информация о слове</b> 📖\n\n"
+#         f"Язык: <b>{language_name}</b>\n"
+#         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+#         f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+#         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+#         f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
+#         f"ID: <code>{word_id}</code>\n"
+#         f"{user_info}"
+#     )
+    
+#     from_study = state_data.get("return_to_study", False)
+
+#     # Выбираем клавиатуру в зависимости от контекста
+#     if from_study:
+#         keyboard = get_word_actions_keyboard_from_study(word_id, language_id)
+#     else:
+#         keyboard = get_word_actions_keyboard(word_id, language_id)
+
+    
+#     if isinstance(message_or_callback, CallbackQuery):
+#         message = message_or_callback.message
+#     else:
+#         message = message_or_callback
+
+#     # Отправляем информацию о слове
+#     await message.reply(
+#         word_info,
+#         parse_mode="HTML",
+#         reply_markup=keyboard
+#     )
+    
+@word_router.callback_query(AdminStates.viewing_word_search_results, F.data.startswith("edit_word_"))
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_word_"))
+@word_router.callback_query(StudyStates.studying, F.data.startswith("edit_word_"))
+async def process_edit_word(callback: CallbackQuery, state: FSMContext):
+    """
+    Show word editing menu.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    word_id = CallbackParser.parse_edit_word(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    logger.info(f"'edit_word' callback for word ID: {word_id}")
+    
+    # Устанавливаем состояние просмотра деталей слова
+    await state.set_state(AdminStates.viewing_word_details)
+    await state.update_data(editing_word_id=word_id)
+    
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о слове
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await callback.message.answer(f"Ошибка: {error_msg}")
+        await callback.answer()
+        logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # Получаем информацию о языке
+    language_response = await api_client.get_language(word['language_id'])
+    language_name = "Неизвестный язык"
+    
+    if language_response["success"] and language_response["result"]:
+        language = language_response["result"]
+        language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # Формируем сообщение с информацией о слове
+    word_info = (
+        f"✏️ <b>Редактирование слова</b>\n\n"
+        f"Язык: <b>{language_name}</b>\n"
+        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"Выберите поле для редактирования:"
+    )
+    
+    # Создаем клавиатуру для редактирования
+    from app.bot.keyboards.admin_keyboards import get_word_edit_keyboard
+    keyboard = get_word_edit_keyboard(word_id, word['language_id'])
+    
+    await callback.message.edit_text(
+        word_info,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_foreign_"))
+async def process_edit_wordfield_foreign(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word foreign text.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="word_foreign")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование иностранного слова</b>\n\n"
+        "Введите новое слово на иностранном языке:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования иностранного слова
+    await state.set_state(AdminStates.editing_word_foreign)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_translation_"))
+async def process_edit_wordfield_translation(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word translation.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="translation")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование перевода</b>\n\n"
+        "Введите новый перевод на русский язык:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования перевода
+    await state.set_state(AdminStates.editing_word_translation)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_transcription_"))
+async def process_edit_wordfield_transcription(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word transcription.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="transcription")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование транскрипции</b>\n\n"
+        "Введите новую транскрипцию слова:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования транскрипции
+    await state.set_state(AdminStates.editing_word_transcription)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_number_"))
+async def process_edit_wordfield_number(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word number.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="word_number")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование номера слова</b>\n\n"
+        "Введите новый номер слова в частотном списке:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования номера слова
+    await state.set_state(AdminStates.editing_word_number)
+    
+    await callback.answer()
+
+
+@word_router.message(AdminStates.editing_word_foreign)
+async def process_word_foreign_input(message: Message, state: FSMContext):
+    """
+    Process foreign word input from admin.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    await process_word_field_update(message, state, "word_foreign", "иностранного слова")
+
+
+@word_router.message(AdminStates.editing_word_translation)
+async def process_word_translation_input(message: Message, state: FSMContext):
+    """
+    Process translation input from admin.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    await process_word_field_update(message, state, "translation", "перевода")
+
+
+@word_router.message(AdminStates.editing_word_transcription)
+async def process_word_transcription_input(message: Message, state: FSMContext):
+    """
+    Process transcription input from admin.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    await process_word_field_update(message, state, "transcription", "транскрипции")
+
+
+@word_router.message(AdminStates.editing_word_number)
+async def process_word_number_input(message: Message, state: FSMContext):
+    """
+    Process word number input from admin.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    # Проверяем, что введено число
+    if not message.text.isdigit():
+        await message.reply(
+            "❌ Пожалуйста, введите корректный номер слова (только цифры)."
+        )
+        return
+    
+    word_number = int(message.text)
+    await process_word_field_update(message, state, "word_number", "номера слова", word_number)
+
+
+async def process_word_field_update(message: Message, state: FSMContext, field_name: str, field_display_name: str, value=None):
+    """
+    Common function to update word field.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+        field_name: Name of the field to update
+        field_display_name: Display name for user messages
+        value: Value to update (if None, uses message.text)
+    """
+    # Получаем данные состояния
+    user_data = await state.get_data()
+    word_id = user_data.get('editing_word_id')
+    
+    if not word_id:
+        await message.answer("❌ Ошибка: ID слова не найден. Начните редактирование заново.")
+        await state.clear()
+        return
+    
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(message.bot)
+    
+    # Подготавливаем данные для обновления
+    update_value = value if value is not None else message.text
+    update_data = {field_name: update_value}
+    
+    # Обновляем слово через API
+    try:
+        update_response = await api_client.update_word(word_id, update_data)
+        
+        if not update_response["success"]:
+            error_msg = update_response.get("error", "Неизвестная ошибка")
+            await message.answer(f"Ошибка при обновлении {field_display_name}: {error_msg}")
+            logger.error(f"Failed to update word {word_id} field {field_name}. Error: {error_msg}")
+            await state.clear()
+            return
+        
+        await message.answer(
+            f"✅ {field_display_name.capitalize()} успешно обновлено!"
+        )
+        
+        # Возвращаемся к экрану редактирования слова
+        await state.set_state(AdminStates.viewing_word_details)
+        await show_word_edit_screen_after_update(message, word_id)
+        
+    except Exception as e:
+        logger.error(f"Error updating word field {field_name}: {e}")
+        await message.answer(
+            f"❌ Ошибка при обновлении {field_display_name}: {str(e)}"
+        )
+        await state.clear()
+
+
+async def show_word_edit_screen_after_update(message: Message, word_id: str):
+    """
+    Show word edit screen after successful update.
+    
+    Args:
+        message: The message object from Telegram
+        word_id: ID of the updated word
+    """
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(message.bot)
+    
+    # Получаем обновленную информацию о слове
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await message.answer(f"Ошибка при получении слова: {error_msg}")
+        logger.error(f"Failed to get updated word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # Получаем информацию о языке
+    language_response = await api_client.get_language(word['language_id'])
+    language_name = "Неизвестный язык"
+    
+    if language_response["success"] and language_response["result"]:
+        language = language_response["result"]
+        language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # Формируем сообщение с обновленной информацией о слове
+    word_info = (
+        f"✏️ <b>Редактирование слова</b>\n\n"
+        f"Язык: <b>{language_name}</b>\n"
+        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"Выберите поле для редактирования:"
+    )
+    
+    # Создаем клавиатуру для редактирования
+    from app.bot.keyboards.admin_keyboards import get_word_edit_keyboard
+    keyboard = get_word_edit_keyboard(word_id, word['language_id'])
+    
+    await message.answer(
+        word_info,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data == CallbackData.BACK_TO_WORD_DETAILS)
+@word_router.callback_query(F.data == CallbackData.BACK_TO_WORD_DETAILS)
+async def process_back_to_word_details(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle going back to word details from edit menu.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    user_data = await state.get_data()
+    word_id = user_data.get('editing_word_id')
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Возвращаемся к экрану просмотра слова
+    await show_word_details_screen(callback, word_id, state)
+    
+    await callback.answer()
+
+
+async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: str, state):
+    """
+    Show word details screen.
+    
+    Args:
+        callback: The callback query from Telegram
+        word_id: ID of the word
+    """
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
+
+    logger.info(f"'show_edit_word' from: {full_name}")
+
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(message_or_callback.bot)
+    
+    # Получаем информацию о слове
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await message.answer(f"Ошибка: {error_msg}")
+        logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # Получаем информацию о языке
+    language_id = word['language_id']
+    language_response = await api_client.get_language(language_id)
+    language_name = "Неизвестный язык"
+    
+    if language_response["success"] and language_response["result"]:
+        language = language_response["result"]
+        language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # Получаем данные текущего пользователя
+    user_info = ""
+    
+    # Получаем данные состояния 
+    state_data = await state.get_data()
+
+    # проверяем наличие db_user_id
+    db_user_id = state_data.get('db_user_id')
+    
+    if db_user_id:
+        # Получаем данные пользователя для этого слова
+        user_word_response = await api_client.get_user_word_data(db_user_id, word_id)
+        
+        if user_word_response["success"] and user_word_response["result"]:
+            user_word_data = user_word_response["result"]
+            
+            # Флаг пропуска слова
+            is_skipped = user_word_data.get("is_skipped", False)
+            
+            # Период проверки
+            check_interval = user_word_data.get("check_interval", 0)
+            
+            # Дата следующей проверки
+            next_check_date = user_word_data.get("next_check_date")
+            
+            # Форматируем дату для отображения
+            formatted_next_check_date = "Не установлена"
+            if next_check_date:
+                try:
+                    # Импортируем функцию для форматирования даты
+                    from app.utils.formatting_utils import format_date_standard
+                    formatted_next_check_date = format_date_standard(next_check_date)
+                except Exception as e:
+                    logger.error(f"Error formatting date: {e}")
+                    formatted_next_check_date = str(next_check_date).split('T')[0]
+            
+            # Добавляем информацию о пользовательских данных
+            user_info = (
+                f"\n<b>Данные для текущего пользователя ({username}):</b>\n"
+                f"Флаг пропуска: <b>{'Да' if is_skipped else 'Нет'}</b>\n"
+                f"Период проверки: <b>{check_interval} дней</b>\n"
+                f"Дата следующей проверки: <b>{formatted_next_check_date}</b>\n"
+            )
+
+    # Формируем сообщение с информацией о слове
+    word_info = (
+        f"📖 <b>Информация о слове</b>\n\n"
+        f"Язык: <b>{language_name}</b>\n"
+        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
+        f"ID: <code>{word_id}</code>"
+        f"{user_info}"
+    )
+    
+    # # Используем обновленную клавиатуру
+    # from app.bot.keyboards.admin_keyboards import get_word_actions_keyboard
+    # keyboard = get_word_actions_keyboard(word_id, word['language_id'])
+
+    from_study = state_data.get("return_to_study", False)
+
+    # Выбираем клавиатуру в зависимости от контекста
+    if from_study:
+        keyboard = get_word_actions_keyboard_from_study(word_id, language_id)
+    else:
+        keyboard = get_word_actions_keyboard(word_id, language_id)
+
+    
+    await message.answer(
+        word_info,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+    
+# НОВОЕ: Обработчики для удаления слов
+# Добавить в конец файла admin_language_handlers.py после обработчиков редактирования
+
+@word_router.callback_query(AdminStates.viewing_word_search_results, F.data.startswith("delete_word_"))
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("delete_word_"))
+@word_router.callback_query(F.data.startswith("delete_word_"))
+async def process_delete_word(callback: CallbackQuery, state: FSMContext):
+    """
+    Start word deletion process with confirmation.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    word_id = CallbackParser.parse_delete_word(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    logger.info(f"'delete_word' callback for word ID: {word_id}")
+    
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о слове для отображения в подтверждении
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await callback.message.answer(f"Ошибка: {error_msg}")
+        await callback.answer()
+        logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # Получаем информацию о языке
+    language_response = await api_client.get_language(word['language_id'])
+    language_name = "Неизвестный язык"
+    
+    if language_response["success"] and language_response["result"]:
+        language = language_response["result"]
+        language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # Устанавливаем состояние подтверждения удаления слова
+    await state.set_state(AdminStates.confirming_word_deletion)
+    await state.update_data(deleting_word_id=word_id, word_language_id=word['language_id'])
+    
+    # Формируем сообщение с подтверждением
+    confirmation_message = (
+        f"🗑️ <b>Подтверждение удаления слова</b>\n\n"
+        f"Вы действительно хотите удалить это слово?\n\n"
+        f"Язык: <b>{language_name}</b>\n"
+        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"⚠️ <b>Внимание!</b> Это действие также удалит:\n"
+        f"• Все пользовательские данные для этого слова\n"
+        f"• Все созданные подсказки для этого слова\n"
+        f"• Статистику изучения этого слова\n\n"
+        f"Это действие не может быть отменено!"
+    )
+    
+    # Создаем клавиатуру подтверждения
+    from app.bot.keyboards.admin_keyboards import get_word_delete_confirmation_keyboard
+    keyboard = get_word_delete_confirmation_keyboard(word_id)
+    
+    await callback.message.edit_text(
+        confirmation_message,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.confirming_word_deletion, F.data.startswith("confirm_word_delete_"))
+@word_router.callback_query(F.data.startswith("confirm_word_delete_"))
+async def process_confirm_word_delete(callback: CallbackQuery, state: FSMContext):
+    """
+    Confirm and execute word deletion.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    word_id = CallbackParser.parse_confirm_word_delete(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    logger.info(f"'confirm_word_delete' callback for word ID: {word_id}")
+    
+    # Получаем данные из состояния
+    user_data = await state.get_data()
+    language_id = user_data.get('word_language_id')
+    
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о слове перед удалением (для логирования)
+    word_response = await api_client.get_word(word_id)
+    word_info = "неизвестное слово"
+    
+    if word_response["success"] and word_response["result"]:
+        word = word_response["result"]
+        word_info = f"{word.get('word_foreign', 'N/A')} - {word.get('translation', 'N/A')}"
+    
+    # Удаляем слово через API
+    try:
+        delete_response = await api_client.delete_word(word_id)
+        
+        if not delete_response["success"]:
+            error_msg = delete_response.get("error", "Неизвестная ошибка")
+            await callback.message.answer(f"Ошибка при удалении слова: {error_msg}")
+            logger.error(f"Failed to delete word {word_id}. Error: {error_msg}")
+            await callback.answer()
+            return
+        
+        # Успешное удаление
+        result = delete_response["result"]
+        success_message = f"✅ Слово успешно удалено!\n\n"
+        
+        if isinstance(result, dict) and result.get('message'):
+            success_message += f"Сообщение: {result.get('message')}"
+        else:
+            success_message += f"Удалено слово: {word_info}"
+        
+        await callback.message.answer(success_message)
+        
+        # Логируем успешное удаление
+        logger.info(f"Word {word_id} ({word_info}) successfully deleted by admin")
+        
+        # Возвращаемся к экрану языка, если есть language_id
+        if language_id:
+            await state.set_state(AdminStates.viewing_language_details)
+            await show_language_edit_screen_callback(callback, language_id)
+        else:
+            # Если нет language_id, возвращаемся в админку
+            await state.set_state(AdminStates.main_menu)
+            from app.bot.handlers.admin.admin_basic_handlers import handle_admin_mode
+            await handle_admin_mode(callback, state, is_callback=True)
+        
+    except Exception as e:
+        logger.error(f"Error deleting word {word_id}: {e}")
+        await callback.message.answer(
+            f"❌ Критическая ошибка при удалении слова: {str(e)}"
+        )
+        # Очищаем состояние при критической ошибке
+        await state.clear()
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.confirming_word_deletion, F.data.startswith("cancel_word_delete_"))
+@word_router.callback_query(F.data.startswith("cancel_word_delete_"))
+async def process_cancel_word_delete(callback: CallbackQuery, state: FSMContext):
+    """
+    Cancel word deletion and return to word details.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    word_id = CallbackParser.parse_cancel_word_delete(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    logger.info(f"'cancel_word_delete' callback for word ID: {word_id}")
+    
+    # Получаем данные из состояния
+    user_data = await state.get_data()
+    language_id = user_data.get('word_language_id')
+    
+    await callback.message.answer("🚫 Удаление слова отменено")
+    
+    # Возвращаемся к деталям слова
+    await state.set_state(AdminStates.viewing_word_details)
+    await state.update_data(editing_word_id=word_id)
+    
+    # Показываем экран с деталями слова
+    await show_word_details_screen(callback, word_id)
+    
+    await callback.answer()
+
+
+# НОВОЕ: Вспомогательная функция для получения статистики использования слова
+async def get_word_usage_statistics(api_client, word_id: str) -> dict:
+    """
+    Get usage statistics for a word before deletion.
+    
+    Args:
+        api_client: API client instance
+        word_id: ID of the word
+        
+    Returns:
+        dict: Usage statistics
+    """
+    try:
+        # Здесь можно добавить запрос к API для получения статистики
+        # Например, количество пользователей, изучающих это слово
+        # Пока возвращаем базовую структуру
+        return {
+            "users_studying": 0,
+            "total_hints_created": 0,
+            "total_study_sessions": 0
+        }
+    except Exception as e:
+        logger.error(f"Error getting word usage statistics for {word_id}: {e}")
+        return {
+            "users_studying": "N/A",
+            "total_hints_created": "N/A", 
+            "total_study_sessions": "N/A"
+        }
+
+
+# НОВОЕ: Функция для безопасного удаления слова с проверками
+async def safe_delete_word_with_checks(api_client, word_id: str, word_info: dict) -> tuple:
+    """
+    Safely delete word with additional checks and logging.
+    
+    Args:
+        api_client: API client instance
+        word_id: ID of the word to delete
+        word_info: Information about the word
+        
+    Returns:
+        tuple: (success: bool, message: str, details: dict)
+    """
+    try:
+        # Получаем статистику использования перед удалением
+        usage_stats = await get_word_usage_statistics(api_client, word_id)
+        
+        # Выполняем удаление
+        delete_response = await api_client.delete_word(word_id)
+        
+        if delete_response["success"]:
+            return True, "Слово успешно удалено", {
+                "word_info": word_info,
+                "usage_stats": usage_stats,
+                "api_response": delete_response["result"]
+            }
+        else:
+            error_msg = delete_response.get("error", "Неизвестная ошибка API")
+            return False, f"Ошибка API при удалении: {error_msg}", {}
+            
+    except Exception as e:
+        logger.error(f"Critical error in safe_delete_word_with_checks for word {word_id}: {e}")
+        return False, f"Критическая ошибка: {str(e)}", {}
+
+
+# НОВОЕ: Обработчик для массового удаления слов (если потребуется в будущем)
+async def process_bulk_word_operations(callback: CallbackQuery, state: FSMContext, operation: str):
+    """
+    Handle bulk operations on words (delete multiple, export, etc.).
+    Placeholder for future functionality.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+        operation: Type of bulk operation
+    """
+    # Эта функция может быть расширена в будущем для:
+    # - Массового удаления слов по критериям
+    # - Экспорта слов в файл
+    # - Массового редактирования
+    
+    await callback.message.answer(
+        f"🚧 Функция массовых операций ({operation}) будет добавлена в будущих версиях"
+    )
+    await callback.answer()
+
+
+# НОВОЕ: Функция для логирования административных действий
+def log_admin_word_action(action: str, word_id: str, word_info: str, admin_user_id: int, admin_username: str):
+    """
+    Log administrative actions with words for audit purposes.
+    
+    Args:
+        action: Type of action (edit, delete, etc.)
+        word_id: ID of the word
+        word_info: Information about the word
+        admin_user_id: Telegram ID of the admin
+        admin_username: Username of the admin
+    """
+    logger.info(
+        f"ADMIN_ACTION: {action} | "
+        f"Word: {word_id} ({word_info}) | "
+        f"Admin: {admin_user_id} (@{admin_username})"
+    )
+
+
+
+# НОВОЕ: Обработчик возврата к изучению (дополнительный, если нужен в админ-модуле)
+@word_router.callback_query(F.data == CallbackData.BACK_TO_STUDY_FROM_ADMIN)
+async def process_back_to_study_from_admin_handler(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle return to study from admin mode (admin module handler).
+    This is a backup handler if the one in study_word_actions.py doesn't catch it.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"Admin module: 'back_to_study_from_admin' callback from {callback.from_user.full_name}")
+    
+    # Redirect to the main handler in study module
+    from app.bot.handlers.study.study_word_actions import process_back_to_study_from_admin
+    await process_back_to_study_from_admin(callback, state)
+
+# И обновить функцию show_word_details_screen_from_study в том же файле:
+
+async def show_word_details_screen_from_study(callback: CallbackQuery, word_id: str, from_study: bool = True):
+    """
+    Show word details screen when coming from study mode.
+    
+    Args:
+        callback: The callback query from Telegram
+        word_id: ID of the word
+        from_study: Whether coming from study mode
+    """
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о слове
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await callback.message.answer(f"Ошибка: {error_msg}")
+        logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # Получаем информацию о языке
+    language_response = await api_client.get_language(word['language_id'])
+    language_name = "Неизвестный язык"
+    
+    if language_response["success"] and language_response["result"]:
+        language = language_response["result"]
+        language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # Формируем сообщение с информацией о слове
+    word_info = (
+        f"✏️ <b>Редактирование слова из изучения</b>\n\n"
+        f"Язык: <b>{language_name}</b>\n"
+        f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
+        f"ID: <code>{word_id}</code>\n\n"
+        f"Выберите действие:"
+    )
+    
+    # ИСПРАВЛЕНО: Используем специальную клавиатуру для перехода из изучения
+    keyboard = get_word_actions_keyboard_from_study(word_id, word['language_id'])
+    
+    await callback.message.answer(
+        word_info,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+
+# НОВОЕ: Модифицированные обработчики для контекста изучения
+
+@word_router.callback_query(F.data.startswith(CallbackData.ADMIN_EDIT_WORD_FROM_STUDY), StudyStates.studying)
+async def process_edit_word_from_study(callback: CallbackQuery, state: FSMContext):
+    """
+    Show word editing menu when coming from study mode.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    word_id = CallbackParser.parse_admin_edit_from_study(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    logger.info(f"'edit_word_from_study' callback for word ID: {word_id}")
+    
+    # # Проверяем, пришли ли мы из изучения
+    # state_data = await state.get_data()
+    # from_study = state_data.get("return_to_study", False)
+    
+    # Сохраняем контекст возврата к изучению
+    await state.update_data(
+        return_to_study=True,
+    )
+
+    # Получаем клиент API
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получаем информацию о слове
+    word_response = await api_client.get_word(word_id)
+    
+    if not word_response["success"] or not word_response["result"]:
+        error_msg = word_response.get("error", "Слово не найдено")
+        await callback.message.answer(f"Ошибка: {error_msg}")
+        await callback.answer()
+        logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+        return
+    
+    word = word_response["result"]
+    
+    # # Получаем информацию о языке
+    # language_id = word['language_id']    
+    # language_response = await api_client.get_language(word['language_id'])
+    # language_name = "Неизвестный язык"
+    
+    # if language_response["success"] and language_response["result"]:
+    #     language = language_response["result"]
+    #     language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+    # # Формируем сообщение с информацией о слове
+    # word_info = (
+    #     f"✏️ <b>Редактирование слова</b>\n\n"
+    #     f"Язык: <b>{language_name}</b>\n"
+    #     f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+    #     f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+    #     f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+    #     f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+    #     f"Выберите поле для редактирования:"
+    # )
+    
+    # # Выбираем клавиатуру в зависимости от контекста
+    # if from_study:
+    #     keyboard = get_word_edit_keyboard_from_study(word_id, word['language_id'])
+    # else:
+    #     from app.bot.keyboards.admin_keyboards import get_word_edit_keyboard
+    #     keyboard = get_word_edit_keyboard(word_id, word['language_id'])
+    
+    # await callback.message.edit_text(
+    #     word_info,
+    #     parse_mode="HTML",
+    #     reply_markup=keyboard
+    # )
+    
+    await callback.answer()
+
+    await show_word_details_screen(callback, word_id, state)
+
+
+# @word_router.callback_query(F.data.startswith("delete_word_"), AdminStates.viewing_word_details)
+# async def process_delete_word_from_study(callback: CallbackQuery, state: FSMContext):
+#     """
+#     Start word deletion process with confirmation when coming from study mode.
+    
+#     Args:
+#         callback: The callback query from Telegram
+#         state: The FSM state context
+#     """
+#     from app.utils.callback_constants import CallbackParser
+    
+#     # Парсим callback для получения word_id
+#     word_id = CallbackParser.parse_delete_word(callback.data)
+    
+#     if not word_id:
+#         await callback.message.answer("❌ Ошибка: ID слова не найден")
+#         await callback.answer()
+#         return
+    
+#     logger.info(f"'delete_word_from_study' callback for word ID: {word_id}")
+    
+#     # Проверяем, пришли ли мы из изучения
+#     state_data = await state.get_data()
+#     from_study = state_data.get("return_to_study", False)
+    
+#     # Получаем клиент API
+#     api_client = get_api_client_from_bot(callback.bot)
+    
+#     # Получаем информацию о слове для отображения в подтверждении
+#     word_response = await api_client.get_word(word_id)
+    
+#     if not word_response["success"] or not word_response["result"]:
+#         error_msg = word_response.get("error", "Слово не найдено")
+#         await callback.message.answer(f"Ошибка: {error_msg}")
+#         await callback.answer()
+#         logger.error(f"Failed to get word by ID {word_id}. Error: {error_msg}")
+#         return
+    
+#     word = word_response["result"]
+    
+#     # Получаем информацию о языке
+#     language_response = await api_client.get_language(word['language_id'])
+#     language_name = "Неизвестный язык"
+    
+#     if language_response["success"] and language_response["result"]:
+#         language = language_response["result"]
+#         language_name = f"{language['name_ru']} ({language['name_foreign']})"
+    
+#     # Устанавливаем состояние подтверждения удаления слова
+#     await state.set_state(AdminStates.confirming_word_deletion)
+#     await state.update_data(deleting_word_id=word_id, word_language_id=word['language_id'])
+    
+#     # Формируем сообщение с подтверждением
+#     context_text = " из режима изучения" if from_study else ""
+#     confirmation_message = (
+#         f"🗑️ <b>Подтверждение удаления слова{context_text}</b>\n\n"
+#         f"Вы действительно хотите удалить это слово?\n\n"
+#         f"Язык: <b>{language_name}</b>\n"
+#         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
+#         f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
+#         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
+#         f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+#         f"⚠️ <b>Внимание!</b> Это действие также удалит:\n"
+#         f"• Все пользовательские данные для этого слова\n"
+#         f"• Все созданные подсказки для этого слова\n"
+#         f"• Статистику изучения этого слова\n\n"
+#         f"Это действие не может быть отменено!"
+#     )
+    
+#     # Выбираем клавиатуру в зависимости от контекста
+#     if from_study:
+#         keyboard = get_word_delete_confirmation_keyboard_from_study(word_id)
+#     else:
+#         from app.bot.keyboards.admin_keyboards import get_word_delete_confirmation_keyboard
+#         keyboard = get_word_delete_confirmation_keyboard(word_id)
+    
+#     await callback.message.edit_text(
+#         confirmation_message,
+#         parse_mode="HTML",
+#         reply_markup=keyboard
+#     )
+    
+#     await callback.answer()
+
+
+# # НОВОЕ: Обработчик для перехода к админ-редактированию из изучения
+# @word_actions_router.callback_query(F.data.startswith(CallbackData.ADMIN_EDIT_WORD_FROM_STUDY))
+# async def process_admin_edit_word_from_study(callback: CallbackQuery, state: FSMContext):
+#     """
+#     Обработчик перехода к админ-редактированию слова из экрана изучения.
+    
+#     Args:
+#         callback: The callback query
+#         state: FSM context
+#     """
+#     logger.info(f"'admin_edit_word_from_study' callback from {callback.from_user.full_name}")
+    
+#     # Проверяем права администратора
+#     if not await is_user_admin(callback, state):
+#         await callback.answer("❌ Недостаточно прав для редактирования", show_alert=True)
+#         return
+    
+#     # Парсим callback для получения word_id
+#     word_id = CallbackParser.parse_admin_edit_from_study(callback.data)
+    
+#     if not word_id:
+#         await callback.answer("❌ Ошибка: ID слова не найден")
+#         logger.error(f"Failed to parse word_id from callback: {callback.data}")
+#         return
+    
+#     logger.info(f"Admin editing word {word_id} from study mode")
+    
+#     # Сохраняем контекст возврата к изучению
+#     current_state_data = await state.get_data()
+#     study_context = {
+#         "return_to_study": True,
+#         "study_state_data": current_state_data,
+#         "previous_study_state": await state.get_state()
+#     }
+    
+#     # Переходим в админ-режим редактирования слова
+#     await state.set_state(AdminStates.viewing_word_details)
+#     await state.update_data(
+#         editing_word_id=word_id,
+#         **study_context  # Сохраняем контекст для возврата
+#     )
+    
+#     # Используем существующую функцию показа деталей слова из админки
+#     from app.bot.handlers.admin.admin_word_handlers import show_word_details_screen_from_study
+#     await show_word_details_screen_from_study(callback, word_id, from_study=True)
+    
+#     await callback.answer("✏️ Переходим к редактированию")

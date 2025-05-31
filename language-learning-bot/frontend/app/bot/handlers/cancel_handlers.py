@@ -333,8 +333,7 @@ async def cmd_cancel_universal(message: Message, state: FSMContext):
 
 async def _handle_unknown_state_cancel(message: Message, state: FSMContext, current_state: str) -> None:
     """
-    Handle cancel for unknown or unhandled states.
-    НОВОЕ: Обработчик для неизвестных состояний.
+    Обработчик для неизвестных состояний.
     
     Args:
         message: Message object

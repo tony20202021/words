@@ -178,7 +178,7 @@ async def process_study(message_or_callback: Message, state: FSMContext):
     logger.info(f"word_data={word_data}")
 
     # Show first word
-    await show_study_word(message, state, user_word_state, need_new_message=True)
+    await show_study_word(message_or_callback, state, user_word_state, need_new_message=True)
     
     logger.info(f"Study session started for user {db_user_id} with {len(study_words)} words")
 

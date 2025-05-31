@@ -1,4 +1,4 @@
-Структура каталогов и файлов проекта (обновлено с изображениями слов)
+Структура каталогов и файлов проекта (обновлено с изображениями слов и админ-редактированием из изучения)
 Содержание
 
 Корневой каталог
@@ -65,7 +65,7 @@ docs/
 │   └── router_organization.md   # Организация роутеров и обработчиков
 │
 └── functionality/               # Функциональность бота
-    ├── bot_commands.md          # 🆕 ОБНОВЛЕНО: Команды и действия бота (с изображениями)
+    ├── bot_commands.md          # 🆕 ОБНОВЛЕНО: Команды и действия бота (с изображениями и админ-редактированием)
     ├── admin_tools.md           # Инструменты администрирования
     └── learning_system.md       # 🆕 ОБНОВЛЕНО: Система изучения слов (с изображениями)
     
@@ -90,7 +90,8 @@ frontend/
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── admin_basic_handlers.py     # Базовые команды админа
 │   │   │   │   ├── admin_language_handlers.py  # Управление языками
-│   │   │   │   └── admin_upload_handlers.py    # Загрузка файлов
+│   │   │   │   ├── admin_upload_handlers.py    # Загрузка файлов
+│   │   │   │   └── admin_word_handlers.py      # 🆕 ОБНОВЛЕНО: Управление словами + переходы из изучения
 │   │   │   ├── user/                # Подмодули пользователя
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── basic_handlers.py      # Базовые команды пользователя
@@ -101,8 +102,8 @@ frontend/
 │   │   │   └── study/                  # Подмодули изучения слов
 │   │   │       ├── __init__.py
 │   │   │       ├── study_commands.py         # Команда /study
-│   │   │       ├── study_words.py            # Получение и отображение слов
-│   │   │       ├── study_word_actions.py     # 🆕 ОБНОВЛЕНО: Действия со словами + изображения
+│   │   │       ├── study_words.py            # 🆕 ОБНОВЛЕНО: Получение и отображение слов + админ-проверки
+│   │   │       ├── study_word_actions.py     # 🆕 ОБНОВЛЕНО: Действия со словами + изображения + админ-редактирование
 │   │   │       ├── study_hint_handlers.py    # Регистрация обработчиков подсказок
 │   │   │       └── hint/                     # Подмодули подсказок (ВСЕ ОБНОВЛЕНЫ)
 │   │   │           ├── __init__.py
@@ -111,12 +112,12 @@ frontend/
 │   │   │           ├── edit_handlers.py      # Редактирование подсказок (РЕФАКТОРИНГ)
 │   │   │           ├── view_handlers.py      # Просмотр подсказок
 │   │   │           └── toggle_handlers.py    # Переключение видимости (РЕФАКТОРИНГ)
-│   │   ├── keyboards/                       # 🆕 ОБНОВЛЕНЫ: ВСЕ ФАЙЛЫ с поддержкой изображений
+│   │   ├── keyboards/                       # 🆕 ОБНОВЛЕНЫ: ВСЕ ФАЙЛЫ с поддержкой изображений и админ-кнопок
 │   │   │   ├── __init__.py
-│   │   │   ├── admin_keyboards.py      # Клавиатуры для администратора (РЕФАКТОРИНГ)
+│   │   │   ├── admin_keyboards.py      # 🆕 ОБНОВЛЕНО: Клавиатуры для администратора + специальные для изучения
 │   │   │   ├── user_keyboards.py       # Клавиатуры для пользователя (РЕФАКТОРИНГ)
 │   │   │   ├── inline_keyboards.py     # Базовые inline-клавиатуры
-│   │   │   └── study_keyboards.py      # 🆕 ОБНОВЛЕНО: Клавиатуры для изучения + кнопки изображений
+│   │   │   └── study_keyboards.py      # 🆕 ОБНОВЛЕНО: Клавиатуры для изучения + кнопки изображений + админ-кнопки
 │   │   └── middleware/
 │   │       ├── __init__.py
 │   │       └── auth_middleware.py      # Промежуточное ПО для авторизации (УЛУЧШЕНО)
@@ -132,20 +133,21 @@ frontend/
 │       ├── __init__.py
 │       ├── logger.py                   # Настройка логирования
 │       ├── file_utils.py               # Утилиты для работы с файлами
-│       ├── api_utils.py                # Утилиты для работы с API
+│       ├── api_utils.py                # 🆕 ОБНОВЛЕНО: Утилиты для работы с API + хранение клиента
 │       ├── formatting_utils.py         # 🆕 ОБНОВЛЕНО: Утилиты форматирования + ссылки на изображения
 │       ├── error_utils.py              # Утилиты для обработки ошибок
 │       ├── settings_utils.py           # Утилиты для настроек
 │       ├── state_models.py             # Модели для работы с FSM
 │       ├── word_data_utils.py          # Утилиты для данных слов
 │       ├── hint_constants.py           # Константы для подсказок
-│       ├── callback_constants.py       # 🆕 ОБНОВЛЕНО: Константы callback_data + изображения
+│       ├── callback_constants.py       # 🆕 ОБНОВЛЕНО: Константы callback_data + изображения + админ-редактирование
 │       ├── voice_utils.py              # НОВОЕ: Утилиты для голосовых сообщений
 │       ├── voice_recognition.py        # Утилиты для распознавания речи
 │       ├── audio_utils.py              # Утилиты для работы с аудио
 │       ├── ffmpeg_utils.py             # Утилиты для FFmpeg
 │       ├── hint_settings_utils.py      # Утилиты для индивидуальных настроек подсказок
-│       └── word_image_generator.py     # 🆕 НОВЫЙ: Генератор изображений слов с Unicode поддержкой
+│       ├── word_image_generator.py     # 🆕 НОВЫЙ: Генератор изображений слов с Unicode поддержкой
+│       └── admin_utils.py              # 🆕 НОВЫЙ: Утилиты для проверки прав администратора
 ├── conf/
 │   ├── __init__.py
 │   └── config/
@@ -187,14 +189,17 @@ frontend/
 │   │       ├── test_admin_language_handlers.py # Тесты обработчиков управления языками
 │   │       ├── test_admin_upload_handlers.py   # Тесты обработчиков загрузки файлов
 │   │       ├── test_admin_upload_column_handlers.py   # Тесты обработчиков настройки колонок
-│   │       └── test_admin_upload_routers.py    # Тесты структуры роутеров загрузки
+│   │       ├── test_admin_upload_routers.py    # Тесты структуры роутеров загрузки
+│   │       └── test_admin_word_handlers.py     # 🆕 НОВЫЙ: Тесты админ-редактирования слов
 │   ├── test_utils/                     # Тесты утилит
 │   │   ├── test_callback_constants.py  # НОВОЕ: Тесты констант callback
 │   │   ├── test_voice_utils.py         # НОВОЕ: Тесты голосовых утилит
 │   │   ├── test_centralized_states.py  # НОВОЕ: Тесты централизованных состояний
-│   │   └── test_word_image_generator.py # 🆕 НОВЫЙ: Тесты генератора изображений
+│   │   ├── test_word_image_generator.py # 🆕 НОВЫЙ: Тесты генератора изображений
+│   │   └── test_admin_utils.py         # 🆕 НОВЫЙ: Тесты утилит администратора
 │   └── test_api/                       # Тесты API клиента
 └── watch_and_reload.py                 # Скрипт автоперезапуска
+
 Бэкенд (REST API)
 backend/
 ├── app/
@@ -254,6 +259,7 @@ backend/
     ├── test_api/                     # Тесты API
     ├── test_services/                # Тесты сервисов
     └── test_repositories/            # Тесты репозиториев
+
 Общие модули (Common)
 common/
 ├── __init__.py
@@ -265,6 +271,7 @@ common/
     ├── __init__.py
     ├── conftest.py           # Конфигурация pytest для модуля common
     └── test_utils_logger.py  # Тесты для logger.py
+
 Служебные скрипты
 scripts/
 ├── __init__.py
@@ -274,3 +281,4 @@ scripts/
 ├── migrate_data.py           # Миграция данных
 ├── admin_manager.py          # Управление администраторами
 └── create_user_language_settings_collection.py  # Создание коллекции настроек
+

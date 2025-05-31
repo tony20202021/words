@@ -2,6 +2,7 @@
 Updated keyboards for word studying with individual hint settings support.
 FIXED: Removed code duplication, improved architecture, proper imports.
 UPDATED: Added word image display button.
+UPDATED: Added admin edit button for admins during study.
 """
 
 from typing import List, Dict, Optional
@@ -9,7 +10,7 @@ from typing import List, Dict, Optional
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.utils.callback_constants import CallbackData, format_hint_callback
+from app.utils.callback_constants import CallbackData, format_hint_callback, format_admin_edit_from_study_callback
 from app.utils.hint_constants import (
     format_hint_button,
     has_hint,
@@ -24,17 +25,19 @@ def create_word_keyboard(
     word_shown: bool = False, 
     hint_settings: Optional[Dict[str, bool]] = None,
     used_hints: List[str] = None,
+    is_admin: bool = False,  # НОВОЕ: Параметр для админов
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for word interaction during study process.
     UPDATED: Added word image button when word is shown.
+    UPDATED: Added admin edit button for administrators.
     
     Args:
         word: The word data
         word_shown: Whether the word has been shown to the user
-        hint_settings: Individual hint settings dictionary (NEW)
+        hint_settings: Individual hint settings dictionary
         used_hints: List of hints already used by the user
-        current_state: Current FSM state (optional, for context)
+        is_admin: Whether user is admin (NEW)
         
     Returns:
         InlineKeyboardMarkup: The keyboard markup
@@ -79,6 +82,13 @@ def create_word_keyboard(
             enabled_hint_types = get_enabled_hint_types(hint_settings)
             if enabled_hint_types:
                 _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types)
+    
+    # НОВОЕ: Добавляем кнопку редактирования для админов
+    if is_admin and word_id:
+        builder.add(InlineKeyboardButton(
+            text="✏️ Редактировать слово",
+            callback_data=format_admin_edit_from_study_callback(word_id)
+        ))
     
     # Add word skip toggle button
     user_word_data = word.get("user_word_data", {})
@@ -169,20 +179,23 @@ def _add_hint_buttons(
 def create_adaptive_study_keyboard(
     word: dict,
     word_shown: bool = False,
-    hint_settings: Optional[Dict[str, bool]] = None,  # NEW
+    hint_settings: Optional[Dict[str, bool]] = None,
     used_hints: List[str] = None,
     current_state: str = None,
+    is_admin: bool = False,  # НОВОЕ: Параметр для админов
 ) -> InlineKeyboardMarkup:
     """
     Create adaptive keyboard that changes based on current FSM state and word status.
     UPDATED: Uses individual hint settings and includes word image button.
+    UPDATED: Added admin edit button for administrators.
     
     Args:
         word: Word data
         word_shown: Whether word has been shown
-        hint_settings: Individual hint settings (NEW)
+        hint_settings: Individual hint settings
         used_hints: List of used hints
         current_state: Current FSM state
+        is_admin: Whether user is admin (NEW)
         
     Returns:
         InlineKeyboardMarkup: Adaptive keyboard
@@ -197,28 +210,31 @@ def create_adaptive_study_keyboard(
     if current_state == StudyStates.study_completed.state:
         return create_study_completed_keyboard()
     elif current_state == StudyStates.viewing_word_details.state:
-        return create_word_details_keyboard(word, hint_settings, used_hints)
+        return create_word_details_keyboard(word, hint_settings, used_hints, is_admin)
     elif current_state == StudyStates.confirming_word_knowledge.state:
         return create_word_confirmation_keyboard()
     elif current_state == StudyStates.viewing_word_image.state:
         return create_word_image_keyboard()
     else:
         # Default to standard word keyboard
-        return create_word_keyboard(word, word_shown, hint_settings, used_hints)
+        return create_word_keyboard(word, word_shown, hint_settings, used_hints, is_admin)
 
 def create_word_details_keyboard(
     word: dict,
     hint_settings: Optional[Dict[str, bool]] = None,
-    used_hints: List[str] = None
+    used_hints: List[str] = None,
+    is_admin: bool = False  # НОВОЕ: Параметр для админов
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard specifically for viewing word details state.
     UPDATED: Uses individual hint settings and includes word image button.
+    UPDATED: Added admin edit button for administrators.
     
     Args:
         word: Word data
-        hint_settings: Individual hint settings (NEW)
+        hint_settings: Individual hint settings
         used_hints: List of used hints
+        is_admin: Whether user is admin (NEW)
         
     Returns:
         InlineKeyboardMarkup: Word details keyboard
@@ -248,6 +264,13 @@ def create_word_details_keyboard(
         builder.add(InlineKeyboardButton(
             text="🔍 Показать крупное написание",
             callback_data=CallbackData.SHOW_WORD_IMAGE
+        ))
+    
+    # НОВОЕ: Добавляем кнопку редактирования для админов
+    if is_admin and word_id:
+        builder.add(InlineKeyboardButton(
+            text="✏️ Редактировать слово",
+            callback_data=format_admin_edit_from_study_callback(word_id)
         ))
     
     # Skip toggle button
@@ -287,7 +310,6 @@ def create_word_confirmation_keyboard() -> InlineKeyboardMarkup:
 def create_word_image_keyboard() -> InlineKeyboardMarkup:
     """
     Create keyboard for word image viewing state.
-    НОВОЕ: Клавиатура для просмотра изображения слова.
     
     Returns:
         InlineKeyboardMarkup: Word image keyboard
@@ -385,6 +407,20 @@ def should_show_word_image_button(word: dict, word_shown: bool) -> bool:
     """
     return word_shown and bool(word.get("word_foreign"))
 
+def should_show_admin_edit_button(is_admin: bool, word_id: Optional[str]) -> bool:
+    """
+    Determine if admin edit button should be shown.
+    НОВОЕ: Проверка отображения кнопки админ-редактирования.
+    
+    Args:
+        is_admin: Whether user is admin
+        word_id: Word ID (must be present)
+        
+    Returns:
+        bool: True if button should be shown
+    """
+    return is_admin and bool(word_id)
+
 # Export main functions
 __all__ = [
     'create_word_keyboard',
@@ -395,5 +431,6 @@ __all__ = [
     'create_study_completed_keyboard',
     'validate_hint_settings_for_keyboard',
     'should_show_hint_buttons',
-    'should_show_word_image_button'
+    'should_show_word_image_button',
+    'should_show_admin_edit_button'  # НОВОЕ
 ]

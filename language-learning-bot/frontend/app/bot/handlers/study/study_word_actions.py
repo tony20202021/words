@@ -3,6 +3,7 @@ Study word actions handlers for Language Learning Bot.
 Handles word evaluation and navigation during study process.
 FIXED: Proper imports, removed code duplication, improved architecture.
 UPDATED: Added word image display functionality.
+UPDATED: Added admin edit from study functionality.
 """
 
 from aiogram import Router, F
@@ -18,10 +19,11 @@ from app.utils.hint_settings_utils import get_individual_hint_settings
 from app.utils.settings_utils import get_show_debug_setting
 from app.utils.formatting_utils import format_study_word_message, format_used_hints
 from app.utils.word_image_generator import generate_word_image
+from app.utils.admin_utils import is_user_admin  # НОВОЕ: Импорт утилиты для проверки админа
 from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard, create_word_image_keyboard
 from app.bot.handlers.study.study_words import show_study_word, load_next_batch
-from app.bot.states.centralized_states import StudyStates
-from app.utils.callback_constants import CallbackData
+from app.bot.states.centralized_states import StudyStates, AdminStates  # НОВОЕ: Импорт AdminStates
+from app.utils.callback_constants import CallbackData, CallbackParser, format_admin_edit_from_study_callback
 
 # Создаем роутер для действий со словами
 word_actions_router = Router()
@@ -113,6 +115,73 @@ async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
     await show_study_word(callback, state, user_word_state, need_new_message=True)
     await callback.answer("⬅️ Возвращаемся к изучению")
 
+# НОВОЕ: Обработчик для возврата к изучению из админ-режима
+@word_actions_router.callback_query(F.data == CallbackData.BACK_TO_STUDY_FROM_ADMIN)
+async def process_back_to_study_from_admin(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик возврата к изучению слов из админ-режима редактирования.
+    
+    Args:
+        callback: The callback query
+        state: FSM context
+    """
+    logger.info(f"'back_to_study_from_admin' callback from {callback.from_user.full_name}")
+    
+    # # Получаем сохраненный контекст изучения
+    # admin_state_data = await state.get_data()
+    # study_state_data = admin_state_data.get("study_state_data", {})
+    # previous_study_state = admin_state_data.get("previous_study_state")
+    
+    # if not study_state_data:
+    #     logger.warning("No study context found, redirecting to study command")
+    #     await callback.answer("⚠️ Контекст изучения потерян, перезапускаем изучение")
+        
+    #     # Импортируем и вызываем команду изучения
+    #     from app.bot.handlers.study.study_commands import cmd_study
+        
+    #     # Создаем объект, совместимый с Message для cmd_study
+    #     class CallbackAsMessage:
+    #         def __init__(self, callback_query):
+    #             self.from_user = callback_query.from_user
+    #             self.bot = callback_query.bot
+                
+    #         async def answer(self, text, **kwargs):
+    #             await callback_query.message.answer(text, **kwargs)
+        
+    #     message_like = CallbackAsMessage(callback)
+    #     await cmd_study(message_like, state)
+    #     await callback.answer()
+    #     return
+    
+    # # Восстанавливаем состояние изучения
+    # await state.clear()
+    # await state.set_data(study_state_data)
+    
+    # # Восстанавливаем FSM состояние
+    # if previous_study_state:
+    #     await state.set_state(previous_study_state)
+    # else:
+    #     await state.set_state(StudyStates.studying)
+    
+    # logger.info(f"Restored study state: {previous_study_state}")
+    
+    await state.set_state(StudyStates.studying)
+    
+    # Показываем текущее слово изучения
+    user_word_state = await UserWordState.from_state(state)
+    
+    if user_word_state.is_valid():
+        await show_study_word(callback, state, user_word_state, need_new_message=True)
+        await callback.answer("⬅️ Возвращаемся к изучению")
+    else:
+        logger.error("Invalid study state after restoration")
+        await callback.answer("❌ Ошибка восстановления состояния изучения")
+        await callback.message.answer(
+            "❌ Ошибка восстановления состояния изучения.\n"
+            "Используйте команду /study для начала изучения заново."
+        )
+
+
 async def _show_word_image(
     message_or_callback, 
     state: FSMContext, 
@@ -124,7 +193,6 @@ async def _show_word_image(
     Args:
         message_or_callback: Message or CallbackQuery object
         state: FSM context
-        user_word_state: Current word state
         current_word: Current word data
     """
     try:
@@ -512,6 +580,9 @@ async def _show_word_result(
         hint_settings = await get_individual_hint_settings(callback, state)
         show_debug = await get_show_debug_setting(callback, state)
         
+        # НОВОЕ: Проверяем статус администратора для клавиатуры
+        is_admin = await is_user_admin(callback, state)
+        
         # Get language info
         state_data = await state.get_data()
         current_language = state_data.get("current_language", {})
@@ -568,16 +639,17 @@ async def _show_word_result(
         if show_debug:
             # Use centralized debug function from study_words
             from app.bot.handlers.study.study_words import _get_debug_info
-            debug_info = await _get_debug_info(state, user_word_state, hint_settings)
+            debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin)
             message_text = debug_info + '\n\n' + message_text
         
-        # Create keyboard using centralized utility
+        # Create keyboard using centralized utility (ОБНОВЛЕНО: передаем is_admin)
         keyboard = create_adaptive_study_keyboard(
             word=current_word,
             word_shown=True,
             hint_settings=hint_settings,
             used_hints=used_hints,
             current_state=await state.get_state(),
+            is_admin=is_admin,  # НОВОЕ: Передаем статус админа
         )
         
         # Send message
