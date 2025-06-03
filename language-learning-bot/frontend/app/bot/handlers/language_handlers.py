@@ -36,8 +36,8 @@ async def process_select_language_callback(callback: CallbackQuery, state: FSMCo
     """
     logger.info(f"'select_language' callback from {callback.from_user.full_name}")
     
-    await callback.answer("🌍 Выбор языка...")
-    
+    await callback.answer()
+
     await process_language(callback, state)
 
 async def process_language(message_or_callback: Message, state: FSMContext):

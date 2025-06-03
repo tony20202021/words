@@ -6,224 +6,246 @@ Handlers for word display actions during the study process.
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
+from aiogram.types import Message
+from aiogram.types import BufferedInputFile
 
-from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState
 from app.utils.word_data_utils import update_word_score
-from app.bot.keyboards.study_keyboards import create_word_keyboard
-from app.utils.formatting_utils import format_study_word_message, format_used_hints
-
-# Импортируем централизованные состояния
+from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import StudyStates
+from app.bot.handlers.study.study_words import show_study_word
+from app.utils.word_image_generator import generate_word_image
+from app.bot.keyboards.study_keyboards import create_word_image_keyboard
+
+logger = setup_logger(__name__)
 
 # Создаем роутер для обработчиков отображения слов
 display_router = Router()
 
-logger = setup_logger(__name__)
-
-
-@display_router.callback_query(F.data == "show_word", StudyStates.studying)
+@display_router.callback_query(F.data == CallbackData.SHOW_WORD, StudyStates.studying)
+@display_router.callback_query(F.data == CallbackData.SHOW_WORD, StudyStates.confirming_word_knowledge)
 async def process_show_word(callback: CallbackQuery, state: FSMContext):
     """
-    Process callback when user wants to see the word.
+    Process 'Show word' action.
     
     Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
+        callback: The callback query
+        state: FSM context
     """
-    user_id = callback.from_user.id
-    username = callback.from_user.username
-    full_name = callback.from_user.full_name
-
-    logger.info(f"'show_word' 1 callback from {full_name} ({username})")
+    logger.info(f"'show_word' 2 action from {callback.from_user.full_name}")
     
-    # Validate state data
-    is_valid, state_data = await validate_state_data(
-        state, 
-        ["current_word"],
-        callback,
-        "Ошибка: недостаточно данных для показа слова"
-    )
-    
-    if not is_valid:
-        logger.error(f"not is_valid")
-        await callback.answer("Ошибка: недостаточно данных")
-        return
-    
-    # Get required data
-    current_word = state_data["current_word"]
-    current_word_id = state_data["current_word_id"]
-    db_user_id = state_data["db_user_id"]
-    
-    # Проверяем, был ли вызван callback с экрана подтверждения (после "Я знаю это слово")
+    # Get current word state
     user_word_state = await UserWordState.from_state(state)
-    was_pending_word_know = False
     
-    if user_word_state.is_valid():
-        was_pending_word_know = user_word_state.get_flag('pending_word_know', False)
-        # Сбрасываем флаг, так как пользователь передумал
-        if was_pending_word_know:
-            user_word_state.remove_flag('pending_word_know')
-            user_word_state.remove_flag('pending_next_word')
-            await user_word_state.save_to_state(state)
+    if not user_word_state.is_valid() or not user_word_state.has_more_words():
+        await callback.answer("❌ Нет активного слова для показа")
+        return
     
-    if 'user_word_data' not in current_word:
-        current_word['user_word_data'] = {}
-        
-    current_skipped = current_word['user_word_data'].get('is_skipped', False)
-
-    # Update word score to 0 (not known), but don't mark as skipped
+    # Get current word
+    current_word = user_word_state.get_current_word()
+    if not current_word:
+        await callback.answer("❌ Ошибка получения текущего слова")
+        return
+    
+    # Update word score using centralized utility
     success, result = await update_word_score(
-        callback.bot,
-        db_user_id,
-        current_word_id,
-        score=0,
-        word=current_word,
-        message_obj=callback,
-        is_skipped=current_skipped # оставляем старое значение
-    )
-    
-    if not success:
-        logger.error(f"not success")
-        return
-
-    current_word['user_word_data']['is_skipped'] = result['is_skipped']
-    current_word['user_word_data']['check_interval'] = result['check_interval']
-    current_word['user_word_data']['next_check_date'] = result['next_check_date']
-    current_word['user_word_data']['score'] = result['score']
-
-    # Get word information
-    word_foreign = current_word.get("word_foreign", "N/A")
-    transcription = current_word.get("transcription", "")
-    
-    # Get language info for message formatting
-    language_id = current_word.get("language_id")
-    api_client = get_api_client_from_bot(callback.bot)
-    language_response = await api_client.get_language(language_id)
-    
-    if not language_response["success"] or not language_response["result"]:
-        await callback.answer("Ошибка: язык не найден")
-        return
-    
-    language = language_response["result"]
-    
-    # Получаем основную информацию для форматирования сообщения
-    word_number = current_word.get('word_number', 'N/A')
-    translation = current_word.get('translation', '')
-    
-    # Получаем данные пользователя
-    user_word_data = current_word.get("user_word_data", {})
-
-    is_skipped = user_word_data.get("is_skipped", False)
-    check_interval = user_word_data.get("check_interval", 0)
-    next_check_date = user_word_data.get("next_check_date", None)
-    score = user_word_data.get("score", 0)
-    
-    # Mark the word as shown in the state
-    if not user_word_state.is_valid():
-        logger.error(f"not user_word_state.is_valid()")
-        return
-
-    # Set flag that word has been shown
-    user_word_state.set_flag('word_shown', True)
-
-    user_word_state.word_data = current_word
-    
-    # Save updated state
-    await user_word_state.save_to_state(state)
-    
-    # НОВОЕ: Переходим в состояние просмотра деталей слова
-    await state.set_state(StudyStates.viewing_word_details)
-    
-    # Get used hints
-    used_hints = user_word_state.get_flag("used_hints", [])
-    
-    # Формируем обновленное сообщение
-    updated_message = format_study_word_message(
-        language.get('name_ru'),
-        language.get('name_foreign'),
-        word_number,
-        translation,
-        is_skipped,
-        score,
-        check_interval,
-        next_check_date,
-        show_word=True,
-        word_foreign=word_foreign,
-        transcription=transcription
-    )
-    
-    # Добавляем активные подсказки с помощью новой функции
-    hint_text = await format_used_hints(
         bot=callback.bot,
         user_id=user_word_state.user_id,
         word_id=user_word_state.word_id,
-        current_word=current_word,
-        used_hints=used_hints,
-        include_header=True
+        score=0,  # Unknown word
+        word=current_word,
+        message_obj=callback
     )
     
-    updated_message += hint_text
+    if not success:
+        await callback.answer("❌ Ошибка обновления оценки слова")
+        return
+
+    # Update local word data
+    if "user_word_data" not in current_word:
+        current_word["user_word_data"] = {}
+
+    current_word["user_word_data"].update(result or {})
+    current_word["user_word_data"]["score"] = 0
     
-    # Create updated keyboard 
-    keyboard = create_word_keyboard(
-        current_word, 
-        word_shown=True, 
-        used_hints=used_hints
-    )
+    # Mark word as processed and set flags
+    user_word_state.set_current_word(current_word)
+    user_word_state.set_flag("word_shown", True)
     
-    # Если пользователь нажал "Ой, все-таки не знаю" и возвращается к слову
-    if was_pending_word_know:
-        # Отправляем сообщение о возврате к слову, НЕ редактируя предыдущее сообщение
-        await callback.message.answer(
-            "⬅️ Возвращаемся к изучению слова. Вы можете посмотреть его и использовать подсказки.",
-            parse_mode="HTML"
-        )
-        
-        # Отправляем новое сообщение с информацией о слове
-        await callback.message.answer(
-            updated_message,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    else:
-        # Если пользователь нажал "Показать слово" с основного экрана изучения -
-        # обновляем существующее сообщение
-        try:
-            await callback.message.edit_text(
-                updated_message,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Error editing message in process_show_word: {e}", exc_info=True)
-            # Если не удалось обновить сообщение, отправляем новое
-            await callback.message.answer(
-                updated_message,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
+    # Save state and transition
+    await user_word_state.save_to_state(state)
+    await state.set_state(StudyStates.viewing_word_details)
     
-    await callback.answer()
+    # Use centralized display function
+    await show_study_word(callback, state, user_word_state, need_new_message=False)
+    
+    await callback.answer("👁️ Показываю слово")
 
 
-@display_router.callback_query(F.data == "show_word", StudyStates.confirming_word_knowledge)
-async def process_show_word_from_confirmation(callback: CallbackQuery, state: FSMContext):
+@display_router.callback_query(F.data == CallbackData.SHOW_WORD_IMAGE)
+async def process_show_word_image_callback(callback: CallbackQuery, state: FSMContext):
     """
-    Process show_word callback from the confirmation state.
-    This handles when user clicks "Ой, все-таки не знаю" after confirming they know the word.
+    Обработчик callback для показа увеличенного слова.
     
     Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
+        callback: The callback query
+        state: FSM context
     """
-    logger.info(f"'show_word' callback from confirmation state from {callback.from_user.full_name}")
+    logger.info(f"'show_word_image' callback from {callback.from_user.full_name}")
     
-    # НОВОЕ: Возвращаемся в основное состояние изучения перед обработкой
-    await state.set_state(StudyStates.studying)
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
     
-    # Используем основной обработчик show_word
-    await process_show_word(callback, state)
+    if not user_word_state.is_valid() or not user_word_state.has_more_words():
+        await callback.answer("❌ Нет активного слова для увеличения")
+        return
     
+    # Get current word
+    current_word = user_word_state.get_current_word()
+    if not current_word:
+        await callback.answer("❌ Ошибка получения текущего слова")
+        return
+    
+    # Show word image using common function
+    await _show_word_image(callback, state, current_word)
+    await callback.answer("🔍 Показываю крупное написание")
+
+
+@display_router.message(Command("show_big"))
+async def cmd_show_big_word(message: Message, state: FSMContext):
+    """
+    Обработчик команды /show_big для показа увеличенного слова.
+    
+    Args:
+        message: The message object
+        state: FSM context
+    """
+    logger.info(f"'/show_big' command from {message.from_user.full_name}")
+    
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if not user_word_state.is_valid() or not user_word_state.has_more_words():
+        await message.answer("❌ Нет активного слова для увеличения")
+        return
+    
+    # Get current word
+    current_word = user_word_state.get_current_word()
+    if not current_word:
+        await message.answer("❌ Ошибка получения текущего слова")
+        return
+    
+    # Show word image using common function
+    await _show_word_image(message, state, current_word)
+
+@display_router.callback_query(F.data == CallbackData.BACK_FROM_IMAGE, StudyStates.viewing_word_image)
+async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик возврата от изображения к экрану изучения.
+    
+    Args:
+        callback: The callback query
+        state: FSM context
+    """
+    logger.info(f"'back_from_image' callback from {callback.from_user.full_name}")
+    
+    # Get current word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    if not user_word_state.is_valid():
+        await callback.answer("❌ Ошибка состояния изучения")
+        return
+    
+    # Determine which state to return to
+    word_shown = user_word_state.get_flag("word_shown", False)
+    if word_shown:
+        await state.set_state(StudyStates.viewing_word_details)
+    else:
+        await state.set_state(StudyStates.studying)
+    
+    # Show study word again (without creating new message)
+    await show_study_word(callback, state, user_word_state, need_new_message=True)
+    await callback.answer("⬅️ Возвращаемся к изучению")
+
+async def _show_word_image(
+    message_or_callback, 
+    state: FSMContext, 
+    current_word: dict,
+):
+    """
+    Общая функция для показа изображения слова.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        current_word: Current word data
+    """
+    try:
+        # Extract word and transcription
+        word_foreign = current_word.get("word_foreign", "")
+        transcription = current_word.get("transcription", "")
+        
+        if not word_foreign:
+            error_msg = "❌ Слово на иностранном языке не найдено"
+            if hasattr(message_or_callback, 'answer'):
+                await message_or_callback.answer(error_msg)
+            else:
+                await message_or_callback.message.answer(error_msg)
+            return
+        
+        
+        # Generate word image
+        logger.info(f"Generating image for word: '{word_foreign}', transcription: '{transcription}'")
+        
+        image_buffer = await generate_word_image(
+            word=word_foreign,
+            transcription=transcription,
+        )
+        
+        # Create BufferedInputFile from BytesIO for Telegram
+        image_buffer.seek(0)  # Reset buffer position
+        input_file = BufferedInputFile(
+            file=image_buffer.read(),
+            filename=f"word_{word_foreign}.png"
+        )
+        
+        # Prepare caption
+        caption = ""
+        
+        # Create keyboard
+        keyboard = create_word_image_keyboard()
+        
+        # Set state
+        await state.set_state(StudyStates.viewing_word_image)
+        
+        # Send image
+        if hasattr(message_or_callback, 'answer_photo'):
+            # This is a Message object
+            await message_or_callback.answer_photo(
+                photo=input_file,
+                caption=caption,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+        else:
+            # This is a CallbackQuery object
+            await message_or_callback.message.answer_photo(
+                photo=input_file,
+                caption=caption,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+        
+        logger.info(f"Successfully sent word image for: {word_foreign}")
+        
+    except Exception as e:
+        logger.error(f"Error showing word image: {e}", exc_info=True)
+        
+        error_msg = "❌ Ошибка при создании изображения слова"
+        if hasattr(message_or_callback, 'answer'):
+            await message_or_callback.answer(error_msg)
+        else:
+            await message_or_callback.message.answer(error_msg)
+

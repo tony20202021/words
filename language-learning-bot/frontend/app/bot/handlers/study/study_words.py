@@ -17,7 +17,7 @@ from app.utils.formatting_utils import format_study_word_message, format_used_hi
 from app.utils.state_models import UserWordState, StateManager
 from app.utils.settings_utils import get_user_language_settings
 from app.utils.hint_settings_utils import get_individual_hint_settings
-from app.utils.admin_utils import is_user_admin  # НОВОЕ: Импорт утилиты для проверки админа
+from app.utils.admin_utils import is_user_admin
 from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
 from app.bot.states.centralized_states import StudyStates
 

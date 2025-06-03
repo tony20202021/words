@@ -9,22 +9,14 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.utils.error_utils import validate_state_data
 from app.utils.state_models import UserWordState, HintState
 from app.utils.word_data_utils import ensure_user_word_data
-from app.utils.hint_constants import get_all_hint_types, get_hint_key, get_hint_name
-
-# Import centralized states
+from app.utils.hint_constants import get_hint_key, get_hint_name
 from app.bot.states.centralized_states import HintStates, StudyStates
-
-# Import callback utilities
 from app.utils.callback_constants import CallbackParser
-
-# FIXED: Import voice utilities for proper voice input support
 from app.utils.voice_utils import process_hint_input
-
 from app.bot.handlers.study.study_words import show_study_word
 
 # Создаем вложенный роутер для обработчиков создания подсказок
@@ -32,9 +24,6 @@ create_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
-
-# REMOVED: Local process_hint_input function - now using centralized voice utilities
-
 
 @create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.studying)
 @create_router.callback_query(F.data.startswith("hint_create_"), StudyStates.viewing_word_details)
