@@ -10,7 +10,6 @@ from app.utils.settings_utils import (
     get_user_language_settings,
     save_user_language_settings,
     display_language_settings,
-    get_show_hints_setting,
     get_show_debug_setting
 )
 
@@ -148,26 +147,6 @@ class TestDisplayLanguageSettings:
             args, kwargs = message.answer.call_args
             assert kwargs["reply_markup"] == keyboard_mock
             assert "parse_mode" in kwargs
-
-
-class TestGetShowHintsSetting:
-    
-    @pytest.mark.asyncio
-    async def test_get_show_hints_setting_from_settings(self):
-        # Setup
-        message = AsyncMock()
-        state = AsyncMock()
-        
-        # Патчим get_user_language_settings для возврата настроек
-        settings = {"show_hints": True}
-        
-        # Патчим функцию получения настроек
-        with patch('app.utils.settings_utils.get_user_language_settings', return_value=settings):
-            # Execute
-            result = await get_show_hints_setting(message, state)
-            
-            # Verify
-            assert result is True
 
 
 class TestGetShowDebugSetting:

@@ -7,7 +7,6 @@ from app.bot.keyboards.admin_keyboards import (
     get_edit_language_keyboard,
     get_back_to_languages_keyboard,
     get_back_to_admin_keyboard,
-    get_yes_no_keyboard,
     get_upload_columns_keyboard,
     get_word_actions_keyboard,
     get_users_keyboard,
@@ -175,41 +174,6 @@ class TestAdminKeyboards:
         # Check text and callback
         assert all_buttons[0].text == "⬅️ Назад к меню администратора"
         assert all_buttons[0].callback_data == "back_to_admin"
-    
-    def test_get_yes_no_keyboard(self):
-        """
-        Test creating yes/no confirmation keyboard.
-        Check that:
-        1. Function returns InlineKeyboardMarkup
-        2. Keyboard contains yes and no buttons with correct callbacks
-        """
-        # Arrange
-        action = "delete_language"
-        entity_id = "lang123"
-        
-        # Act
-        keyboard = get_yes_no_keyboard(action, entity_id)
-        
-        # Assert
-        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
-        
-        # Get all buttons
-        all_buttons = []
-        for row in keyboard.inline_keyboard:
-            all_buttons.extend(row)
-        
-        # Check count
-        assert len(all_buttons) == 2, "Should have 2 buttons"
-        
-        # Check texts
-        button_texts = [button.text for button in all_buttons]
-        assert "✅ Да" in button_texts
-        assert "❌ Нет" in button_texts
-        
-        # Check callback data
-        callback_data = [button.callback_data for button in all_buttons]
-        assert f"confirm_{action}_{entity_id}" in callback_data
-        assert f"cancel_{action}_{entity_id}" in callback_data
     
     def test_get_upload_columns_keyboard(self):
         """

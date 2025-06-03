@@ -183,9 +183,9 @@ async def process_edit_word(callback: CallbackQuery, state: FSMContext):
         f"✏️ <b>Редактирование слова</b>\n\n"
         f"Язык: <b>{language_name}</b>\n"
         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
-        f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
-        f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
-        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"Слово: <code>{word.get('word_foreign', 'N/A')}</code>\n"
+        f"Транскрипция: <code>{word.get('transcription', 'N/A')}</code>\n"
+        f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -952,7 +952,7 @@ async def process_back_to_study_from_admin_handler(callback: CallbackQuery, stat
     logger.info(f"Admin module: 'back_to_study_from_admin' callback from {callback.from_user.full_name}")
     
     # Redirect to the main handler in study module
-    from app.bot.handlers.study.study_word_actions import process_back_to_study_from_admin
+    from app.bot.handlers.study.word_actions.word_navigation_actions import process_back_to_study_from_admin
     await process_back_to_study_from_admin(callback, state)
 
 
@@ -1008,6 +1008,7 @@ async def show_word_details_screen_from_study(callback: CallbackQuery, word_id: 
     )
 
 @word_router.callback_query(F.data.startswith(CallbackData.ADMIN_EDIT_WORD_FROM_STUDY), StudyStates.studying)
+@word_router.callback_query(F.data.startswith(CallbackData.ADMIN_EDIT_WORD_FROM_STUDY), StudyStates.viewing_word_details)
 async def process_edit_word_from_study(callback: CallbackQuery, state: FSMContext):
     """
     Show word editing menu when coming from study mode.

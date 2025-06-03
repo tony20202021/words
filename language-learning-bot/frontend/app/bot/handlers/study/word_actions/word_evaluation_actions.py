@@ -1,7 +1,6 @@
 """
 Handlers for word evaluation actions during the study process.
 Обработчики для оценки слов в процессе изучения (знаю/не знаю).
-ОБНОВЛЕНО: Добавлена поддержка автоматической загрузки следующих партий.
 """
 
 from aiogram import Router, F
