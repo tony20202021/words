@@ -80,7 +80,7 @@ async def process_language(message_or_callback: Message, state: FSMContext):
     logger.debug("User data: %s", user_data)
     
     # Получаем список языков используя выделенную функцию
-    api_response = await get_available_languages(api_client)
+    api_response = await api_client.get_languages()
 
     if not api_response['success']:
         logger.error(f"Ошибка при получении списка языков: (status={api_response['status']}) error={api_response['error']}")
@@ -250,7 +250,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     language_id = callback.data.split("_")[2]
     
     # Получаем информацию о выбранном языке используя выделенную функцию
-    language_response = await get_language_by_id(api_client, language_id)
+    language_response = await api_client.get_language(language_id)
     
     if not language_response['success'] or not language_response['result']:
         await callback.answer("Ошибка: язык не найден")
@@ -354,37 +354,6 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     )    
 
     await callback.answer()
-
-async def get_available_languages(api_client):
-    """
-    Get list of available languages.
-    
-    Args:
-        api_client: API client instance
-    
-    Returns:
-        API response with languages list in result field
-    """
-    # Получаем список языков через API клиент
-    response = await api_client.get_languages()
-    return response
-
-async def get_language_by_id(api_client, language_id):
-    """
-    Get language by ID.
-    
-    Args:
-        api_client: API client instance
-        language_id: Language ID to retrieve
-    
-    Returns:
-        API response with language data in result field
-    """
-    # Получаем язык по ID через API клиент
-    response = await api_client.get_language(language_id)
-    return response
-
-
 
 def register_handlers(dp: Dispatcher):
     """

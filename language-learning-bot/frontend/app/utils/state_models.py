@@ -379,50 +379,6 @@ class UserWordState:
         """
         return hint_type in self.get_used_hints()
 
-    # НОВОЕ: Методы для работы с FSM состояниями
-    async def get_appropriate_study_state(self, state: FSMContext):
-        """
-        Определить подходящее состояние изучения на основе текущих флагов.
-        
-        Args:
-            state: Объект состояния FSM
-            
-        Returns:
-            State: Подходящее состояние для установки
-        """
-        word_shown = self.get_flag("word_shown", False)
-        pending_next_word = self.get_flag("pending_next_word", False)
-        pending_word_know = self.get_flag("pending_word_know", False)
-        
-        if pending_word_know and pending_next_word:
-            return StudyStates.confirming_word_knowledge
-        elif word_shown:
-            return StudyStates.viewing_word_details
-        elif not self.has_more_words():
-            return StudyStates.study_completed
-        else:
-            return StudyStates.studying
-
-    async def transition_to_appropriate_state(self, state: FSMContext):
-        """
-        Перейти в подходящее состояние изучения.
-        
-        Args:
-            state: Объект состояния FSM
-        """
-        appropriate_state = await self.get_appropriate_study_state(state)
-        await state.set_state(appropriate_state)
-        logger.info(f"Transitioned to state: {appropriate_state.state}")
-
-    def is_in_completion_state(self) -> bool:
-        """
-        Проверить, должно ли состояние быть study_completed.
-        
-        Returns:
-            bool: True если нет больше слов для изучения
-        """
-        return not self.has_more_words()
-
 
 class HintState:
     """State for hint operations."""
@@ -545,25 +501,6 @@ class StateManager:
     """
     Менеджер для управления переходами между состояниями.
     """
-    
-    @staticmethod
-    async def safe_transition_to_study(state: FSMContext, user_word_state: UserWordState = None):
-        """
-        Безопасный переход к состоянию изучения с автоматическим определением подходящего состояния.
-        
-        Args:
-            state: Контекст состояния FSM
-            user_word_state: Состояние слова пользователя (опционально)
-        """
-        if user_word_state is None:
-            user_word_state = await UserWordState.from_state(state)
-        
-        if user_word_state.is_valid():
-            await user_word_state.transition_to_appropriate_state(state)
-        else:
-            # Fallback к основному состоянию изучения
-            await state.set_state(StudyStates.studying)
-            logger.warning("Invalid user word state, fell back to StudyStates.studying")
 
     @staticmethod
     async def transition_from_hint_to_study(state: FSMContext, word_shown: bool = False):

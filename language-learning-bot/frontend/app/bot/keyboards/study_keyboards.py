@@ -55,7 +55,11 @@ def create_word_keyboard(
             callback_data=CallbackData.NEXT_WORD
         ))
         
-        # НОВОЕ: Кнопка для показа крупного изображения слова
+        builder.add(InlineKeyboardButton(
+            text="❓ Показать слово",
+            callback_data=CallbackData.SHOW_WORD
+        ))
+
         if word_shown and word.get("word_foreign"):
             builder.add(InlineKeyboardButton(
                 text="🔍 Показать крупное написание",
@@ -83,7 +87,7 @@ def create_word_keyboard(
             if enabled_hint_types:
                 _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types)
     
-    # НОВОЕ: Добавляем кнопку редактирования для админов
+    # Добавляем кнопку редактирования для админов
     if is_admin and word_id:
         builder.add(InlineKeyboardButton(
             text="✏️ Редактировать слово",
@@ -344,82 +348,12 @@ def create_study_completed_keyboard() -> InlineKeyboardMarkup:
     ))
     
     builder.add(InlineKeyboardButton(
-        text="⚙️ Изменить настройки",
-        callback_data="change_settings"
-    ))
-    
-    builder.add(InlineKeyboardButton(
         text="🌐 Выбрать другой язык",
         callback_data="change_language"
     ))
     
     builder.adjust(2, 2)  # 2x2 layout
     return builder.as_markup()
-
-# НОВОЕ: Utility functions for keyboard validation and creation
-def validate_hint_settings_for_keyboard(hint_settings: Optional[Dict[str, bool]]) -> Dict[str, bool]:
-    """
-    Validate and normalize hint settings for keyboard creation.
-    
-    Args:
-        hint_settings: Raw hint settings
-        
-    Returns:
-        Dict: Validated hint settings
-    """
-    if not hint_settings:
-        from app.utils.hint_settings_utils import DEFAULT_HINT_SETTINGS
-        return DEFAULT_HINT_SETTINGS.copy()
-    
-    from app.utils.hint_constants import HINT_SETTING_KEYS
-    validated = {}
-    
-    for key in HINT_SETTING_KEYS:
-        validated[key] = hint_settings.get(key, True)
-    
-    return validated
-
-def should_show_hint_buttons(hint_settings: Optional[Dict[str, bool]]) -> bool:
-    """
-    Determine if any hint buttons should be shown.
-    
-    Args:
-        hint_settings: Individual hint settings
-        
-    Returns:
-        bool: True if any hint type is enabled
-    """
-    if not hint_settings:
-        return True  # Default to showing if no settings
-    
-    return any(hint_settings.values())
-
-def should_show_word_image_button(word: dict, word_shown: bool) -> bool:
-    """
-    Determine if word image button should be shown.
-    
-    Args:
-        word: Word data
-        word_shown: Whether word has been shown
-        
-    Returns:
-        bool: True if button should be shown
-    """
-    return word_shown and bool(word.get("word_foreign"))
-
-def should_show_admin_edit_button(is_admin: bool, word_id: Optional[str]) -> bool:
-    """
-    Determine if admin edit button should be shown.
-    НОВОЕ: Проверка отображения кнопки админ-редактирования.
-    
-    Args:
-        is_admin: Whether user is admin
-        word_id: Word ID (must be present)
-        
-    Returns:
-        bool: True if button should be shown
-    """
-    return is_admin and bool(word_id)
 
 # Export main functions
 __all__ = [
@@ -429,8 +363,4 @@ __all__ = [
     'create_word_confirmation_keyboard',
     'create_word_image_keyboard',
     'create_study_completed_keyboard',
-    'validate_hint_settings_for_keyboard',
-    'should_show_hint_buttons',
-    'should_show_word_image_button',
-    'should_show_admin_edit_button'  # НОВОЕ
 ]

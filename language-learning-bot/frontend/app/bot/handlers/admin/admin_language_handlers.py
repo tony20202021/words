@@ -18,6 +18,7 @@ from app.bot.keyboards.admin_keyboards import (
 )
 from app.utils.formatting_utils import format_date_standard
 from app.utils.callback_constants import CallbackData
+from app.utils.admin_utils import is_user_admin
 
 # Создаем роутер для обработчиков администрирования языками
 language_router = Router()
@@ -203,7 +204,8 @@ async def process_edit_language_name(message: Message, state: FSMContext):
         await state.set_state(AdminStates.viewing_language_details)
         
         # Сразу переходим к экрану редактирования языка
-        await process_edit_language_after_update(message, language_id)
+        await show_language_edit_screen(message, language_id, is_callback=False)
+
         
     except Exception as e:
         logger.error(f"Error updating language: {e}")
@@ -253,7 +255,7 @@ async def process_edit_language_native_name(message: Message, state: FSMContext)
         await state.set_state(AdminStates.viewing_language_details)
         
         # Сразу переходим к экрану редактирования языка
-        await process_edit_language_after_update(message, language_id)
+        await show_language_edit_screen(message, language_id, is_callback=False)
         
     except Exception as e:
         logger.error(f"Error updating language: {e}")
@@ -426,13 +428,13 @@ async def process_cancel_delete_language(callback: CallbackQuery, state: FSMCont
         callback: The callback query from Telegram
         state: The FSM state context
     """
-    # ✅ НОВОЕ: Возвращаемся к деталям языка после отмены
+    # Возвращаемся к деталям языка после отмены
     user_data = await state.get_data()
     language_id = user_data.get('deleting_language_id')
     
     if language_id:
         await state.set_state(AdminStates.viewing_language_details)
-        await show_language_edit_screen_callback(callback, language_id)
+        await show_language_edit_screen(callback, language_id, is_callback=True)
     else:
         await callback.message.answer("🚫 Удаление языка отменено")
         await state.set_state(AdminStates.viewing_languages)
@@ -448,41 +450,27 @@ async def handle_language_management(message_or_callback, state: FSMContext, is_
         state: The FSM state context
         is_callback: Whether this is called from a callback handler
     """
+    user_id = message_or_callback.from_user.id
+    username = message_or_callback.from_user.username
+    full_name = message_or_callback.from_user.full_name
+
     if is_callback:
-        user_id = message_or_callback.from_user.id
-        username = message_or_callback.from_user.username
-        full_name = message_or_callback.from_user.full_name
         # Для callback используем message из callback
         message = message_or_callback.message
     else:
-        user_id = message_or_callback.from_user.id
-        username = message_or_callback.from_user.username
-        full_name = message_or_callback.from_user.full_name
         # Для обычного message используем сам message
         message = message_or_callback
 
     logger.info(f"Language management requested by {full_name} ({username})")
     
-    # ✅ НОВОЕ: Устанавливаем состояние просмотра списка языков
+    # Устанавливаем состояние просмотра списка языков
     await state.set_state(AdminStates.viewing_languages)
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(message.bot)
     
     # Проверяем права администратора
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    if not user_response["success"]:
-        error_msg = user_response.get("error", "Неизвестная ошибка")
-        await message.answer(f"Ошибка при получении данных пользователя: {error_msg}")
-        logger.error(f"Failed to get user data. Error: {error_msg}")
-        return
-    
-    # Получаем пользователя из ответа
-    users = user_response["result"]
-    user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
-    
-    if not user or not user.get("is_admin", False):
+    if not await is_user_admin(message_or_callback, state):
         await message.answer("У вас нет прав администратора.")
         return
     
@@ -622,56 +610,6 @@ async def show_language_edit_screen(message_or_callback, language_id: str, is_ca
         parse_mode="HTML",
         reply_markup=keyboard
     )
-
-async def show_language_edit_screen_callback(callback: CallbackQuery, language_id: str):
-    """
-    Show language edit screen for callback queries.
-    
-    Args:
-        callback: The callback query from Telegram
-        language_id: The ID of the language to edit
-    """
-    # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(callback.bot)
-    
-    # Получаем информацию о языке из API
-    language_response = await api_client.get_language(language_id)
-    
-    if not language_response["success"] or not language_response["result"]:
-        error_msg = language_response.get("error", "Язык не найден")
-        await callback.message.answer(f"Ошибка: {error_msg}")
-        logger.error(f"Failed to get language by ID {language_id}. Error: {error_msg}")
-        return
-    
-    language = language_response["result"]
-    
-    # Получаем количество слов в языке
-    word_count_response = await api_client.get_word_count_by_language(language_id)
-    word_count = "N/A"
-
-    if word_count_response["success"]:
-        word_count = word_count_response["result"]["count"] if word_count_response["result"] else "0"
-    else:
-        logger.error(f"Failed to get word count for language {language_id}. Error: {word_count_response.get('error')}")    
-
-    # Форматируем даты
-    created_at = format_date_standard(language.get('created_at', 'N/A'))
-    updated_at = format_date_standard(language.get('updated_at', 'N/A'))
-    
-    # Используем готовую клавиатуру
-    keyboard = get_edit_language_keyboard(language_id)
-    
-    await callback.message.answer(
-        f"🔹 <b>Редактирование языка</b> 🔹\n\n"
-        f"ID: {language['id']}\n"
-        f"Название (рус): <b>{language['name_ru']}</b>\n"
-        f"Название (ориг.): <b>{language['name_foreign']}</b>\n"
-        f"Количество слов: <b>{word_count}</b>\n"
-        f"Дата создания: <b>{created_at}</b>\n"
-        f"Дата обновления: <b>{updated_at}</b>",
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
     
 @language_router.callback_query(AdminStates.viewing_languages, F.data.startswith("edit_language_"))
 @language_router.callback_query(AdminStates.viewing_word_search_results, F.data.startswith("edit_language_"))
@@ -719,18 +657,8 @@ async def process_edit_language(callback: CallbackQuery, state: FSMContext):
     await state.update_data(editing_language_id=language_id)
     
     # Вызываем общую функцию для отображения экрана редактирования
-    await show_language_edit_screen_callback(callback, language_id)
+    await show_language_edit_screen(callback, language_id, is_callback=True)
     
     await callback.answer()
 
-async def process_edit_language_after_update(message: Message, language_id: str):
-    """
-    Show language edit screen after update.
-    
-    Args:
-        message: The message object from Telegram
-        language_id: The ID of the edited language
-    """
-    # Вызываем общую функцию для отображения экрана редактирования
-    await show_language_edit_screen(message, language_id, is_callback=False)
    

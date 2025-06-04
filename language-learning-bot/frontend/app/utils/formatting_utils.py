@@ -245,88 +245,42 @@ async def format_used_hints(
     return result
 
 
-# НОВОЕ: Функции для форматирования настроек подсказок
-def format_hint_settings_summary(hint_settings: Dict[str, bool]) -> str:
+def format_date_friendly(date_str: str) -> str:
     """
-    Форматирует краткую сводку настроек подсказок.
+    Format date in a user-friendly way.
+    Дружественное форматирование даты.
     
     Args:
-        hint_settings: Словарь с настройками подсказок
+        date_str: ISO date string
         
     Returns:
-        str: Краткая сводка настроек
+        str: User-friendly date string
     """
-    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
-    total_count = len(hint_settings)
-    
-    if enabled_count == total_count:
-        return "Все включены ✅"
-    elif enabled_count == 0:
-        return "Все отключены ❌"
-    else:
-        return f"{enabled_count} из {total_count} включено 🔄"
-
-def format_hint_settings_detailed(hint_settings: Dict[str, bool]) -> str:
-    """
-    Форматирует подробное описание настроек подсказок.
-    
-    Args:
-        hint_settings: Словарь с настройками подсказок
-        
-    Returns:
-        str: Подробное описание настроек
-    """
-    result = "💡 <b>Подробные настройки подсказок:</b>\n"
-    
-    for setting_key in HINT_SETTING_KEYS:
-        setting_name = get_hint_setting_name(setting_key)
-        setting_value = hint_settings.get(setting_key, True)
-        status = "✅" if setting_value else "❌"
-        result += f"   {status} {setting_name}\n"
-    
-    return result
-
-def get_hint_settings_status_text(hint_settings: Dict[str, bool]) -> str:
-    """
-    Получить текст статуса настроек подсказок для кнопок.
-    
-    Args:
-        hint_settings: Словарь с настройками подсказок
-        
-    Returns:
-        str: Текст статуса для отображения в кнопках
-    """
-    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
-    total_count = len(hint_settings)
-    
-    return f"({enabled_count}/{total_count})"
-
-# НОВОЕ: Функция для валидации настроек подсказок
-def validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
-    """
-    Валидирует и нормализует настройки подсказок.
-    
-    Args:
-        hint_settings: Словарь с настройками подсказок (могут быть любого типа)
-        
-    Returns:
-        Dict[str, bool]: Нормализованный словарь с булевыми значениями
-    """
-    validated_settings = {}
-    
-    for setting_key in HINT_SETTING_KEYS:
-        value = hint_settings.get(setting_key, True)
-        
-        # Нормализуем значение к булевому типу
-        if isinstance(value, bool):
-            validated_settings[setting_key] = value
-        elif isinstance(value, str):
-            validated_settings[setting_key] = value.lower() in ('true', '1', 'yes', 'on')
-        elif isinstance(value, (int, float)):
-            validated_settings[setting_key] = bool(value)
+    try:
+        if 'T' in date_str:
+            date_part = date_str.split('T')[0]
         else:
-            # По умолчанию включаем
-            validated_settings[setting_key] = True
-            logger.warning(f"Invalid hint setting value for {setting_key}: {value}, defaulting to True")
-    
-    return validated_settings
+            date_part = date_str
+            
+        date_obj = datetime.strptime(date_part, '%Y-%m-%d')
+        
+        # Calculate days difference
+        today = datetime.now().date()
+        study_date = date_obj.date()
+        days_diff = (today - study_date).days
+        
+        if days_diff == 0:
+            return "сегодня"
+        elif days_diff == 1:
+            return "вчера"
+        elif days_diff < 7:
+            return f"{days_diff} дн. назад"
+        elif days_diff < 30:
+            weeks = days_diff // 7
+            return f"{weeks} нед. назад"
+        else:
+            return date_obj.strftime('%d.%m.%Y')
+            
+    except Exception as e:
+        logger.warning(f"Error formatting date {date_str}: {e}")
+        return date_str.split('T')[0] if 'T' in date_str else date_str

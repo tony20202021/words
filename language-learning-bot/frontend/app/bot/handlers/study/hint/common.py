@@ -4,17 +4,16 @@ Common functions and handlers for hint operations.
 
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramBadRequest
 
 from app.utils.logger import setup_logger
 from app.utils.state_models import UserWordState
-
-# Импортируем централизованные состояния
 from app.bot.states.centralized_states import HintStates, StudyStates
-
 from app.bot.handlers.study.study_words import show_study_word
+from app.utils.state_models import UserWordState, HintState
+from app.utils.voice_utils import process_hint_input
+from app.utils.word_data_utils import ensure_user_word_data
 
 # Создаем вложенный роутер для общих обработчиков
 common_router = Router()
@@ -34,7 +33,7 @@ async def cmd_cancel_hint(message: Message, state: FSMContext):
     """
     # Get current state name
     current_state = await state.get_state()
-    logger.info(f"Cancel command received in state: {current_state}")
+    logger.info(f"Cancel 1 command received in state: {current_state}")
     
     # Determine what action was cancelled
     action_cancelled = ""
@@ -129,3 +128,95 @@ async def cmd_help_during_hint_operations(message: Message, state: FSMContext):
         help_text += "Используйте /cancel для возврата к изучению слов."
     
     await message.answer(help_text, parse_mode="HTML")
+
+
+
+async def process_hint_text(message: Message, state: FSMContext):
+    """
+    Process the edited hint text entered by the user as text or voice message.
+    Now uses centralized voice processing utilities and FSM states.
+    
+    Args:
+        message: The message object from Telegram
+        state: The FSM state context
+    """
+    logger.info(f"Hint text by {message.from_user.full_name}")
+
+    # Load hint state from FSM
+    hint_state = await HintState.from_state(state)
+    
+    # Validate hint state
+    if not hint_state.is_valid():
+        logger.error("Invalid hint state")
+        await message.answer("❌ Ошибка: недостаточно данных для редактирования подсказки. Используйте /cancel для отмены.")
+        return
+    
+    # Load user word state
+    user_word_state = await UserWordState.from_state(state)
+    
+    # Validate user word state
+    if not user_word_state.is_valid():
+        logger.error("Invalid user word state")
+        await message.answer("❌ Ошибка: недостаточно данных о пользователе или слове. Используйте /cancel для отмены.")
+        return
+    
+    # Process hint input using voice utilities
+    hint_text = await process_hint_input(
+        message, 
+        hint_state.hint_name
+    )
+    
+    if not hint_text:
+        return  # Error already handled by voice utilities
+    
+    # Save updated hint to database
+    update_data = {hint_state.hint_key: hint_text}
+    
+    success, result = await ensure_user_word_data(
+        message.bot,
+        user_word_state.user_id,
+        hint_state.hint_word_id,
+        update_data,
+        user_word_state.word_data,
+        message
+    )
+    
+    if not success:
+        logger.error("Failed to update hint in database")
+        return
+    
+    # Update current word data in state with new hint
+    if user_word_state.word_data:
+        # If user_word_data exists, update there
+        user_word_data = user_word_state.word_data.get("user_word_data", {})
+        if not user_word_data:
+            user_word_state.word_data["user_word_data"] = {}
+            
+        user_word_state.word_data["user_word_data"][hint_state.hint_key] = hint_text
+        
+        # Add hint to used hints if not already there
+        used_hints = user_word_state.get_flag("used_hints", [])
+        hint_type = hint_state.get_hint_type()
+        if hint_type and hint_type not in used_hints:
+            used_hints.append(hint_type)
+            user_word_state.set_flag("used_hints", used_hints)
+        
+        # Save updated word data to state
+        await user_word_state.save_to_state(state)
+
+    return user_word_state, hint_state, hint_text
+  
+  
+async def return_after_hint(message: Message, state: FSMContext, user_word_state: UserWordState):
+    # Determine which state to return to
+    word_shown = user_word_state.get_flag("word_shown", False)
+    if word_shown:
+        # If word was shown, return to viewing word details state
+        await state.set_state(StudyStates.viewing_word_details)
+    else:
+        # If word wasn't shown, return to main studying state
+        await state.set_state(StudyStates.studying)
+    
+    # Return to studying and show word
+    await show_study_word(message, state, need_new_message=True)
+

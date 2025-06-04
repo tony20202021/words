@@ -11,11 +11,14 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import handle_api_error
 from app.utils.state_models import UserWordState
-from app.utils.settings_utils import get_user_language_settings, get_hint_settings
+from app.utils.settings_utils import get_user_language_settings
+from app.utils.hint_settings_utils import get_individual_hint_settings
 from app.bot.states.centralized_states import StudyStates
 from app.bot.handlers.study.study_words import show_study_word, load_next_batch
+from app.bot.handlers.user.stats_handlers import process_stats
+from app.bot.handlers.language_handlers import process_language
+from app.utils.user_utils import get_or_create_user, validate_language_selected
 
 # Создаем роутер для команд изучения
 study_router = Router()
@@ -60,20 +63,14 @@ async def process_study(message_or_callback: Message, state: FSMContext):
         return
     
     # Get or create user
-    db_user_id = await _get_or_create_user(message_or_callback, api_client)
+    db_user_id, user_data = await get_or_create_user(message_or_callback.from_user, api_client)
     if not db_user_id:
         logger.error(f"not db_user_id")
         return
     
     # Check if language is selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        await message.answer(
-            "⚠️ Сначала выберите язык для изучения с помощью команды /language\n\n"
-            "После выбора языка вы сможете начать изучение слов."
-        )
+    current_language = await validate_language_selected(state, message_or_callback)
+    if not current_language:
         return
     
     language_id = current_language["id"]
@@ -81,7 +78,7 @@ async def process_study(message_or_callback: Message, state: FSMContext):
     
     # Load user settings including individual hint settings
     settings = await get_user_language_settings(message_or_callback, state)
-    hint_settings = await get_hint_settings(message_or_callback, state)
+    hint_settings = await get_individual_hint_settings(message_or_callback, state)
     show_debug = settings.get('show_debug', False)
     
     logger.info(f"Loaded settings for user {db_user_id}, language_id {language_id}: {settings}")
@@ -134,11 +131,6 @@ async def process_study(message_or_callback: Message, state: FSMContext):
         session_info=session_info,
     )
 
-    # НОВОЕ: Validate hint settings compatibility
-    if not _validate_hint_settings_compatibility(hint_settings):
-        logger.warning(f"Invalid hint settings for user {db_user_id}, using defaults")
-        # Don't fail, just log and continue with defaults
-    
     # Save state and transition to studying
     await user_word_state.save_to_state(state)
     await state.set_state(StudyStates.studying)
@@ -201,17 +193,7 @@ async def process_restart_study(callback: CallbackQuery, state: FSMContext):
     await _clear_study_state(state)
     
     # Restart study process
-    # Convert callback to message-like object for reuse
-    class CallbackAsMessage:
-        def __init__(self, callback_query):
-            self.from_user = callback_query.from_user
-            self.bot = callback_query.bot
-            
-        async def answer(self, text, **kwargs):
-            await callback_query.message.answer(text, **kwargs)
-    
-    message_like = CallbackAsMessage(callback)
-    await cmd_study(message_like, state)
+    await process_study(callback, state)
     
     await callback.answer("🔄 Изучение перезапущено")
 
@@ -226,48 +208,7 @@ async def process_view_stats(callback: CallbackQuery, state: FSMContext):
     """
     logger.info(f"'view_stats' callback from {callback.from_user.full_name}")
     
-    # Import and call stats handler
-    from app.bot.handlers.user.stats_handlers import cmd_stats
-    
-    # Convert callback to message-like object
-    class CallbackAsMessage:
-        def __init__(self, callback_query):
-            self.from_user = callback_query.from_user
-            self.bot = callback_query.bot
-            
-        async def answer(self, text, **kwargs):
-            await callback_query.message.answer(text, **kwargs)
-    
-    message_like = CallbackAsMessage(callback)
-    await cmd_stats(message_like, state)
-    
-    await callback.answer()
-
-@study_router.callback_query(F.data == "change_settings")
-async def process_change_settings(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle change settings callback from completion screen.
-    
-    Args:
-        callback: The callback query
-        state: The FSM state context
-    """
-    logger.info(f"'change_settings' callback from {callback.from_user.full_name}")
-    
-    # Import and call settings handler
-    from app.bot.handlers.user.settings_handlers import cmd_settings
-    
-    # Convert callback to message-like object
-    class CallbackAsMessage:
-        def __init__(self, callback_query):
-            self.from_user = callback_query.from_user
-            self.bot = callback_query.bot
-            
-        async def answer(self, text, **kwargs):
-            await callback_query.message.answer(text, **kwargs)
-    
-    message_like = CallbackAsMessage(callback)
-    await cmd_settings(message_like, state)
+    await process_stats(callback, state)
     
     await callback.answer()
 
@@ -282,65 +223,9 @@ async def process_change_language(callback: CallbackQuery, state: FSMContext):
     """
     logger.info(f"'change_language' callback from {callback.from_user.full_name}")
     
-    # Import and call language handler
-    from app.bot.handlers.language_handlers import cmd_language
-    
-    # Convert callback to message-like object
-    class CallbackAsMessage:
-        def __init__(self, callback_query):
-            self.from_user = callback_query.from_user
-            self.bot = callback_query.bot
-            
-        async def answer(self, text, **kwargs):
-            await callback_query.message.answer(text, **kwargs)
-    
-    message_like = CallbackAsMessage(callback)
-    await cmd_language(message_like, state)
+    await process_language(callback, state)
     
     await callback.answer()
-
-# НОВОЕ: Вспомогательные функции
-async def _get_or_create_user(message: Message, api_client) -> str:
-    """
-    Get or create user in database.
-    
-    Args:
-        message: Message object
-        api_client: API client
-        
-    Returns:
-        str: Database user ID or None if failed
-    """
-    user_id = message.from_user.id
-    username = message.from_user.username
-    
-    # Check if user exists
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    if not user_response["success"]:
-        await handle_api_error(user_response, message, "Error getting user")
-        return None
-        
-    users = user_response["result"]
-    user = users[0] if users and len(users) > 0 else None
-    
-    if not user:
-        # Create new user
-        new_user_data = {
-            "telegram_id": user_id,
-            "username": username,
-            "first_name": message.from_user.first_name,
-            "last_name": message.from_user.last_name
-        }
-        
-        create_response = await api_client.create_user(new_user_data)
-        if not create_response["success"]:
-            await handle_api_error(create_response, message, "Error creating user")
-            return None
-            
-        user = create_response["result"]
-    
-    return user.get("id") if user else None
 
 async def _handle_no_words_available(message: Message, language_name: str, settings: dict):
     """
@@ -387,41 +272,6 @@ async def _handle_no_words_available(message: Message, language_name: str, setti
     
     await message.answer(no_words_message, parse_mode="HTML")
 
-def _validate_hint_settings_compatibility(hint_settings: dict) -> bool:
-    """
-    Validate hint settings for compatibility.
-    НОВОЕ: Проверяет корректность индивидуальных настроек подсказок.
-    
-    Args:
-        hint_settings: Individual hint settings
-        
-    Returns:
-        bool: True if settings are valid
-    """
-    from app.utils.hint_constants import HINT_SETTING_KEYS
-    
-    if not isinstance(hint_settings, dict):
-        logger.error("Hint settings must be a dictionary")
-        return False
-    
-    # Check if all required keys are present
-    missing_keys = [key for key in HINT_SETTING_KEYS if key not in hint_settings]
-    if missing_keys:
-        logger.warning(f"Missing hint setting keys: {missing_keys}")
-        # Don't fail, just warn - defaults will be used
-    
-    # Check if values are boolean
-    invalid_values = [
-        key for key, value in hint_settings.items() 
-        if not isinstance(value, bool)
-    ]
-    if invalid_values:
-        logger.warning(f"Non-boolean hint setting values: {invalid_values}")
-        # Don't fail, just warn - values will be converted
-    
-    # Always return True - we can work with partial/invalid settings
-    return True
-
 async def _clear_study_state(state: FSMContext):
     """
     Clear study-related state data.
@@ -449,47 +299,7 @@ async def _clear_study_state(state: FSMContext):
     
     logger.info("Study state cleared for restart")
 
-# НОВОЕ: Функция для проверки готовности к изучению
-async def validate_study_readiness(
-    message: Message, 
-    state: FSMContext, 
-    api_client
-) -> tuple[bool, str]:
-    """
-    Validate if user is ready to start studying.
-    
-    Args:
-        message: Message object
-        state: FSM context
-        api_client: API client
-        
-    Returns:
-        tuple: (is_ready, error_message)
-    """
-    # Check user exists
-    db_user_id = await _get_or_create_user(message, api_client)
-    if not db_user_id:
-        return False, "Не удалось получить или создать пользователя"
-    
-    # Check language selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    if not current_language or not current_language.get("id"):
-        return False, "Не выбран язык для изучения"
-    
-    # Check settings loaded
-    try:
-        settings = await get_user_language_settings(message, state)
-        hint_settings = await get_hint_settings(message, state)
-        
-        if not settings or not hint_settings:
-            return False, "Не удалось загрузить настройки"
-        
-    except Exception as e:
-        logger.error(f"Error validating study readiness: {e}")
-        return False, "Ошибка загрузки настроек"
-    
-    return True, ""
-
 # Экспортируем роутер и функции
-__all__ = ['study_router', 'validate_study_readiness']
+__all__ = [
+    'study_router', 
+]

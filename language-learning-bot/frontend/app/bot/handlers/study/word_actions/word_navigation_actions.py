@@ -69,7 +69,6 @@ async def process_confirm_next_word(callback: CallbackQuery, state: FSMContext):
     await process_next_word(callback, state)
 
 
-# НОВОЕ: Обработчик для возврата к изучению из админ-режима
 @navigation_router.callback_query(F.data == CallbackData.BACK_TO_STUDY_FROM_ADMIN)
 async def process_back_to_study_from_admin(callback: CallbackQuery, state: FSMContext):
     """

@@ -176,62 +176,6 @@ async def bulk_update_hint_settings(
         logger.error(f"Error bulk updating hint settings: {e}")
         return False
 
-def validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
-    """
-    Validate and normalize hint settings.
-    
-    Args:
-        hint_settings: Raw hint settings dictionary
-        
-    Returns:
-        Dict with validated boolean settings
-    """
-    validated = {}
-    
-    for key in HINT_SETTING_KEYS:
-        raw_value = hint_settings.get(key, True)
-        
-        # Normalize to boolean
-        if isinstance(raw_value, bool):
-            validated[key] = raw_value
-        elif isinstance(raw_value, str):
-            validated[key] = raw_value.lower() in ('true', '1', 'yes', 'on')
-        elif isinstance(raw_value, (int, float)):
-            validated[key] = bool(raw_value)
-        else:
-            validated[key] = True
-            logger.warning(f"Invalid hint setting value for {key}: {raw_value}, defaulting to True")
-    
-    return validated
-
-def get_hint_settings_summary(hint_settings: Dict[str, bool]) -> Dict[str, Any]:
-    """
-    Get summary information about hint settings.
-    
-    Args:
-        hint_settings: Individual hint settings
-        
-    Returns:
-        Dict with summary info
-    """
-    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
-    total_count = len(hint_settings)
-    
-    enabled_types = [
-        get_hint_setting_name(key) or key for key, enabled in hint_settings.items() 
-        if enabled and get_hint_setting_name(key)
-    ]
-    
-    return {
-        "enabled_count": enabled_count,
-        "total_count": total_count,
-        "all_enabled": enabled_count == total_count,
-        "all_disabled": enabled_count == 0,
-        "enabled_types": enabled_types,
-        "status_text": f"{enabled_count}/{total_count}",
-        "percentage": (enabled_count / total_count * 100) if total_count > 0 else 0
-    }
-
 async def is_hint_type_enabled_for_user(
     hint_type: str,
     message_or_callback: Union[Message, CallbackQuery],
@@ -271,41 +215,14 @@ def parse_hint_setting_callback(callback_data: str) -> Optional[str]:
     
     return get_hint_setting_from_callback(callback_data)
 
-def create_hint_settings_display_text(hint_settings: Dict[str, bool]) -> str:
-    """
-    Create formatted text for displaying hint settings.
-    
-    Args:
-        hint_settings: Individual hint settings
-        
-    Returns:
-        str: Formatted display text
-    """
-    summary = get_hint_settings_summary(hint_settings)
-    
-    text = f"💡 <b>Настройки подсказок ({summary['status_text']}):</b>\n"
-    
-    for key in HINT_SETTING_KEYS:
-        name = get_hint_setting_name(key)
-        enabled = hint_settings.get(key, True)
-        status = "✅" if enabled else "❌"
-        
-        if name:
-            text += f"   {status} {name}\n"
-    
-    return text
-
 # Export main functions
 __all__ = [
     'get_individual_hint_settings',
     'save_individual_hint_settings', 
     'toggle_individual_hint_setting',
     'bulk_update_hint_settings',
-    'validate_hint_settings',
-    'get_hint_settings_summary',
     'is_hint_type_enabled_for_user',
     'parse_hint_setting_callback',
-    'create_hint_settings_display_text',
     'migrate_legacy_hint_settings',
     'DEFAULT_HINT_SETTINGS'
 ]

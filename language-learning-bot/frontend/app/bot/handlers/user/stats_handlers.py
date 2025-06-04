@@ -15,63 +15,14 @@ from app.utils.logger import setup_logger
 from app.utils.error_utils import safe_api_call
 from app.bot.states.centralized_states import UserStates
 from app.bot.keyboards.user_keyboards import create_stats_keyboard
+from app.utils.user_utils import get_or_create_user
+from app.utils.formatting_utils import format_date_friendly
 
 # Создаем роутер для обработчиков статистики
 stats_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
-
-async def _get_or_create_user_for_stats(user_info, api_client) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Get existing user or create new one for statistics context.
-    НОВОЕ: Специализированная версия для контекста статистики.
-    
-    Args:
-        user_info: User information from Telegram
-        api_client: API client instance
-        
-    Returns:
-        tuple: (db_user_id, error_message) - one will be None
-    """
-    user_id = user_info.id
-    username = user_info.username
-    
-    # Try to get existing user
-    success, users = await safe_api_call(
-        lambda: api_client.get_user_by_telegram_id(user_id),
-        None,
-        "получение данных пользователя для статистики",
-        handle_errors=False
-    )
-    
-    if not success:
-        return None, "Не удалось получить данные пользователя"
-    
-    existing_user = users[0] if users and len(users) > 0 else None
-    
-    if existing_user:
-        return existing_user.get("id"), None
-    
-    # Create new user if doesn't exist
-    new_user_data = {
-        "telegram_id": user_id,
-        "username": username,
-        "first_name": user_info.first_name,
-        "last_name": user_info.last_name
-    }
-    
-    success, created_user = await safe_api_call(
-        lambda: api_client.create_user(new_user_data),
-        None,
-        "создание пользователя для статистики",
-        handle_errors=False
-    )
-    
-    if not success:
-        return None, "Не удалось создать пользователя"
-    
-    return created_user.get("id") if created_user else None, None
 
 async def _get_languages_with_word_counts(api_client) -> Tuple[List[Dict], Optional[str]]:
     """
@@ -116,7 +67,7 @@ async def _get_languages_with_word_counts(api_client) -> Tuple[List[Dict], Optio
     
     return languages, None
 
-async def _get_user_progress_data(db_user_id: str, languages: List[Dict], api_client) -> Tuple[List[Dict], List[Dict]]:
+async def get_user_progress_data(db_user_id: str, languages: List[Dict], api_client) -> Tuple[List[Dict], List[Dict]]:
     """
     Get user progress data for all languages.
     НОВОЕ: Разделение языков на те, где есть прогресс, и те, где его нет.
@@ -159,7 +110,7 @@ async def _get_user_progress_data(db_user_id: str, languages: List[Dict], api_cl
 def _format_progress_stats(progress_data: List[Dict]) -> str:
     """
     Format progress statistics into readable text.
-    НОВОЕ: Форматирование статистики прогресса.
+    Форматирование статистики прогресса.
     
     Args:
         progress_data: List of progress data for languages
@@ -207,7 +158,7 @@ def _format_progress_stats(progress_data: List[Dict]) -> str:
         
         # Last study date
         if last_study_date:
-            formatted_date = _format_date_friendly(last_study_date)
+            formatted_date = format_date_friendly(last_study_date)
             stats_text += f"   🕒 Последнее изучение: {formatted_date}\n"
         
         stats_text += "\n"
@@ -263,46 +214,6 @@ def _create_progress_bar(progress_percentage: float, length: int = 10) -> str:
     filled_length = int(length * progress_percentage / 100)
     bar = '█' * filled_length + '░' * (length - filled_length)
     return f"[{bar}]"
-
-def _format_date_friendly(date_str: str) -> str:
-    """
-    Format date in a user-friendly way.
-    НОВОЕ: Дружественное форматирование даты.
-    
-    Args:
-        date_str: ISO date string
-        
-    Returns:
-        str: User-friendly date string
-    """
-    try:
-        if 'T' in date_str:
-            date_part = date_str.split('T')[0]
-        else:
-            date_part = date_str
-            
-        date_obj = datetime.strptime(date_part, '%Y-%m-%d')
-        
-        # Calculate days difference
-        today = datetime.now().date()
-        study_date = date_obj.date()
-        days_diff = (today - study_date).days
-        
-        if days_diff == 0:
-            return "сегодня"
-        elif days_diff == 1:
-            return "вчера"
-        elif days_diff < 7:
-            return f"{days_diff} дн. назад"
-        elif days_diff < 30:
-            weeks = days_diff // 7
-            return f"{weeks} нед. назад"
-        else:
-            return date_obj.strftime('%d.%m.%Y')
-            
-    except Exception as e:
-        logger.warning(f"Error formatting date {date_str}: {e}")
-        return date_str.split('T')[0] if 'T' in date_str else date_str
 
 def _get_stats_summary(progress_data: List[Dict], available_languages: List[Dict]) -> str:
     """
@@ -379,9 +290,9 @@ async def process_stats(message_or_callback, state: FSMContext):
         return
 
     # Get or create user
-    db_user_id, user_error = await _get_or_create_user_for_stats(message_or_callback.from_user, api_client)
+    db_user_id, user_data = await get_or_create_user(message_or_callback.from_user, api_client)
     if not db_user_id:
-        await message.answer(f"❌ {user_error}. Попробуйте позже.")
+        await message.answer(f"❌ user_error. Попробуйте позже.")
         return
 
     # Update state with user ID
@@ -405,7 +316,7 @@ async def process_stats(message_or_callback, state: FSMContext):
         return
 
     # Get user progress data
-    progress_data, available_languages = await _get_user_progress_data(db_user_id, languages, api_client)
+    progress_data, available_languages = await get_user_progress_data(db_user_id, languages, api_client)
 
     # Check if user has any activity
     if not progress_data and not available_languages:
@@ -450,134 +361,8 @@ async def process_stats(message_or_callback, state: FSMContext):
     # Send statistics
     await message.answer(stats_text, reply_markup=keyboard, parse_mode="HTML")
 
-# НОВОЕ: Обработчики callback'ов для интерактивности
-@stats_router.callback_query(F.data == "refresh_stats")
-async def process_refresh_stats(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle statistics refresh request.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Stats refresh by {callback.from_user.full_name}")
-    
-    await callback.answer("🔄 Обновление статистики...")
-    
-    # Re-run the stats command logic
-    await cmd_stats(callback.message, state)
-
-@stats_router.callback_query(F.data == "start_study_from_stats")
-async def process_start_study_from_stats(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle study start from stats.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Start study from stats by {callback.from_user.full_name}")
-    
-    # Check if language is selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        await callback.answer("Сначала выберите язык!", show_alert=True)
-        await callback.message.answer(
-            "⚠️ Для начала изучения сначала выберите язык командой /language"
-        )
-        return
-    
-    await callback.answer("🎓 Переход к изучению...")
-    await callback.message.answer(
-        "🎓 Используйте команду /study для начала изучения слов."
-    )
-
-@stats_router.callback_query(F.data == "settings_from_stats")
-async def process_settings_from_stats(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle settings access from stats.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Settings from stats by {callback.from_user.full_name}")
-    
-    # Check if language is selected
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        await callback.answer("Сначала выберите язык!", show_alert=True)
-        await callback.message.answer(
-            "⚠️ Для доступа к настройкам сначала выберите язык командой /language"
-        )
-        return
-    
-    await callback.answer("⚙️ Настройки...")
-    await callback.message.answer(
-        "⚙️ Используйте команду /settings для просмотра и изменения настроек обучения."
-    )
-
-# НОВОЕ: Utility functions for other modules
-def format_progress_percentage(words_studied: int, total_words: int) -> float:
-    """
-    Calculate progress percentage.
-    НОВОЕ: Утилита для расчета процента прогресса.
-    
-    Args:
-        words_studied: Number of words studied
-        total_words: Total number of words
-        
-    Returns:
-        float: Progress percentage
-    """
-    if total_words == 0:
-        return 0.0
-    return (words_studied / total_words) * 100
-
-def get_study_streak_info(last_study_date: str) -> dict:
-    """
-    Get information about study streak.
-    НОВОЕ: Информация о серии изучения.
-    
-    Args:
-        last_study_date: Last study date string
-        
-    Returns:
-        dict: Streak information
-    """
-    try:
-        if not last_study_date:
-            return {"streak": 0, "status": "never_studied"}
-        
-        if 'T' in last_study_date:
-            date_part = last_study_date.split('T')[0]
-        else:
-            date_part = last_study_date
-            
-        last_date = datetime.strptime(date_part, '%Y-%m-%d').date()
-        today = datetime.now().date()
-        days_diff = (today - last_date).days
-        
-        if days_diff == 0:
-            return {"streak": 1, "status": "active_today"}
-        elif days_diff == 1:
-            return {"streak": 1, "status": "yesterday"}
-        elif days_diff < 7:
-            return {"streak": 0, "status": "recent", "days_ago": days_diff}
-        else:
-            return {"streak": 0, "status": "inactive", "days_ago": days_diff}
-            
-    except Exception as e:
-        logger.warning(f"Error calculating streak for {last_study_date}: {e}")
-        return {"streak": 0, "status": "unknown"}
 
 # Export router and utilities
 __all__ = [
     'stats_router',
-    'format_progress_percentage',
-    'get_study_streak_info'
 ]

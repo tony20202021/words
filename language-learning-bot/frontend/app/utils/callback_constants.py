@@ -385,35 +385,6 @@ def format_admin_callback(action: str, entity_id: str = None) -> str:
     return action
 
 
-def format_word_callback(action: str, word_id: str) -> str:
-    """
-    Format word action callback data.
-    
-    Args:
-        action: The word action (edit, delete, etc.)
-        word_id: The word ID
-        
-    Returns:
-        Formatted callback data string
-    """
-    return f"{action}_word_{word_id}"
-
-
-def format_word_field_callback(field: str, word_id: str) -> str:
-    """
-    Format word field edit callback data.
-    
-    Args:
-        field: The field to edit (foreign, translation, transcription, number)
-        word_id: The word ID
-        
-    Returns:
-        Formatted callback data string
-    """
-    return f"edit_word_{field}_{word_id}"
-
-
-# НОВОЕ: Функции для админ-редактирования из изучения
 def format_admin_edit_from_study_callback(word_id: str) -> str:
     """
     Format admin edit from study callback data.
@@ -465,25 +436,3 @@ def is_hint_setting_callback(callback_data: str) -> bool:
     """
     return callback_data in HINT_SETTINGS_CALLBACKS_REVERSE
 
-
-def get_all_hint_setting_callbacks() -> Dict[str, str]:
-    """
-    Get all hint setting callbacks.
-    
-    Returns:
-        Dictionary mapping setting keys to callback data
-    """
-    return HINT_SETTINGS_CALLBACKS.copy()
-
-
-def format_hint_setting_callback(hint_type: str) -> str:
-    """
-    Format callback data for hint setting toggle.
-    
-    Args:
-        hint_type: The hint type (meaning, phoneticassociation, etc.)
-        
-    Returns:
-        Formatted callback data string
-    """
-    return f"settings_toggle_hint_{hint_type}"

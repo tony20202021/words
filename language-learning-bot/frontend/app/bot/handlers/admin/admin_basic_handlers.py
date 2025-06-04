@@ -14,6 +14,7 @@ from app.bot.handlers.admin.admin_language_handlers import cmd_manage_languages
 from app.bot.handlers.admin.admin_language_handlers import handle_language_management
 from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import AdminStates
+from app.utils.admin_utils import is_user_admin
 
 # Создаем роутер для базовых обработчиков администратора
 admin_router = Router()
@@ -47,55 +48,13 @@ async def handle_admin_mode(message_or_callback, state: FSMContext, is_callback=
     # Сначала очищаем состояние для предотвращения конфликтов
     # Но в данном случае мы хотим сохранить данные пользователя
     current_data = await state.get_data()
-    await state.set_state(AdminStates.main_menu)  # ✅ НОВОЕ: Устанавливаем состояние главного меню
+    await state.set_state(AdminStates.main_menu) 
     await state.update_data(**current_data)
     
-    # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(message.bot)
-    
-    # Получение данных состояния
-    user_data = await state.get_data()
-    logger.debug("User data: %s", user_data)
-    
-    # Получаем информацию о пользователе из API
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    # Проверяем успешность запроса
-    if not user_response["success"]:
-        error_msg = user_response.get("error", "Неизвестная ошибка")
-        await message.answer(f"Ошибка при получении данных пользователя: {error_msg}")
-        logger.error(f"Failed to get user data during admin mode activation. Error: {error_msg}")
-        return False
-    
-    # Получаем пользователя из ответа
-    users = user_response["result"]
-    user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
-    
-    # Проверяем, существует ли пользователь и является ли он администратором
-    if not user:
-        # Пользователь не найден, создаем нового
-        user_data = {
-            "telegram_id": user_id,
-            "username": username,
-            "first_name": full_name,
-            "last_name": message_or_callback.from_user.last_name if not is_callback else None,
-            "is_admin": False  # По умолчанию не администратор
-        }
-        create_response = await api_client.create_user(user_data)
-        
-        if not create_response["success"]:
-            error_msg = create_response.get("error", "Неизвестная ошибка")
-            await message.answer(f"Ошибка при создании пользователя: {error_msg}")
-            logger.error(f"Failed to create user during admin mode activation. Error: {error_msg}")
-            return False
-            
+    # Проверяем права администратора
+    if not await is_user_admin(message_or_callback, state):
         await message.answer("У вас нет прав администратора.")
-        return False
-    
-    # Проверяем, является ли пользователь администратором
-    if not user.get("is_admin", False):
-        await message.answer("У вас нет прав администратора.")
-        return False
+        return
     
     # Используем готовую клавиатуру из admin_keyboards.py
     keyboard = get_admin_keyboard()
@@ -151,7 +110,6 @@ async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
-@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.BACK_TO_START)
 @admin_router.callback_query(F.data == CallbackData.BACK_TO_START)
 async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     """
@@ -193,7 +151,6 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     # Отвечаем на callback
     await callback.answer()
 
-@admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.ADMIN_LANGUAGES)
 @admin_router.callback_query(F.data == CallbackData.ADMIN_LANGUAGES)
 async def process_admin_languages(callback: CallbackQuery, state: FSMContext):
     """
@@ -239,27 +196,14 @@ async def handle_stats(message_or_callback, state: FSMContext, is_callback=False
 
     logger.info(f"Statistics requested by {full_name} ({username})")
     
-    # ✅ НОВОЕ: Устанавливаем состояние просмотра статистики
+    # Устанавливаем состояние просмотра статистики
     await state.set_state(AdminStates.viewing_admin_stats)
     
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(message.bot)
     
     # Проверяем права администратора
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    # Проверяем успешность запроса
-    if not user_response["success"]:
-        error_msg = user_response.get("error", "Неизвестная ошибка")
-        await message.answer(f"Ошибка при получении данных пользователя: {error_msg}")
-        logger.error(f"Failed to get user data. Error: {error_msg}")
-        return
-    
-    # Получаем пользователя из ответа
-    users = user_response["result"]
-    user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
-    
-    if not user or not user.get("is_admin", False):
+    if not await is_user_admin(message, state):
         await message.answer("У вас нет прав администратора.")
         return
     
@@ -515,25 +459,14 @@ async def handle_user_management(message_or_callback, state: FSMContext, is_call
 
     logger.info(f"User management requested by {full_name} ({username})")
     
-    # ✅ НОВОЕ: Устанавливаем состояние просмотра списка пользователей
+    # Устанавливаем состояние просмотра списка пользователей
     await state.set_state(AdminStates.viewing_users_list)
     
     # Получаем клиент API
     api_client = get_api_client_from_bot(message.bot)
     
     # Проверяем права администратора
-    user_response = await api_client.get_user_by_telegram_id(user_id)
-    
-    if not user_response["success"]:
-        error_msg = user_response.get("error", "Неизвестная ошибка")
-        await message.answer(f"Ошибка при получении данных пользователя: {error_msg}")
-        logger.error(f"Failed to get user data. Error: {error_msg}")
-        return
-    
-    users = user_response["result"]
-    user = users[0] if users and isinstance(users, list) and len(users) > 0 else None
-    
-    if not user or not user.get("is_admin", False):
+    if not await is_user_admin(message, state):
         await message.answer("У вас нет прав администратора.")
         return
     
@@ -589,7 +522,7 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
         state: The FSM state context
         user_id: ID of the user to show details for
     """
-    # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей пользователя
+    # Устанавливаем состояние просмотра деталей пользователя
     await state.set_state(AdminStates.viewing_user_details)
     
     api_client = get_api_client_from_bot(callback.bot)
@@ -629,7 +562,7 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
             progress = progress_response["result"]
             words_studied = progress.get('words_studied', 0)
             
-            # ИСПРАВЛЕНО: Показываем только языки, где есть статистика (изучено > 0 слов)
+            # Показываем только языки, где есть статистика (изучено > 0 слов)
             if words_studied > 0:
                 language_stats.append({
                     'name': f"{language['name_ru']} ({language['name_foreign']})",
@@ -659,7 +592,7 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
         created_date = format_date_standard(user.get('created_at'))
         user_info += f"Дата регистрации: <b>{created_date}</b>\n"
     
-    # Статистика по языкам - ИСПРАВЛЕНО: показываем только если есть изученные языки
+    # Статистика по языкам - показываем только если есть изученные языки
     if language_stats:
         user_info += f"\n📊 <b>Статистика изучения:</b>\n"
         for stat in language_stats:

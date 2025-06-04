@@ -16,6 +16,7 @@ from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.bot.states.centralized_states import CommonStates
 from app.utils.error_utils import handle_unknown_command, is_command
+from app.utils.user_utils import get_or_create_user
 
 logger = setup_logger(__name__)
 
@@ -83,7 +84,7 @@ class AuthMiddleware(BaseMiddleware):
                 return
             
             # Get or create user in database
-            db_user = await self._get_or_create_user(user, data.get("api_client"))
+            db_user = await self._get_user(user, data.get("api_client"))
             if db_user:
                 data["db_user"] = db_user
                 data["db_user_id"] = db_user.get("id")
@@ -326,7 +327,7 @@ class AuthMiddleware(BaseMiddleware):
         command = event.text.split()[0].split('@')[0].lower()
         return command not in known_commands
     
-    async def _get_or_create_user(self, user: User, api_client) -> Optional[Dict]:
+    async def _get_user(self, user: User, api_client) -> Optional[Dict]:
         """
         Get or create user in the database.
         Enhanced with better error handling and retry logic.
@@ -343,42 +344,18 @@ class AuthMiddleware(BaseMiddleware):
             return None
         
         try:
-            # Try to get existing user
-            user_response = await api_client.get_user_by_telegram_id(user.id)
-            
-            if user_response["success"] and user_response["result"]:
-                # User exists, return first result
-                users = user_response["result"]
-                db_user = users[0] if users else None
+            db_user, user_data = await get_or_create_user(user, api_client)
+            if db_user:
+                # Update user info if it has changed
+                await self._update_user_info_if_needed(user, db_user, api_client)
                 
-                if db_user:
-                    logger.debug(f"Found existing user: {db_user.get('id')}")
-                    
-                    # Update user info if it has changed
-                    await self._update_user_info_if_needed(user, db_user, api_client)
-                    
-                    return db_user
-            
-            # User doesn't exist, create new one
-            user_data = {
-                "telegram_id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name
-            }
-            
-            create_response = await api_client.create_user(user_data)
-            
-            if create_response["success"] and create_response["result"]:
-                db_user = create_response["result"]
-                logger.info(f"Created new user: {db_user.get('id')} for Telegram ID {user.id}")
                 return db_user
             else:
-                logger.error(f"Failed to create user: {create_response.get('error')}")
+                logger.error(f"Failed to create user: {user_data.get('error')}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error in _get_or_create_user: {e}", exc_info=True)
+            logger.error(f"Error in _get_user: {e}", exc_info=True)
             return None
     
     async def _update_user_info_if_needed(

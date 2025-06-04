@@ -11,7 +11,6 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import safe_api_call
 from app.utils.settings_utils import (
     get_user_language_settings, 
     save_user_language_settings,
@@ -28,95 +27,12 @@ from app.utils.callback_constants import (
 )
 from app.utils.hint_constants import get_hint_setting_name
 from app.bot.states.centralized_states import SettingsStates
+from app.utils.user_utils import get_or_create_user, validate_language_selected
 
 # Создаем роутер для обработчиков настроек
 settings_router = Router()
 
 logger = setup_logger(__name__)
-
-# Вынесенная общая функция для получения или создания пользователя
-async def _ensure_user_exists(message_or_callback, api_client) -> str:
-    """
-    Ensure user exists in database and return user ID.
-    НОВОЕ: Вынесена общая логика создания/получения пользователя.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        api_client: API client instance
-        
-    Returns:
-        str: Database user ID or None if failed
-    """
-    # Extract user info regardless of message type
-    if hasattr(message_or_callback, 'from_user'):
-        user = message_or_callback.from_user
-    else:
-        user = message_or_callback.message.from_user
-    
-    user_id = user.id
-    username = user.username
-    
-    # Try to get existing user
-    success, users = await safe_api_call(
-        lambda: api_client.get_user_by_telegram_id(user_id),
-        message_or_callback,
-        "получение данных пользователя"
-    )
-    
-    if not success:
-        return None
-    
-    # Check if user exists
-    existing_user = users[0] if users and len(users) > 0 else None
-    
-    if existing_user:
-        return existing_user.get("id")
-    
-    # Create new user if doesn't exist
-    new_user_data = {
-        "telegram_id": user_id,
-        "username": username,
-        "first_name": user.first_name,
-        "last_name": user.last_name
-    }
-    
-    success, created_user = await safe_api_call(
-        lambda: api_client.create_user(new_user_data),
-        message_or_callback,
-        "создание пользователя"
-    )
-    
-    return created_user.get("id") if success and created_user else None
-
-async def _validate_language_selected(state: FSMContext, message_or_callback) -> bool:
-    """
-    Validate that user has selected a language.
-    
-    Args:
-        state: FSM context
-        message_or_callback: Message or CallbackQuery object
-        
-    Returns:
-        bool: True if language is selected
-    """
-    state_data = await state.get_data()
-    current_language = state_data.get("current_language")
-    
-    if not current_language or not current_language.get("id"):
-        error_message = (
-            "⚠️ Сначала выберите язык для изучения с помощью команды /language\n\n"
-            "После выбора языка вы сможете настроить параметры обучения."
-        )
-        
-        if isinstance(message_or_callback, CallbackQuery):
-            await message_or_callback.answer("Язык не выбран", show_alert=True)
-            await message_or_callback.message.answer(error_message)
-        else:
-            await message_or_callback.answer(error_message)
-        
-        return False
-    
-    return True
 
 @settings_router.message(Command("settings"))
 async def cmd_settings(message: Message, state: FSMContext):
@@ -156,15 +72,16 @@ async def process_settings(message_or_callback: Message, state: FSMContext):
         return
 
     # Ensure user exists
-    db_user_id = await _ensure_user_exists(message_or_callback, api_client)
+    db_user_id, user_data = await get_or_create_user(message_or_callback.from_user, api_client)
     if not db_user_id:
-        return  # Error already handled in _ensure_user_exists
+        return
 
     # Update state with user ID
     await state.update_data(db_user_id=db_user_id)
 
     # Validate language selection
-    if not await _validate_language_selected(state, message_or_callback):
+    current_language = await validate_language_selected(state, message_or_callback)
+    if not current_language:
         return
     
     # Set state for settings viewing
@@ -186,7 +103,6 @@ async def process_settings(message_or_callback: Message, state: FSMContext):
         is_callback=False
     )
 
-# ОБНОВЛЕНО: Улучшенный обработчик индивидуальных настроек подсказок
 @settings_router.callback_query(lambda c: is_hint_setting_callback(c.data))
 async def process_hint_setting_toggle(callback: CallbackQuery, state: FSMContext):
     """
@@ -211,7 +127,8 @@ async def process_hint_setting_toggle(callback: CallbackQuery, state: FSMContext
     logger.info(f"'{callback.data}' callback from {full_name} ({username}) - toggling {setting_name}")
     
     # Validate language selection
-    if not await _validate_language_selected(state, callback):
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
         return
     
     # Toggle the setting using centralized utility
@@ -246,7 +163,8 @@ async def process_settings_start_word(callback: CallbackQuery, state: FSMContext
     logger.info(f"Start word setting from {callback.from_user.full_name}")
     
     # Validate language selection
-    if not await _validate_language_selected(state, callback):
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
         return
     
     await state.set_state(SettingsStates.waiting_start_word)
@@ -389,7 +307,8 @@ async def _handle_boolean_toggle(
     logger.info(f"Toggle {setting_key} from {callback.from_user.full_name}")
     
     # Validate language selection
-    if not await _validate_language_selected(state, callback):
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
         return
     
     # Get current settings
@@ -434,7 +353,7 @@ async def process_disable_all_hints(callback: CallbackQuery, state: FSMContext):
 async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, enable_all: bool):
     """
     Handle bulk hint settings action.
-    НОВОЕ: Общая функция для включения/отключения всех подсказок.
+    Общая функция для включения/отключения всех подсказок.
     
     Args:
         callback: The callback query
@@ -445,7 +364,8 @@ async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, 
     logger.info(f"{action_text.capitalize()} all hints from {callback.from_user.full_name}")
     
     # Validate language selection
-    if not await _validate_language_selected(state, callback):
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
         return
     
     success = await bulk_update_hint_settings(callback, state, enable_all=enable_all)
@@ -463,64 +383,6 @@ async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, 
         )
     else:
         await callback.answer("❌ Ошибка изменения настроек")
-
-# Quick start word options - ОБНОВЛЕНО с общими функциями
-@settings_router.callback_query(F.data.startswith("quick_start_word_"))
-async def process_quick_start_word(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle quick start word selection.
-    ОБНОВЛЕНО: Улучшена обработка ошибок.
-    """
-    try:
-        # Extract word number from callback data
-        word_num_str = callback.data.replace("quick_start_word_", "")
-        start_word = int(word_num_str)
-        
-        logger.info(f"Quick start word {start_word} from {callback.from_user.full_name}")
-        
-        # Validate language selection
-        if not await _validate_language_selected(state, callback):
-            return
-        
-        # Update setting
-        success = await _update_setting(callback, state, "start_word", start_word)
-        
-        if success:
-            await callback.answer(f"✅ Начальное слово: {start_word}")
-            
-            # Return to settings view
-            await state.set_state(SettingsStates.viewing_settings)
-            
-            # Show updated settings
-            await display_language_settings(
-                message_or_callback=callback,
-                state=state,
-                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
-                is_callback=True
-            )
-        else:
-            await callback.answer("❌ Ошибка сохранения настройки")
-            
-    except (ValueError, IndexError) as e:
-        logger.error(f"Error processing quick start word: {e}")
-        await callback.answer("❌ Ошибка обработки выбора")
-
-# Cancel handlers - moved to cancel_handlers.py, these are just for invalid input
-@settings_router.message(SettingsStates.waiting_start_word)
-async def handle_invalid_start_word(message: Message, state: FSMContext):
-    """
-    Handle invalid input during start word setting.
-    ОБНОВЛЕНО: Улучшено сообщение об ошибке.
-    """
-    await message.answer(
-        "❌ Пожалуйста, введите корректный номер слова (число от 1 до 50000).\n\n"
-        "Примеры корректного ввода:\n"
-        "• <code>1</code> - первое слово\n"
-        "• <code>50</code> - пятидесятое слово\n"
-        "• <code>100</code> - сотое слово\n\n"
-        "Или отправьте /cancel для отмены.",
-        parse_mode="HTML"
-    )
 
 # Export router
 __all__ = ['settings_router']

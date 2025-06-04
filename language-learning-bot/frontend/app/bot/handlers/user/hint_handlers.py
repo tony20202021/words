@@ -8,71 +8,20 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
-from app.utils.error_utils import safe_api_call
 from app.utils.hint_constants import (
     get_all_hint_types, 
     get_hint_name, 
     get_hint_icon,
-    HINT_SETTING_KEYS,
-    get_hint_setting_name
 )
-from app.utils.hint_settings_utils import get_individual_hint_settings
 from app.bot.states.centralized_states import UserStates
+from app.utils.message_utils import get_user_info, get_message_from_callback
 
 # Создаем роутер для обработчиков подсказок
 hint_router = Router()
 
 # Set up logging
 logger = setup_logger(__name__)
-
-# Централизованная функция для обеспечения существования пользователя
-async def _ensure_user_exists_quietly(user_info, api_client) -> bool:
-    """
-    Ensure user exists in database (quiet version for info context).
-    НОВОЕ: Тихая версия для информационного контекста - без детального логирования ошибок.
-    
-    Args:
-        user_info: User information from Telegram
-        api_client: API client instance
-        
-    Returns:
-        bool: True if user exists or was created successfully
-    """
-    user_id = user_info.id
-    
-    # Check if user exists
-    success, users = await safe_api_call(
-        lambda: api_client.get_user_by_telegram_id(user_id),
-        None,
-        "проверка пользователя для информации о подсказках",
-        handle_errors=False
-    )
-    
-    if not success:
-        return False
-    
-    # User already exists
-    if users and len(users) > 0:
-        return True
-    
-    # Create new user
-    new_user_data = {
-        "telegram_id": user_id,
-        "username": user_info.username,
-        "first_name": user_info.first_name,
-        "last_name": user_info.last_name
-    }
-    
-    success, _ = await safe_api_call(
-        lambda: api_client.create_user(new_user_data),
-        None,
-        "создание пользователя для информации о подсказках",
-        handle_errors=False
-    )
-    
-    return success
 
 def _get_hint_info_content() -> dict:
     """
@@ -251,9 +200,8 @@ async def process_hint(message_or_callback, state: FSMContext):
         message: The message object from Telegram
         state: The FSM state context
     """
-    user_id = message_or_callback.from_user.id
-    username = message_or_callback.from_user.username
-    full_name = message_or_callback.from_user.full_name
+    user_id, username, full_name = get_user_info(message_or_callback)
+    message = get_message_from_callback(message_or_callback)
 
     logger.info(f"'/hint' command from {full_name} ({username})")
 
@@ -264,170 +212,11 @@ async def process_hint(message_or_callback, state: FSMContext):
     hint_info = _get_hint_info_content()
     hint_text = _format_hint_info_text(hint_info, user_hint_settings=None)
     
-    if isinstance(message_or_callback, CallbackQuery):
-        message = message_or_callback.message
-    else:
-        message = message_or_callback
 
     # Send hint information
     await message.answer(hint_text, parse_mode="HTML")
 
-# НОВОЕ: Дополнительные обработчики для расширенной функциональности
-@hint_router.callback_query(F.data == "hint_detailed_info")
-async def process_hint_detailed_info(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle request for detailed hint information.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Detailed hint info requested by {callback.from_user.full_name}")
-    
-    await callback.answer("📖 Подробная информация...")
-    
-    detailed_info = _get_detailed_hint_examples()
-    await callback.message.answer(detailed_info, parse_mode="HTML")
-
-def _get_detailed_hint_examples() -> str:
-    """
-    Get detailed examples for each hint type.
-    НОВОЕ: Детальные примеры использования подсказок.
-    
-    Returns:
-        str: Formatted examples text
-    """
-    return (
-        "📖 <b>Подробные примеры подсказок</b>\n\n"
-        
-        "🎵 <b>Звучание по слогам (Фонетика):</b>\n"
-        "Слово: beautiful\n"
-        "Подсказка: beau-ti-ful (бью-ти-фул)\n"
-        "Помогает разбить сложное слово на части\n\n"
-        
-        "💡 <b>Ассоциация для фонетики:</b>\n"
-        "Слово: cat\n"
-        "Подсказка: звучит как 'кэт' - похоже на 'кот'\n"
-        "Связывает звучание с знакомыми звуками\n\n"
-        
-        "🧠 <b>Ассоциация для значения:</b>\n"
-        "Слово: dog\n"
-        "Подсказка: собака = верный друг = лучший друг человека\n"
-        "Создает смысловые связи и образы\n\n"
-        
-        "✍️ <b>Ассоциация для написания:</b>\n"
-        "Слово: friend\n"
-        "Подсказка: F-R-I-E-N-D = Forever Reliable, Intelligent, Encouraging, Nice, Dear\n"
-        "Помогает запомнить порядок букв\n\n"
-        
-        "💭 <b>Советы по созданию подсказок:</b>\n"
-        "• Используйте яркие, запоминающиеся образы\n"
-        "• Связывайте с личным опытом\n"
-        "• Не делайте подсказки слишком длинными\n"
-        "• Записывайте голосовые заметки для произношения\n"
-        "• Регулярно пересматривайте и улучшайте подсказки"
-    )
-
-@hint_router.callback_query(F.data == "hint_settings_info")
-async def process_hint_settings_info(callback: CallbackQuery, state: FSMContext):
-    """
-    Handle request for hint settings information.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
-    logger.info(f"Hint settings info requested by {callback.from_user.full_name}")
-    
-    await callback.answer("⚙️ Настройки подсказок...")
-    
-    settings_info = _get_hint_settings_info()
-    await callback.message.answer(settings_info, parse_mode="HTML")
-
-def _get_hint_settings_info() -> str:
-    """
-    Get information about hint settings.
-    НОВОЕ: Информация о настройках подсказок.
-    
-    Returns:
-        str: Formatted settings information
-    """
-    settings_text = (
-        "⚙️ <b>Настройки подсказок</b>\n\n"
-        
-        "В разделе настроек (/settings) вы можете индивидуально управлять каждым типом подсказок:\n\n"
-    )
-    
-    # Add information about each setting
-    for setting_key in HINT_SETTING_KEYS:
-        setting_name = get_hint_setting_name(setting_key)
-        if setting_name:
-            settings_text += f"• <b>{setting_name}</b>\n"
-    
-    settings_text += (
-        "\n<b>Возможности настроек:</b>\n"
-        "✅ Включить - подсказки этого типа будут показываться\n"
-        "❌ Отключить - подсказки этого типа будут скрыты\n"
-        "🔄 Групповые операции - включить/отключить все сразу\n\n"
-        
-        "<b>Зачем отключать подсказки?</b>\n"
-        "• Если определенный тип подсказок вам не помогает\n"
-        "• Для фокусировки на конкретных аспектах изучения\n"
-        "• Для упрощения интерфейса во время изучения\n"
-        "• Для создания собственной системы изучения\n\n"
-        
-        "Используйте команду /settings для доступа к настройкам подсказок."
-    )
-    
-    return settings_text
-
-# НОВОЕ: Utility functions for other modules  
-async def get_user_hint_preferences(message_or_callback, state: FSMContext) -> dict:
-    """
-    Get user's hint preferences with fallback.
-    НОВОЕ: Утилита для получения предпочтений пользователя по подсказкам.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        
-    Returns:
-        dict: User's hint preferences or default values
-    """
-    try:
-        return await get_individual_hint_settings(message_or_callback, state)
-    except Exception as e:
-        logger.warning(f"Could not get hint preferences: {e}")
-        # Return default settings if we can't get user preferences
-        return {key: True for key in HINT_SETTING_KEYS}
-
-def format_hint_status_summary(hint_settings: dict) -> str:
-    """
-    Format a brief summary of hint settings status.
-    НОВОЕ: Краткая сводка статуса настроек подсказок.
-    
-    Args:
-        hint_settings: User's hint settings
-        
-    Returns:
-        str: Brief status summary
-    """
-    if not hint_settings:
-        return "Настройки подсказок недоступны"
-    
-    enabled_count = sum(1 for enabled in hint_settings.values() if enabled)
-    total_count = len(hint_settings)
-    
-    if enabled_count == total_count:
-        return f"Все подсказки включены ({total_count}/{total_count})"
-    elif enabled_count == 0:
-        return f"Все подсказки отключены (0/{total_count})"
-    else:
-        return f"Подсказки: {enabled_count}/{total_count} включено"
-
 # Export router and utilities
 __all__ = [
     'hint_router',
-    'get_user_hint_preferences',
-    'format_hint_status_summary'
 ]

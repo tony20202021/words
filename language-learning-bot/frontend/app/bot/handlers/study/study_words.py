@@ -63,7 +63,7 @@ async def show_study_word(
     basic_settings = await get_user_language_settings(message_or_callback, state)
     show_debug = basic_settings.get("show_debug", False)
     
-    # НОВОЕ: Проверяем статус администратора
+    # Проверяем статус администратора
     is_admin = await is_user_admin(message_or_callback, state)
     
     # Get language info from state
@@ -135,7 +135,7 @@ async def show_study_word(
         hint_settings=hint_settings,
         used_hints=used_hints,
         current_state=current_state,
-        is_admin=is_admin,  # НОВОЕ: Передаем статус админа
+        is_admin=is_admin,
     )
 
     # Send or edit message
@@ -317,20 +317,16 @@ async def _get_debug_info(
     Returns:
         str: Formatted debug information
     """
-    # Import centralized debug utilities
-    from app.utils.formatting_utils import validate_hint_settings
-    
     if not user_word_state.is_valid():
         return "\n\n🔍 <b>Отладочная информация:</b>\n• Неверное состояние слова\n"
     
     # Validate hint settings
-    validated_settings = validate_hint_settings(hint_settings)
     batch_info = user_word_state.get_batch_info()
     session_info = user_word_state.get_session_info()
     
     # Count enabled/disabled hints
-    enabled_hints = sum(1 for enabled in validated_settings.values() if enabled)
-    total_hints = len(validated_settings)
+    enabled_hints = sum(1 for enabled in hint_settings.values() if enabled)
+    total_hints = len(hint_settings)
     
     current_state = await state.get_state()
 
@@ -353,7 +349,7 @@ async def _get_debug_info(
     # Add enabled hint types
     from app.utils.hint_constants import get_hint_setting_name
     enabled_hint_names = [
-        get_hint_setting_name(hint_key) for hint_key, enabled in validated_settings.items() 
+        get_hint_setting_name(hint_key) for hint_key, enabled in hint_settings.items() 
         if enabled and get_hint_setting_name(hint_key)
     ]
     if enabled_hint_names:
@@ -384,163 +380,9 @@ async def _send_error_message(message_or_callback, error_text: str):
     except Exception as e:
         logger.error(f"Error sending error message: {e}")
 
-# НОВОЕ: Функция для проверки доступности подсказок на основе настроек
-async def get_available_hint_actions(
-    word: Dict[str, Any],
-    hint_settings: Dict[str, bool],
-    used_hints: List[str] = None
-) -> Dict[str, Dict[str, Any]]:
-    """
-    Get available hint actions based on word data and user settings.
-    
-    Args:
-        word: Word data
-        hint_settings: Individual hint settings
-        used_hints: List of used hints
-        
-    Returns:
-        Dict with available hint actions
-    """
-    from app.utils.hint_constants import get_enabled_hint_types, has_hint, get_hint_name
-    
-    if used_hints is None:
-        used_hints = []
-    
-    available_actions = {}
-    enabled_hint_types = get_enabled_hint_types(hint_settings)
-    
-    for hint_type in enabled_hint_types:
-        hint_exists = has_hint(word, hint_type)
-        is_active = hint_type in used_hints
-        hint_name = get_hint_name(hint_type)
-        
-        available_actions[hint_type] = {
-            "name": hint_name,
-            "exists": hint_exists,
-            "active": is_active,
-            "enabled": True,  # Since it's in enabled_hint_types
-            "action": "edit" if (hint_exists and is_active) else "toggle" if hint_exists else "create"
-        }
-    
-    return available_actions
-
-# НОВОЕ: Функция для валидации состояния слова перед отображением
-async def validate_word_display_state(
-    user_word_state: UserWordState,
-    current_word: Optional[Dict[str, Any]] = None
-) -> bool:
-    """
-    Validate that word state is ready for display.
-    
-    Args:
-        user_word_state: Current word state
-        current_word: Current word data (optional)
-        
-    Returns:
-        bool: True if state is valid for display
-    """
-    if not user_word_state.is_valid():
-        logger.error("UserWordState is not valid")
-        return False
-    
-    if not user_word_state.has_more_words():
-        logger.info("No more words available in current batch")
-        return False
-    
-    if current_word is None:
-        current_word = user_word_state.get_current_word()
-    
-    if not current_word:
-        logger.error("No current word data available")
-        return False
-    
-    # Check required fields
-    required_fields = ["translation", "word_foreign"]
-    for field in required_fields:
-        if field not in current_word or not current_word.get(field):
-            logger.warning(f"Missing or empty required field: {field}")
-            # Don't return False - we can still display the word with missing data
-    
-    return True
-
-# НОВОЕ: Функция для обновления отображения при изменении настроек подсказок
-async def refresh_word_display_after_settings_change(
-    message_or_callback,
-    state: FSMContext,
-    changed_setting: str = None
-):
-    """
-    Refresh word display after hint settings change.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        changed_setting: Name of the changed setting (optional)
-    """
-    try:
-        # Get current word state
-        user_word_state = await UserWordState.from_state(state)
-        
-        if not await validate_word_display_state(user_word_state):
-            logger.warning("Cannot refresh display - invalid word state")
-            return
-        
-        # Log the refresh
-        if changed_setting:
-            logger.info(f"Refreshing word display after {changed_setting} setting change")
-        else:
-            logger.info("Refreshing word display after settings change")
-        
-        # Refresh the display
-        await show_study_word(
-            message_or_callback=message_or_callback,
-            state=state,
-            user_word_state=user_word_state,
-            need_new_message=False,
-        )
-        
-    except Exception as e:
-        logger.error(f"Error refreshing word display after settings change: {e}")
-        await _send_error_message(message_or_callback, "Ошибка обновления отображения")
-
-# НОВОЕ: Функция для получения статистики использования подсказок
-async def get_hint_usage_stats(
-    user_word_state: UserWordState,
-    hint_settings: Dict[str, bool]
-) -> Dict[str, Any]:
-    """
-    Get statistics about hint usage for current word.
-    
-    Args:
-        user_word_state: Current word state
-        hint_settings: Individual hint settings
-        
-    Returns:
-        Dict with hint usage statistics
-    """
-    from app.utils.hint_constants import get_enabled_hint_types
-    
-    used_hints = user_word_state.get_used_hints()
-    enabled_hint_types = get_enabled_hint_types(hint_settings)
-    
-    stats = {
-        "total_enabled": len(enabled_hint_types),
-        "total_used": len(used_hints),
-        "usage_percentage": (len(used_hints) / max(1, len(enabled_hint_types))) * 100,
-        "enabled_types": enabled_hint_types,
-        "used_types": used_hints,
-        "unused_enabled": [ht for ht in enabled_hint_types if ht not in used_hints]
-    }
-    
-    return stats
-
 # Экспортируем основные функции
 __all__ = [
     'show_study_word', 
     'handle_no_more_words',
     'load_next_batch',
-    'get_available_hint_actions',
-    'validate_word_display_state',
-    'refresh_word_display_after_settings_change',
-    'get_hint_usage_stats'
 ]

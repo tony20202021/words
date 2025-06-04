@@ -231,7 +231,6 @@ async def process_column_number_input(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error deleting message: {e}")
 
-# ✅ НОВОЕ: Обработчик отмены из ввода номера колонки  
 @column_type_router.message(AdminStates.input_column_number, F.text == "/cancel")
 async def process_cancel_column_input(message: Message, state: FSMContext):
     """

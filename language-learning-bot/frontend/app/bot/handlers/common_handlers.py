@@ -14,7 +14,6 @@ from aiogram.fsm.context import FSMContext
 # Import centralized states
 from app.bot.states.centralized_states import CommonStates
 from app.utils.api_utils import get_api_client_from_bot
-from app.utils.error_utils import handle_api_error, send_contextual_help
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -29,38 +28,11 @@ async def handle_api_error_state(message: Message, state: FSMContext):
     Handle messages when user is in API error state.
     Provides options to retry or get help.
     """
-    text = message.text.lower().strip() if message.text else ""
-    
-    if text in ["/start", "/help", "помощь", "help"]:
-        # Clear error state and show help
-        await state.clear()
-        await message.answer(
-            "ℹ️ Произошла ошибка API, но вы можете продолжить работу.\n\n"
-            "Доступные команды:\n"
-            "/start - Главное меню\n"
-            "/language - Выбрать язык\n"
-            "/study - Начать изучение\n"
-            "/settings - Настройки\n"
-            "/stats - Статистика\n"
-            "/help - Помощь"
-        )
-    elif text in ["/retry", "повторить", "retry"]:
-        # Clear error state and suggest retry
-        await state.clear()
-        await message.answer(
-            "🔄 Попробуйте повторить последнее действие.\n"
-            "Если ошибка повторится, обратитесь к администратору."
-        )
-    else:
-        # Provide contextual help for current error state
-        await send_contextual_help(
-            state, 
-            message, 
-            "Произошла ошибка API. Попробуйте:\n"
-            "• /retry - повторить действие\n"
-            "• /start - вернуться в главное меню\n"
-            "• /help - получить помощь"
-        )
+    await state.clear()
+    await message.answer(
+        "ℹ️ Произошла ошибка API.\n\n"
+        "Начните сначала по команде /start\n"
+    )
 
 
 @common_router.message(StateFilter(CommonStates.connection_lost))
@@ -157,7 +129,6 @@ async def handle_api_error_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "⚠️ Произошла ошибка API.\n\n"
         "Используйте команды:\n"
-        "/retry - повторить\n"
         "/start - главное меню\n"
         "/help - помощь"
     )

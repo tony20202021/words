@@ -21,19 +21,10 @@ hint_router = Router()
 # Set up logging
 logger = setup_logger(__name__)
 
-# Include sub-routers in correct priority order
-# Cancel handlers have highest priority (handle /cancel in any state)
 hint_router.include_router(common_router)
-
-# Create handlers (for new hints)
 hint_router.include_router(create_router)
-
-# Edit handlers (for existing hints)
 hint_router.include_router(edit_router)
-
-# Toggle handlers (for showing/hiding hints)
 hint_router.include_router(toggle_router)
-
 hint_router.include_router(unknown_router)
 
 logger.info("Hint handlers router initialized with sub-routers")

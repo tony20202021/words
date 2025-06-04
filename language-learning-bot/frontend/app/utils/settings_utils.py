@@ -30,7 +30,6 @@ DEFAULT_SETTINGS = {
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
     """
     Get user settings for specific language including individual hint settings.
-    UPDATED: Integrates individual hint settings.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -117,8 +116,7 @@ async def save_user_language_settings(message_or_callback, state: FSMContext, se
         
         hint_settings = {k: v for k, v in settings_to_save.items() if k in HINT_SETTING_KEYS}
         if hint_settings:
-            validated_hints = _validate_hint_settings(hint_settings)
-            settings_to_save.update(validated_hints)
+            settings_to_save.update(hint_settings)
         
         # Save settings via API
         settings_response = await api_client.update_user_language_settings(db_user_id, language_id, settings_to_save)
@@ -294,47 +292,3 @@ async def get_show_debug_setting(state_or_message, state=None):
         settings = await get_user_language_settings(state_or_message, state)
         return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
 
-async def get_hint_settings(message_or_callback, state: FSMContext) -> Dict[str, bool]:
-    """
-    Get individual hint settings - NEW: wrapper for hint_settings_utils.
-    
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        
-    Returns:
-        Dict with individual hint settings
-    """
-    # Import here to avoid circular imports
-    from app.utils.hint_settings_utils import get_individual_hint_settings
-    return await get_individual_hint_settings(message_or_callback, state)
-
-def _validate_hint_settings(hint_settings: Dict[str, Any]) -> Dict[str, bool]:
-    """
-    Validate and normalize hint settings.
-    
-    Args:
-        hint_settings: Raw hint settings dictionary
-        
-    Returns:
-        Dict with validated boolean settings
-    """
-    from app.utils.hint_constants import HINT_SETTING_KEYS
-    
-    validated = {}
-    
-    for key in HINT_SETTING_KEYS:
-        raw_value = hint_settings.get(key, True)
-        
-        # Normalize to boolean
-        if isinstance(raw_value, bool):
-            validated[key] = raw_value
-        elif isinstance(raw_value, str):
-            validated[key] = raw_value.lower() in ('true', '1', 'yes', 'on')
-        elif isinstance(raw_value, (int, float)):
-            validated[key] = bool(raw_value)
-        else:
-            validated[key] = True
-            logger.warning(f"Invalid hint setting value for {key}: {raw_value}, defaulting to True")
-    
-    return validated

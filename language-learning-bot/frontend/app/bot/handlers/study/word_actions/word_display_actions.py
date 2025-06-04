@@ -86,59 +86,18 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
 
 @display_router.callback_query(F.data == CallbackData.SHOW_WORD_IMAGE)
 async def process_show_word_image_callback(callback: CallbackQuery, state: FSMContext):
-    """
-    Обработчик callback для показа увеличенного слова.
-    
-    Args:
-        callback: The callback query
-        state: FSM context
-    """
     logger.info(f"'show_word_image' callback from {callback.from_user.full_name}")
     
-    # Get current word state
-    user_word_state = await UserWordState.from_state(state)
-    
-    if not user_word_state.is_valid() or not user_word_state.has_more_words():
-        await callback.answer("❌ Нет активного слова для увеличения")
-        return
-    
-    # Get current word
-    current_word = user_word_state.get_current_word()
-    if not current_word:
-        await callback.answer("❌ Ошибка получения текущего слова")
-        return
-    
     # Show word image using common function
-    await _show_word_image(callback, state, current_word)
-    await callback.answer("🔍 Показываю крупное написание")
+    await _show_word_image(callback, state)
 
 
 @display_router.message(Command("show_big"))
 async def cmd_show_big_word(message: Message, state: FSMContext):
-    """
-    Обработчик команды /show_big для показа увеличенного слова.
-    
-    Args:
-        message: The message object
-        state: FSM context
-    """
     logger.info(f"'/show_big' command from {message.from_user.full_name}")
     
-    # Get current word state
-    user_word_state = await UserWordState.from_state(state)
-    
-    if not user_word_state.is_valid() or not user_word_state.has_more_words():
-        await message.answer("❌ Нет активного слова для увеличения")
-        return
-    
-    # Get current word
-    current_word = user_word_state.get_current_word()
-    if not current_word:
-        await message.answer("❌ Ошибка получения текущего слова")
-        return
-    
     # Show word image using common function
-    await _show_word_image(message, state, current_word)
+    await _show_word_image(message, state)
 
 @display_router.callback_query(F.data == CallbackData.BACK_FROM_IMAGE, StudyStates.viewing_word_image)
 async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
@@ -172,7 +131,6 @@ async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
 async def _show_word_image(
     message_or_callback, 
     state: FSMContext, 
-    current_word: dict,
 ):
     """
     Общая функция для показа изображения слова.
@@ -180,19 +138,33 @@ async def _show_word_image(
     Args:
         message_or_callback: Message or CallbackQuery object
         state: FSM context
-        current_word: Current word data
     """
+    if hasattr(message_or_callback, 'answer'):
+        message = message_or_callback
+    else:
+        message = message_or_callback.message
+
     try:
+        # Get current word state
+        user_word_state = await UserWordState.from_state(state)
+        
+        if not user_word_state.is_valid() or not user_word_state.has_more_words():
+            await message.answer("❌ Нет активного слова для увеличения")
+            return
+        
+        # Get current word
+        current_word = user_word_state.get_current_word()
+        if not current_word:
+            await message.answer("❌ Ошибка получения текущего слова")
+            return
+
         # Extract word and transcription
         word_foreign = current_word.get("word_foreign", "")
         transcription = current_word.get("transcription", "")
         
         if not word_foreign:
             error_msg = "❌ Слово на иностранном языке не найдено"
-            if hasattr(message_or_callback, 'answer'):
-                await message_or_callback.answer(error_msg)
-            else:
-                await message_or_callback.message.answer(error_msg)
+            await message.answer(error_msg)
             return
         
         
@@ -221,22 +193,13 @@ async def _show_word_image(
         await state.set_state(StudyStates.viewing_word_image)
         
         # Send image
-        if hasattr(message_or_callback, 'answer_photo'):
-            # This is a Message object
-            await message_or_callback.answer_photo(
-                photo=input_file,
-                caption=caption,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-        else:
-            # This is a CallbackQuery object
-            await message_or_callback.message.answer_photo(
-                photo=input_file,
-                caption=caption,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
+        await message.answer("🔍 Показываю крупное написание")
+        await message.answer_photo(
+            photo=input_file,
+            caption=caption,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
         
         logger.info(f"Successfully sent word image for: {word_foreign}")
         
@@ -244,8 +207,5 @@ async def _show_word_image(
         logger.error(f"Error showing word image: {e}", exc_info=True)
         
         error_msg = "❌ Ошибка при создании изображения слова"
-        if hasattr(message_or_callback, 'answer'):
-            await message_or_callback.answer(error_msg)
-        else:
-            await message_or_callback.message.answer(error_msg)
+        await message.answer(error_msg)
 
