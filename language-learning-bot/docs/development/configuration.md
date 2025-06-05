@@ -1,4 +1,4 @@
-# Конфигурация с помощью Hydra (обновлено с системой изображений)
+# Конфигурация с помощью Hydra
 
 ## Содержание
 1. [Введение](#введение)
@@ -10,22 +10,20 @@
 
 ## Введение
 
-Проект Language Learning Bot использует библиотеку Hydra для управления конфигурацией. Hydra предоставляет гибкий и модульный подход к управлению настройками приложения через YAML-файлы, позволяя разделить конфигурацию на логические группы и файлы.
+Проект Language Learning Bot использует библиотеку Hydra для управления конфигурацией. Hydra предоставляет гибкий и модульный подход к управлению настройками приложения через YAML-файлы.
 
 Основные преимущества Hydra:
-- Модульность - разделение конфигурации на логические компоненты
-- Иерархическая структура - легкая организация сложных конфигураций
-- Перегрузка параметров - возможность переопределять параметры из командной строки
-- Композиция конфигураций - объединение нескольких конфигурационных файлов
+- **Модульность** - разделение конфигурации на логические компоненты
+- **Иерархическая структура** - легкая организация сложных конфигураций
+- **Перегрузка параметров** - возможность переопределять параметры из командной строки
+- **Композиция конфигураций** - объединение нескольких конфигурационных файлов
 
 ## Структура конфигурационных файлов
-
-Конфигурация разделена на несколько файлов, расположенных в директориях:
 
 ### Фронтенд (frontend/conf/config/)
 
 - **default.yaml** - основной файл, подключающий другие конфигурационные файлы
-- **bot.yaml** - настройки Telegram-бота **ОБНОВЛЕНО: с конфигурацией изображений**
+- **bot.yaml** - настройки Telegram-бота
 - **api.yaml** - настройки для подключения к бэкенду
 - **logging.yaml** - настройки логирования
 - **learning.yaml** - настройки процесса обучения
@@ -39,7 +37,7 @@
 
 ## Использование конфигурации в коде
 
-### Фронтенд (frontend/app/main.py)
+### Фронтенд
 
 ```python
 from hydra import compose, initialize
@@ -55,10 +53,28 @@ api_base_url = cfg.api.base_url
 log_level = cfg.logging.level
 max_interval = cfg.learning.max_interval
 
-# НОВОЕ: Конфигурация изображений
+# Конфигурация изображений
 word_images_config = cfg.bot.word_images
 image_width = cfg.bot.word_images.width
 word_font_size = cfg.bot.word_images.fonts.word_size
+```
+
+### Бэкенд
+
+```python
+from hydra import compose, initialize
+
+initialize(config_path="../conf/config", version_base=None)
+cfg = compose(config_name="default")
+
+# Настройки API
+api_host = cfg.api.host
+api_port = cfg.api.port
+
+# Настройки базы данных
+db_host = cfg.database.mongodb.host
+db_port = cfg.database.mongodb.port
+db_name = cfg.database.mongodb.db_name
 ```
 
 ## Примеры конфигурационных файлов
@@ -87,7 +103,7 @@ upload:
   max_size: 10485760  # 10MB
 ```
 
-### bot.yaml 
+### bot.yaml
 
 ```yaml
 # Конфигурация бота Telegram
@@ -107,10 +123,14 @@ commands:
     description: "Получить справку"
   - command: "language"
     description: "Выбрать язык для изучения"
-  - command: "hint"
-    description: "Информация о подсказках"
-  - command: "admin"
-    description: "Режим администратора"
+  - command: "study"
+    description: "Начать изучение слов"
+  - command: "settings"
+    description: "Настройки обучения"
+  - command: "stats"
+    description: "Статистика изучения"
+  - command: "show_big"
+    description: "Показать крупное изображение слова"
 
 # Настройки для администраторов
 admin:
@@ -124,9 +144,8 @@ voice_recognition:
   language: "ru"
   max_duration: 60
 
-# НОВОЕ: Настройки генерации изображений слов
+# Настройки генерации изображений слов
 word_images:
-  # Основные настройки
   enabled: true
   temp_dir: "temp"
   
@@ -134,21 +153,20 @@ word_images:
   width: 800
   height: 400
   
-  # Размеры шрифтов (стартовые, автоподбираются при необходимости)
+  # Размеры шрифтов
   fonts:
-    word_size: 240           # Размер шрифта для слова
-    transcription_size: 240  # Размер шрифта для транскрипции
+    word_size: 240
+    transcription_size: 240
   
   # Цвета (RGB значения)
   colors:
     background: [255, 255, 255]  # Белый фон
     text: [50, 50, 50]           # Темно-серый текст
     transcription: [100, 100, 100]  # Серый для транскрипции
-    border: [200, 200, 200]      # Светло-серая рамка
   
   # Настройки производительности
-  cleanup_delay: 300  # Автоочистка временных файлов через 5 минут
-  save_debug_files: false  # Сохранение файлов для отладки
+  cleanup_delay: 300  # Автоочистка через 5 минут
+  save_debug_files: false
 ```
 
 ### api.yaml (frontend)
@@ -182,13 +200,67 @@ endpoints:
 ```yaml
 # Конфигурация процесса обучения
 
-# Настройки процесса обучения (значения по умолчанию)
+# Настройки по умолчанию
 start_word: 1
 skip_marked: false
 use_check_date: true
 max_interval: 32
 interval_multiplier: 2
 default_interval: 1
+
+# Настройки batch-загрузки
+batch:
+  limit: 100
+  preload_next: true
+```
+
+### database.yaml (backend)
+
+```yaml
+# Конфигурация базы данных
+
+mongodb:
+  host: "localhost"
+  port: 27017
+  db_name: "language_learning_bot"
+  
+  # Настройки подключения
+  connection:
+    max_pool_size: 10
+    min_pool_size: 1
+    max_idle_time_ms: 30000
+    
+  # Настройки индексов
+  indexes:
+    auto_create: true
+    background: true
+```
+
+### logging.yaml
+
+```yaml
+# Конфигурация логирования
+
+level: "INFO"
+format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Настройки файлов логов
+files:
+  app:
+    filename: "logs/app.log"
+    max_size: "10MB"
+    backup_count: 5
+  error:
+    filename: "logs/error.log"
+    level: "ERROR"
+    max_size: "10MB"
+    backup_count: 3
+
+# Настройки консольного вывода
+console:
+  enabled: true
+  level: "INFO"
+  colorize: true
 ```
 
 ## Переопределение конфигурации
@@ -202,6 +274,10 @@ python app/main.py api.port=8501 logging.level=DEBUG
 # Переопределение настроек изображений
 python app/main.py bot.word_images.fonts.word_size=300
 python app/main.py bot.word_images.enabled=false
+
+# Переопределение настроек базы данных
+python app/main.py database.mongodb.host=remote-server
+python app/main.py database.mongodb.port=27018
 ```
 
 ## Рекомендации и лучшие практики
@@ -218,22 +294,75 @@ python app/main.py bot.word_images.enabled=false
 - Используйте переменные окружения для конфиденциальных данных
 - Создайте шаблонные файлы (например, `bot.yaml.example`) без реальных значений
 
+```yaml
+# bot.yaml.example
+token: "${TELEGRAM_BOT_TOKEN}"
+admin:
+  admin_ids: "${ADMIN_IDS}"
+```
+
 ### 3. Значения по умолчанию
 
 - Всегда указывайте разумные значения по умолчанию
 - Проверяйте наличие обязательных параметров в коде
 - Документируйте назначение каждого параметра
 
+### 4. Окружения разработки и продакшена
 
-##
-frontend/app/main_frontend.py
+Создавайте отдельные конфигурации для разных окружений:
 
-from app.utils import config_holder
-# Initialize Hydra configuration
-with initialize(config_path="../conf/config", version_base=None):
-    config_holder.cfg = compose(config_name="default")
-cfg = config_holder.cfg
+```yaml
+# default.yaml
+defaults:
+  - _self_
+  - bot
+  - api
+  - logging
+  - learning
+  - override hydra/launcher: basic
 
-WordImageGenerator
-from app.utils import config_holder
-logger.info(f"WordImageGenerator.config: {config_holder.cfg.bot.word_images}")
+# Переопределение для продакшена
+environment: ${oc.env:ENVIRONMENT,development}
+
+# production.yaml
+defaults:
+  - default
+
+logging:
+  level: "WARNING"
+  
+api:
+  base_url: "https://api.production.com"
+  
+bot:
+  word_images:
+    save_debug_files: false
+```
+
+### 5. Валидация конфигурации
+
+Добавляйте проверки конфигурации в код:
+
+```python
+from omegaconf import OmegaConf
+
+def validate_config(cfg):
+    """Валидация конфигурации"""
+    
+    # Проверка обязательных параметров
+    if not cfg.bot.token:
+        raise ValueError("Bot token is required")
+    
+    # Проверка корректности значений
+    if cfg.learning.max_interval <= 0:
+        raise ValueError("Max interval must be positive")
+    
+    # Проверка настроек изображений
+    if cfg.bot.word_images.enabled:
+        if cfg.bot.word_images.width <= 0:
+            raise ValueError("Image width must be positive")
+
+# Использование
+cfg = compose(config_name="default")
+validate_config(cfg)
+```
