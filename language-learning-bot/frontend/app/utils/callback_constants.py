@@ -4,6 +4,7 @@ This helps avoid typos and makes callback management easier.
 UPDATED: Added word image display callbacks.
 UPDATED: Added word editing and deletion callbacks.
 UPDATED: Added admin edit from study callbacks.
+UPDATED: Added writing image callbacks for hieroglyphic languages.
 """
 
 import re
@@ -21,11 +22,15 @@ class CallbackData:
     CONFIRM_NEXT_WORD = "confirm_next_word"
     TOGGLE_WORD_SKIP = "toggle_word_skip"
     
-    # НОВОЕ: Word image actions
+    # Word image actions
     SHOW_WORD_IMAGE = "show_word_image"
     BACK_FROM_IMAGE = "back_from_image"
     
-    # НОВОЕ: Admin edit from study
+    # НОВОЕ: Writing image actions (картинки написания)
+    SHOW_WRITING_IMAGE = "show_writing_image"
+    BACK_FROM_WRITING_IMAGE = "back_from_writing_image"
+    
+    # Admin edit from study
     ADMIN_EDIT_WORD_FROM_STUDY = "admin_edit_word_from_study"
     ADMIN_EDIT_WORD_FROM_STUDY_TEMPLATE = "admin_edit_word_from_study_{word_id}"
     BACK_TO_STUDY_FROM_ADMIN = "back_to_study_from_admin"
@@ -47,6 +52,9 @@ class CallbackData:
     SETTINGS_TOGGLE_HINT_PHONETICASSOCIATION = "settings_toggle_hint_phoneticassociation"
     SETTINGS_TOGGLE_HINT_PHONETICSOUND = "settings_toggle_hint_phoneticsound"
     SETTINGS_TOGGLE_HINT_WRITING = "settings_toggle_hint_writing"
+    
+    # НОВОЕ: Настройка картинок написания
+    SETTINGS_TOGGLE_WRITING_IMAGES = "settings_toggle_writing_images"
     
     # Language selection
     LANG_SELECT_TEMPLATE = "lang_select_{language_id}"
@@ -119,8 +127,27 @@ HINT_SETTINGS_CALLBACKS = {
     "show_hint_writing": CallbackData.SETTINGS_TOGGLE_HINT_WRITING,
 }
 
+# НОВОЕ: Словарь для маппинга настройки картинок написания
+WRITING_IMAGE_SETTINGS_CALLBACKS = {
+    "show_writing_images": CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES,
+}
+
 # Обратный маппинг для парсинга callback'ов
 HINT_SETTINGS_CALLBACKS_REVERSE = {v: k for k, v in HINT_SETTINGS_CALLBACKS.items()}
+
+# НОВОЕ: Обратный маппинг для настроек картинок написания
+WRITING_IMAGE_SETTINGS_CALLBACKS_REVERSE = {v: k for k, v in WRITING_IMAGE_SETTINGS_CALLBACKS.items()}
+
+# НОВОЕ: Объединенный маппинг всех настроек
+ALL_SETTINGS_CALLBACKS = {
+    **HINT_SETTINGS_CALLBACKS,
+    **WRITING_IMAGE_SETTINGS_CALLBACKS
+}
+
+ALL_SETTINGS_CALLBACKS_REVERSE = {
+    **HINT_SETTINGS_CALLBACKS_REVERSE,
+    **WRITING_IMAGE_SETTINGS_CALLBACKS_REVERSE
+}
 
 
 class CallbackParser:
@@ -143,8 +170,9 @@ class CallbackParser:
         'edit_wordfield': re.compile(r"edit_wordfield_(foreign|translation|transcription|number)_(.+)"),
         'confirm_word_delete': re.compile(r"confirm_word_delete_(.+)"),
         'cancel_word_delete': re.compile(r"cancel_word_delete_(.+)"),
-        # НОВОЕ: Парсеры для админ-редактирования из изучения
         'admin_edit_from_study': re.compile(r"admin_edit_word_from_study_(.+)"),
+        # НОВОЕ: Парсеры для настроек картинок написания
+        'writing_images_setting_toggle': re.compile(r"settings_toggle_writing_images"),
     }
     
     @classmethod
@@ -323,7 +351,6 @@ class CallbackParser:
             return match.group(1)
         return None
 
-    # НОВОЕ: Парсер для админ-редактирования из изучения
     @classmethod
     def parse_admin_edit_from_study(cls, callback_data: str) -> Optional[str]:
         """
@@ -339,6 +366,21 @@ class CallbackParser:
         if match:
             return match.group(1)
         return None
+
+    # НОВОЕ: Парсер для настроек картинок написания
+    @classmethod
+    def is_writing_images_setting_toggle(cls, callback_data: str) -> bool:
+        """
+        Check if callback data is for writing images setting toggle.
+        
+        Args:
+            callback_data: The callback data string
+            
+        Returns:
+            True if it's a writing images setting callback, False otherwise
+        """
+        match = cls.PATTERNS['writing_images_setting_toggle'].match(callback_data)
+        return match is not None
 
 
 def format_hint_callback(action: str, hint_type: str, word_id: str) -> str:
@@ -408,7 +450,7 @@ def get_hint_setting_callback(setting_key: str) -> Optional[str]:
     Returns:
         Callback data string or None if not found
     """
-    return HINT_SETTINGS_CALLBACKS.get(setting_key)
+    return ALL_SETTINGS_CALLBACKS.get(setting_key)
 
 
 def get_hint_setting_from_callback(callback_data: str) -> Optional[str]:
@@ -421,7 +463,7 @@ def get_hint_setting_from_callback(callback_data: str) -> Optional[str]:
     Returns:
         Setting key string or None if not found
     """
-    return HINT_SETTINGS_CALLBACKS_REVERSE.get(callback_data)
+    return ALL_SETTINGS_CALLBACKS_REVERSE.get(callback_data)
 
 
 def is_hint_setting_callback(callback_data: str) -> bool:
@@ -436,3 +478,42 @@ def is_hint_setting_callback(callback_data: str) -> bool:
     """
     return callback_data in HINT_SETTINGS_CALLBACKS_REVERSE
 
+
+# НОВОЕ: Функции для работы с настройками картинок написания
+def is_writing_images_setting_callback(callback_data: str) -> bool:
+    """
+    Check if callback data is for writing images setting toggle.
+    
+    Args:
+        callback_data: The callback data string
+        
+    Returns:
+        True if it's a writing images setting callback, False otherwise
+    """
+    return callback_data in WRITING_IMAGE_SETTINGS_CALLBACKS_REVERSE
+
+
+def is_any_setting_callback(callback_data: str) -> bool:
+    """
+    Check if callback data is for any setting toggle (hints or writing images).
+    
+    Args:
+        callback_data: The callback data string
+        
+    Returns:
+        True if it's any setting callback, False otherwise
+    """
+    return callback_data in ALL_SETTINGS_CALLBACKS_REVERSE
+
+
+def get_setting_from_callback(callback_data: str) -> Optional[str]:
+    """
+    Get setting key from any callback data (hints or writing images).
+    
+    Args:
+        callback_data: The callback data string
+        
+    Returns:
+        Setting key string or None if not found
+    """
+    return ALL_SETTINGS_CALLBACKS_REVERSE.get(callback_data)

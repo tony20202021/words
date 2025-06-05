@@ -1,6 +1,8 @@
 """
 Updated utility functions for working with user language settings.
 UPDATED: Integrated individual hint settings support.
+UPDATED: Added writing images settings support.
+UPDATED: Removed hieroglyphic language restrictions - writing images are now controlled by user settings only.
 """
 
 from typing import Dict, Any, Optional, Union
@@ -14,22 +16,24 @@ from app.utils.formatting_utils import format_settings_text
 
 logger = setup_logger(__name__)
 
-# UPDATED: Default settings now include individual hint settings
+# UPDATED: Default settings now include individual hint settings and writing images
 DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
     "use_check_date": True,
     "show_debug": False,
-    # Individual hint settings (новые настройки)
+    # Individual hint settings
     "show_hint_meaning": True,
     "show_hint_phoneticassociation": True,
     "show_hint_phoneticsound": True,
     "show_hint_writing": True,
+    # Writing images settings
+    "show_writing_images": True,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
     """
-    Get user settings for specific language including individual hint settings.
+    Get user settings for specific language including individual hint settings and writing images.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -81,7 +85,7 @@ async def get_user_language_settings_without_state(message_or_callback, db_user_
 async def save_user_language_settings(message_or_callback, state: FSMContext, settings: Dict[str, Any]) -> bool:
     """
     Save user settings for specific language.
-    UPDATED: Handles individual hint settings.
+    UPDATED: Handles individual hint settings and writing images.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -111,12 +115,13 @@ async def save_user_language_settings(message_or_callback, state: FSMContext, se
         # Clean settings before saving
         settings_to_save = settings.copy()
         
-        # Validate individual hint settings
-        from app.utils.hint_constants import HINT_SETTING_KEYS
+        # Validate individual hint settings and writing images
+        from app.utils.hint_constants import ALL_SETTING_KEYS
         
-        hint_settings = {k: v for k, v in settings_to_save.items() if k in HINT_SETTING_KEYS}
-        if hint_settings:
-            settings_to_save.update(hint_settings)
+        # Include all settings (hints + writing images)
+        all_settings = {k: v for k, v in settings_to_save.items() if k in ALL_SETTING_KEYS}
+        if all_settings:
+            settings_to_save.update(all_settings)
         
         # Save settings via API
         settings_response = await api_client.update_user_language_settings(db_user_id, language_id, settings_to_save)
@@ -154,8 +159,8 @@ async def display_language_settings(
     is_callback: bool = False
 ):
     """
-    Display user's language settings with individual hint settings.
-    UPDATED: Uses individual hint settings display.
+    Display user's language settings with individual hint settings and writing images.
+    UPDATED: Uses individual hint settings and writing images display.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -178,6 +183,9 @@ async def display_language_settings(
     hint_settings = {}
     for hint_key in HINT_SETTING_KEYS:
         hint_settings[hint_key] = settings.get(hint_key, DEFAULT_SETTINGS[hint_key])
+    
+    # Extract writing images settings
+    show_writing_images = settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
     
     # Get language info
     state_data = await state.get_data()
@@ -208,21 +216,25 @@ async def display_language_settings(
     # Import keyboard creation function
     from app.bot.keyboards.user_keyboards import create_settings_keyboard
     
-    # Create keyboard with individual hint settings
+    # Create keyboard with individual hint settings and writing images
     keyboard = create_settings_keyboard(
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
-        hint_settings=hint_settings
+        hint_settings=hint_settings,
+        show_writing_images=show_writing_images,
+        current_language=current_language
     )
     
-    # Format settings text with individual hint settings
+    # Format settings text with individual hint settings and writing images
     settings_text = format_settings_text(
         start_word=start_word, 
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
         hint_settings=hint_settings,
+        show_writing_images=show_writing_images,
+        current_language=current_language,
         prefix=language_prefix, 
         suffix=suffix
     )
@@ -243,7 +255,6 @@ async def display_language_settings(
             parse_mode="HTML"
         )
 
-# НОВОЕ: Функция для проверки включения конкретного типа подсказки
 async def is_hint_type_enabled(hint_type: str, state_or_message, state=None) -> bool:
     """
     Check if specific hint type is enabled in user settings.
@@ -292,3 +303,50 @@ async def get_show_debug_setting(state_or_message, state=None):
         settings = await get_user_language_settings(state_or_message, state)
         return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
 
+# Функции для работы с настройками картинок написания
+async def is_writing_images_enabled(message_or_callback, state: FSMContext) -> bool:
+    """
+    Check if writing images are enabled in user settings.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        
+    Returns:
+        bool: True if writing images are enabled, False otherwise
+    """
+    settings = await get_user_language_settings(message_or_callback, state)
+    return settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
+
+async def toggle_writing_images_setting(message_or_callback, state: FSMContext) -> tuple[bool, bool]:
+    """
+    Toggle writing images setting for current user and language.
+    
+    Args:
+        message_or_callback: Message or CallbackQuery object
+        state: FSM context
+        
+    Returns:
+        tuple: (success, new_value) - success status and new setting value
+    """
+    try:
+        # Get current settings
+        current_settings = await get_user_language_settings(message_or_callback, state)
+        current_value = current_settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
+        new_value = not current_value
+        
+        # Update settings
+        current_settings["show_writing_images"] = new_value
+        success = await save_user_language_settings(message_or_callback, state, current_settings)
+        
+        if success:
+            logger.info(f"Toggled writing images setting to: {new_value}")
+            return True, new_value
+        else:
+            logger.error("Failed to toggle writing images setting")
+            return False, current_value
+            
+    except Exception as e:
+        logger.error(f"Error toggling writing images setting: {e}")
+        return False, DEFAULT_SETTINGS["show_writing_images"]
+    

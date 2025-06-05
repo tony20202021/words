@@ -3,6 +3,7 @@ Centralized state definitions for the Language Learning Bot.
 All FSM states are defined here to avoid duplication.
 UPDATED: Added viewing_word_image state for word image display.
 UPDATED: Added word editing and deletion states for admin interface.
+UPDATED: Added viewing_writing_image state for writing image display (hieroglyphic languages).
 """
 
 from aiogram.fsm.state import State, StatesGroup
@@ -30,6 +31,7 @@ class StudyStates(StatesGroup):
     viewing_word_details = State()          # Просмотр деталей слова после оценки
     study_completed = State()               # Завершение изучения (все слова изучены)
     viewing_word_image = State()            # Просмотр изображения слова крупно
+    viewing_writing_image = State()         # НОВОЕ: Просмотр картинки написания (иероглифы)
 
 
 class HintStates(StatesGroup):
@@ -53,7 +55,7 @@ class AdminStates(StatesGroup):
     confirming_language_deletion = State()      # Подтверждение удаления языка
     viewing_word_search_results = State()       # Просмотр результатов поиска слова
     
-    # НОВОЕ: Состояния управления словами
+    # Состояния управления словами
     viewing_word_details = State()              # Просмотр деталей слова в админке
     editing_word_foreign = State()              # Редактирование иностранного слова
     editing_word_translation = State()          # Редактирование перевода
@@ -83,4 +85,15 @@ class CommonStates(StatesGroup):
     handling_api_error = State()               # Обработка ошибки API
     connection_lost = State()                  # Ожидание восстановления соединения
     unknown_command = State()                  # Обработка неизвестной команды
+
+
+class WritingImageStates(StatesGroup):
+    """
+    НОВОЕ: States for writing image operations (hieroglyphic languages).
+    Состояния для операций с картинками написания (иероглифические языки).
+    """
+    generating = State()                       # Генерация картинки написания
+    viewing = State()                          # Просмотр картинки написания
+    error = State()                           # Ошибка генерации/отображения
+    caching = State()                         # Кэширование картинки
     

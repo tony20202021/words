@@ -1,6 +1,8 @@
 """
 Settings handlers for Language Learning Bot.
 UPDATED: Support for individual hint settings management.
+UPDATED: Added writing images settings toggle.
+UPDATED: Removed hieroglyphic language restrictions - writing images controlled by user settings only.
 FIXED: Removed code duplication, improved architecture, separated concerns.
 """
 
@@ -14,7 +16,8 @@ from app.utils.logger import setup_logger
 from app.utils.settings_utils import (
     get_user_language_settings, 
     save_user_language_settings,
-    display_language_settings
+    display_language_settings,
+    toggle_writing_images_setting
 )
 from app.utils.hint_settings_utils import (
     toggle_individual_hint_setting,
@@ -23,7 +26,8 @@ from app.utils.hint_settings_utils import (
 from app.utils.callback_constants import (
     CallbackData,
     is_hint_setting_callback,
-    get_hint_setting_from_callback
+    get_hint_setting_from_callback,
+    is_writing_images_setting_callback
 )
 from app.utils.hint_constants import get_hint_setting_name
 from app.bot.states.centralized_states import SettingsStates
@@ -152,6 +156,48 @@ async def process_hint_setting_toggle(callback: CallbackQuery, state: FSMContext
         )
     else:
         await callback.answer("❌ Ошибка изменения настройки")
+
+
+# Обработчик для настройки картинок написания
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES)
+async def process_writing_images_setting_toggle(callback: CallbackQuery, state: FSMContext):
+    """
+    Process callback to toggle writing images setting.
+    НОВОЕ: Обработчик для переключения настройки картинок написания.
+    ОБНОВЛЕНО: Убраны ограничения по иероглифическим языкам.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    full_name = callback.from_user.full_name
+    username = callback.from_user.username
+    
+    logger.info(f"'writing_images_toggle' callback from {full_name} ({username})")
+    
+    # Validate language selection
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
+        return
+    
+    # Toggle writing images setting using centralized utility
+    success, new_value = await toggle_writing_images_setting(callback, state)
+    
+    if success:
+        status_text = "включены" if new_value else "отключены"
+        await callback.answer(f"✅ Картинки написания: {status_text}")
+        
+        # Refresh settings display
+        await display_language_settings(
+            message_or_callback=callback,
+            state=state,
+            prefix=f"✅ Настройка «Картинки написания» {status_text}!\n\n",
+            suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
+            is_callback=True
+        )
+    else:
+        await callback.answer("❌ Ошибка изменения настройки картинок написания")
+
 
 # ОБНОВЛЕНО: Улучшенные обработчики основных настроек с общими утилитами
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_START_WORD)

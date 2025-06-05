@@ -8,6 +8,7 @@ defaults:
   - api@api
   - logging@logging
   - learning@learning
+  - writing_image_service@writing_image_service  # НОВОЕ: Конфигурация сервиса картинок
 
 # Настройки приложения
 app:
@@ -22,3 +23,8 @@ upload:
   folder: "./uploads"
   # Максимальный размер загружаемого файла в байтах
   max_size: 10485760  # 10MB
+  
+  # Настройки по умолчанию для пользователей
+  default_settings:
+    # Показывать ли картинки написания по умолчанию
+    show_writing_images: true

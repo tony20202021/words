@@ -1,5 +1,7 @@
 """
 Utility functions for formatting.
+UPDATED: Added support for writing images settings in formatting.
+UPDATED: Removed hieroglyphic language restrictions - writing images are controlled by user settings only.
 """
 
 from datetime import datetime
@@ -7,7 +9,12 @@ import locale
 from typing import Dict, Any, List, Optional
 
 from app.utils.logger import setup_logger
-from app.utils.hint_constants import HINT_SETTING_KEYS, get_hint_setting_name
+from app.utils.hint_constants import (
+    HINT_SETTING_KEYS, 
+    get_hint_setting_name,
+    WRITING_IMAGE_SETTING_KEYS,
+    get_writing_image_setting_name,
+)
 
 logger = setup_logger(__name__)
 
@@ -63,18 +70,24 @@ def format_settings_text(
     use_check_date, 
     show_debug, 
     hint_settings,
+    show_writing_images=False,
+    current_language=None,
     prefix="", 
     suffix=""
 ):
     """
     Форматирует текст настроек обучения.
+    ОБНОВЛЕНО: Добавлена поддержка настроек картинок написания.
+    ОБНОВЛЕНО: Убраны ограничения по иероглифическим языкам.
     
     Args:
         start_word: Номер слова для начала обучения
         skip_marked: Пропускать ли помеченные слова
         use_check_date: Учитывать ли дату проверки
         show_debug: Показывать ли отладочную информацию
-        hint_settings: Словарь с индивидуальными настройками подсказок (НОВОЕ)
+        hint_settings: Словарь с индивидуальными настройками подсказок
+        show_writing_images: Показывать ли картинки написания
+        current_language: Информация о текущем языке
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -102,6 +115,16 @@ def format_settings_text(
         setting_value = hint_settings.get(setting_key, True)
         status = "Включено ✅" if setting_value else "Отключено ❌"
         settings_text += f"   • {setting_name}: <b>{status}</b>\n"
+    
+    # Отображение настроек картинок написания (всегда показываем, если включена настройка)
+    settings_text += f"🖼️ <b>Настройки картинок написания:</b>\n"
+    
+    writing_status = "Включено ✅" if show_writing_images else "Отключено ❌"
+    writing_setting_name = get_writing_image_setting_name("show_writing_images")
+    settings_text += f"   • {writing_setting_name}: <b>{writing_status}</b>\n"
+    
+    if not show_writing_images:
+        settings_text += f"     <i>(Картинки написания для всех языков по желанию пользователя)</i>\n"
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
@@ -284,3 +307,4 @@ def format_date_friendly(date_str: str) -> str:
     except Exception as e:
         logger.warning(f"Error formatting date {date_str}: {e}")
         return date_str.split('T')[0] if 'T' in date_str else date_str
+    
