@@ -7,10 +7,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 
-from app.api.models.requests import WritingImageRequest
-from app.api.models.responses import WritingImageResponse, APIResponse
-from app.services.writing_image_service import WritingImageService
-from app.services.validation_service import ValidationService
+from app.api.routes.models.requests import WritingImageRequest
+from app.api.routes.models.responses import WritingImageResponse, APIResponse
+from app.api.routes.services.writing_image_service import WritingImageService
+from app.api.routes.services.validation_service import ValidationService
 from app.core.exceptions import ValidationError, GenerationError
 
 logger = logging.getLogger(__name__)

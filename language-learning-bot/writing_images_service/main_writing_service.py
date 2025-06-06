@@ -35,7 +35,9 @@ load_dotenv()
 if hydra_available:
     try:
         # Initialize Hydra configuration
-        initialize(config_path="../conf/config", version_base=None)
+        print(os.getcwd())
+        # initialize(config_path="writing_images_service/conf/config", version_base=None)
+        initialize(config_path="writing_images_service/conf/config", job_name="writing_images_service")
         cfg = compose(config_name="default")
         using_hydra = True
     except Exception as e:
@@ -173,7 +175,7 @@ def run_server(port_override=None):
     
     # Run the server using uvicorn with auto-reload in development
     uvicorn.run(
-        "app.main_writing_service:app",
+        app,
         host=host,
         port=port,
         reload=debug_mode,

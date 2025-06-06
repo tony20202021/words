@@ -13,8 +13,8 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 
-from app.api.models.requests import WritingImageRequest
-from app.api.models.responses import WritingImageMetadata
+from app.api.routes.models.requests import WritingImageRequest
+from app.api.routes.models.responses import WritingImageMetadata
 from app.utils import config_holder
 
 logger = logging.getLogger(__name__)

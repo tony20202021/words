@@ -1,6 +1,6 @@
 #!/bin/bash
 # Скрипт запуска сервиса генерации картинок написания
-PID_FILE=".writing_service.pid"
+PID_FILE="writing_service.pid"
 APP_NAME="--process-name=writing_service"
 
 # Функция для поиска и завершения всех процессов сервиса картинок
@@ -66,15 +66,17 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # Запуск сервиса картинок
-cd writing_service
+cd writing_images_service
 echo "Запуск сервиса генерации картинок написания..."
 echo $$ > "../$PID_FILE"  # Сохраняем PID текущего процесса
 echo "PID текущего процесса: $$"
 echo "Сервис картинок запускается. Нажмите Ctrl+C для завершения."
 
+pwd
+
 # Запускаем процесс python с идентификатором
 # Порт и auto-reload определяются в конфигурации Hydra и uvicorn
-python -m app.main_writing_service "$APP_NAME"
+python main_writing_service.py "$APP_NAME"
 
 # Этот код выполнится только если python завершится сам
 echo "Процесс сервиса картинок завершился."
