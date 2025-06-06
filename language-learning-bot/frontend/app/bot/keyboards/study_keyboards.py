@@ -72,7 +72,7 @@ def create_word_keyboard(
         if word_shown and word.get("word_foreign"):
             builder.add(InlineKeyboardButton(
                 text="🔍 Показать крупное написание",
-                callback_data=CallbackData.SHOW_WORD_IMAGE
+                callback_data=CallbackData.SHOW_BIG
             ))
         
         # Writing image button (controlled by user settings only)
@@ -310,7 +310,7 @@ def create_word_details_keyboard(
     if word.get("word_foreign"):
         builder.add(InlineKeyboardButton(
             text="🔍 Показать крупное написание",
-            callback_data=CallbackData.SHOW_WORD_IMAGE
+            callback_data=CallbackData.SHOW_BIG
         ))
     
     # Writing image button (controlled by user settings only)
@@ -380,7 +380,7 @@ def create_word_image_keyboard() -> InlineKeyboardMarkup:
     
     builder.add(InlineKeyboardButton(
         text="⬅️ Вернуться к слову",
-        callback_data=CallbackData.BACK_FROM_IMAGE
+        callback_data=CallbackData.BACK_FROM_BIG
     ))
     
     builder.adjust(1)

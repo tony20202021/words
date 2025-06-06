@@ -1,0 +1,26 @@
+# Основная конфигурация сервиса генерации картинок написания
+# Этот файл должен быть сохранен как writing_service/conf/config/default.yaml
+
+# Подключение других конфигурационных файлов
+defaults:
+  - _self_
+  - api@api
+  - logging@logging
+  - generation@generation
+
+# Настройки приложения
+app:
+  # Название приложения
+  name: "Writing Image Service"
+  # Окружение (development, production)
+  environment: "development"
+  
+# Настройки временных файлов
+temp:
+  # Директория для временных изображений
+  images_dir: "./temp/generated_images"
+  # Автоочистка временных файлов (в секундах)
+  cleanup_interval: 300  # 5 минут
+  # Максимальный возраст файлов для удаления (в секундах)
+  max_file_age: 1800  # 30 минут
+  

@@ -26,8 +26,7 @@ from app.utils.hint_settings_utils import (
 from app.utils.callback_constants import (
     CallbackData,
     is_hint_setting_callback,
-    get_hint_setting_from_callback,
-    is_writing_images_setting_callback
+    get_hint_setting_from_callback
 )
 from app.utils.hint_constants import get_hint_setting_name
 from app.bot.states.centralized_states import SettingsStates

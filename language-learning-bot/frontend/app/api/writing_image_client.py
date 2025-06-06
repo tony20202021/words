@@ -1,13 +1,17 @@
 """
 API client for writing image generation service.
-Заготовка для будущей интеграции с реальным сервисом генерации картинок написания.
+Клиент для взаимодействия с сервисом генерации картинок написания.
+UPDATED: Removed stub mode, configured for real service calls.
 """
 
 import io
+import asyncio
 import logging
 from typing import Dict, Optional, Any
 
 import aiohttp
+
+from app.utils import config_holder
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
@@ -112,9 +116,13 @@ class WritingImageClient:
                         response_dict["status"] = response.status
                         
                         if response.status >= 400:
-                            error_data = await response.json()
-                            error_message = str(error_data)
-                            logger.error(f"Writing image service error: {response.status} - {error_data}")
+                            try:
+                                error_data = await response.json()
+                                error_message = error_data.get("error", f"HTTP {response.status}")
+                            except:
+                                error_message = f"HTTP {response.status}"
+                            
+                            logger.error(f"Writing image service error: {response.status} - {error_message}")
                             response_dict["error"] = error_message
                             
                             # Retry on server errors
@@ -142,16 +150,22 @@ class WritingImageClient:
                         elif response.content_type == 'application/json':
                             # JSON response with image data
                             json_data = await response.json()
-                            if "image_data" in json_data:
-                                import base64
-                                image_data = base64.b64decode(json_data["image_data"])
-                                response_dict["result"] = {
-                                    "image_data": image_data,
-                                    "format": json_data.get("format", "png"),
-                                    "metadata": json_data.get("metadata", {})
-                                }
+                            if json_data.get("success") and "result" in json_data:
+                                result = json_data["result"]
+                                if "image_data" in result:
+                                    import base64
+                                    image_data = base64.b64decode(result["image_data"])
+                                    response_dict["result"] = {
+                                        "image_data": image_data,
+                                        "format": result.get("format", "png"),
+                                        "metadata": result.get("metadata", {})
+                                    }
+                                else:
+                                    response_dict["result"] = result
                             else:
-                                response_dict["result"] = json_data
+                                error_message = json_data.get("error", "Unknown error from service")
+                                response_dict["error"] = error_message
+                                return response_dict
                         else:
                             # Unknown content type
                             response_dict["error"] = f"Unexpected content type: {response.content_type}"
@@ -207,64 +221,46 @@ class WritingImageClient:
                 "message": f"Service is not available: {e}"
             }
 
-    async def get_supported_languages(self) -> Dict[str, Any]:
-        """
-        Get list of supported languages from the service.
-        Получает список поддерживаемых языков от сервиса.
-        
-        Returns:
-            Dict with supported languages
-        """
-        languages_url = f"{self.service_url}/api/languages"
-        
-        response_dict = {
-            "success": False,
-            "status": 0,
-            "result": [],
-            "error": None
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(languages_url, timeout=self.timeout) as response:
-                    response_dict["status"] = response.status
-                    
-                    if response.status == 200:
-                        languages = await response.json()
-                        response_dict["result"] = languages
-                        response_dict["success"] = True
-                    else:
-                        error_data = await response.text()
-                        response_dict["error"] = f"Failed to get languages: {error_data}"
-                        
-        except Exception as e:
-            response_dict["error"] = f"Error getting supported languages: {e}"
-            
-        return response_dict
-
 
 # Global client instance
 _client_instance = None
 
 
-def get_writing_image_client(
-    service_url: str = "http://localhost:8600",
-    **kwargs
-) -> WritingImageClient:
+def get_writing_image_client() -> WritingImageClient:
     """
     Get global writing image client instance.
     Получает глобальный экземпляр клиента сервиса картинок.
     
-    Args:
-        service_url: Service URL
-        **kwargs: Additional client parameters
-        
     Returns:
         WritingImageClient: Client instance
     """
     global _client_instance
     if _client_instance is None:
-        _client_instance = WritingImageClient(service_url=service_url, **kwargs)
+        # Get settings from config
+        service_url = "http://localhost:8600"
+        api_endpoint = "/api/generate-writing-image"
+        timeout = 10
+        retry_count = 2
+        retry_delay = 1
+        
+        try:
+            if hasattr(config_holder.cfg, 'writing_images'):
+                config = config_holder.cfg.writing_images
+                service_url = config.get('service_url', service_url)
+                api_endpoint = config.get('api_endpoint', api_endpoint)
+                timeout = config.get('timeout', timeout)
+                retry_count = config.get('retry_count', retry_count)
+                retry_delay = config.get('retry_delay', retry_delay)
+        except Exception as e:
+            logger.warning(f"Could not load writing image client config, using defaults: {e}")
+        
+        _client_instance = WritingImageClient(
+            service_url=service_url,
+            api_endpoint=api_endpoint,
+            timeout=timeout,
+            retry_count=retry_count,
+            retry_delay=retry_delay
+        )
     return _client_instance
 
 

@@ -26,11 +26,10 @@ class WritingImageGenerator:
         self.border_color = (180, 180, 180)  # Серая рамка
         self.text_color = (120, 120, 120)  # Серый текст
         self.font_size = 24
-        self.stub_delay = 2.5
         
         # Применяем конфигурацию если есть
         if hasattr(config_holder.cfg, 'writing_image_service'):
-            writing_config = config_holder.cfg.writing_image_service.writing_images
+            writing_config = config_holder.cfg.writing_images
             
             # Настройки заглушки
             if hasattr(writing_config, 'development'):
@@ -52,10 +51,7 @@ class WritingImageGenerator:
                 if hasattr(dev_config, 'stub_fonts'):
                     self.font_size = dev_config.stub_fonts.get('size', self.font_size)
                 
-                # Задержка
-                self.stub_delay = dev_config.get('stub_delay', self.stub_delay)
-        
-        logger.info(f"WritingImageGenerator initialized: {self.width}x{self.height}, delay={self.stub_delay}s")
+        logger.info(f"WritingImageGenerator initialized: {self.width}x{self.height}")
 
     async def generate_writing_image(
         self, 
@@ -74,9 +70,6 @@ class WritingImageGenerator:
         """
         try:
             logger.info(f"Generating writing image stub for word: '{word}', language: '{language}'")
-            
-            # Имитируем время генерации
-            await asyncio.sleep(self.stub_delay)
             
             # Создаем изображение заглушки
             image = Image.new('RGB', (self.width, self.height), self.bg_color)

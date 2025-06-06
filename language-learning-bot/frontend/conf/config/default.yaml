@@ -8,7 +8,9 @@ defaults:
   - api@api
   - logging@logging
   - learning@learning
-  - writing_image_service@writing_image_service  # НОВОЕ: Конфигурация сервиса картинок
+  - voice_recognition@voice_recognition 
+  - show_big@show_big
+  - writing_images@writing_images 
 
 # Настройки приложения
 app:

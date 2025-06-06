@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Script to run tests for the Language Learning Bot project.
-Allows running tests for frontend, backend, or common components.
+Allows running tests for frontend, backend, common, or writing_service components.
 """
 
 import argparse
@@ -18,6 +18,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "scripts" else SCRIPT_DIR
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 BACKEND_DIR = PROJECT_ROOT / "backend"
 COMMON_DIR = PROJECT_ROOT / "common"
+WRITING_SERVICE_DIR = PROJECT_ROOT / "writing_service"
 
 def setup_parser():
     """Set up command line argument parser."""
@@ -25,7 +26,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["frontend", "backend", "common", "all"],
+        choices=["frontend", "backend", "common", "writing_service", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -233,6 +234,68 @@ def run_common_tests(args):
     return result.returncode
 
 
+def run_writing_service_tests(args):
+    """Run writing service tests."""
+    print("\n🔍 Running writing service tests...\n")
+    
+    # Проверяем существование директории writing_service
+    if not WRITING_SERVICE_DIR.exists():
+        print("⚠️ Writing service directory not found!")
+        print("✅ Writing service tests: No tests to run!")
+        return 0
+        
+    os.chdir(WRITING_SERVICE_DIR)
+    
+    # Проверяем наличие директории с тестами
+    tests_dir = Path("tests")
+    if not tests_dir.exists() or not list(tests_dir.glob("test_*.py")):
+        print("⚠️ No test files found in writing_service/tests directory!")
+        print("✅ Writing service tests: No tests to run!")
+        return 0
+    
+    cmd = ["pytest"]
+    
+    if args.verbose:
+        cmd.append("-v")
+    
+    if args.coverage:
+        cmd.extend(["--cov=app", "--cov-report=term"])
+        if args.html:
+            cmd.append("--cov-report=html")
+    
+    if args.specific:
+        cmd.append(args.specific)
+    
+    # Добавляем маркеры для пропуска интеграционных тестов при необходимости
+    cmd.extend(["-m", "not slow"])
+    
+    # Добавляем дополнительные аргументы pytest
+    if args.pytest_args:
+        cmd.extend(args.pytest_args)
+    
+    print(f"Running command: {' '.join(cmd)}")
+    result = subprocess.run(cmd)
+    
+    # Проверяем код возврата
+    if result.returncode != 0:
+        # Проверяем, могла ли быть ошибка из-за отсутствия тестов
+        try:
+            # Запускаем pytest с минимальными параметрами для проверки сбора тестов
+            check_cmd = ["pytest", "--collect-only", "-q"]
+            output = subprocess.check_output(check_cmd, stderr=subprocess.STDOUT, text=True)
+            
+            # Если в выводе есть "no tests", значит тестов просто нет
+            if "no tests" in output.lower():
+                print("⚠️ Pytest found no tests in writing_service directory")
+                print("✅ Writing service tests: No tests to run!")
+                return 0
+        except subprocess.CalledProcessError:
+            # Если сбор тестов тоже дал ошибку, вернем оригинальный код ошибки
+            pass
+    
+    return result.returncode
+
+
 def main():
     """Main function to run tests."""
     parser = setup_parser()
@@ -244,6 +307,7 @@ def main():
     frontend_exit_code = 0
     backend_exit_code = 0
     common_exit_code = 0
+    writing_service_exit_code = 0
     
     if args.component in ["frontend", "all"]:
         frontend_exit_code = run_frontend_tests(args)
@@ -266,8 +330,16 @@ def main():
         else:
             print("\n✅ Common module tests passed or no tests found!")
     
+    if args.component in ["writing_service", "all"]:
+        writing_service_exit_code = run_writing_service_tests(args)
+        if writing_service_exit_code != 0:
+            print("\n❌ Writing service tests failed!")
+        else:
+            print("\n✅ Writing service tests passed or no tests found!")
+    
     # Return non-zero if any test suite failed
-    if frontend_exit_code != 0 or backend_exit_code != 0 or common_exit_code != 0:
+    if (frontend_exit_code != 0 or backend_exit_code != 0 or 
+        common_exit_code != 0 or writing_service_exit_code != 0):
         print("\n❌ Some tests failed!")
         return 1
     

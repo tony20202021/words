@@ -3,8 +3,10 @@ Handlers for word display actions during the study process.
 Обработчики для отображения слов в процессе изучения.
 UPDATED: Added writing image support.
 UPDATED: Removed hieroglyphic language restrictions - controlled by user settings only.
+UPDATED: Replaced local generator with real service client.
 """
 
+import io
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -18,10 +20,11 @@ from app.utils.word_data_utils import update_word_score
 from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import StudyStates
 from app.bot.handlers.study.study_words import show_study_word
-from app.utils.word_image_generator import generate_word_image
+from app.utils.big_word_generator import generate_big_word
 from app.bot.keyboards.study_keyboards import create_word_image_keyboard, create_writing_image_keyboard
-from app.utils.writing_image_generator import generate_writing_image
+from app.api.writing_image_client import get_writing_image_client
 from app.utils.settings_utils import is_writing_images_enabled
+from app.utils.message_utils import get_message_from_callback
 
 logger = setup_logger(__name__)
 
@@ -88,24 +91,24 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     await callback.answer("👁️ Показываю слово")
 
 
-@display_router.callback_query(F.data == CallbackData.SHOW_WORD_IMAGE)
-async def process_show_word_image_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"'show_word_image' callback from {callback.from_user.full_name}")
+@display_router.callback_query(F.data == CallbackData.SHOW_BIG)
+async def callback_show_big(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"'callback_show_big' callback from {callback.from_user.full_name}")
     
     # Show word image using common function
-    await _show_word_image(callback, state)
+    await process_show_big(callback, state)
 
 
 @display_router.message(Command("show_big"))
-async def cmd_show_big_word(message: Message, state: FSMContext):
+async def cmd_show_big(message: Message, state: FSMContext):
     logger.info(f"'/show_big' command from {message.from_user.full_name}")
     
     # Show word image using common function
-    await _show_word_image(message, state)
+    await process_show_big(message, state)
 
 
-@display_router.callback_query(F.data == CallbackData.BACK_FROM_IMAGE, StudyStates.viewing_word_image)
-async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
+@display_router.callback_query(F.data == CallbackData.BACK_FROM_BIG, StudyStates.viewing_word_image)
+async def process_back_from_big(callback: CallbackQuery, state: FSMContext):
     """
     Обработчик возврата от изображения к экрану изучения.
     
@@ -137,7 +140,7 @@ async def process_back_from_image(callback: CallbackQuery, state: FSMContext):
 # Writing image handlers
 
 @display_router.callback_query(F.data == CallbackData.SHOW_WRITING_IMAGE)
-async def process_show_writing_image_callback(callback: CallbackQuery, state: FSMContext):
+async def callback_show_writing_image(callback: CallbackQuery, state: FSMContext):
     """
     Process 'Show writing image' action.
     UPDATED: Removed hieroglyphic language restrictions - controlled by user settings only.
@@ -146,10 +149,10 @@ async def process_show_writing_image_callback(callback: CallbackQuery, state: FS
         callback: The callback query
         state: FSM context
     """
-    logger.info(f"'show_writing_image' callback from {callback.from_user.full_name}")
+    logger.info(f"'callback_show_writing_image' callback from {callback.from_user.full_name}")
     
     # Show writing image using common function
-    await _show_writing_image(callback, state)
+    await process_show_writing_image(callback, state)
 
 
 @display_router.message(Command("show_writing"))
@@ -164,7 +167,7 @@ async def cmd_show_writing_image(message: Message, state: FSMContext):
     logger.info(f"'/show_writing' command from {message.from_user.full_name}")
     
     # Show writing image using common function
-    await _show_writing_image(message, state)
+    await process_show_writing_image(message, state)
 
 
 @display_router.callback_query(F.data == CallbackData.BACK_FROM_WRITING_IMAGE, StudyStates.viewing_writing_image)
@@ -197,7 +200,7 @@ async def process_back_from_writing_image(callback: CallbackQuery, state: FSMCon
     await callback.answer("⬅️ Возвращаемся к изучению")
 
 
-async def _show_word_image(
+async def process_show_big(
     message_or_callback, 
     state: FSMContext, 
 ):
@@ -208,10 +211,7 @@ async def _show_word_image(
         message_or_callback: Message or CallbackQuery object
         state: FSM context
     """
-    if hasattr(message_or_callback, 'answer'):
-        message = message_or_callback
-    else:
-        message = message_or_callback.message
+    message = get_message_from_callback(message_or_callback)
 
     try:
         # Get current word state
@@ -240,7 +240,7 @@ async def _show_word_image(
         # Generate word image
         logger.info(f"Generating image for word: '{word_foreign}', transcription: '{transcription}'")
         
-        image_buffer = await generate_word_image(
+        image_buffer = await generate_big_word(
             word=word_foreign,
             transcription=transcription,
         )
@@ -279,22 +279,20 @@ async def _show_word_image(
         await message.answer(error_msg)
 
 
-async def _show_writing_image(
+async def process_show_writing_image(
     message_or_callback, 
     state: FSMContext,
 ):
     """
     Общая функция для показа картинки написания.
     UPDATED: Removed hieroglyphic language restrictions - controlled by user settings only.
+    UPDATED: Replaced local generator with real service client.
     
     Args:
         message_or_callback: Message or CallbackQuery object
         state: FSM context
     """
-    if hasattr(message_or_callback, 'answer'):
-        message = message_or_callback
-    else:
-        message = message_or_callback.message
+    message = get_message_from_callback(message_or_callback)
 
     try:
         # Check if writing images are enabled for user
@@ -327,15 +325,26 @@ async def _show_writing_image(
         current_language = state_data.get("current_language", {})
         language_code = current_language.get("name_foreign", "").lower()
         
-        # Generate writing image using stub
+        # Generate writing image using real service
         logger.info(f"Generating writing image for word: '{word_foreign}', language: '{language_code}'")
         
         await message.answer("🖼️ Генерирую картинку написания...")
         
-        image_buffer = await generate_writing_image(
+        # Get writing image client and call service
+        client = get_writing_image_client()
+        result = await client.generate_writing_image(
             word=word_foreign,
             language=language_code
         )
+        
+        if not result["success"]:
+            error_msg = f"❌ Ошибка сервиса генерации: {result.get('error', 'Неизвестная ошибка')}"
+            await message.answer(error_msg)
+            return
+        
+        # Get image data from result
+        image_data = result["result"]["image_data"]
+        image_buffer = io.BytesIO(image_data)
         
         # Create BufferedInputFile from BytesIO for Telegram
         image_buffer.seek(0)  # Reset buffer position

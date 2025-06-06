@@ -1,0 +1,42 @@
+# Конфигурация API сервиса генерации картинок написания
+# Этот файл должен быть сохранен как writing_service/conf/config/api.yaml
+
+# Настройки сервера
+host: "0.0.0.0"
+port: 8600
+prefix: "/api"
+
+# Настройки CORS
+cors_origins: "*"
+# В продакшене указать конкретные домены:
+# cors_origins: "http://localhost:8500,http://localhost:3000"
+
+# Настройки отладки (debug)
+debug: true
+
+# Настройки безопасности
+secret_key: "writing_service_secret_key_change_this_in_production"
+
+# Настройки рейт-лимитера (ограничение количества запросов)
+enable_rate_limit: false
+rate_limit_requests: 60  # Максимальное количество запросов для генерации изображений
+rate_limit_period: 60  # Период в секундах
+
+# Настройки для продакшена
+production:
+  debug: false
+  cors_origins: "http://localhost:8500"  # Только основной бэкенд
+  enable_rate_limit: true
+  rate_limit_requests: 30  # Более строгое ограничение
+  
+# Настройки мониторинга
+monitoring:
+  enable_metrics: true
+  health_check_timeout: 10
+  
+# Настройки обработки запросов
+request_processing:
+  max_concurrent_generations: 5  # Максимальное количество одновременных генераций
+  generation_timeout: 30  # Таймаут генерации изображения в секундах
+  max_image_size: 2048  # Максимальный размер изображения в пикселях
+  

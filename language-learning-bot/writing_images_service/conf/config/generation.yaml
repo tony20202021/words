@@ -1,0 +1,92 @@
+# Конфигурация генерации картинок написания
+# Этот файл должен быть сохранен как writing_service/conf/config/generation.yaml
+
+# Настройки по умолчанию для генерации
+defaults:
+  # Размеры изображения
+  width: 600
+  height: 600
+  
+  # Качество изображения (1-100)
+  quality: 90
+  
+  # Стиль написания
+  style: "traditional"  # traditional, simplified, calligraphy
+  
+  # Показывать ли направляющие линии
+  show_guidelines: true
+  
+  # Формат выходного изображения
+  output_format: "png"  # png, jpg, webp
+
+# Цветовая схема
+colors:
+  background: [255, 255, 255]  # Белый фон
+  stroke: [0, 0, 0]            # Черные штрихи
+  guidelines: [200, 200, 200]   # Серые направляющие
+  highlight: [255, 0, 0]       # Красный для выделения
+  
+# Настройки шрифтов и размеров
+fonts:
+  # Размер основного текста относительно размера изображения
+  text_scale: 0.6
+  # Толщина линий
+  stroke_width: 2
+  # Размер направляющих линий
+  guideline_width: 1
+
+# Поддерживаемые языки и их настройки
+languages:
+  chinese:
+    name: "Chinese"
+    styles: ["traditional", "simplified", "calligraphy"]
+    default_style: "traditional"
+    
+  japanese:
+    name: "Japanese"
+    styles: ["hiragana", "katakana", "kanji"]
+    default_style: "kanji"
+    
+  korean:
+    name: "Korean"
+    styles: ["hangul"]
+    default_style: "hangul"
+    
+  english:
+    name: "English"
+    styles: ["print", "cursive"]
+    default_style: "print"
+
+# Ограничения и валидация
+limits:
+  # Минимальные и максимальные размеры изображения
+  min_width: 100
+  max_width: 2048
+  min_height: 100
+  max_height: 2048
+  
+  # Максимальная длина слова
+  max_word_length: 50
+  
+  # Максимальное время генерации (в секундах)
+  generation_timeout: 30
+
+# Настройки заглушки для разработки
+stub:
+  # Размер заглушки
+  width: 400
+  height: 400
+  
+  # Цвета для заглушки
+  background: [240, 240, 240]  # Светло-серый фон
+  border: [180, 180, 180]      # Серая рамка
+  text: [120, 120, 120]        # Серый текст
+  
+  # Шрифты для заглушки
+  font_size: 24
+  font_family: "Arial"
+  
+  # Текст заглушки
+  title_text: "Writing Image"
+  subtitle_text: "(Development Stub)"
+  

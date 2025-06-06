@@ -16,15 +16,18 @@ language-learning-bot/
 ├── start_1_db.sh
 ├── start_2_backend.sh
 ├── start_3_frontend.sh
+├── start_4_writing_service.sh
 ├── start_3_frontend_auto_reload.sh
 ├── setup_watchdog.sh
 ├── run_export_env.sh
 ├── run_tests.sh
 ├── .backend.pid
 ├── .frontend.pid
+├── .writing_service.pid
 ├── docs/
 ├── frontend/
 ├── backend/
+├── writing_service/
 ├── common/
 └── scripts/
 ```
@@ -57,7 +60,8 @@ docs/
 │
 ├── api/
 │   ├── api_reference.md
-│   └── backend_api.md
+│   ├── backend_api.md
+│   └── writing_service_api.md
 │
 ├── development/
 │   ├── testing_guide.md
@@ -311,6 +315,58 @@ backend/
     └── test_repositories/
 ```
 
+## Writing Service (Микросервис генерации картинок)
+
+```
+writing_service/
+├── app/
+│   ├── __init__.py
+│   ├── main_writing_service.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── requests.py
+│   │   │   └── responses.py
+│   │   └── routes/
+│   │       ├── __init__.py
+│   │       ├── writing_images.py
+│   │       └── health.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── writing_image_service.py
+│   │   └── validation_service.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── dependencies.py
+│   │   └── exceptions.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── config_holder.py
+│       ├── image_utils.py
+│       └── logger.py
+├── conf/
+│   ├── __init__.py
+│   └── config/
+│       ├── __init__.py
+│       ├── default.yaml
+│       ├── api.yaml
+│       ├── generation.yaml
+│       └── logging.yaml
+├── logs/
+│   └── writing_service.log
+├── temp/
+│   └── generated_images/
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_health.py
+    ├── test_writing_images.py
+    ├── test_validation_service.py
+    └── test_writing_image_service.py
+```
+
 ## Общие модули (Common)
 
 ```
@@ -338,3 +394,4 @@ scripts/
 ├── admin_manager.py
 └── create_user_language_settings_collection.py
 ```
+

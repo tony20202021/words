@@ -18,7 +18,7 @@ from app.utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
-class WordImageGenerator:
+class BigWordGenerator:
     """Генератор изображений для слов с транскрипцией."""
     
     def __init__(self):
@@ -43,30 +43,30 @@ class WordImageGenerator:
         self.word_font_size = 80
         self.transcription_font_size = 20
         
-        logger.info(f"WordImageGenerator.config: {config_holder.cfg.bot.word_images}")
+        logger.info(f"WordImageGenerator.config: {config_holder.cfg.show_big}")
         # Применяем конфигурацию если есть
-        if config_holder.cfg.bot.word_images:
-            self.width = config_holder.cfg.bot.word_images.get('width', self.width)
-            self.height = config_holder.cfg.bot.word_images.get('height', self.height)
+        if config_holder.cfg.show_big:
+            self.width = config_holder.cfg.show_big.get('width', self.width)
+            self.height = config_holder.cfg.show_big.get('height', self.height)
             
             # Цвета
-            colors = config_holder.cfg.bot.word_images.get('colors', {})
+            colors = config_holder.cfg.show_big.get('colors', {})
             self.bg_color = tuple(colors.get('background', self.bg_color))
             self.text_color = tuple(colors.get('text', self.text_color))
             self.border_color = tuple(colors.get('border', self.border_color))
             self.transcription_color = tuple(colors.get('transcription', self.transcription_color))
             
             # Размеры шрифтов
-            fonts = config_holder.cfg.bot.word_images.get('fonts', {})
+            fonts = config_holder.cfg.show_big.get('fonts', {})
             self.word_font_size = fonts.get('word_size', self.word_font_size)
             self.transcription_font_size = fonts.get('transcription_size', self.transcription_font_size)            
         
         logger.info(f"WordImageGenerator.word_font_size: {self.word_font_size}")
 
         # Настройка временной директории
-        self.temp_dir = config_holder.cfg.bot.word_images.temp_dir or tempfile.gettempdir()
+        self.temp_dir = config_holder.cfg.show_big.temp_dir or tempfile.gettempdir()
 
-    async def generate_word_image(
+    async def generate_big_word(
         self, 
         word: str, 
         transcription: Optional[str] = None,
@@ -386,7 +386,7 @@ class WordImageGenerator:
 _generator_instance = None
 
 
-def get_word_image_generator() -> WordImageGenerator:
+def get_big_word_generator() -> BigWordGenerator:
     """
     Получает глобальный экземпляр генератора изображений.
     
@@ -399,11 +399,11 @@ def get_word_image_generator() -> WordImageGenerator:
     """
     global _generator_instance
     if _generator_instance is None:
-        _generator_instance = WordImageGenerator()
+        _generator_instance = BigWordGenerator()
     return _generator_instance
 
 
-async def generate_word_image(
+async def generate_big_word(
     word: str, 
     transcription: Optional[str] = None,
 ) -> io.BytesIO:
@@ -419,5 +419,5 @@ async def generate_word_image(
     Returns:
         io.BytesIO: Изображение в памяти
     """
-    generator = get_word_image_generator()
-    return await generator.generate_word_image(word, transcription)
+    generator = get_big_word_generator()
+    return await generator.generate_big_word(word, transcription)

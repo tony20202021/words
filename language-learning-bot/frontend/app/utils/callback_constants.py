@@ -23,8 +23,8 @@ class CallbackData:
     TOGGLE_WORD_SKIP = "toggle_word_skip"
     
     # Word image actions
-    SHOW_WORD_IMAGE = "show_word_image"
-    BACK_FROM_IMAGE = "back_from_image"
+    SHOW_BIG = "show_big"
+    BACK_FROM_BIG = "back_from_big"
     
     # НОВОЕ: Writing image actions (картинки написания)
     SHOW_WRITING_IMAGE = "show_writing_image"

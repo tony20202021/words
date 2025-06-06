@@ -17,7 +17,7 @@
 - **installation/mongodb_setup.md** - Установка и настройка MongoDB
 
 ## Запуск и управление
-- **running/running_guide.md** - Руководство по запуску компонентов
+- **running/running_guide.md** - Руководство по запуску компонентов (включая Writing Service)
 - **running/scripts_reference.md** - Справочник по скриптам запуска и управления
 - **running/auto_reload.md** - Руководство по автоматическому перезапуску
 - **running/deployment_guide.md** - Развертывание в продакшене
