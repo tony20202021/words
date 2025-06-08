@@ -6,15 +6,15 @@ UPDATED: Removed stub mode, configured for real service calls.
 
 import io
 import asyncio
-import logging
 from typing import Dict, Optional, Any
 
 import aiohttp
 
 from app.utils import config_holder
+from app.utils.logger import get_module_logger
 
 # Настройка логгера
-logger = logging.getLogger(__name__)
+logger = get_module_logger(__name__)
 
 
 class WritingImageClient:
@@ -122,6 +122,7 @@ class WritingImageClient:
                             except:
                                 error_message = f"HTTP {response.status}"
                             
+                            logger.error(f"Writing image service: {url}, request_data={request_data}")
                             logger.error(f"Writing image service error: {response.status} - {error_message}")
                             response_dict["error"] = error_message
                             
