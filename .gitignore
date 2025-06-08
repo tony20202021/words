@@ -64,10 +64,10 @@ data/
 *.db
 .DS_Store
 *.pid
--output_cells/
--output_images/
--sample_images/
--results/
+output_cells/
+output_images/
+sample_images/
+results/
 
 # Local settings
 local_settings.py
