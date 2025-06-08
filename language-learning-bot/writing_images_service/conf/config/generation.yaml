@@ -1,8 +1,8 @@
 # Конфигурация генерации картинок написания
-# Этот файл должен быть сохранен как writing_service/conf/config/generation.yaml
+# Этот файл должен быть сохранен как writing_images_service/conf/config/generation.yaml
 
 # Настройки по умолчанию для генерации
-defaults:
+generation_defaults:
   # Размеры изображения
   width: 600
   height: 600

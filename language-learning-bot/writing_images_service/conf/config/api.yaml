@@ -1,5 +1,5 @@
 # Конфигурация API сервиса генерации картинок написания
-# Этот файл должен быть сохранен как writing_service/conf/config/api.yaml
+# Этот файл должен быть сохранен как writing_images_service/conf/config/api.yaml
 
 # Настройки сервера
 host: "0.0.0.0"
@@ -11,7 +11,7 @@ cors_origins: "*"
 # В продакшене указать конкретные домены:
 # cors_origins: "http://localhost:8500,http://localhost:3000"
 
-# Настройки отладки (debug)
+# Настройки отладки (debug) - ВКЛЮЧЕН для auto-reload
 debug: true
 
 # Настройки безопасности
@@ -39,4 +39,22 @@ request_processing:
   max_concurrent_generations: 5  # Максимальное количество одновременных генераций
   generation_timeout: 30  # Таймаут генерации изображения в секундах
   max_image_size: 2048  # Максимальный размер изображения в пикселях
-  
+
+# Настройки auto-reload для разработки
+development:
+  # Директории для мониторинга изменений
+  reload_dirs: 
+    - "app"
+    - "conf"
+  # Расширения файлов для мониторинга
+  reload_includes:
+    - "*.py"
+    - "*.yaml" 
+    - "*.yml"
+    - "*.json"
+  # Исключения из мониторинга
+  reload_excludes:
+    - "*.pyc"
+    - "__pycache__/*"
+    - "logs/*"
+    - "temp/*"

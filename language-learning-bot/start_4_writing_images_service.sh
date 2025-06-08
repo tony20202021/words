@@ -1,6 +1,6 @@
 #!/bin/bash
-# Скрипт запуска сервиса генерации картинок написания
-PID_FILE="writing_service.pid"
+# Проверка, запущен ли уже процесс сервиса картинок
+PID_FILE=".writing_service.pid"
 APP_NAME="--process-name=writing_service"
 
 # Функция для поиска и завершения всех процессов сервиса картинок
@@ -14,7 +14,7 @@ cleanup_writing_service_processes() {
     if [ ! -z "$WRITING_SERVICE_PIDS" ]; then
         echo "Найдены процессы сервиса картинок:"
         for pid in $WRITING_SERVICE_PIDS; do
-            ps -p $pid -o pid,ppid,cmd,%cpu,%mem --no-headers
+            ps -p $pid -o pid,ppid,cmd,%cpu,%mem --no-headers 2>/dev/null
         done
         
         echo "Завершение процессов..."
@@ -26,7 +26,7 @@ cleanup_writing_service_processes() {
         # Проверяем, остались ли процессы и завершаем принудительно
         REMAINING=""
         for pid in $WRITING_SERVICE_PIDS; do
-            if ps -p $pid > /dev/null; then
+            if ps -p $pid > /dev/null 2>&1; then
                 REMAINING="$REMAINING $pid"
             fi
         done
@@ -34,7 +34,7 @@ cleanup_writing_service_processes() {
         if [ ! -z "$REMAINING" ]; then
             echo "Принудительное завершение оставшихся процессов:"
             for pid in $REMAINING; do
-                ps -p $pid -o pid,ppid,cmd,%cpu,%mem --no-headers
+                ps -p $pid -o pid,ppid,cmd,%cpu,%mem --no-headers 2>/dev/null
                 kill -9 $pid 2>/dev/null
             done
         fi
@@ -72,13 +72,12 @@ echo $$ > "../$PID_FILE"  # Сохраняем PID текущего процес
 echo "PID текущего процесса: $$"
 echo "Сервис картинок запускается. Нажмите Ctrl+C для завершения."
 
-pwd
-
 # Запускаем процесс python с идентификатором
-# Порт и auto-reload определяются в конфигурации Hydra и uvicorn
-python main_writing_service.py "$APP_NAME"
+# Порт определяется в конфигурации Hydra и не передается как параметр
+python -m app.main_writing_service "$APP_NAME"
 
 # Этот код выполнится только если python завершится сам
 echo "Процесс сервиса картинок завершился."
 cleanup_writing_service_processes
-rm -f "$PID_FILE"
+rm -f "../$PID_FILE"
+

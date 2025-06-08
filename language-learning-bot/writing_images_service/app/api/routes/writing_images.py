@@ -3,7 +3,6 @@ API routes for writing image generation.
 Роуты API для генерации картинок написания.
 """
 
-import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 
@@ -12,8 +11,9 @@ from app.api.routes.models.responses import WritingImageResponse, APIResponse
 from app.api.routes.services.writing_image_service import WritingImageService
 from app.api.routes.services.validation_service import ValidationService
 from app.core.exceptions import ValidationError, GenerationError
+from app.utils.logger import get_module_logger
 
-logger = logging.getLogger(__name__)
+logger = get_module_logger(__name__)
 
 router = APIRouter(prefix="/writing", tags=["writing_images"])
 
