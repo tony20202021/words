@@ -336,7 +336,7 @@ async def process_show_writing_image(
             word=word_foreign,
             language=language_code
         )
-        logger.info(f"Writing image result: {result}")
+        logger.info(f"Writing image result: {result['success']}")
         
         if not result["success"]:
             error_msg = f"❌ Ошибка сервиса генерации: {result.get('error', 'Неизвестная ошибка')}"

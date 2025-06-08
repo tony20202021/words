@@ -151,20 +151,31 @@ class WritingImageClient:
                         elif response.content_type == 'application/json':
                             # JSON response with image data
                             json_data = await response.json()
-                            if json_data.get("success") and "result" in json_data:
-                                result = json_data["result"]
-                                if "image_data" in result:
+                            logger.info(f"json_data keys: {list(json_data.keys())}")
+                            
+                            # Writing Service возвращает данные напрямую, не в поле "result"
+                            if json_data.get("success"):
+                                if "image_data" in json_data:
                                     import base64
-                                    image_data = base64.b64decode(result["image_data"])
-                                    response_dict["result"] = {
-                                        "image_data": image_data,
-                                        "format": result.get("format", "png"),
-                                        "metadata": result.get("metadata", {})
-                                    }
+                                    try:
+                                        image_data = base64.b64decode(json_data["image_data"])
+                                        response_dict["result"] = {
+                                            "image_data": image_data,
+                                            "format": json_data.get("format", "png"),
+                                            "metadata": json_data.get("metadata", {})
+                                        }
+                                        logger.info(f"Successfully decoded image data, size: {len(image_data)} bytes")
+                                    except Exception as decode_error:
+                                        logger.error(f"Failed to decode base64 image data: {decode_error}")
+                                        response_dict["error"] = f"Failed to decode image data: {decode_error}"
+                                        return response_dict
                                 else:
-                                    response_dict["result"] = result
+                                    logger.error("Missing image_data in successful response")
+                                    response_dict["error"] = "Missing image_data in response"
+                                    return response_dict
                             else:
-                                error_message = json_data.get("error", "Unknown error from service")
+                                error_message = json_data.get("error", "Service returned success=false")
+                                logger.error(f"Service error: {error_message}")
                                 response_dict["error"] = error_message
                                 return response_dict
                         else:
