@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-from app.api.models.requests import WritingImageRequest, BatchWritingImageRequest
+from app.api.routes.models.requests import WritingImageRequest, BatchWritingImageRequest
 from app.utils import config_holder
 
 logger = logging.getLogger(__name__)
