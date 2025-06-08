@@ -8,7 +8,7 @@ enabled: true
 service_url: "http://localhost:8600"
 
 # API эндпоинт для генерации
-api_endpoint: "/api/generate-writing-image"
+api_endpoint: "/api/writing/generate-writing-image"
 
 # Настройки запросов к сервису
 timeout: 10  # Таймаут запроса в секундах
