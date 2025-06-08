@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.utils import config_holder
 from app.utils.logger import setup_logger
+from common.utils.font_utils import get_font_manager
 
 logger = setup_logger(__name__)
 
@@ -24,10 +25,6 @@ class BigWordGenerator:
     def __init__(self):
         """
         Инициализация генератора.
-        
-        Args:
-            temp_dir: Директория для временных файлов (из конфига)
-            config: Конфигурация для настройки параметров
         """
         # Размеры изображения
         self.width = 800
@@ -42,6 +39,9 @@ class BigWordGenerator:
         # Размеры шрифтов (по умолчанию)
         self.word_font_size = 80
         self.transcription_font_size = 20
+        
+        # Font manager для Unicode поддержки
+        self.font_manager = get_font_manager()
         
         logger.info(f"WordImageGenerator.config: {config_holder.cfg.show_big}")
         # Применяем конфигурацию если есть
@@ -95,69 +95,38 @@ class BigWordGenerator:
             available_width = self.width - 2 * margin
             min_font_size = 12  # Минимальный размер шрифта
             
-            # АВТОПОДБОР РАЗМЕРА ШРИФТА ДЛЯ СЛОВА
-            word_font = None
-            word_width = 0
-            word_height = 0
-            word_top_offset = 0
-            actual_word_font_size = self.word_font_size
+            # АВТОПОДБОР РАЗМЕРА ШРИФТА ДЛЯ СЛОВА с Unicode поддержкой
+            word_font, actual_word_font_size, word_width, word_height = await self.font_manager.auto_fit_font_size(
+                word,
+                available_width,
+                self.height // 2,  # Половина высоты для слова
+                self.word_font_size,
+                min_font_size
+            )
             
-            logger.info(f"Starting word font size: {actual_word_font_size}")
-            logger.info(f"Available width: {available_width}")
-            
-            current_font_size = self.word_font_size
-            while current_font_size >= min_font_size:
-                word_font = await self._get_font_async(size=current_font_size)
-                word_bbox = draw.textbbox((0, 0), word, font=word_font)
-                word_width = word_bbox[2] - word_bbox[0]
-                
-                if word_width <= available_width:
-                    # Размер подходит
-                    actual_word_font_size = current_font_size
-                    word_height = word_bbox[3] - word_bbox[1]
-                    word_top_offset = word_bbox[1]
-                    break
-                
-                # Уменьшаем размер на 10%
-                current_font_size = int(current_font_size * 0.9)
-                logger.info(f"Word too wide ({word_width}px), trying smaller font: {current_font_size}")
-            
-            logger.info(f"Final word font size: {actual_word_font_size}")
-            logger.info(f"Final word width: {word_width}px (available: {available_width}px)")
+            logger.info(f"Auto-fitted word font size: {actual_word_font_size}")
+            logger.info(f"Word dimensions: {word_width}x{word_height}px (available: {available_width}px)")
             
             # АВТОПОДБОР РАЗМЕРА ШРИФТА ДЛЯ ТРАНСКРИПЦИИ
-            trans_bbox = None
+            trans_font = None
+            actual_transcription_font_size = self.transcription_font_size
             trans_width = 0
             trans_height = 0
-            trans_top_offset = 0
             transcription_text = ""
-            transcription_font = None
-            actual_transcription_font_size = self.transcription_font_size
             
             if transcription:
                 transcription_text = f"[{transcription}]"
                 
-                logger.info(f"Starting transcription font size: {actual_transcription_font_size}")
+                trans_font, actual_transcription_font_size, trans_width, trans_height = await self.font_manager.auto_fit_font_size(
+                    transcription_text,
+                    available_width,
+                    self.height // 4,  # Четверть высоты для транскрипции
+                    self.transcription_font_size,
+                    min_font_size
+                )
                 
-                current_font_size = self.transcription_font_size
-                while current_font_size >= min_font_size:
-                    transcription_font = await self._get_font_async(size=current_font_size)
-                    trans_bbox = draw.textbbox((0, 0), transcription_text, font=transcription_font)
-                    trans_width = trans_bbox[2] - trans_bbox[0]
-                    
-                    if trans_width <= available_width:
-                        # Размер подходит
-                        actual_transcription_font_size = current_font_size
-                        trans_height = trans_bbox[3] - trans_bbox[1]
-                        trans_top_offset = trans_bbox[1]
-                        break
-                    
-                    # Уменьшаем размер на 10%
-                    current_font_size = int(current_font_size * 0.9)
-                    logger.info(f"Transcription too wide ({trans_width}px), trying smaller font: {current_font_size}")
-                
-                logger.info(f"Final transcription font size: {actual_transcription_font_size}")
-                logger.info(f"Final transcription width: {trans_width}px (available: {available_width}px)")
+                logger.info(f"Auto-fitted transcription font size: {actual_transcription_font_size}")
+                logger.info(f"Transcription dimensions: {trans_width}x{trans_height}px")
             
             # Динамический расчет отступов в зависимости от размеров шрифтов
             gap_between_elements = max(actual_word_font_size * 0.2, actual_transcription_font_size * 0.3)
@@ -167,19 +136,15 @@ class BigWordGenerator:
             if transcription:
                 total_content_height = word_height + gap_between_elements + trans_height
             else:
-                total_content_height = word_top_offset + word_height
+                total_content_height = word_height
             
-            # Позиция слова:
-            # Горизонтально - по центру
+            # Позиция слова: горизонтально и вертикально по центру
             word_x = (self.width - word_width) // 2
-            
-            # Вертикально - позиционируем слово в верхней части
             content_start_y = (self.height - total_content_height) // 2
-            word_y = content_start_y - word_top_offset
+            word_y = content_start_y
             
             logger.info(f"Final font sizes: word={actual_word_font_size}, transcription={actual_transcription_font_size}")
             logger.info(f"Content heights: word={word_height}, transcription={trans_height}, gap={gap_between_elements}")
-            logger.info(f"word_bbox={word_bbox}, trans_bbox={trans_bbox}")
             logger.info(f"Total content height: {total_content_height}, content_start_y: {content_start_y}")
             logger.info(f"Final word position: x={word_x}, y={word_y}")
             
@@ -187,20 +152,17 @@ class BigWordGenerator:
             draw.text((word_x, word_y), word, font=word_font, fill=self.text_color)
             
             # Рисуем транскрипцию если есть
-            if transcription and transcription_font:
-                # Позиция транскрипции:
-                # Горизонтально - по центру
+            if transcription and trans_font:
+                # Позиция транскрипции: под словом с динамическим отступом
                 trans_x = (self.width - trans_width) // 2
-                
-                # Вертикально - под словом с динамическим отступом
-                trans_y = word_y + word_top_offset + word_height + gap_between_elements - trans_top_offset
+                trans_y = word_y + word_height + gap_between_elements
                 
                 logger.info(f"Final transcription position: x={trans_x}, y={trans_y}")
                 
                 draw.text(
                     (trans_x, trans_y), 
                     transcription_text, 
-                    font=transcription_font, 
+                    font=trans_font, 
                     fill=self.transcription_color
                 )
             
@@ -219,117 +181,6 @@ class BigWordGenerator:
         except Exception as e:
             logger.error(f"Error generating word image: {e}", exc_info=True)
             raise
-                                                    
-    async def _get_font_async(self, size: int) -> ImageFont.ImageFont:
-        """
-        Асинхронно получает шрифт нужного размера.
-        
-        Args:
-            size: Размер шрифта
-            
-        Returns:
-            ImageFont: Объект шрифта
-        """
-        def _load_font():
-            return self._get_font(size)
-        
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _load_font)
-    
-    def _get_font(self, size: int) -> ImageFont.ImageFont:
-        """
-        Получает шрифт нужного размера с поддержкой Unicode.
-        
-        Args:
-            size: Размер шрифта
-            
-        Returns:
-            ImageFont: Объект шрифта
-        """
-        try:
-            # Шрифты с поддержкой Unicode (включая китайские иероглифы)
-            unicode_font_paths = [
-                # Windows - Unicode шрифты
-                "C:/Windows/Fonts/msyh.ttc",           # Microsoft YaHei
-                "C:/Windows/Fonts/simsun.ttc",         # SimSun
-                "C:/Windows/Fonts/arial.ttf",          # Arial (частичная поддержка)
-                
-                # macOS - Unicode шрифты  
-                "/System/Library/Fonts/PingFang.ttc",  # PingFang SC
-                "/System/Library/Fonts/Arial.ttf",
-                "/System/Library/Fonts/Helvetica.ttc",
-                
-                # Linux - Noto шрифты (отличная поддержка Unicode)
-                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
-                
-                # Linux - дополнительные Unicode шрифты
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-                "/usr/share/fonts/truetype/droid/DroidSansFallback.ttf",
-                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-                
-                # Linux - системные пути
-                "/usr/share/fonts/TTF/DejaVuSans.ttf",
-                "/usr/share/fonts/TTF/arial.ttf",
-                "/usr/local/share/fonts/arial.ttf",
-                
-                # Дополнительные пути для китайских шрифтов
-                "/usr/share/fonts/chinese/TrueType/uming.ttf",
-                "/usr/share/fonts/truetype/arphic/uming.ttf",
-            ]
-            
-            for font_path in unicode_font_paths:
-                if os.path.exists(font_path):
-                    try:
-                        font = ImageFont.truetype(font_path, size)
-                        
-                        # Тестируем шрифт на китайском символе
-                        test_char = "得"
-                        temp_img = Image.new('RGB', (100, 100), (255, 255, 255))
-                        temp_draw = ImageDraw.Draw(temp_img)
-                        
-                        try:
-                            bbox = temp_draw.textbbox((0, 0), test_char, font=font)
-                            # Если bbox имеет ненулевые размеры, шрифт поддерживает символ
-                            if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
-                                logger.info(f"Using Unicode font: {font_path} (size: {size})")
-                                return font
-                            else:
-                                logger.debug(f"Font {font_path} doesn't support Unicode characters")
-                        except Exception:
-                            logger.debug(f"Font {font_path} failed Unicode test")
-                            
-                    except Exception as e:
-                        logger.debug(f"Could not load font {font_path}: {e}")
-                        continue
-            
-            # Если Unicode шрифты не найдены, пробуем системные
-            logger.warning("No Unicode fonts found, trying system fonts...")
-            basic_fonts = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            ]
-            
-            for font_path in basic_fonts:
-                if os.path.exists(font_path):
-                    try:
-                        font = ImageFont.truetype(font_path, size)
-                        logger.warning(f"Using basic font: {font_path} (may not support all characters)")
-                        return font
-                    except Exception:
-                        continue
-            
-            # Последний resort - дефолтный шрифт
-            logger.error("No suitable fonts found, using default font (limited Unicode support)")
-            return ImageFont.load_default()
-            
-        except Exception as e:
-            logger.error(f"Error loading font: {e}")
-            return ImageFont.load_default()
     
     async def _save_temp_file(self, image: Image.Image, word: str):
         """
@@ -390,12 +241,8 @@ def get_big_word_generator() -> BigWordGenerator:
     """
     Получает глобальный экземпляр генератора изображений.
     
-    Args:
-        temp_dir: Директория для временных файлов
-        config: Конфигурация генератора
-        
     Returns:
-        WordImageGenerator: Экземпляр генератора
+        BigWordGenerator: Экземпляр генератора
     """
     global _generator_instance
     if _generator_instance is None:
@@ -413,8 +260,6 @@ async def generate_big_word(
     Args:
         word: Слово для отображения
         transcription: Транскрипция (опционально)
-        temp_dir: Директория для временных файлов
-        config: Конфигурация генератора (включая размеры шрифтов)
         
     Returns:
         io.BytesIO: Изображение в памяти

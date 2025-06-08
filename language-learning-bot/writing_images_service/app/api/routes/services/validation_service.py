@@ -35,7 +35,7 @@ class ValidationService:
     def __init__(self):
         """Initialize validation service."""
         self._load_config()
-        logger.info("ValidationService initialized")
+        logger.info("ValidationService initialized with universal language support")
     
     def _load_config(self):
         """Load validation configuration."""
@@ -48,15 +48,14 @@ class ValidationService:
         self.min_quality = 1
         self.max_quality = 100
         
-        # Supported languages and styles
-        self.supported_languages = {
-            'chinese', 'japanese', 'korean', 'english', 'russian', 
-            'arabic', 'hindi', 'spanish', 'french', 'german', 'italian'
-        }
+        # Universal language support - no restrictions
+        self.universal_language_support = True
         
-        self.supported_styles = {
+        # Common styles (informational only, no restrictions)
+        self.common_styles = {
             'traditional', 'simplified', 'calligraphy', 'print', 'cursive',
-            'hiragana', 'katakana', 'kanji', 'hangul'
+            'hiragana', 'katakana', 'kanji', 'hangul', 'naskh', 'nastaliq', 
+            'devanagari', 'bold', 'italic', 'regular'
         }
         
         try:
@@ -71,11 +70,6 @@ class ValidationService:
                     self.max_width = limits.get('max_width', self.max_width)
                     self.min_height = limits.get('min_height', self.min_height)
                     self.max_height = limits.get('max_height', self.max_height)
-                
-                # Load supported languages from config
-                if hasattr(gen_config, 'languages'):
-                    config_languages = set(gen_config.languages.keys())
-                    self.supported_languages.update(config_languages)
                     
         except Exception as e:
             logger.warning(f"Could not load validation config, using defaults: {e}")
@@ -99,12 +93,12 @@ class ValidationService:
         errors.extend(word_validation['errors'])
         warnings.extend(word_validation['warnings'])
         
-        # Validate language
+        # Validate language (universal support)
         language_validation = self._validate_language(request.language)
         errors.extend(language_validation['errors'])
         warnings.extend(language_validation['warnings'])
         
-        # Validate style
+        # Validate style (permissive)
         style_validation = self._validate_style(request.style)
         errors.extend(style_validation['errors'])
         warnings.extend(style_validation['warnings'])
@@ -119,17 +113,11 @@ class ValidationService:
         errors.extend(quality_validation['errors'])
         warnings.extend(quality_validation['warnings'])
         
-        # Check language-style compatibility
-        compatibility_validation = self._validate_language_style_compatibility(
-            request.language, request.style
-        )
-        warnings.extend(compatibility_validation['warnings'])
-        
         # Create sanitized data
         sanitized_data = {
             'word': request.word.strip(),
-            'language': request.language.lower(),
-            'style': request.style.lower(),
+            'language': request.language.lower().strip(),
+            'style': request.style.lower().strip(),
             'width': max(self.min_width, min(self.max_width, request.width)),
             'height': max(self.min_height, min(self.max_height, request.height)),
             'quality': max(self.min_quality, min(self.max_quality, request.quality)),
@@ -236,7 +224,7 @@ class ValidationService:
         return {'errors': errors, 'warnings': warnings}
     
     def _validate_language(self, language: str) -> Dict[str, List[str]]:
-        """Validate language parameter."""
+        """Validate language parameter with universal support."""
         errors = []
         warnings = []
         
@@ -244,19 +232,22 @@ class ValidationService:
             errors.append("Language cannot be empty")
             return {'errors': errors, 'warnings': warnings}
         
-        language_lower = language.lower()
+        language_clean = language.strip().lower()
         
-        if language_lower not in self.supported_languages:
-            warnings.append(f"Language '{language}' may not be fully supported")
+        # Very basic validation - just check for reasonable format
+        if not re.match(r'^[a-z][a-z0-9_-]{1,19}$', language_clean):
+            warnings.append("Language code should contain only lowercase letters, numbers, hyphens and underscores")
         
-        # Check for valid language code format
-        if not re.match(r'^[a-z]{2,10}$', language_lower):
-            warnings.append("Language code should contain only lowercase letters")
+        # No language restrictions - all languages are supported
+        if len(language_clean) < 2:
+            warnings.append("Language code seems very short")
+        elif len(language_clean) > 20:
+            warnings.append("Language code seems unusually long")
         
         return {'errors': errors, 'warnings': warnings}
     
     def _validate_style(self, style: str) -> Dict[str, List[str]]:
-        """Validate style parameter."""
+        """Validate style parameter with permissive approach."""
         errors = []
         warnings = []
         
@@ -264,10 +255,15 @@ class ValidationService:
             warnings.append("Style not specified, using default")
             return {'errors': errors, 'warnings': warnings}
         
-        style_lower = style.lower()
+        style_clean = style.strip().lower()
         
-        if style_lower not in self.supported_styles:
-            warnings.append(f"Style '{style}' may not be supported, will use default")
+        # Basic format validation
+        if not re.match(r'^[a-z][a-z0-9_-]{0,19}$', style_clean):
+            warnings.append("Style should contain only lowercase letters, numbers, hyphens and underscores")
+        
+        # Informational note about common styles
+        if style_clean not in self.common_styles:
+            warnings.append(f"Style '{style}' is not commonly used, but will be accepted")
         
         return {'errors': errors, 'warnings': warnings}
     
@@ -313,28 +309,6 @@ class ValidationService:
         
         return {'errors': errors, 'warnings': warnings}
     
-    def _validate_language_style_compatibility(self, language: str, style: str) -> Dict[str, List[str]]:
-        """Validate language and style compatibility."""
-        errors = []
-        warnings = []
-        
-        # Define incompatible combinations
-        incompatible_combinations = {
-            'english': ['traditional', 'simplified', 'kanji', 'hiragana', 'katakana', 'hangul'],
-            'chinese': ['hiragana', 'katakana', 'hangul'],
-            'japanese': ['traditional', 'simplified', 'hangul'],
-            'korean': ['traditional', 'simplified', 'kanji', 'hiragana', 'katakana']
-        }
-        
-        language_lower = language.lower()
-        style_lower = style.lower()
-        
-        if language_lower in incompatible_combinations:
-            if style_lower in incompatible_combinations[language_lower]:
-                warnings.append(f"Style '{style}' may not be appropriate for language '{language}'")
-        
-        return {'errors': errors, 'warnings': warnings}
-    
     def get_validation_rules(self) -> Dict[str, Any]:
         """
         Get current validation rules and limits.
@@ -353,12 +327,21 @@ class ValidationService:
                 'min_quality': self.min_quality,
                 'max_quality': self.max_quality
             },
-            'supported_languages': sorted(list(self.supported_languages)),
-            'supported_styles': sorted(list(self.supported_styles)),
+            'language_support': {
+                'universal': True,
+                'message': 'All languages are supported. Service automatically adapts to any language.',
+                'format_requirements': 'Lowercase letters, numbers, hyphens and underscores, 2-20 characters'
+            },
+            'style_support': {
+                'permissive': True,
+                'message': 'All styles are accepted. Service will use the most appropriate rendering.',
+                'common_styles': sorted(list(self.common_styles)),
+                'format_requirements': 'Lowercase letters, numbers, hyphens and underscores, 1-20 characters'
+            },
             'requirements': {
                 'word': 'Non-empty string, max 50 characters, no control characters',
-                'language': 'Lowercase language code',
-                'style': 'Supported writing style',
+                'language': 'Any language code, 2-20 characters',
+                'style': 'Any style name, 1-20 characters',
                 'dimensions': f'{self.min_width}-{self.max_width}x{self.min_height}-{self.max_height} pixels',
                 'quality': f'{self.min_quality}-{self.max_quality}'
             }

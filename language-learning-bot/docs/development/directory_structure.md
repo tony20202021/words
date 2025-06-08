@@ -175,7 +175,7 @@ frontend/
 │       ├── voice_recognition.py
 │       ├── voice_utils.py
 │       ├── word_data_utils.py
-│       └── word_image_generator.py
+│       └── big_word_generator.py      # Генератор крупных изображений слов
 ├── conf/
 │   ├── __init__.py
 │   └── config/
@@ -241,7 +241,7 @@ frontend/
 │   │   ├── test_callback_constants.py
 │   │   ├── test_centralized_states.py
 │   │   ├── test_voice_utils.py
-│   │   ├── test_word_image_generator.py
+│   │   ├── test_big_word_generator.py     # Тесты генератора изображений
 │   │   ├── test_hint_settings_utils.py
 │   │   ├── test_state_models.py
 │   │   └── test_batch_loading.py
@@ -324,18 +324,18 @@ writing_service/
 │   ├── main_writing_service.py
 │   ├── api/
 │   │   ├── __init__.py
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── requests.py
-│   │   │   └── responses.py
 │   │   └── routes/
 │   │       ├── __init__.py
+│   │       ├── models/
+│   │       │   ├── __init__.py
+│   │       │   ├── requests.py
+│   │       │   └── responses.py
 │   │       ├── writing_images.py
 │   │       └── health.py
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── writing_image_service.py
-│   │   └── validation_service.py
+│   │   ├── writing_image_service.py      # Обновлен: использует ImageProcessor
+│   │   └── validation_service.py         # Обновлен: универсальная поддержка языков
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── config.py
@@ -344,7 +344,7 @@ writing_service/
 │   └── utils/
 │       ├── __init__.py
 │       ├── config_holder.py
-│       ├── image_utils.py
+│       ├── image_utils.py                # Обновлен: использует common/utils/font_utils.py
 │       └── logger.py
 ├── conf/
 │   ├── __init__.py
@@ -352,7 +352,7 @@ writing_service/
 │       ├── __init__.py
 │       ├── default.yaml
 │       ├── api.yaml
-│       ├── generation.yaml
+│       ├── generation.yaml               # Обновлен: убраны ограничения по языкам
 │       └── logging.yaml
 ├── logs/
 │   └── writing_service.log
@@ -363,8 +363,8 @@ writing_service/
     ├── conftest.py
     ├── test_health.py
     ├── test_writing_images.py
-    ├── test_validation_service.py
-    └── test_writing_image_service.py
+    ├── test_validation_service.py         # Обновлен: тесты универсальной поддержки
+    └── test_writing_image_service.py      # Обновлен: тесты с ImageProcessor
 ```
 
 ## Общие модули (Common)
@@ -374,12 +374,13 @@ common/
 ├── __init__.py
 ├── utils/
 │   ├── __init__.py
-│   ├── logger.py
-│   └── [другие утилиты]
+│   ├── font_utils.py                     # НОВЫЙ: Общий FontManager для всех сервисов
+│   └── logger.py
 └── tests/
     ├── __init__.py
     ├── conftest.py
-    └── test_utils_logger.py
+    ├── test_utils_logger.py
+    └── test_font_utils.py                # НОВЫЙ: Тесты FontManager
 ```
 
 ## Служебные скрипты
@@ -394,4 +395,3 @@ scripts/
 ├── admin_manager.py
 └── create_user_language_settings_collection.py
 ```
-

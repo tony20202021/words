@@ -1,5 +1,5 @@
 # Конфигурация генерации картинок написания
-# Этот файл должен быть сохранен как writing_images_service/conf/config/generation.yaml
+# Этот файл должен быть сохранен как writing_service/conf/config/generation.yaml
 
 # Настройки по умолчанию для генерации
 generation_defaults:
@@ -10,8 +10,8 @@ generation_defaults:
   # Качество изображения (1-100)
   quality: 90
   
-  # Стиль написания
-  style: "traditional"  # traditional, simplified, calligraphy
+  # Стиль написания (по умолчанию, может быть любой)
+  style: "traditional"
   
   # Показывать ли направляющие линии
   show_guidelines: true
@@ -34,28 +34,6 @@ fonts:
   stroke_width: 2
   # Размер направляющих линий
   guideline_width: 1
-
-# Поддерживаемые языки и их настройки
-languages:
-  chinese:
-    name: "Chinese"
-    styles: ["traditional", "simplified", "calligraphy"]
-    default_style: "traditional"
-    
-  japanese:
-    name: "Japanese"
-    styles: ["hiragana", "katakana", "kanji"]
-    default_style: "kanji"
-    
-  korean:
-    name: "Korean"
-    styles: ["hangul"]
-    default_style: "hangul"
-    
-  english:
-    name: "English"
-    styles: ["print", "cursive"]
-    default_style: "print"
 
 # Ограничения и валидация
 limits:
@@ -89,4 +67,32 @@ stub:
   # Текст заглушки
   title_text: "Writing Image"
   subtitle_text: "(Development Stub)"
+
+# Настройки производительности
+performance:
+  # Максимальное количество одновременных генераций
+  max_concurrent_generations: 5
+  
+  # Таймаут генерации одного изображения
+  generation_timeout_seconds: 30
+  
+  # Включить кэширование результатов
+  enable_caching: true
+  
+  # Максимальный размер кэша
+  cache_max_size: 100
+  
+  # Время жизни кэша в секундах
+  cache_ttl_seconds: 3600
+
+# Настройки временных файлов
+temp_files:
+  # Автоматическая очистка временных файлов
+  auto_cleanup: true
+  
+  # Интервал очистки в секундах
+  cleanup_interval_seconds: 300
+  
+  # Максимальный возраст файлов для удаления в секундах
+  max_file_age_seconds: 1800
   

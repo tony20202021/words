@@ -4,17 +4,16 @@ Writing image generation service.
 STUB IMPLEMENTATION - returns placeholder images for development.
 """
 
-import io
 import base64
 import time
 import asyncio
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
 
 from app.api.routes.models.requests import WritingImageRequest
 from app.api.routes.models.responses import WritingImageMetadata
+from app.utils.image_utils import get_image_processor, ImageProcessor
 from app.utils import config_holder
 
 logger = logging.getLogger(__name__)
@@ -53,6 +52,7 @@ class WritingImageService:
         """Initialize the writing image service."""
         self.generation_count = 0
         self.start_time = time.time()
+        self.image_processor = get_image_processor()
         
         # Load configuration
         self._load_config()
@@ -62,22 +62,24 @@ class WritingImageService:
     def _load_config(self):
         """Load configuration from Hydra config."""
         # Default values
-        self.default_width = 400
-        self.default_height = 400
+        self.default_width = 600
+        self.default_height = 600
         self.bg_color = (240, 240, 240)
         self.border_color = (180, 180, 180)
         self.text_color = (120, 120, 120)
         self.font_size = 24
+        self.show_guidelines_default = True
         
         try:
             if hasattr(config_holder, 'cfg') and hasattr(config_holder.cfg, 'generation'):
                 gen_config = config_holder.cfg.generation
                 
                 # Default settings
-                if hasattr(gen_config, 'defaults'):
-                    defaults = gen_config.defaults
+                if hasattr(gen_config, 'generation_defaults'):
+                    defaults = gen_config.generation_defaults
                     self.default_width = defaults.get('width', self.default_width)
                     self.default_height = defaults.get('height', self.default_height)
+                    self.show_guidelines_default = defaults.get('show_guidelines', self.show_guidelines_default)
                 
                 # Stub settings
                 if hasattr(gen_config, 'stub'):
@@ -99,7 +101,7 @@ class WritingImageService:
     async def generate_image(self, request: WritingImageRequest) -> GenerationResult:
         """
         Generate writing image for the given request.
-        STUB IMPLEMENTATION - generates placeholder image.
+        STUB IMPLEMENTATION - generates placeholder image using ImageProcessor.
         
         Args:
             request: Writing image generation request
@@ -115,19 +117,31 @@ class WritingImageService:
             # Simulate some processing time
             await asyncio.sleep(0.1)
             
-            # Generate stub image
-            image_buffer = await self._generate_stub_image(
+            # Use requested dimensions or defaults
+            width = request.width if request.width else self.default_width
+            height = request.height if request.height else self.default_height
+            
+            # Generate stub image using ImageProcessor
+            image = await self._generate_stub_image_with_processor(
                 word=request.word,
                 language=request.language,
                 style=request.style,
-                width=request.width,
-                height=request.height
+                width=width,
+                height=height,
+                show_guidelines=request.show_guidelines
             )
             
-            # Convert to base64
-            image_buffer.seek(0)
-            image_data = image_buffer.read()
-            image_data_base64 = base64.b64encode(image_data).decode('utf-8')
+            # Convert to bytes and base64
+            image_data = await self.image_processor.image_to_bytes(
+                image, 
+                format="PNG", 
+                quality=request.quality
+            )
+            image_data_base64 = await self.image_processor.image_to_base64(
+                image, 
+                format="PNG", 
+                quality=request.quality
+            )
             
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
@@ -137,8 +151,8 @@ class WritingImageService:
                 word=request.word,
                 language=request.language,
                 style=request.style,
-                width=request.width,
-                height=request.height,
+                width=width,
+                height=height,
                 format="png",
                 size_bytes=len(image_data),
                 generation_time_ms=generation_time_ms,
@@ -167,17 +181,18 @@ class WritingImageService:
                 error=f"Generation failed: {str(e)}"
             )
     
-    async def _generate_stub_image(
+    async def _generate_stub_image_with_processor(
         self, 
         word: str, 
         language: str,
         style: str,
         width: int,
-        height: int
-    ) -> io.BytesIO:
+        height: int,
+        show_guidelines: bool = True
+    ):
         """
-        Generate stub image for development.
-        Генерирует заглушку изображения для разработки.
+        Generate stub image using ImageProcessor.
+        Генерирует заглушку изображения используя ImageProcessor.
         
         Args:
             word: Word to display
@@ -185,129 +200,76 @@ class WritingImageService:
             style: Writing style
             width: Image width
             height: Image height
+            show_guidelines: Whether to show guidelines
             
         Returns:
-            io.BytesIO: Image buffer
+            PIL.Image: Generated image
         """
-        # Use requested dimensions or defaults
-        img_width = width if width else self.default_width
-        img_height = height if height else self.default_height
+        # Create base image
+        image = await self.image_processor.create_image(width, height, self.bg_color)
         
-        # Create image
-        image = Image.new('RGB', (img_width, img_height), self.bg_color)
-        draw = ImageDraw.Draw(image)
-        
-        # Draw border
-        border_width = 2
-        draw.rectangle(
-            [border_width, border_width, img_width-border_width, img_height-border_width],
-            outline=self.border_color,
-            width=border_width
+        # Add border
+        image = await self.image_processor.add_border_to_image(
+            image, 
+            border_width=2, 
+            border_color=self.border_color
         )
         
-        # Load font
-        try:
-            font = ImageFont.load_default()
-        except Exception:
-            font = None
+        # Add guidelines if requested
+        if show_guidelines:
+            image = await self.image_processor.add_guidelines_to_image(
+                image,
+                guideline_color=(220, 220, 220),
+                guideline_width=1
+            )
         
-        # Main title
+        # Add title text
         title_text = "Writing Image"
-        if font:
-            bbox = draw.textbbox((0, 0), title_text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-        else:
-            text_width, text_height = len(title_text) * 8, 20
-        
-        title_x = (img_width - text_width) // 2
-        title_y = (img_height - text_height) // 2 - 60
-        
-        draw.text(
-            (title_x, title_y),
-            title_text,
-            fill=self.text_color,
-            font=font
+        title_pos = await self.image_processor.center_text_position(
+            width, height, title_text, self.font_size, offset_y=-60
+        )
+        image = await self.image_processor.add_text_to_image(
+            image, title_text, title_pos, self.font_size, self.text_color
         )
         
-        # Word text
+        # Add word text
         word_text = f"Word: {word}"
-        if font:
-            bbox = draw.textbbox((0, 0), word_text, font=font)
-            text_width = bbox[2] - bbox[0]
-        else:
-            text_width = len(word_text) * 8
-        
-        word_x = (img_width - text_width) // 2
-        word_y = title_y + 40
-        
-        draw.text(
-            (word_x, word_y),
-            word_text,
-            fill=self.text_color,
-            font=font
+        word_pos = await self.image_processor.center_text_position(
+            width, height, word_text, self.font_size, offset_y=-20
+        )
+        image = await self.image_processor.add_text_to_image(
+            image, word_text, word_pos, self.font_size, self.text_color
         )
         
-        # Language and style
+        # Add language text
         lang_text = f"Language: {language}"
-        if font:
-            bbox = draw.textbbox((0, 0), lang_text, font=font)
-            text_width = bbox[2] - bbox[0]
-        else:
-            text_width = len(lang_text) * 8
-        
-        lang_x = (img_width - text_width) // 2
-        lang_y = word_y + 30
-        
-        draw.text(
-            (lang_x, lang_y),
-            lang_text,
-            fill=self.text_color,
-            font=font
+        lang_pos = await self.image_processor.center_text_position(
+            width, height, lang_text, self.font_size, offset_y=20
+        )
+        image = await self.image_processor.add_text_to_image(
+            image, lang_text, lang_pos, self.font_size, self.text_color
         )
         
-        # Style text
+        # Add style text
         style_text = f"Style: {style}"
-        if font:
-            bbox = draw.textbbox((0, 0), style_text, font=font)
-            text_width = bbox[2] - bbox[0]
-        else:
-            text_width = len(style_text) * 8
-        
-        style_x = (img_width - text_width) // 2
-        style_y = lang_y + 30
-        
-        draw.text(
-            (style_x, style_y),
-            style_text,
-            fill=self.text_color,
-            font=font
+        style_pos = await self.image_processor.center_text_position(
+            width, height, style_text, self.font_size, offset_y=60
+        )
+        image = await self.image_processor.add_text_to_image(
+            image, style_text, style_pos, self.font_size, self.text_color
         )
         
-        # Stub indicator
+        # Add stub indicator
         stub_text = "(Development Stub)"
-        if font:
-            bbox = draw.textbbox((0, 0), stub_text, font=font)
-            text_width = bbox[2] - bbox[0]
-        else:
-            text_width = len(stub_text) * 6
-        
-        stub_x = (img_width - text_width) // 2
-        stub_y = style_y + 40
-        
-        draw.text(
-            (stub_x, stub_y),
-            stub_text,
-            fill=self.text_color,
-            font=font
+        stub_pos = await self.image_processor.center_text_position(
+            width, height, stub_text, int(self.font_size * 0.8), offset_y=100
+        )
+        image = await self.image_processor.add_text_to_image(
+            image, stub_text, stub_pos, int(self.font_size * 0.8), 
+            (160, 160, 160)  # Lighter color for stub indicator
         )
         
-        # Save to buffer
-        image_buffer = io.BytesIO()
-        image.save(image_buffer, format='PNG', quality=95, optimize=True)
-        image_buffer.seek(0)
-        
-        return image_buffer
+        return image
     
     async def get_service_status(self) -> Dict[str, Any]:
         """
@@ -325,44 +287,16 @@ class WritingImageService:
             "version": "1.0.0",
             "uptime_seconds": uptime_seconds,
             "total_generations": self.generation_count,
-            "implementation": "stub",
-            "supported_languages": [
-                "chinese", "japanese", "korean", "english", 
-                "russian", "arabic", "hindi", "spanish", "french"
-            ],
+            "implementation": "stub_with_image_processor",
             "supported_formats": ["png"],
             "max_image_size": {"width": 2048, "height": 2048},
-            "default_image_size": {"width": 600, "height": 600}
-        }
-    
-    async def get_supported_languages(self) -> Dict[str, Any]:
-        """
-        Get supported languages and their options.
-        Получает поддерживаемые языки и их параметры.
-        
-        Returns:
-            Dict with language information
-        """
-        return {
-            "chinese": {
-                "name": "Chinese",
-                "styles": ["traditional", "simplified", "calligraphy"],
-                "default_style": "traditional"
-            },
-            "japanese": {
-                "name": "Japanese", 
-                "styles": ["hiragana", "katakana", "kanji"],
-                "default_style": "kanji"
-            },
-            "korean": {
-                "name": "Korean",
-                "styles": ["hangul"],
-                "default_style": "hangul"
-            },
-            "english": {
-                "name": "English",
-                "styles": ["print", "cursive"],
-                "default_style": "print"
+            "default_image_size": {"width": self.default_width, "height": self.default_height},
+            "features": {
+                "guidelines": True,
+                "borders": True,
+                "text_centering": True,
+                "async_processing": True,
+                "universal_language_support": True
             }
         }
     

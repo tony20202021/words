@@ -12,6 +12,8 @@ from typing import Tuple, Optional, Dict, Any
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 
+from common.utils.font_utils import get_font_manager, FontManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +26,7 @@ class ImageProcessor:
     def __init__(self):
         """Initialize image processor."""
         self.temp_dir = "./temp/generated_images"
+        self.font_manager = get_font_manager()
         self._ensure_temp_dir()
     
     def _ensure_temp_dir(self):
@@ -63,8 +66,8 @@ class ImageProcessor:
         font_path: Optional[str] = None
     ) -> Image.Image:
         """
-        Add text to an image.
-        Добавляет текст к изображению.
+        Add text to an image with Unicode support.
+        Добавляет текст к изображению с поддержкой Unicode.
         
         Args:
             image: PIL Image object
@@ -79,20 +82,73 @@ class ImageProcessor:
         """
         draw = ImageDraw.Draw(image)
         
-        # Load font
-        try:
-            if font_path and os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, font_size)
-            else:
-                font = ImageFont.load_default()
-        except Exception as e:
-            logger.warning(f"Failed to load font: {e}, using default")
-            font = ImageFont.load_default()
+        # Get Unicode font
+        font = await self.font_manager.get_font_async(font_size, font_path)
         
         # Draw text
         draw.text(position, text, fill=text_color, font=font)
         
         return image
+    
+    async def add_auto_fit_text(
+        self,
+        image: Image.Image,
+        text: str,
+        max_width: int,
+        max_height: int,
+        initial_font_size: int = 80,
+        min_font_size: int = 12,
+        text_color: Tuple[int, int, int] = (0, 0, 0),
+        font_path: Optional[str] = None,
+        center_horizontal: bool = True,
+        center_vertical: bool = True,
+        offset_x: int = 0,
+        offset_y: int = 0
+    ) -> Tuple[Image.Image, int]:
+        """
+        Add text with automatic font size fitting.
+        Добавляет текст с автоматическим подбором размера шрифта.
+        
+        Args:
+            image: PIL Image object
+            text: Text to add
+            max_width: Maximum text width
+            max_height: Maximum text height
+            initial_font_size: Starting font size
+            min_font_size: Minimum font size
+            text_color: RGB text color
+            font_path: Path to font file (optional)
+            center_horizontal: Center text horizontally
+            center_vertical: Center text vertically
+            offset_x: X offset from center
+            offset_y: Y offset from center
+            
+        Returns:
+            Tuple of (modified image, final font size)
+        """
+        # Auto-fit font size
+        font, final_font_size, text_width, text_height = await self.font_manager.auto_fit_font_size(
+            text, max_width, max_height, initial_font_size, min_font_size, font_path
+        )
+        
+        # Calculate position
+        image_width, image_height = image.size
+        
+        if center_horizontal:
+            x = (image_width - text_width) // 2 + offset_x
+        else:
+            x = offset_x
+            
+        if center_vertical:
+            y = (image_height - text_height) // 2 + offset_y
+        else:
+            y = offset_y
+        
+        # Draw text
+        draw = ImageDraw.Draw(image)
+        draw.text((x, y), text, fill=text_color, font=font)
+        
+        return image, final_font_size
     
     async def add_border_to_image(
         self,
@@ -251,8 +307,8 @@ class ImageProcessor:
         font_path: Optional[str] = None
     ) -> Tuple[int, int]:
         """
-        Calculate the size of text when rendered.
-        Вычисляет размер текста при отображении.
+        Calculate the size of text when rendered with Unicode support.
+        Вычисляет размер текста при отображении с поддержкой Unicode.
         
         Args:
             text: Text to measure
@@ -262,23 +318,7 @@ class ImageProcessor:
         Returns:
             (width, height) of rendered text
         """
-        try:
-            if font_path and os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, font_size)
-            else:
-                font = ImageFont.load_default()
-        except Exception:
-            font = ImageFont.load_default()
-        
-        # Create temporary image to measure text
-        temp_image = Image.new('RGB', (1, 1))
-        draw = ImageDraw.Draw(temp_image)
-        
-        bbox = draw.textbbox((0, 0), text, font=font)
-        width = bbox[2] - bbox[0]
-        height = bbox[3] - bbox[1]
-        
-        return (width, height)
+        return await self.font_manager.calculate_text_size_async(text, font_size, font_path)
     
     async def center_text_position(
         self,
@@ -291,8 +331,8 @@ class ImageProcessor:
         offset_y: int = 0
     ) -> Tuple[int, int]:
         """
-        Calculate position to center text in an image.
-        Вычисляет позицию для центрирования текста в изображении.
+        Calculate position to center text in an image with Unicode support.
+        Вычисляет позицию для центрирования текста в изображении с поддержкой Unicode.
         
         Args:
             image_width: Width of image
@@ -368,8 +408,8 @@ async def create_placeholder_image(
     border_color: Tuple[int, int, int] = (180, 180, 180)
 ) -> bytes:
     """
-    Create a placeholder image with text.
-    Создает изображение-заглушку с текстом.
+    Create a placeholder image with text and Unicode support.
+    Создает изображение-заглушку с текстом и поддержкой Unicode.
     
     Args:
         width: Image width
@@ -390,9 +430,16 @@ async def create_placeholder_image(
     # Add border
     image = await processor.add_border_to_image(image, 2, border_color)
     
-    # Add text
-    text_pos = await processor.center_text_position(width, height, text)
-    image = await processor.add_text_to_image(image, text, text_pos, 24, text_color)
+    # Add text with auto-fit
+    margin = 20
+    image, _ = await processor.add_auto_fit_text(
+        image, 
+        text, 
+        width - 2 * margin, 
+        height - 2 * margin,
+        initial_font_size=min(width, height) // 10,
+        text_color=text_color
+    )
     
     # Convert to bytes
     return await processor.image_to_bytes(image)
