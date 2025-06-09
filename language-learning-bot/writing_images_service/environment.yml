@@ -1,0 +1,81 @@
+name: amikhalev_writing_images_service
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip>=23.0
+  
+  # ============ SYSTEM DEPENDENCIES ============
+  - conda-forge::ffmpeg  # Убрана конкретная версия
+  - conda-forge::git-lfs  # Убрана конкретная версия
+  
+  # ============ PYTORCH FROM CONDA (доступные версии) ============
+  - pytorch::pytorch>=2.0.0
+  - pytorch::torchvision
+  - pytorch::torchaudio
+  - pytorch::pytorch-cuda=11.8  # Изменена на доступную версию
+  
+  # ============ SCIENTIFIC COMPUTING ============
+  - conda-forge::numpy
+  - conda-forge::scipy
+  - conda-forge::scikit-learn
+  - conda-forge::pandas
+  
+  # ============ IMAGE PROCESSING ============
+  - conda-forge::opencv  # Убрана конкретная версия
+  - conda-forge::pillow
+  - conda-forge::imageio
+  
+  # ============ DEVELOPMENT TOOLS ============
+  - conda-forge::jupyter
+  - conda-forge::ipython
+  - conda-forge::notebook
+  
+  # ============ MONITORING ============
+  - conda-forge::psutil
+  
+  # ============ PIP DEPENDENCIES ============
+  - pip:
+      - -r requirements.txt
+
+# ==================================================
+# АЛЬТЕРНАТИВНАЯ УСТАНОВКА (если conda env не работает)
+# ==================================================
+
+# Вариант 1: Минимальная conda установка
+# conda create -n amikhalev_language_learning_bot_ai python=3.10 pip -y
+# conda activate amikhalev_language_learning_bot_ai
+# pip install -r requirements.txt
+
+# Вариант 2: Установка PyTorch отдельно
+# conda activate amikhalev_language_learning_bot_ai
+# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+# pip install -r requirements.txt
+
+# Вариант 3: Полная pip установка
+# python -m venv venv
+# source venv/bin/activate  # или venv\Scripts\activate на Windows
+# pip install --upgrade pip
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# pip install -r requirements.txt
+
+# ==================================================
+# ПРОВЕРКА ДОСТУПНЫХ ПАКЕТОВ
+# ==================================================
+
+# Проверить доступные версии PyTorch:
+# conda search pytorch -c pytorch
+
+# Проверить доступные CUDA версии:
+# conda search pytorch-cuda -c pytorch -c nvidia
+
+# Проверить NVIDIA драйвер:
+# nvidia-smi
+
+# ==================================================
+# УПРОЩЕННАЯ УСТАНОВКА ДЛЯ НЕМЕДЛЕННОГО ЗАПУСКА
+# ==================================================
