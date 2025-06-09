@@ -1,226 +1,395 @@
 """
-Response models for writing image generation service.
-Модели ответов для сервиса генерации картинок написания.
+API response models for AI image generation.
+Модели ответов API для AI генерации изображений.
 """
 
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
+from typing import Optional, Dict, List, Any, Union
 from datetime import datetime
+from enum import Enum
 
 
-class WritingImageMetadata(BaseModel):
-    """
-    Metadata for generated writing image.
-    Метаданные для сгенерированной картинки написания.
-    """
-    word: str = Field(..., description="Original word")
-    language: str = Field(..., description="Language code")
-    style: str = Field(..., description="Writing style used")
-    width: int = Field(..., description="Image width")
-    height: int = Field(..., description="Image height")
-    format: str = Field(..., description="Image format (png, jpg)")
-    size_bytes: int = Field(..., description="Image size in bytes")
-    generation_time_ms: Optional[int] = Field(None, description="Generation time in milliseconds")
-    quality: Optional[int] = Field(None, description="Image quality used")
-    show_guidelines: Optional[bool] = Field(None, description="Whether guidelines were shown")
+class GenerationStatus(str, Enum):
+    """Статусы генерации изображений"""
+    SUCCESS = "success"
+    FAILED = "failed"
+    PARTIAL_SUCCESS = "partial_success"
+    IN_PROGRESS = "in_progress"
+    QUEUED = "queued"
+
+
+class ConditioningQuality(str, Enum):
+    """Оценка качества conditioning"""
+    EXCELLENT = "excellent"
+    GOOD = "good"
+    FAIR = "fair"
+    POOR = "poor"
+    FAILED = "failed"
+
+
+@dataclass
+class AIImageResponse:
+    """Ответ на запрос генерации AI изображения"""
+    success: bool
+    status: GenerationStatus
+    generated_image: Optional[str] = None  # base64
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "word": "你好",
-                "language": "chinese",
-                "style": "traditional",
-                "width": 600,
-                "height": 600,
-                "format": "png",
-                "size_bytes": 15234,
-                "generation_time_ms": 1500,
-                "quality": 90,
-                "show_guidelines": True
-            }
-        }
-
-
-class WritingImageResponse(BaseModel):
-    """
-    Response model for writing image generation.
-    Модель ответа для генерации картинки написания.
-    """
-    success: bool = Field(..., description="Whether generation was successful")
-    image_data: Optional[str] = Field(None, description="Base64 encoded image data")
-    format: str = Field(default="png", description="Image format")
-    metadata: Optional[WritingImageMetadata] = Field(None, description="Image metadata")
-    error: Optional[str] = Field(None, description="Error message if generation failed")
+    # Промежуточные результаты
+    conditioning_images: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
+    prompt_used: Optional[str] = None
+    negative_prompt_used: Optional[str] = None
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "image_data": "iVBORw0KGgoAAAANSUhEUgAA...",
-                "format": "png",
-                "metadata": {
-                    "word": "你好",
-                    "language": "chinese",
-                    "style": "traditional",
-                    "width": 600,
-                    "height": 600,
-                    "format": "png",
-                    "size_bytes": 15234,
-                    "generation_time_ms": 1500,
-                    "quality": 90,
-                    "show_guidelines": True
-                },
-                "error": None
-            }
-        }
-
-
-class BatchWritingImageResponse(BaseModel):
-    """
-    Response model for batch writing image generation.
-    Модель ответа для пакетной генерации картинок написания.
-    """
-    success: bool = Field(..., description="Whether batch generation was successful")
-    total_requested: int = Field(..., description="Total number of images requested")
-    total_generated: int = Field(..., description="Total number of images successfully generated")
-    images: List[WritingImageResponse] = Field(..., description="List of generated images")
-    failed_words: List[str] = Field(default_factory=list, description="Words that failed to generate")
-    error: Optional[str] = Field(None, description="General error message if any")
+    # Семантический анализ
+    semantic_analysis: Optional['SemanticAnalysisResult'] = None
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "total_requested": 3,
-                "total_generated": 2,
-                "images": [
-                    {
-                        "success": True,
-                        "image_data": "iVBORw0KGgoAAAANSUhEUgAA...",
-                        "format": "png",
-                        "metadata": {"word": "你好", "language": "chinese"}
-                    }
-                ],
-                "failed_words": ["invalid_word"],
-                "error": None
-            }
-        }
-
-
-class ServiceStatusResponse(BaseModel):
-    """
-    Response model for service status.
-    Модель ответа для статуса сервиса.
-    """
-    status: str = Field(..., description="Service status")
-    version: Optional[str] = Field(None, description="Service version")
-    uptime_seconds: Optional[int] = Field(None, description="Service uptime in seconds")
-    supported_languages: Optional[List[str]] = Field(None, description="List of supported languages")
-    supported_styles: Optional[Dict[str, List[str]]] = Field(None, description="Supported styles per language")
-    max_image_size: Optional[Dict[str, int]] = Field(None, description="Maximum image dimensions")
-    current_load: Optional[Dict[str, Any]] = Field(None, description="Current service load")
+    # Метаданные генерации
+    generation_metadata: Optional['AIGenerationMetadata'] = None
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "status": "healthy",
-                "version": "1.0.0",
-                "uptime_seconds": 3600,
-                "supported_languages": ["chinese", "japanese", "korean"],
-                "supported_styles": {
-                    "chinese": ["traditional", "simplified", "calligraphy"]
-                },
-                "max_image_size": {"width": 2048, "height": 2048},
-                "current_load": {"active_generations": 2, "queue_size": 0}
-            }
-        }
-
-
-class GenerationOptionsResponse(BaseModel):
-    """
-    Response model for generation options.
-    Модель ответа для опций генерации.
-    """
-    success: bool = Field(..., description="Whether request was successful")
-    languages: List[Dict[str, Any]] = Field(..., description="Available languages and their options")
-    default_settings: Dict[str, Any] = Field(..., description="Default generation settings")
-    limits: Dict[str, Any] = Field(..., description="Generation limits")
-    error: Optional[str] = Field(None, description="Error message if any")
+    # Информация об ошибках
+    error: Optional[str] = None
+    warnings: List[str] = field(default_factory=list)
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "languages": [
-                    {
-                        "code": "chinese",
-                        "name": "Chinese",
-                        "styles": ["traditional", "simplified", "calligraphy"],
-                        "default_style": "traditional"
-                    }
-                ],
-                "default_settings": {
-                    "width": 600,
-                    "height": 600,
-                    "quality": 90,
-                    "show_guidelines": True
-                },
-                "limits": {
-                    "max_width": 2048,
-                    "max_height": 2048,
-                    "max_word_length": 50
-                },
-                "error": None
-            }
-        }
+    # Качество результата
+    quality_assessment: Optional['QualityAssessment'] = None
 
 
-class APIResponse(BaseModel):
-    """
-    Generic API response wrapper.
-    Общая обертка для ответов API.
-    """
-    success: bool = Field(..., description="Whether request was successful")
-    status: int = Field(..., description="HTTP status code")
-    result: Optional[Any] = Field(None, description="Response data")
-    error: Optional[str] = Field(None, description="Error message")
-    timestamp: Optional[str] = Field(None, description="Response timestamp")
+@dataclass 
+class AIGenerationMetadata:
+    """Метаданные процесса AI генерации"""
+    # Модели
+    model_used: str
+    controlnet_models_used: Dict[str, str]
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "status": 200,
-                "result": {"message": "Operation completed successfully"},
-                "error": None,
-                "timestamp": "2025-06-05T12:00:00Z"
-            }
-        }
-
-
-class ErrorResponse(BaseModel):
-    """
-    Error response model.
-    Модель ответа с ошибкой.
-    """
-    success: bool = Field(False, description="Always false for error responses")
-    error_code: str = Field(..., description="Error code")
-    error_message: str = Field(..., description="Human-readable error message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
-    timestamp: str = Field(..., description="Error timestamp")
+    # Параметры conditioning
+    conditioning_weights_used: Dict[str, float]
+    conditioning_methods_used: Dict[str, List[str]]
+    conditioning_quality_scores: Dict[str, Dict[str, float]]  # {"canny": {"opencv_canny": 0.8, "hed_canny": 0.9}}
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": False,
-                "error_code": "VALIDATION_ERROR",
-                "error_message": "Invalid word format",
-                "details": {
-                    "field": "word",
-                    "value": "",
-                    "constraint": "min_length"
-                },
-                "timestamp": "2025-06-05T12:00:00Z"
-            }
-        }
-        
+    # Временные метрики
+    generation_time_ms: int
+    conditioning_time_ms: Dict[str, Dict[str, int]]  # {"canny": {"opencv_canny": 150, "hed_canny": 200}}
+    semantic_analysis_time_ms: Optional[int] = None
+    total_processing_time_ms: int = 0
+    
+    # Ресурсы
+    gpu_memory_used_mb: float
+    gpu_memory_peak_mb: float
+    cpu_memory_used_mb: Optional[float] = None
+    
+    # Параметры генерации
+    seed_used: int
+    actual_steps_completed: int
+    guidance_scale_used: float
+    
+    # Статистика модели
+    model_loading_time_ms: Optional[int] = None
+    model_cache_hit: bool = False
+    
+    # Версии и окружение
+    diffusers_version: str = ""
+    torch_version: str = ""
+    cuda_version: str = ""
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class ConditioningResult:
+    """Результаты генерации conditioning изображений"""
+    # Множественные результаты для каждого типа
+    canny_images: Optional[Dict[str, str]] = None      # {"opencv_canny": "base64", "hed_canny": "base64"}
+    depth_images: Optional[Dict[str, str]] = None      # {"stroke_thickness": "base64", "distance_transform": "base64"}
+    segmentation_images: Optional[Dict[str, str]] = None # {"radical_segmentation": "base64", "stroke_type": "base64"}
+    scribble_images: Optional[Dict[str, str]] = None   # {"skeletonization": "base64", "morphological": "base64"}
+    
+    # Метаданные методов
+    methods_used: Dict[str, List[str]] = None          # {"canny": ["opencv_canny", "hed_canny"]}
+    generation_time_ms: Dict[str, Dict[str, int]] = None # {"canny": {"opencv_canny": 150, "hed_canny": 200}}
+    
+    # Оценка качества для каждого метода
+    quality_scores: Dict[str, Dict[str, float]] = None # {"canny": {"opencv_canny": 0.8, "hed_canny": 0.9}}
+    
+    # Рекомендации
+    recommended_methods: Dict[str, str] = None         # {"canny": "hed_canny", "depth": "stroke_thickness"}
+    
+    # Сравнительный анализ
+    method_comparison: Optional['MethodComparisonResult'] = None
+    
+    # Ошибки по методам
+    method_errors: Dict[str, Dict[str, str]] = None    # {"canny": {"hed_canny": "Model not available"}}
+
+
+@dataclass
+class SemanticAnalysisResult:
+    """Результаты семантического анализа иероглифа"""
+    character: str
+    analysis_successful: bool
+    
+    # Базовая информация
+    basic_info: Dict[str, Any] = field(default_factory=dict)  # Unihan данные
+    meanings: List[str] = field(default_factory=list)         # Все значения
+    primary_meaning: str = ""                                 # Основное значение
+    pronunciations: Dict[str, str] = field(default_factory=dict) # {"mandarin": "huǒ", "cantonese": "fo2"}
+    
+    # Структурный анализ
+    radicals: Dict[str, Any] = field(default_factory=dict)    # Анализ радикалов
+    composition: Dict[str, Any] = field(default_factory=dict) # IDS композиция
+    etymology: Dict[str, Any] = field(default_factory=dict)   # Этимология
+    stroke_analysis: Dict[str, Any] = field(default_factory=dict) # Анализ штрихов
+    
+    # Контекстуальный анализ
+    context: Dict[str, Any] = field(default_factory=dict)     # Частотность, коллокации
+    semantic_domains: List[str] = field(default_factory=list) # Семантические области
+    usage_examples: List[str] = field(default_factory=list)   # Примеры использования
+    
+    # Визуальные свойства
+    visual_properties: Dict[str, Any] = field(default_factory=dict) # Визуальные свойства
+    color_associations: List[str] = field(default_factory=list)     # Цветовые ассоциации
+    texture_associations: List[str] = field(default_factory=list)   # Текстурные ассоциации
+    motion_associations: List[str] = field(default_factory=list)    # Ассоциации движения
+    
+    # Элементы для промпта
+    prompt_elements: Dict[str, Any] = field(default_factory=dict)   # Готовые элементы для промпта
+    suggested_modifiers: List[str] = field(default_factory=list)    # Рекомендуемые модификаторы
+    
+    # Метаданные анализа
+    analysis_metadata: Dict[str, Any] = field(default_factory=dict) # Время, версии баз данных
+    confidence_scores: Dict[str, float] = field(default_factory=dict) # Уверенность в разных аспектах
+    data_sources_used: List[str] = field(default_factory=list)      # Использованные источники данных
+    
+    # Предупреждения и ограничения
+    warnings: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PromptAnalysisResult:
+    """Результат анализа и генерации промпта"""
+    character: str
+    translation: str
+    style: str
+    
+    # Сгенерированные промпты
+    main_prompt: str
+    negative_prompt: str
+    prompt_variations: List[str] = field(default_factory=list)
+    
+    # Анализ элементов промпта
+    prompt_elements: Dict[str, List[str]] = field(default_factory=dict) # {"visual": [...], "style": [...]}
+    semantic_contribution: Dict[str, float] = field(default_factory=dict) # Вклад семантики в промпт
+    
+    # Оценки
+    estimated_quality_score: Optional[float] = None     # Оценка ожидаемого качества
+    prompt_complexity_score: float = 0.0                # Сложность промпта
+    semantic_richness_score: float = 0.0                # Семантическая насыщенность
+    
+    # Рекомендации
+    suggestions: List[str] = field(default_factory=list)
+    alternative_approaches: List[str] = field(default_factory=list)
+    
+    # Использованные данные
+    semantic_analysis_used: bool = False
+    visual_elements_used: List[str] = field(default_factory=list)
+    cultural_context_used: List[str] = field(default_factory=list)
+
+
+@dataclass
+class QualityAssessment:
+    """Оценка качества сгенерированного изображения"""
+    overall_score: float  # 0.0 - 1.0
+    
+    # Компонентные оценки
+    visual_coherence: float = 0.0        # Визуальная согласованность
+    semantic_accuracy: float = 0.0       # Семантическая точность
+    style_consistency: float = 0.0       # Соответствие стилю
+    technical_quality: float = 0.0       # Техническое качество
+    
+    # Детальная оценка
+    conditioning_effectiveness: Dict[str, float] = field(default_factory=dict) # Эффективность каждого conditioning
+    prompt_adherence: float = 0.0        # Соответствие промпту
+    
+    # Проблемы и рекомендации
+    identified_issues: List[str] = field(default_factory=list)
+    improvement_suggestions: List[str] = field(default_factory=list)
+    
+    # Автоматическая оценка
+    automated_scores: Dict[str, float] = field(default_factory=dict)
+    confidence_in_assessment: float = 0.0
+
+
+@dataclass
+class MethodComparisonResult:
+    """Результат сравнения различных методов conditioning"""
+    comparison_type: str  # "canny", "depth", "segmentation", "scribble"
+    
+    # Ранжирование методов
+    method_rankings: List[Dict[str, Any]] = field(default_factory=list) # [{"method": "opencv_canny", "score": 0.8, "rank": 1}]
+    
+    # Сравнительные метрики
+    quality_comparison: Dict[str, float] = field(default_factory=dict)    # {"opencv_canny": 0.8, "hed_canny": 0.9}
+    speed_comparison: Dict[str, int] = field(default_factory=dict)        # Время в мс
+    resource_usage: Dict[str, float] = field(default_factory=dict)        # Использование ресурсов
+    
+    # Рекомендации
+    best_method_overall: str = ""
+    best_method_for_speed: str = ""
+    best_method_for_quality: str = ""
+    
+    # Анализ различий
+    visual_differences_description: str = ""
+    use_case_recommendations: Dict[str, str] = field(default_factory=dict) # {"comic_style": "opencv_canny"}
+
+
+@dataclass
+class BatchGenerationResult:
+    """Результат пакетной генерации изображений"""
+    total_requests: int
+    successful_generations: int
+    failed_generations: int
+    
+    # Индивидуальные результаты
+    individual_results: List[AIImageResponse] = field(default_factory=list)
+    
+    # Сводная статистика
+    total_processing_time_ms: int = 0
+    average_generation_time_ms: float = 0.0
+    total_gpu_memory_used_mb: float = 0.0
+    
+    # Ошибки пакета
+    batch_errors: List[str] = field(default_factory=list)
+    
+    # Анализ эффективности пакетной обработки
+    batch_efficiency_score: float = 0.0
+    parallel_processing_benefit: float = 0.0  # Выигрыш от параллельной обработки
+    
+    # Рекомендации для оптимизации
+    optimization_suggestions: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ModelStatusResponse:
+    """Ответ на запрос статуса AI моделей"""
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    # Общий статус
+    all_models_loaded: bool = False
+    models_loading: bool = False
+    
+    # Статус отдельных моделей
+    model_status: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # {
+    #   "stable_diffusion": {"loaded": True, "memory_mb": 3500, "load_time_ms": 5000},
+    #   "controlnet_canny": {"loaded": True, "memory_mb": 1200, "load_time_ms": 2000}
+    # }
+    
+    # Использование ресурсов
+    total_gpu_memory_used_mb: float = 0.0
+    total_gpu_memory_available_mb: float = 0.0
+    gpu_utilization_percent: float = 0.0
+    
+    # Производительность
+    average_generation_time_ms: float = 0.0
+    total_generations_completed: int = 0
+    generations_per_hour: float = 0.0
+    
+    # Кэш статус
+    cache_status: Dict[str, Any] = field(default_factory=dict)
+    
+    # Проблемы и предупреждения
+    warnings: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+
+
+@dataclass
+class CacheStatusResponse:
+    """Ответ на запрос статуса кэша"""
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    # Статус разных типов кэша
+    model_cache: Dict[str, Any] = field(default_factory=dict)
+    conditioning_cache: Dict[str, Any] = field(default_factory=dict)
+    semantic_cache: Dict[str, Any] = field(default_factory=dict)
+    
+    # Общая статистика
+    total_cache_size_mb: float = 0.0
+    total_cached_items: int = 0
+    cache_hit_rate_percent: float = 0.0
+    
+    # Эффективность кэша
+    memory_savings_mb: float = 0.0
+    time_savings_ms: float = 0.0
+    
+    # Рекомендации по оптимизации
+    optimization_suggestions: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ErrorDetails:
+    """Детальная информация об ошибке"""
+    error_code: str
+    error_message: str
+    error_category: str  # "validation", "generation", "resource", "model"
+    
+    # Контекст ошибки
+    component: str       # Компонент, где произошла ошибка
+    operation: str       # Операция, которая вызвала ошибку
+    
+    # Диагностическая информация
+    stack_trace: Optional[str] = None
+    gpu_memory_at_error_mb: Optional[float] = None
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    # Предложения по исправлению
+    suggested_solutions: List[str] = field(default_factory=list)
+    retry_possible: bool = True
+    
+    # Связанные ошибки
+    related_errors: List[str] = field(default_factory=list)
+
+
+# Вспомогательные функции для создания ответов
+def create_success_response(
+    generated_image: str,
+    conditioning_images: Optional[Dict[str, Dict[str, str]]] = None,
+    prompt_used: Optional[str] = None,
+    metadata: Optional[AIGenerationMetadata] = None
+) -> AIImageResponse:
+    """Создает успешный ответ на генерацию изображения"""
+    return AIImageResponse(
+        success=True,
+        status=GenerationStatus.SUCCESS,
+        generated_image=generated_image,
+        conditioning_images=conditioning_images,
+        prompt_used=prompt_used,
+        generation_metadata=metadata
+    )
+
+
+def create_error_response(
+    error_message: str,
+    error_details: Optional[ErrorDetails] = None,
+    partial_results: Optional[Dict[str, Any]] = None
+) -> AIImageResponse:
+    """Создает ответ с ошибкой"""
+    return AIImageResponse(
+        success=False,
+        status=GenerationStatus.FAILED,
+        error=error_message,
+        conditioning_images=partial_results.get("conditioning_images") if partial_results else None
+    )
+
+
+def create_partial_success_response(
+    generated_image: Optional[str] = None,
+    conditioning_images: Optional[Dict[str, Dict[str, str]]] = None,
+    warnings: List[str] = None,
+    metadata: Optional[AIGenerationMetadata] = None
+) -> AIImageResponse:
+    """Создает ответ с частичным успехом"""
+    return AIImageResponse(
+        success=True,
+        status=GenerationStatus.PARTIAL_SUCCESS,
+        generated_image=generated_image,
+        conditioning_images=conditioning_images,
+        warnings=warnings or [],
+        generation_metadata=metadata
+    )

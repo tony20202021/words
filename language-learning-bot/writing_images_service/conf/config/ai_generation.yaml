@@ -1,0 +1,346 @@
+# AI генерация изображений по иероглифам
+ai_generation:
+  enabled: true
+  
+  # Модели HuggingFace
+  models:
+    base_model: "stabilityai/stable-diffusion-xl-base-1.0"
+    # Альтернативы для 80GB VRAM:
+    # base_model: "stabilityai/stable-diffusion-xl-refiner-1.0"
+    # base_model: "playground-ai/playground-v2.5-1024px-aesthetic"
+    
+    controlnet_models:
+      canny: "diffusers/controlnet-canny-sdxl-1.0"
+      depth: "diffusers/controlnet-depth-sdxl-1.0" 
+      segmentation: "diffusers/controlnet-seg-sdxl-1.0"
+      scribble: "diffusers/controlnet-scribble-sdxl-1.0"
+      
+    # Дополнительные AI модели для conditioning
+    auxiliary_models:
+      hed_edge_detection: "lllyasviel/Annotators"
+      midas_depth: "intel-isl/MiDaS"
+      segment_anything: "facebook/sam-vit-huge"
+      sketch_model: "lllyasviel/sd-controlnet-scribble"
+  
+  # Параметры генерации
+  generation:
+    num_inference_steps: 30
+    guidance_scale: 7.5
+    width: 1024
+    height: 1024
+    batch_size: 1  # Можно увеличить для 80GB VRAM
+    
+    # Negative prompts по умолчанию
+    negative_prompts:
+      default: "blurry, low quality, distorted, ugly, bad anatomy, text, watermark"
+      comic: "realistic, photographic, dark, gloomy, monochrome"
+      watercolor: "sharp edges, digital art, 3d render, cartoon"
+      realistic: "cartoon, anime, stylized, abstract"
+  
+  # Веса conditioning по умолчанию
+  conditioning_weights:
+    canny: 0.8
+    depth: 0.6
+    segmentation: 0.5
+    scribble: 0.4
+    
+  # Варианты весов для разных стилей
+  style_weights:
+    comic:
+      canny: 0.9        # Четкие контуры важны для комиксов
+      depth: 0.5        # Умеренная объемность
+      segmentation: 0.7 # Яркие цветовые зоны
+      scribble: 0.3     # Минимальная художественность
+      
+    watercolor:
+      canny: 0.4        # Размытые контуры
+      depth: 0.3        # Мягкая объемность
+      segmentation: 0.3 # Плавные переходы
+      scribble: 0.8     # Максимальная свобода
+      
+    realistic:
+      canny: 0.8        # Точные контуры
+      depth: 0.9        # Сильная объемность
+      segmentation: 0.6 # Реалистичные цвета
+      scribble: 0.2     # Минимальная стилизация
+      
+    anime:
+      canny: 0.7        # Четкие, но стилизованные контуры
+      depth: 0.4        # Легкая объемность
+      segmentation: 0.8 # Четкие цветовые зоны
+      scribble: 0.5     # Средняя стилизация
+      
+  # Настройки conditioning генерации
+  conditioning:
+    # Методы генерации контуров
+    canny:
+      available_methods:
+        - "opencv_canny"
+        - "hed_canny" 
+        - "structured_edge_detection"
+        - "multi_scale_canny"
+        - "adaptive_canny"
+      
+      default_method: "opencv_canny"
+      
+      # Параметры для каждого метода
+      opencv_canny:
+        low_threshold: 50
+        high_threshold: 150
+        kernel_size: 3
+        
+      hed_canny:
+        model_name: "lllyasviel/Annotators"
+        threshold: 0.1
+        
+      multi_scale_canny:
+        scales: [0.5, 1.0, 1.5]
+        combine_method: "max"
+        
+      adaptive_canny:
+        block_size: 3
+        c_constant: 2
+        
+    # Методы генерации глубины
+    depth:
+      available_methods:
+        - "stroke_thickness_depth"
+        - "distance_transform_depth"
+        - "morphological_depth"
+        - "ai_depth_estimation"
+        - "synthetic_3d_depth"
+        - "multi_layer_depth"
+      
+      default_method: "stroke_thickness_depth"
+      
+      stroke_thickness_depth:
+        normalize: true
+        invert: false
+        gaussian_blur: 3
+        
+      ai_depth_estimation:
+        model_name: "intel-isl/MiDaS"
+        model_type: "MiDaS_small"
+        
+      synthetic_3d_depth:
+        extrusion_depth: 10
+        perspective_angle: 15
+        
+    # Методы сегментации
+    segmentation:
+      available_methods:
+        - "radical_segmentation"
+        - "stroke_type_segmentation"
+        - "hierarchical_segmentation"
+        - "semantic_segmentation"
+        - "ai_segmentation"
+        - "color_based_segmentation"
+        - "geometric_segmentation"
+      
+      default_method: "radical_segmentation"
+      
+      radical_segmentation:
+        use_kangxi_radicals: true
+        color_per_radical: true
+        
+      stroke_type_segmentation:
+        segment_types: ["horizontal", "vertical", "diagonal", "curved"]
+        
+      ai_segmentation:
+        model_name: "facebook/sam-vit-huge"
+        points_per_side: 16
+        
+      color_based_segmentation:
+        num_clusters: 5
+        algorithm: "kmeans"
+        
+    # Методы создания набросков
+    scribble:
+      available_methods:
+        - "skeletonization_scribble"
+        - "morphological_simplification"
+        - "vectorization_simplification"
+        - "ai_sketch_generation"
+        - "hand_drawn_simulation"
+        - "multi_level_abstraction"
+        - "style_aware_scribble"
+      
+      default_method: "skeletonization_scribble"
+      
+      skeletonization_scribble:
+        algorithm: "zhang_suen"  # zhang_suen, medial_axis
+        
+      morphological_simplification:
+        kernel_size: 3
+        iterations: 2
+        
+      hand_drawn_simulation:
+        noise_level: 1.5
+        line_variation: 0.8
+        
+      multi_level_abstraction:
+        levels: ["precise", "medium", "loose"]
+        default_level: "medium"
+        
+  # Семантический анализ
+  semantic_analysis:
+    enabled: true
+    
+    # Базы данных
+    databases:
+      unihan:
+        enabled: true
+        cache_ttl: 86400  # 24 часа
+        
+      radical_kangxi:
+        enabled: true
+        include_variants: true
+        
+      etymology:
+        enabled: true
+        sources: ["hanzicraft", "yellowbridge"]
+        
+      cedict:
+        enabled: true
+        variant: "cc-cedict"
+        
+    # Визуальные ассоциации
+    visual_associations:
+      color_mappings:
+        fire: ["red", "orange", "yellow", "bright"]
+        water: ["blue", "cyan", "transparent", "flowing"]
+        wood: ["brown", "green", "natural", "growing"]
+        metal: ["silver", "gold", "metallic", "shiny", "hard"]
+        earth: ["brown", "yellow", "muddy", "stable"]
+        
+      texture_mappings:
+        fire: ["flickering", "dancing", "glowing", "consuming"]
+        water: ["flowing", "rippling", "smooth", "wet"]
+        wood: ["rough", "textured", "organic", "fibrous"]
+        metal: ["polished", "reflective", "smooth", "cold"]
+        earth: ["granular", "rocky", "solid", "dusty"]
+        
+      motion_mappings:
+        fire: ["upward", "dancing", "consuming", "spreading"]
+        water: ["flowing", "cascading", "rippling", "dripping"]
+        wind: ["swirling", "gentle", "strong", "directional"]
+        
+  # GPU настройки для 80GB VRAM
+  gpu:
+    device: "cuda"
+    memory_efficient: false  # Можно отключить для большой VRAM
+    enable_attention_slicing: false  # Не нужно для 80GB
+    enable_cpu_offload: false
+    enable_model_cpu_offload: false
+    enable_sequential_cpu_offload: false
+    
+    # Batch обработка
+    max_batch_size: 4  # Можно генерировать несколько изображений сразу
+    
+    # Оптимизации
+    use_torch_compile: true
+    use_channels_last_memory_format: true
+    enable_vae_slicing: false
+    enable_vae_tiling: false
+    
+  # Кэширование
+  cache:
+    enable_model_cache: true
+    enable_conditioning_cache: true
+    enable_semantic_cache: true
+    
+    model_cache:
+      max_size: 10  # Количество моделей в памяти
+      ttl: 3600     # 1 час
+      
+    conditioning_cache:
+      max_size: 1000  # Количество conditioning результатов
+      ttl: 86400      # 24 часа
+      
+    semantic_cache:
+      max_size: 5000  # Количество семантических анализов
+      ttl: 604800     # 7 дней
+      
+  # Промпт инжиниринг
+  prompt_engineering:
+    # Базовые шаблоны промптов
+    base_templates:
+      comic: "A vibrant comic book style illustration of {meaning}, inspired by Chinese character {character}"
+      watercolor: "A soft watercolor painting depicting {meaning}, with flowing brushstrokes inspired by {character}"
+      realistic: "A detailed realistic illustration representing {meaning}, maintaining the essence of Chinese character {character}"
+      anime: "An anime-style artwork showing {meaning}, stylized after the Chinese character {character}"
+      
+    # Модификаторы стиля
+    style_modifiers:
+      comic: "bold outlines, vibrant colors, pop art style, graphic novel aesthetic"
+      watercolor: "soft edges, bleeding colors, artistic brushstrokes, delicate washes"
+      realistic: "photorealistic, detailed textures, natural lighting, high definition"
+      anime: "cell shading, bright colors, expressive style, manga influence"
+      
+    # Качественные модификаторы
+    quality_boosters:
+      - "masterpiece"
+      - "best quality" 
+      - "highly detailed"
+      - "8k resolution"
+      - "professional artwork"
+      
+    # Композиционные подсказки
+    composition_hints:
+      - "rule of thirds"
+      - "dynamic composition"
+      - "balanced layout"
+      - "focal point emphasis"
+      
+  # Постобработка
+  postprocessing:
+    enabled: true
+    
+    # Фильтры по стилям
+    style_filters:
+      comic:
+        - "enhance_contrast"
+        - "sharpen_edges"
+        - "boost_saturation"
+        
+      watercolor:
+        - "soft_blur"
+        - "edge_smoothing"
+        - "color_bleeding_effect"
+        
+      realistic:
+        - "noise_reduction"
+        - "detail_enhancement"
+        - "color_correction"
+        
+    # Параметры фильтров
+    filter_params:
+      enhance_contrast:
+        factor: 1.2
+        
+      boost_saturation:
+        factor: 1.1
+        
+      soft_blur:
+        radius: 1.5
+        
+  # Мониторинг и отладка
+  monitoring:
+    enabled: true
+    log_generation_stats: true
+    save_intermediate_results: false  # Для отладки
+    
+    # Метрики производительности
+    performance_tracking:
+      track_generation_time: true
+      track_gpu_memory: true
+      track_model_loading_time: true
+      
+    # Экспорт результатов для анализа
+    export_results:
+      enabled: false
+      export_directory: "./ai_generation_exports"
+      include_conditioning_images: true
+      include_prompts: true
+      include_metadata: true
+      
