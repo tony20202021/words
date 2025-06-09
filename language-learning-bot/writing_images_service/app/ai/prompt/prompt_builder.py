@@ -34,10 +34,6 @@ class PromptConfig:
     max_prompt_length: int = 400
     max_negative_prompt_length: int = 200
     
-    # Кэширование
-    enable_prompt_cache: bool = True
-    cache_ttl_seconds: int = 3600
-    
     def __post_init__(self):
         """Инициализация значений по умолчанию"""
         if self.quality_boosters is None:
@@ -112,14 +108,6 @@ class PromptBuilder:
         self.semantic_analyzer = SemanticAnalyzer()
         self.style_definitions = StyleDefinitions()
         
-        # Кэш промптов
-        self.prompt_cache: Dict[str, PromptResult] = {}
-        
-        # Статистика
-        self.build_count = 0
-        self.total_build_time = 0
-        self.cache_hits = 0
-        
         logger.info("PromptBuilder initialized")
     
     async def build_prompt(
@@ -154,19 +142,6 @@ class PromptBuilder:
             include_semantic = include_semantic_analysis if include_semantic_analysis is not None else self.config.enable_semantic_analysis
             include_visual = include_visual_elements if include_visual_elements is not None else self.config.include_visual_associations
             include_cultural = include_cultural_context if include_cultural_context is not None else self.config.include_cultural_context
-            
-            # Проверяем кэш
-            cache_key = self._generate_cache_key(
-                character, translation, style, 
-                include_semantic, include_visual, include_cultural,
-                custom_elements
-            )
-            
-            if self.config.enable_prompt_cache:
-                cached_result = self._get_from_cache(cache_key)
-                if cached_result:
-                    self.cache_hits += 1
-                    return cached_result
             
             # 1. Семантический анализ иероглифа
             semantic_data = None
@@ -210,14 +185,6 @@ class PromptBuilder:
                 visual_elements_used=self._extract_visual_elements(semantic_data) if semantic_data else [],
                 cultural_context_used=self._extract_cultural_context(semantic_data) if semantic_data else []
             )
-            
-            # Кэширование
-            if self.config.enable_prompt_cache:
-                self._save_to_cache(cache_key, result)
-            
-            # Обновление статистики
-            self.build_count += 1
-            self.total_build_time += generation_time_ms
             
             logger.info(f"Built prompt for character '{character}' (style: {style}, "
                        f"semantic: {include_semantic}, time: {generation_time_ms}ms)")
@@ -657,88 +624,3 @@ class PromptBuilder:
         subject = translation or f"Chinese character {character}"
         
         return f"A {style_adj} illustration of {subject}, masterpiece, best quality, highly detailed"
-    
-    # Методы кэширования
-    
-    def _generate_cache_key(
-        self, 
-        character: str, 
-        translation: str, 
-        style: str,
-        semantic: bool,
-        visual: bool, 
-        cultural: bool,
-        custom_elements: Optional[List[str]]
-    ) -> str:
-        """Генерирует ключ для кэширования промпта."""
-        import hashlib
-        
-        key_parts = [
-            character, translation, style,
-            str(semantic), str(visual), str(cultural)
-        ]
-        
-        if custom_elements:
-            key_parts.append(",".join(sorted(custom_elements)))
-        
-        key_string = "|".join(key_parts)
-        return hashlib.md5(key_string.encode()).hexdigest()
-    
-    def _get_from_cache(self, cache_key: str) -> Optional[PromptResult]:
-        """Получает промпт из кэша."""
-        if cache_key in self.prompt_cache:
-            cached_result = self.prompt_cache[cache_key]
-            
-            # Проверяем срок жизни
-            current_time = time.time()
-            if hasattr(cached_result, 'cached_at'):
-                if current_time - cached_result.cached_at < self.config.cache_ttl_seconds:
-                    return cached_result
-                else:
-                    del self.prompt_cache[cache_key]
-        
-        return None
-    
-    def _save_to_cache(self, cache_key: str, result: PromptResult):
-        """Сохраняет промпт в кэш."""
-        result.cached_at = time.time()
-        self.prompt_cache[cache_key] = result
-        
-        # Ограничиваем размер кэша
-        max_cache_size = 1000
-        if len(self.prompt_cache) > max_cache_size:
-            # Удаляем старые записи
-            sorted_items = sorted(
-                self.prompt_cache.items(),
-                key=lambda x: getattr(x[1], 'cached_at', 0)
-            )
-            
-            for key, _ in sorted_items[:len(self.prompt_cache) - max_cache_size]:
-                del self.prompt_cache[key]
-    
-    # Публичные методы статистики
-    
-    def get_builder_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику PromptBuilder."""
-        return {
-            "build_count": self.build_count,
-            "total_build_time_ms": self.total_build_time,
-            "avg_build_time_ms": self.total_build_time / max(self.build_count, 1),
-            "cache_hits": self.cache_hits,
-            "cache_hit_rate": self.cache_hits / max(self.build_count, 1),
-            "cache_size": len(self.prompt_cache),
-            "semantic_analysis_enabled": self.config.enable_semantic_analysis
-        }
-    
-    def clear_cache(self):
-        """Очищает кэш промптов."""
-        self.prompt_cache.clear()
-        logger.info("Prompt cache cleared")
-    
-    def clear_stats(self):
-        """Очищает статистику."""
-        self.build_count = 0
-        self.total_build_time = 0
-        self.cache_hits = 0
-        logger.info("PromptBuilder statistics cleared")
-        

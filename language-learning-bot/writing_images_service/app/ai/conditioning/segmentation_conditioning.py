@@ -74,18 +74,8 @@ class SegmentationConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'image': np.array(processed_data['image']),
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Выбор метода генерации
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             if method == "radical_segmentation":
                 result_image = await self._radical_segmentation(processed_data['image'], **kwargs)
             elif method == "stroke_type_segmentation":
@@ -109,16 +99,12 @@ class SegmentationConditioning(BaseConditioning):
             # Вычисление времени обработки
             processing_time_ms = int((time.time() - start_time) * 1000)
             
-            # Оценка качества
-            quality_score = self.calculate_quality_score(processed_data['image'], result_image, method)
-            
             # Создание результата
             result = ConditioningResult(
                 success=True,
                 image=result_image,
                 method_used=method,
                 processing_time_ms=processing_time_ms,
-                quality_score=quality_score,
                 metadata={
                     'input_size': image.size,
                     'output_size': result_image.size if result_image else None,
@@ -126,10 +112,6 @@ class SegmentationConditioning(BaseConditioning):
                     'segment_stats': self._analyze_segments(result_image)
                 }
             )
-            
-            # Запись статистики и кэширование
-            self._record_performance(method, processing_time_ms)
-            await self._save_to_cache(cache_key, result)
             
             return result
             
@@ -173,19 +155,6 @@ class SegmentationConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'character': character,
-                'width': width,
-                'height': height,
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Рендеринг иероглифа
             rendered_image = await self.render_character(
                 character, width, height,
@@ -205,9 +174,6 @@ class SegmentationConditioning(BaseConditioning):
                 if method == "radical_segmentation":
                     result.metadata['detected_radicals'] = self._analyze_character_radicals(character)
             
-            # Кэширование
-            await self._save_to_cache(cache_key, result)
-            
             return result
             
         except Exception as e:
@@ -220,6 +186,7 @@ class SegmentationConditioning(BaseConditioning):
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов сегментации."""
         return [
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "radical_segmentation",
             "stroke_type_segmentation",
             "hierarchical_segmentation",
@@ -232,6 +199,7 @@ class SegmentationConditioning(BaseConditioning):
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "radical_segmentation": {
                 "description": "Сегментация по радикалам иероглифа - каждый радикал свой цвет",
                 "parameters": {
@@ -328,7 +296,8 @@ class SegmentationConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    
+    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+
     async def _radical_segmentation(
         self, 
         image: Image.Image,
@@ -580,58 +549,6 @@ class SegmentationConditioning(BaseConditioning):
         
         return segments
     
-    def _analyze_segments(self, segment_image: Image.Image) -> Dict[str, Any]:
-        """Анализирует статистику сегментов."""
-        if not segment_image:
-            return {}
-        
-        try:
-            # Конвертируем в grayscale для анализа
-            gray_array = np.array(segment_image.convert('L'))
-            
-            # Подсчитываем уникальные сегменты
-            unique_segments = np.unique(gray_array)
-            num_segments = len(unique_segments)
-            
-            # Анализируем размеры сегментов
-            segment_sizes = []
-            for segment_val in unique_segments:
-                size = np.sum(gray_array == segment_val)
-                segment_sizes.append(size)
-            
-            # Вычисляем статистики
-            total_pixels = gray_array.size
-            avg_segment_size = np.mean(segment_sizes)
-            std_segment_size = np.std(segment_sizes)
-            
-            # Анализируем связность сегментов
-            connectivity_scores = []
-            for segment_val in unique_segments:
-                if segment_val == 0:  # Пропускаем фон
-                    continue
-                    
-                binary_segment = (gray_array == segment_val).astype(np.uint8) * 255
-                num_labels, _ = cv2.connectedComponents(binary_segment)
-                connectivity = 1.0 / max(num_labels - 1, 1)  # -1 чтобы исключить фон
-                connectivity_scores.append(connectivity)
-            
-            avg_connectivity = np.mean(connectivity_scores) if connectivity_scores else 0.0
-            
-            return {
-                'num_segments': int(num_segments),
-                'avg_segment_size': float(avg_segment_size),
-                'std_segment_size': float(std_segment_size),
-                'segment_size_ratio': float(avg_segment_size / total_pixels),
-                'avg_connectivity': float(avg_connectivity),
-                'largest_segment_size': int(max(segment_sizes)),
-                'smallest_segment_size': int(min(segment_sizes)),
-                'segment_uniformity': float(1.0 - (std_segment_size / avg_segment_size))
-            }
-            
-        except Exception as e:
-            logger.warning(f"Error analyzing segments: {e}")
-            return {}
-    
     async def _load_segmentation_models(self):
         """Загружает модели для AI сегментации."""
         try:
@@ -659,10 +576,10 @@ class SegmentationConditioning(BaseConditioning):
         except Exception as e:
             logger.warning(f"Could not load segmentation models: {e}")
             self._sam_model = None
-            self._segformer_model = None(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            # self._segformer_model = None(img_array.shape) == 3:
+            # gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         else:
-            gray = img_array
+            gray = None
         
         # Создаем сегментационную карту
         segment_map = np.zeros(gray.shape, dtype=np.uint8)

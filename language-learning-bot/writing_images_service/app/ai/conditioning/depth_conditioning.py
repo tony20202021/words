@@ -70,18 +70,8 @@ class DepthConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'image': np.array(processed_data['image']),
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Выбор метода генерации
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             if method == "stroke_thickness_depth":
                 result_image = await self._stroke_thickness_depth(processed_data['image'], **kwargs)
             elif method == "distance_transform_depth":
@@ -103,16 +93,12 @@ class DepthConditioning(BaseConditioning):
             # Вычисление времени обработки
             processing_time_ms = int((time.time() - start_time) * 1000)
             
-            # Оценка качества
-            quality_score = self.calculate_quality_score(processed_data['image'], result_image, method)
-            
             # Создание результата
             result = ConditioningResult(
                 success=True,
                 image=result_image,
                 method_used=method,
                 processing_time_ms=processing_time_ms,
-                quality_score=quality_score,
                 metadata={
                     'input_size': image.size,
                     'output_size': result_image.size if result_image else None,
@@ -120,10 +106,6 @@ class DepthConditioning(BaseConditioning):
                     'depth_range': self._analyze_depth_range(result_image)
                 }
             )
-            
-            # Запись статистики и кэширование
-            self._record_performance(method, processing_time_ms)
-            await self._save_to_cache(cache_key, result)
             
             return result
             
@@ -167,19 +149,6 @@ class DepthConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'character': character,
-                'width': width,
-                'height': height,
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Рендеринг иероглифа
             rendered_image = await self.render_character(
                 character, width, height,
@@ -195,9 +164,6 @@ class DepthConditioning(BaseConditioning):
                 result.metadata['source_character'] = character
                 result.metadata['rendered_size'] = (width, height)
             
-            # Кэширование
-            await self._save_to_cache(cache_key, result)
-            
             return result
             
         except Exception as e:
@@ -210,6 +176,7 @@ class DepthConditioning(BaseConditioning):
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов depth generation."""
         return [
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "stroke_thickness_depth",
             "distance_transform_depth",
             "morphological_depth",
@@ -221,6 +188,7 @@ class DepthConditioning(BaseConditioning):
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "stroke_thickness_depth": {
                 "description": "Depth на основе толщины штрихов - толстые штрихи ближе",
                 "parameters": {
@@ -300,7 +268,8 @@ class DepthConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    
+    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+
     async def _stroke_thickness_depth(
         self, 
         image: Image.Image,
@@ -470,7 +439,7 @@ class DepthConditioning(BaseConditioning):
             
             if self._midas_model is None:
                 logger.warning("AI depth models not available, falling back to stroke thickness")
-                return await self._stroke_thickness_depth(image, **kwargs)
+                return None
             
             # TODO: Реализация AI depth estimation
             # Пример с MiDaS:
@@ -499,11 +468,11 @@ class DepthConditioning(BaseConditioning):
             
             # Пока используем fallback
             logger.info("AI depth estimation not implemented yet, using stroke thickness")
-            return await self._stroke_thickness_depth(image, **kwargs)
+            return None
             
         except Exception as e:
             logger.error(f"Error in AI depth estimation: {e}")
-            return await self._stroke_thickness_depth(image, **kwargs)
+            return None
     
     async def _synthetic_3d_depth(
         self, 

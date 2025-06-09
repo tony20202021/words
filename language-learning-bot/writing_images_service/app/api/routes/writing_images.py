@@ -77,6 +77,11 @@ async def generate_writing_image(
             status=GenerationStatus.SUCCESS,
             generated_image=generation_result.image_data_base64,
             generation_metadata=generation_result.metadata,
+            conditioning_images=generation_result.conditioning_images,
+            prompt_used=generation_result.prompt_used,
+            semantic_analysis=generation_result.semantic_analysis,
+            error=generation_result.error,
+            warnings=generation_result.warnings,
         )
         
         logger.info(f"result.success: '{result.success}'")

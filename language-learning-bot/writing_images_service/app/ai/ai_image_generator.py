@@ -46,10 +46,6 @@ class AIGenerationConfig:
     enable_attention_slicing: bool = True
     enable_cpu_offload: bool = False
     
-    # Кэширование
-    enable_model_cache: bool = True
-    enable_conditioning_cache: bool = True
-    
     def __post_init__(self):
         """Инициализация значений по умолчанию"""
         if self.controlnet_models is None:

@@ -5,7 +5,7 @@ AI package for image generation.
 
 from .ai_image_generator import AIImageGenerator, AIGenerationResult
 from .multi_controlnet_pipeline import MultiControlNetPipeline
-from .models import ModelLoader, GPUManager, ModelCache
+from .models import ModelLoader, GPUManager
 from .conditioning import (
     BaseConditioning, 
     CannyConditioning, 
@@ -28,7 +28,6 @@ __all__ = [
     "MultiControlNetPipeline",
     "ModelLoader",
     "GPUManager", 
-    "ModelCache",
     "BaseConditioning",
     "CannyConditioning",
     "DepthConditioning",

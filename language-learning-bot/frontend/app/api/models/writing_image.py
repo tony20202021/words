@@ -133,21 +133,6 @@ class LanguagesResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if request failed")
 
 
-class WritingImageCache(BaseModel):
-    """
-    Model for caching writing images.
-    Модель для кэширования картинок написания.
-    """
-    word: str = Field(..., description="Word")
-    language: str = Field(..., description="Language code")
-    style: str = Field(..., description="Writing style")
-    image_hash: str = Field(..., description="Hash of the image")
-    created_at: str = Field(..., description="Creation timestamp")
-    expires_at: str = Field(..., description="Expiration timestamp")
-    access_count: int = Field(default=0, description="Number of times accessed")
-    last_accessed: Optional[str] = Field(None, description="Last access timestamp")
-
-
 class WritingImageError(BaseModel):
     """
     Model for writing image generation errors.

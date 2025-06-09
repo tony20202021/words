@@ -66,10 +66,6 @@ class AIGenerationMetadata:
     actual_steps_completed: Optional[int] = None
     guidance_scale_used: Optional[float] = None
     
-    # Статистика модели
-    model_loading_time_ms: Optional[int] = None
-    model_cache_hit: bool = False
-    
     # Версии и окружение
     diffusers_version: str = ""
     torch_version: str = ""
@@ -197,14 +193,6 @@ class ModelStatusResponse:
     total_gpu_memory_used_mb: float = 0.0
     total_gpu_memory_available_mb: float = 0.0
     gpu_utilization_percent: float = 0.0
-    
-    # Производительность
-    average_generation_time_ms: float = 0.0
-    total_generations_completed: int = 0
-    generations_per_hour: float = 0.0
-    
-    # Кэш статус
-    cache_status: Dict[str, Any] = field(default_factory=dict)
     
     # Проблемы и предупреждения
     warnings: List[str] = field(default_factory=list)

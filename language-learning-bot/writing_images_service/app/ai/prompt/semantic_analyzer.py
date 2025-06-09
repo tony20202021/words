@@ -38,10 +38,6 @@ class SemanticConfig:
     max_meanings: int = 5
     max_associations: int = 10
     
-    # Кэширование
-    enable_cache: bool = True
-    cache_ttl_seconds: int = 86400  # 24 часа
-    
     # Уверенность и фильтрация
     min_confidence_threshold: float = 0.3
     filter_obscure_meanings: bool = True
@@ -96,18 +92,11 @@ class SemanticAnalyzer:
         self.etymology_analyzer = EtymologyAnalyzer()
         self.visual_analyzer = VisualAssociationAnalyzer()
         
-        # Кэш результатов
-        self.analysis_cache: Dict[str, SemanticResult] = {}
-        
         # Базы данных
         self._unihan_data = {}
         self._frequency_data = {}
         self._variant_data = {}
         
-        # Статистика
-        self.analysis_count = 0
-        self.total_analysis_time = 0
-        self.cache_hits = 0
         
         # Инициализация
         asyncio.create_task(self._initialize_databases())
@@ -148,18 +137,6 @@ class SemanticAnalyzer:
                     error_message="Invalid character or not a Chinese character"
                 )
             
-            # Проверяем кэш
-            cache_key = self._generate_cache_key(
-                character, include_etymology, include_radical_analysis,
-                include_visual_associations, include_cultural_context, analysis_depth
-            )
-            
-            if self.config.enable_cache:
-                cached_result = self._get_from_cache(cache_key)
-                if cached_result:
-                    self.cache_hits += 1
-                    return cached_result
-            
             # Выполняем анализ
             analysis_data = await self._perform_comprehensive_analysis(
                 character=character,
@@ -182,14 +159,6 @@ class SemanticAnalyzer:
                 sources_used=self._get_sources_used(analysis_data),
                 confidence_scores=self._calculate_confidence_scores(analysis_data)
             )
-            
-            # Кэширование
-            if self.config.enable_cache:
-                self._save_to_cache(cache_key, result)
-            
-            # Обновление статистики
-            self.analysis_count += 1
-            self.total_analysis_time += analysis_time_ms
             
             logger.info(f"Analyzed character '{character}' in {analysis_time_ms}ms")
             
@@ -866,62 +835,6 @@ class SemanticAnalyzer:
         except Exception as e:
             logger.warning(f"Error initializing databases: {e}")
     
-    def _generate_cache_key(
-        self, 
-        character: str, 
-        etymology: bool, 
-        radicals: bool,
-        visual: bool, 
-        cultural: bool, 
-        depth: Optional[str]
-    ) -> str:
-        """Генерирует ключ для кэширования."""
-        import hashlib
-        
-        key_parts = [
-            character,
-            str(etymology),
-            str(radicals), 
-            str(visual),
-            str(cultural),
-            depth or self.config.analysis_depth
-        ]
-        
-        key_string = "|".join(key_parts)
-        return hashlib.md5(key_string.encode()).hexdigest()
-    
-    def _get_from_cache(self, cache_key: str) -> Optional[SemanticResult]:
-        """Получает результат из кэша."""
-        if cache_key in self.analysis_cache:
-            cached_result = self.analysis_cache[cache_key]
-            
-            # Проверяем срок жизни
-            current_time = time.time()
-            if hasattr(cached_result, 'cached_at'):
-                if current_time - cached_result.cached_at < self.config.cache_ttl_seconds:
-                    return cached_result
-                else:
-                    del self.analysis_cache[cache_key]
-        
-        return None
-    
-    def _save_to_cache(self, cache_key: str, result: SemanticResult):
-        """Сохраняет результат в кэш."""
-        result.cached_at = time.time()
-        self.analysis_cache[cache_key] = result
-        
-        # Ограничиваем размер кэша
-        max_cache_size = 5000
-        if len(self.analysis_cache) > max_cache_size:
-            # Удаляем старые записи
-            sorted_items = sorted(
-                self.analysis_cache.items(),
-                key=lambda x: getattr(x[1], 'cached_at', 0)
-            )
-            
-            for key, _ in sorted_items[:len(self.analysis_cache) - max_cache_size]:
-                del self.analysis_cache[key]
-    
     def _get_sources_used(self, analysis_data: Dict[str, Any]) -> List[str]:
         """Определяет использованные источники данных."""
         sources = []
@@ -977,78 +890,6 @@ class SemanticAnalyzer:
             confidence_scores['pronunciations'] = pronunciation_confidence
         
         return confidence_scores
-    
-    # Публичные методы статистики и управления
-    
-    def get_analyzer_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику анализатора."""
-        return {
-            "analysis_count": self.analysis_count,
-            "total_analysis_time_ms": self.total_analysis_time,
-            "avg_analysis_time_ms": self.total_analysis_time / max(self.analysis_count, 1),
-            "cache_hits": self.cache_hits,
-            "cache_hit_rate": self.cache_hits / max(self.analysis_count, 1),
-            "cache_size": len(self.analysis_cache),
-            "config": {
-                "enable_unihan": self.config.enable_unihan_database,
-                "enable_radicals": self.config.enable_radical_analysis,
-                "enable_etymology": self.config.enable_etymology_analysis,
-                "enable_visual": self.config.enable_visual_associations,
-                "analysis_depth": self.config.analysis_depth,
-                "target_language": self.config.target_language
-            }
-        }
-    
-    def clear_cache(self):
-        """Очищает кэш анализа."""
-        self.analysis_cache.clear()
-        logger.info("Semantic analysis cache cleared")
-    
-    def clear_stats(self):
-        """Очищает статистику."""
-        self.analysis_count = 0
-        self.total_analysis_time = 0
-        self.cache_hits = 0
-        logger.info("Semantic analyzer statistics cleared")
-    
-    async def batch_analyze(self, characters: List[str], **analysis_params) -> Dict[str, SemanticResult]:
-        """
-        Выполняет пакетный анализ нескольких иероглифов.
-        
-        Args:
-            characters: Список иероглифов для анализа
-            **analysis_params: Параметры анализа
-            
-        Returns:
-            Dict[str, SemanticResult]: Результаты анализа по иероглифам
-        """
-        results = {}
-        
-        # Анализируем параллельно
-        tasks = []
-        for character in characters:
-            task = asyncio.create_task(
-                self.analyze_character(character, **analysis_params),
-                name=f"analyze_{character}"
-            )
-            tasks.append((character, task))
-        
-        # Собираем результаты
-        for character, task in tasks:
-            try:
-                result = await task
-                results[character] = result
-            except Exception as e:
-                logger.error(f"Error in batch analysis for {character}: {e}")
-                results[character] = SemanticResult(
-                    success=False,
-                    character=character,
-                    error_message=str(e)
-                )
-        
-        logger.info(f"Completed batch analysis of {len(characters)} characters")
-        return results
-    
     def get_supported_features(self) -> Dict[str, bool]:
         """Возвращает поддерживаемые функции анализатора."""
         return {
@@ -1062,7 +903,5 @@ class SemanticAnalyzer:
             "color_associations": True,
             "texture_associations": True,
             "symbolic_meaning": True,
-            "batch_analysis": True,
-            "caching": self.config.enable_cache
         }
     

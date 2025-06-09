@@ -71,18 +71,8 @@ class ScribbleConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'image': np.array(processed_data['image']),
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Выбор метода генерации
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             if method == "skeletonization_scribble":
                 result_image = await self._skeletonization_scribble(processed_data['image'], **kwargs)
             elif method == "morphological_simplification":
@@ -106,16 +96,12 @@ class ScribbleConditioning(BaseConditioning):
             # Вычисление времени обработки
             processing_time_ms = int((time.time() - start_time) * 1000)
             
-            # Оценка качества
-            quality_score = self.calculate_quality_score(processed_data['image'], result_image, method)
-            
             # Создание результата
             result = ConditioningResult(
                 success=True,
                 image=result_image,
                 method_used=method,
                 processing_time_ms=processing_time_ms,
-                quality_score=quality_score,
                 metadata={
                     'input_size': image.size,
                     'output_size': result_image.size if result_image else None,
@@ -123,10 +109,6 @@ class ScribbleConditioning(BaseConditioning):
                     'scribble_stats': self._analyze_scribble_characteristics(result_image)
                 }
             )
-            
-            # Запись статистики и кэширование
-            self._record_performance(method, processing_time_ms)
-            await self._save_to_cache(cache_key, result)
             
             return result
             
@@ -170,19 +152,6 @@ class ScribbleConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'character': character,
-                'width': width,
-                'height': height,
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Рендеринг иероглифа
             rendered_image = await self.render_character(
                 character, width, height,
@@ -198,9 +167,6 @@ class ScribbleConditioning(BaseConditioning):
                 result.metadata['source_character'] = character
                 result.metadata['rendered_size'] = (width, height)
             
-            # Кэширование
-            await self._save_to_cache(cache_key, result)
-            
             return result
             
         except Exception as e:
@@ -213,6 +179,7 @@ class ScribbleConditioning(BaseConditioning):
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов scribble generation."""
         return [
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "skeletonization_scribble",
             "morphological_simplification",
             "vectorization_simplification",
@@ -225,6 +192,7 @@ class ScribbleConditioning(BaseConditioning):
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "skeletonization_scribble": {
                 "description": "Скелетизация изображения для создания тонких линий",
                 "parameters": {
@@ -313,7 +281,7 @@ class ScribbleConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    
+    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
     async def _skeletonization_scribble(
         self, 
         image: Image.Image,

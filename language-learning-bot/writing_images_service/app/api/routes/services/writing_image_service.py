@@ -15,6 +15,7 @@ from app.api.routes.models.requests import AIImageRequest
 from app.api.routes.models.responses import AIGenerationMetadata
 from app.utils.image_utils import get_image_processor, ImageProcessor
 from app.utils import config_holder
+from app.ai.ai_image_generator import AIImageGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +29,12 @@ class GenerationResult:
     def __init__(
         self, 
         success: bool, 
-        image_data: Optional[bytes] = None,
         image_data_base64: Optional[str] = None,
         format: str = "png",
         metadata: Optional[AIGenerationMetadata] = None,
         error: Optional[str] = None
     ):
         self.success = success
-        self.image_data = image_data
         self.image_data_base64 = image_data_base64
         self.format = format
         self.metadata = metadata
@@ -56,6 +55,8 @@ class WritingImageService:
         
         # Load configuration
         self._load_config()
+
+        self.ai_generator = AIImageGenerator()
         
         logger.info("WritingImageService initialized")
     
@@ -118,24 +119,23 @@ class WritingImageService:
             width = request.width if request.width else self.default_width
             height = request.height if request.height else self.default_height
             
-            # Generate stub image using ImageProcessor
-            image = await self._generate_stub_image_with_processor(
-                word=request.word,
-                translation=request.translation,
-                width=width,
-                height=height,
-            )
+            # # Generate stub image using ImageProcessor
+            # image = await self._generate_stub_image_with_processor(
+            #     word=request.word,
+            #     translation=request.translation,
+            #     width=width,
+            #     height=height,
+            # )
+            generation_result = await self.ai_generator.generate_character_image(
+                request.word, 
+                request.translation,
+                include_conditioning_images=request.include_conditioning_images,
+                include_prompt=request.include_prompt,
+                include_semantic_analysis=request.include_semantic_analysis,
+                )
             
-            # Convert to bytes and base64
-            image_data = await self.image_processor.image_to_bytes(
-                image, 
-                format="PNG", 
-            )
-            image_data_base64 = await self.image_processor.image_to_base64(
-                image, 
-                format="PNG", 
-            )
-            
+            image_data_base64 = generation_result.conditioning_images_base64
+
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
             
@@ -148,14 +148,18 @@ class WritingImageService:
             self.generation_count += 1
             
             logger.info(f"Generated writing image stub for word: {request.word} "
-                       f"(size: {len(image_data)} bytes, time: {generation_time_ms}ms)")
+                       f"(size: {len(image_data_base64)} bytes, time: {generation_time_ms}ms)")
             
             return GenerationResult(
                 success=True,
-                image_data=image_data,
                 image_data_base64=image_data_base64,
                 format="png",
-                metadata=metadata
+                metadata=metadata,
+                # TODO - добавить include_conditioning_images, include_prompt, include_semantic_analysis
+                #                 include_conditioning_images=request.include_conditioning_images,
+                # include_prompt=request.include_prompt,
+                # include_semantic_analysis=request.include_semantic_analysis,
+
             )
             
         except Exception as e:

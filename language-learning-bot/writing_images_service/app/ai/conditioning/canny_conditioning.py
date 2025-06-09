@@ -68,18 +68,8 @@ class CannyConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'image': np.array(processed_data['image']),
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Выбор метода генерации
+            # TODO -  перенести сюда базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             if method == "opencv_canny":
                 result_image = await self._opencv_canny(processed_data['image'], **kwargs)
             elif method == "hed_canny":
@@ -99,27 +89,18 @@ class CannyConditioning(BaseConditioning):
             # Вычисление времени обработки
             processing_time_ms = int((time.time() - start_time) * 1000)
             
-            # Оценка качества
-            quality_score = self.calculate_quality_score(processed_data['image'], result_image, method)
-            
             # Создание результата
             result = ConditioningResult(
                 success=True,
                 image=result_image,
                 method_used=method,
                 processing_time_ms=processing_time_ms,
-                quality_score=quality_score,
                 metadata={
                     'input_size': image.size,
                     'output_size': result_image.size if result_image else None,
                     'parameters_used': kwargs,
-                    'edge_statistics': self._analyze_edge_statistics(result_image)
                 }
             )
-            
-            # Запись статистики и кэширование
-            self._record_performance(method, processing_time_ms)
-            await self._save_to_cache(cache_key, result)
             
             return result
             
@@ -163,19 +144,6 @@ class CannyConditioning(BaseConditioning):
                     error_message=error_msg
                 )
             
-            # Проверка кэша
-            cache_key = self._generate_cache_key({
-                'character': character,
-                'width': width,
-                'height': height,
-                'method': method,
-                'method_params': processed_data['method_params']
-            }, method)
-            
-            cached_result = await self._get_from_cache(cache_key)
-            if cached_result:
-                return cached_result
-            
             # Рендеринг иероглифа
             rendered_image = await self.render_character(
                 character, width, height,
@@ -191,9 +159,6 @@ class CannyConditioning(BaseConditioning):
                 result.metadata['source_character'] = character
                 result.metadata['rendered_size'] = (width, height)
             
-            # Кэширование
-            await self._save_to_cache(cache_key, result)
-            
             return result
             
         except Exception as e:
@@ -206,6 +171,7 @@ class CannyConditioning(BaseConditioning):
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов Canny детекции."""
         return [
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "opencv_canny",
             "hed_canny",
             "structured_edge_detection", 
@@ -216,6 +182,7 @@ class CannyConditioning(BaseConditioning):
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
+            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
             "opencv_canny": {
                 "description": "Классический алгоритм детекции границ OpenCV",
                 "parameters": {
@@ -281,7 +248,8 @@ class CannyConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    
+    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+
     async def _opencv_canny(
         self, 
         image: Image.Image,
@@ -326,17 +294,17 @@ class CannyConditioning(BaseConditioning):
             
             if self._hed_model is None:
                 logger.warning("HED model not available, falling back to OpenCV Canny")
-                return await self._opencv_canny(image, **kwargs)
+                return None
             
             # TODO: Реализация HED inference
             # Пока используем fallback
             logger.info("HED inference not implemented yet, using OpenCV Canny")
-            return await self._opencv_canny(image, **kwargs)
+            return None
             
         except Exception as e:
             logger.error(f"Error in HED Canny: {e}")
-            return await self._opencv_canny(image, **kwargs)
-    
+            return None
+        
     async def _structured_edge_detection(
         self, 
         image: Image.Image,
@@ -377,7 +345,7 @@ class CannyConditioning(BaseConditioning):
             
         except Exception as e:
             logger.error(f"Error in Structured Edge Detection: {e}")
-            return await self._opencv_canny(image, **kwargs)
+            return None
     
     async def _multi_scale_canny(
         self, 
@@ -443,7 +411,7 @@ class CannyConditioning(BaseConditioning):
             
         except Exception as e:
             logger.error(f"Error in Multi-scale Canny: {e}")
-            return await self._opencv_canny(image, **kwargs)
+            return None
     
     async def _adaptive_canny(
         self, 
@@ -500,7 +468,7 @@ class CannyConditioning(BaseConditioning):
             
         except Exception as e:
             logger.error(f"Error in Adaptive Canny: {e}")
-            return await self._opencv_canny(image, **kwargs)
+            return None
     
     async def _load_hed_model(self):
         """Загружает модель HED для edge detection."""
@@ -523,44 +491,4 @@ class CannyConditioning(BaseConditioning):
         except Exception as e:
             logger.warning(f"Could not load HED model: {e}")
             self._hed_model = None
-    
-    def _analyze_edge_statistics(self, edge_image: Image.Image) -> Dict[str, float]:
-        """Анализирует статистику границ в сгенерированном изображении."""
-        if not edge_image:
-            return {}
-        
-        try:
-            # Конвертируем в grayscale для анализа
-            gray_array = np.array(edge_image.convert('L'))
-            
-            # Подсчитываем пиксели границ
-            edge_pixels = np.sum(gray_array > 128)  # Пороговое значение для границ
-            total_pixels = gray_array.size
-            edge_density = edge_pixels / total_pixels
-            
-            # Анализируем распределение интенсивности
-            mean_intensity = np.mean(gray_array)
-            std_intensity = np.std(gray_array)
-            
-            # Анализируем связность границ
-            # Применяем морфологические операции для анализа связности
-            binary = (gray_array > 128).astype(np.uint8) * 255
-            kernel = np.ones((3, 3), np.uint8)
-            
-            # Подсчитываем связанные компоненты
-            num_labels, labels = cv2.connectedComponents(binary)
-            connected_components = num_labels - 1  # Исключаем фон
-            
-            return {
-                'edge_density': float(edge_density),
-                'mean_intensity': float(mean_intensity),
-                'std_intensity': float(std_intensity),
-                'connected_components': int(connected_components),
-                'total_edge_pixels': int(edge_pixels),
-                'coverage_ratio': float(edge_density)
-            }
-            
-        except Exception as e:
-            logger.warning(f"Error analyzing edge statistics: {e}")
-            return {}
-        
+ 
