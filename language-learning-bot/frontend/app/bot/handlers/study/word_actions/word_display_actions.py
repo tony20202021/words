@@ -23,7 +23,7 @@ from app.bot.handlers.study.study_words import show_study_word
 from app.utils.big_word_generator import generate_big_word
 from app.bot.keyboards.study_keyboards import create_word_image_keyboard, create_writing_image_keyboard
 from app.api.writing_image_client import get_writing_image_client
-from app.utils.settings_utils import is_writing_images_enabled
+from app.utils.settings_utils import is_writing_images_enabled, get_user_language_settings
 from app.utils.message_utils import get_message_from_callback
 
 logger = setup_logger(__name__)
@@ -300,6 +300,10 @@ async def process_show_writing_image(
             await message.answer("❌ Картинки написания отключены в настройках")
             return
 
+        # Load user settings including individual hint settings
+        settings = await get_user_language_settings(message_or_callback, state)
+        show_debug = settings.get('show_debug', False)
+
         # Get current word state
         user_word_state = await UserWordState.from_state(state)
         
@@ -315,37 +319,35 @@ async def process_show_writing_image(
 
         # Extract word
         word_foreign = current_word.get("word_foreign", "")
+        translation = current_word.get("translation", "")
         
         if not word_foreign:
             await message.answer("❌ Слово на иностранном языке не найдено")
             return
 
-        # Get language info
-        state_data = await state.get_data()
-        current_language = state_data.get("current_language", {})
-        language_code = current_language.get("name_foreign", "").lower()
-        
         # Generate writing image using real service
-        logger.info(f"Generating writing image for word: '{word_foreign}', language: '{language_code}'")
+        logger.info(f"Generating writing image for word: '{word_foreign}', translation: '{translation}'")
         
         await message.answer("🖼️ Генерирую картинку написания...")
         
         # Get writing image client and call service
         client = get_writing_image_client()
-        result = await client.generate_writing_image(
+        request_result = await client.generate_writing_image(
             word=word_foreign,
-            language=language_code
+            translation=translation,
+            show_debug=show_debug,
         )
-        logger.info(f"Writing image result: {result['success']}")
+        logger.info(f"Writing image result: {request_result['success']}")
         
-        if not result["success"]:
-            error_msg = f"❌ Ошибка сервиса генерации: {result.get('error', 'Неизвестная ошибка')}"
+        if not request_result["success"]:
+            error_msg = f"❌ Ошибка сервиса генерации: {request_result.get('error', 'Неизвестная ошибка')}"
             await message.answer(error_msg)
             return
         
+        image_result = request_result["result"]
         # Get image data from result
-        image_data = result["result"]["image_data"]
-        image_buffer = io.BytesIO(image_data)
+        generated_image = image_result["generated_image"]
+        image_buffer = io.BytesIO(generated_image)
         
         # Create BufferedInputFile from BytesIO for Telegram
         image_buffer.seek(0)  # Reset buffer position
@@ -356,6 +358,15 @@ async def process_show_writing_image(
         
         # Prepare caption
         caption = f"🖼️ Картинка написания для: <b>{word_foreign}</b>"
+        if show_debug:
+            caption += f"success: {image_result['success']}\n"
+            caption += f"status: {image_result['status']}\n"
+            caption += f"conditioning_images: {image_result['conditioning_images']}\n"
+            caption += f"prompt_used: {image_result['prompt_used']}\n"
+            caption += f"semantic_analysis: {image_result['semantic_analysis']}\n"
+            caption += f"generation_metadata: {image_result['generation_metadata']}\n"
+            caption += f"error: {image_result['error']}\n"
+            caption += f"warnings: {image_result['warnings']}\n"
         
         # Create keyboard
         keyboard = create_writing_image_keyboard()

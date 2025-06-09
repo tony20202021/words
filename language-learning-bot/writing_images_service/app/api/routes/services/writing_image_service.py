@@ -11,8 +11,8 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from app.api.routes.models.requests import WritingImageRequest
-from app.api.routes.models.responses import WritingImageMetadata
+from app.api.routes.models.requests import AIImageRequest
+from app.api.routes.models.responses import AIGenerationMetadata
 from app.utils.image_utils import get_image_processor, ImageProcessor
 from app.utils import config_holder
 
@@ -31,7 +31,7 @@ class GenerationResult:
         image_data: Optional[bytes] = None,
         image_data_base64: Optional[str] = None,
         format: str = "png",
-        metadata: Optional[WritingImageMetadata] = None,
+        metadata: Optional[AIGenerationMetadata] = None,
         error: Optional[str] = None
     ):
         self.success = success
@@ -98,7 +98,7 @@ class WritingImageService:
         except Exception as e:
             logger.warning(f"Could not load generation config, using defaults: {e}")
     
-    async def generate_image(self, request: WritingImageRequest) -> GenerationResult:
+    async def generate_image(self, request: AIImageRequest) -> GenerationResult:
         """
         Generate writing image for the given request.
         STUB IMPLEMENTATION - generates placeholder image using ImageProcessor.
@@ -112,10 +112,7 @@ class WritingImageService:
         start_time = time.time()
         
         try:
-            logger.info(f"Generating writing image stub for word: '{request.word}', language: '{request.language}'")
-            
-            # Simulate some processing time
-            await asyncio.sleep(0.1)
+            logger.info(f"Generating writing image stub for word: '{request.word}', translation: '{request.translation}'")
             
             # Use requested dimensions or defaults
             width = request.width if request.width else self.default_width
@@ -124,40 +121,27 @@ class WritingImageService:
             # Generate stub image using ImageProcessor
             image = await self._generate_stub_image_with_processor(
                 word=request.word,
-                language=request.language,
-                style=request.style,
+                translation=request.translation,
                 width=width,
                 height=height,
-                show_guidelines=request.show_guidelines
             )
             
             # Convert to bytes and base64
             image_data = await self.image_processor.image_to_bytes(
                 image, 
                 format="PNG", 
-                quality=request.quality
             )
             image_data_base64 = await self.image_processor.image_to_base64(
                 image, 
                 format="PNG", 
-                quality=request.quality
             )
             
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
             
             # Create metadata
-            metadata = WritingImageMetadata(
-                word=request.word,
-                language=request.language,
-                style=request.style,
-                width=width,
-                height=height,
-                format="png",
-                size_bytes=len(image_data),
+            metadata = AIGenerationMetadata(
                 generation_time_ms=generation_time_ms,
-                quality=request.quality,
-                show_guidelines=request.show_guidelines
             )
             
             # Update statistics
@@ -184,11 +168,9 @@ class WritingImageService:
     async def _generate_stub_image_with_processor(
         self, 
         word: str, 
-        language: str,
-        style: str,
+        translation: str,
         width: int,
         height: int,
-        show_guidelines: bool = True
     ):
         """
         Generate stub image using ImageProcessor.
@@ -196,11 +178,9 @@ class WritingImageService:
         
         Args:
             word: Word to display
-            language: Language code
-            style: Writing style
+            translation: Translation
             width: Image width
             height: Image height
-            show_guidelines: Whether to show guidelines
             
         Returns:
             PIL.Image: Generated image
@@ -214,14 +194,6 @@ class WritingImageService:
             border_width=2, 
             border_color=self.border_color
         )
-        
-        # Add guidelines if requested
-        if show_guidelines:
-            image = await self.image_processor.add_guidelines_to_image(
-                image,
-                guideline_color=(220, 220, 220),
-                guideline_width=1
-            )
         
         # Add title text
         title_text = "Writing Image"
@@ -241,22 +213,13 @@ class WritingImageService:
             image, word_text, word_pos, self.font_size, self.text_color
         )
         
-        # Add language text
-        lang_text = f"Language: {language}"
+        # Add translation text
+        lang_text = f"Translation: {translation}"
         lang_pos = await self.image_processor.center_text_position(
             width, height, lang_text, self.font_size, offset_y=20
         )
         image = await self.image_processor.add_text_to_image(
             image, lang_text, lang_pos, self.font_size, self.text_color
-        )
-        
-        # Add style text
-        style_text = f"Style: {style}"
-        style_pos = await self.image_processor.center_text_position(
-            width, height, style_text, self.font_size, offset_y=60
-        )
-        image = await self.image_processor.add_text_to_image(
-            image, style_text, style_pos, self.font_size, self.text_color
         )
         
         # Add stub indicator

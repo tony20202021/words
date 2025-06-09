@@ -6,8 +6,8 @@ API routes for writing image generation.
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 
-from app.api.routes.models.requests import WritingImageRequest
-from app.api.routes.models.responses import WritingImageResponse, APIResponse
+from app.api.routes.models.requests import AIImageRequest
+from app.api.routes.models.responses import AIImageResponse, GenerationStatus
 from app.api.routes.services.writing_image_service import WritingImageService
 from app.api.routes.services.validation_service import ValidationService
 from app.core.exceptions import ValidationError, GenerationError
@@ -26,9 +26,9 @@ def get_validation_service() -> ValidationService:
     """Get validation service instance."""
     return ValidationService()
 
-@router.post("/generate-writing-image", response_model=WritingImageResponse)
+@router.post("/generate-writing-image", response_model=AIImageResponse)
 async def generate_writing_image(
-    request: WritingImageRequest,
+    request: AIImageRequest,
     writing_service: WritingImageService = Depends(get_writing_image_service),
     validation_service: ValidationService = Depends(get_validation_service)
 ):
@@ -48,7 +48,8 @@ async def generate_writing_image(
         HTTPException: If generation fails
     """
     try:
-        logger.info(f"Generating writing image for word: '{request.word}', language: '{request.language}'")
+        logger.info(f"Generating writing image for word: '{request.word}'")
+        logger.info(f"request: '{request}'")
         
         # Validate request
         validation_result = await validation_service.validate_request(request)
@@ -71,14 +72,24 @@ async def generate_writing_image(
         
         logger.info(f"Successfully generated writing image for: {request.word}")
         
-        return WritingImageResponse(
+        result = AIImageResponse(
             success=True,
-            image_data=generation_result.image_data_base64,
-            format=generation_result.format,
-            metadata=generation_result.metadata,
-            error=None
+            status=GenerationStatus.SUCCESS,
+            generated_image=generation_result.image_data_base64,
+            generation_metadata=generation_result.metadata,
         )
         
+        logger.info(f"result.success: '{result.success}'")
+        logger.info(f"result.status: '{result.status}'")
+        logger.info(f"result.len(generated_image): '{len(result.generated_image)}'")
+        logger.info(f"result.generation_metadata: '{result.generation_metadata}'")
+        logger.info(f"result.conditioning_images: '{result.conditioning_images}'")
+        logger.info(f"result.prompt_used: '{result.prompt_used}'")
+        logger.info(f"result.semantic_analysis: '{result.semantic_analysis}'")
+        logger.info(f"result.error: '{result.error}'")
+        return result
+    
+       
     except ValidationError as e:
         logger.warning(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -93,7 +104,7 @@ async def generate_writing_image(
 
 @router.post("/generate-writing-image-binary")
 async def generate_writing_image_binary(
-    request: WritingImageRequest,
+    request: AIImageRequest,
     writing_service: WritingImageService = Depends(get_writing_image_service),
     validation_service: ValidationService = Depends(get_validation_service)
 ):
@@ -160,33 +171,3 @@ async def generate_writing_image_binary(
     except Exception as e:
         logger.error(f"Unexpected error in binary writing image generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
-
-@router.get("/status", response_model=APIResponse)
-async def get_generation_status():
-    """
-    Get writing image generation service status.
-    Получает статус сервиса генерации картинок написания.
-    
-    Returns:
-        APIResponse: Service status information
-    """
-    try:
-        service = WritingImageService()
-        status = await service.get_service_status()
-        
-        return APIResponse(
-            success=True,
-            status=200,
-            result=status,
-            error=None
-        )
-        
-    except Exception as e:
-        logger.error(f"Error getting service status: {e}", exc_info=True)
-        return APIResponse(
-            success=False,
-            status=500,
-            result=None,
-            error=str(e)
-        )
-    

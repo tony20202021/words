@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 
-from app.api.routes import writing_images, health
+from app.api.routes import writing_images
 from app.utils.logger import setup_logger
 from app.utils import config_holder
 
@@ -125,20 +125,8 @@ def create_application() -> FastAPI:
     
     # Include routers
     app.include_router(writing_images.router, prefix=api_prefix)
-    app.include_router(health.router)
 
-    # Health check endpoint
-    @app.get("/health", tags=["health"])
-    async def health_check():
-        return {
-            "status": "healthy", 
-            "service": "writing_image_service",
-            "environment": app_environment,
-            "config_source": "Hydra",
-            "version": "1.0.0",
-            "pid": os.getpid()
-        }
-    
+   
     return app
 
 app = create_application()

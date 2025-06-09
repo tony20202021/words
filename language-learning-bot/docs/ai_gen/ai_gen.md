@@ -336,7 +336,6 @@ class AIImageResponse:
     # Промежуточные результаты
     conditioning_images: Optional[Dict[str, str]] = None  # base64
     prompt_used: Optional[str] = None
-    negative_prompt_used: Optional[str] = None
     
     # Метаданные генерации
     generation_metadata: Optional[Dict[str, Any]] = None

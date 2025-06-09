@@ -52,11 +52,8 @@ class WritingImageClient:
     async def generate_writing_image(
         self, 
         word: str, 
-        language: str = "chinese",
-        style: str = "traditional",
-        width: int = 600,
-        height: int = 600,
-        show_guidelines: bool = True
+        translation: str = "",
+        show_debug: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate writing image for a word.
@@ -64,11 +61,8 @@ class WritingImageClient:
         
         Args:
             word: Word to generate image for
-            language: Language code (chinese, japanese, korean, etc.)
-            style: Writing style (traditional, simplified, calligraphy)
-            width: Image width in pixels
-            height: Image height in pixels
-            show_guidelines: Whether to show guide lines
+            translation: Translation of the word
+            show_debug: Whether to show debug information
             
         Returns:
             Dict with status and result fields:
@@ -76,7 +70,7 @@ class WritingImageClient:
                 "success": bool,
                 "status": int,
                 "result": {
-                    "image_data": bytes,  # Image binary data
+                    "generated_image": bytes,  # Image binary data
                     "format": str,        # Image format (png, jpg)
                     "metadata": dict      # Additional metadata
                 },
@@ -92,17 +86,28 @@ class WritingImageClient:
             "error": None
         }
         
+        # TODO - брать из конфига
+        width = 512
+        height = 512
+        batch_size = 1
+
+        include_conditioning_images = show_debug
+        include_prompt = show_debug
+        include_semantic_analysis = show_debug
+
         # Prepare request data
         request_data = {
             "word": word,
-            "language": language,
-            "style": style,
+            "translation": translation,
             "width": width,
             "height": height,
-            "show_guidelines": show_guidelines
+            "include_conditioning_images": include_conditioning_images,
+            "include_prompt": include_prompt,
+            "include_semantic_analysis": include_semantic_analysis,
+            "batch_size": batch_size,
         }
-        
-        logger.info(f"Generating writing image for word: '{word}', language: '{language}'")
+
+        logger.info(f"Generating writing image for word: '{word}', translation: '{translation}'")
         
         # Retry logic
         for attempt in range(self.retry_count):
@@ -122,8 +127,8 @@ class WritingImageClient:
                             except:
                                 error_message = f"HTTP {response.status}"
                             
-                            logger.error(f"Writing image service: {url}, request_data={request_data}")
                             logger.error(f"Writing image service error: {response.status} - {error_message}")
+                            logger.error(f"service: {url}, request_data={request_data}")
                             response_dict["error"] = error_message
                             
                             # Retry on server errors
@@ -137,15 +142,14 @@ class WritingImageClient:
                         # Check content type
                         if response.content_type.startswith('image/'):
                             # Binary image response
-                            image_data = await response.read()
+                            generated_image = await response.read()
                             response_dict["result"] = {
-                                "image_data": image_data,
+                                "generated_image": generated_image,
                                 "format": response.content_type.split('/')[-1],
                                 "metadata": {
                                     "word": word,
-                                    "language": language,
-                                    "style": style,
-                                    "size": len(image_data)
+                                    "translation": translation,
+                                    "size": len(generated_image)
                                 }
                             }
                         elif response.content_type == 'application/json':
@@ -155,23 +159,30 @@ class WritingImageClient:
                             
                             # Writing Service возвращает данные напрямую, не в поле "result"
                             if json_data.get("success"):
-                                if "image_data" in json_data:
+                                if "generated_image" in json_data:
                                     import base64
                                     try:
-                                        image_data = base64.b64decode(json_data["image_data"])
+                                        generated_image = base64.b64decode(json_data["generated_image"])
                                         response_dict["result"] = {
-                                            "image_data": image_data,
-                                            "format": json_data.get("format", "png"),
-                                            "metadata": json_data.get("metadata", {})
+                                            "generated_image": generated_image,
+                                            "format": json_data.get("format", None),
+                                            "success": json_data.get("success", False),
+                                            "status": json_data.get("status", None),
+                                            "conditioning_images": json_data.get("conditioning_images", None),
+                                            "prompt_used": json_data.get("prompt_used", None),
+                                            "semantic_analysis": json_data.get("semantic_analysis", None),
+                                            "generation_metadata": json_data.get("generation_metadata", None),
+                                            "error": json_data.get("error", None),
+                                            "warnings": json_data.get("warnings", None),
                                         }
-                                        logger.info(f"Successfully decoded image data, size: {len(image_data)} bytes")
+                                        logger.info(f"Successfully decoded image data, size: {len(generated_image)} bytes")
                                     except Exception as decode_error:
                                         logger.error(f"Failed to decode base64 image data: {decode_error}")
                                         response_dict["error"] = f"Failed to decode image data: {decode_error}"
                                         return response_dict
                                 else:
-                                    logger.error("Missing image_data in successful response")
-                                    response_dict["error"] = "Missing image_data in response"
+                                    logger.error("Missing generated_image in successful response")
+                                    response_dict["error"] = "Missing generated_image in response"
                                     return response_dict
                             else:
                                 error_message = json_data.get("error", "Service returned success=false")
@@ -200,38 +211,6 @@ class WritingImageClient:
         # All attempts failed
         logger.error(f"All {self.retry_count} attempts to generate writing image failed")
         return response_dict
-
-    async def check_service_health(self) -> Dict[str, Any]:
-        """
-        Check if the writing image service is available.
-        Проверяет доступность сервиса генерации картинок.
-        
-        Returns:
-            Dict with health check results
-        """
-        health_url = f"{self.service_url}/health"
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(health_url, timeout=5) as response:
-                    if response.status == 200:
-                        return {
-                            "success": True,
-                            "status": response.status,
-                            "message": "Service is healthy"
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "status": response.status,
-                            "message": f"Service returned status {response.status}"
-                        }
-        except Exception as e:
-            return {
-                "success": False,
-                "status": 0,
-                "message": f"Service is not available: {e}"
-            }
 
 
 # Global client instance
@@ -275,35 +254,3 @@ def get_writing_image_client() -> WritingImageClient:
         )
     return _client_instance
 
-
-async def generate_writing_image_via_service(
-    word: str,
-    language: str = "chinese",
-    **kwargs
-) -> io.BytesIO:
-    """
-    Convenient function to generate writing image via service.
-    Удобная функция для генерации картинки через сервис.
-    
-    Args:
-        word: Word to generate image for
-        language: Language code
-        **kwargs: Additional generation parameters
-        
-    Returns:
-        io.BytesIO: Image data in memory
-        
-    Raises:
-        Exception: If generation fails
-    """
-    client = get_writing_image_client()
-    result = await client.generate_writing_image(word, language, **kwargs)
-    
-    if not result["success"]:
-        raise Exception(f"Writing image generation failed: {result.get('error', 'Unknown error')}")
-    
-    image_data = result["result"]["image_data"]
-    image_buffer = io.BytesIO(image_data)
-    image_buffer.seek(0)
-    
-    return image_buffer

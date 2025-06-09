@@ -17,16 +17,6 @@ class GenerationStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     QUEUED = "queued"
 
-
-class ConditioningQuality(str, Enum):
-    """Оценка качества conditioning"""
-    EXCELLENT = "excellent"
-    GOOD = "good"
-    FAIR = "fair"
-    POOR = "poor"
-    FAILED = "failed"
-
-
 @dataclass
 class AIImageResponse:
     """Ответ на запрос генерации AI изображения"""
@@ -37,7 +27,6 @@ class AIImageResponse:
     # Промежуточные результаты
     conditioning_images: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
     prompt_used: Optional[str] = None
-    negative_prompt_used: Optional[str] = None
     
     # Семантический анализ
     semantic_analysis: Optional['SemanticAnalysisResult'] = None
@@ -49,37 +38,33 @@ class AIImageResponse:
     error: Optional[str] = None
     warnings: List[str] = field(default_factory=list)
     
-    # Качество результата
-    quality_assessment: Optional['QualityAssessment'] = None
-
 
 @dataclass 
 class AIGenerationMetadata:
     """Метаданные процесса AI генерации"""
     # Модели
-    model_used: str
-    controlnet_models_used: Dict[str, str]
+    model_used: str = None
+    controlnet_models_used: Dict[str, str] = None
     
     # Параметры conditioning
-    conditioning_weights_used: Dict[str, float]
-    conditioning_methods_used: Dict[str, List[str]]
-    conditioning_quality_scores: Dict[str, Dict[str, float]]  # {"canny": {"opencv_canny": 0.8, "hed_canny": 0.9}}
+    conditioning_weights_used: Dict[str, float] = None
+    conditioning_methods_used: Dict[str, List[str]] = None
     
     # Временные метрики
-    generation_time_ms: int
-    conditioning_time_ms: Dict[str, Dict[str, int]]  # {"canny": {"opencv_canny": 150, "hed_canny": 200}}
+    generation_time_ms: Optional[int] = None
+    conditioning_time_ms: Optional[Dict[str, Dict[str, int]]] = None # {"canny": {"opencv_canny": 150, "hed_canny": 200}}
     semantic_analysis_time_ms: Optional[int] = None
-    total_processing_time_ms: int = 0
+    total_processing_time_ms: Optional[int] = None
     
     # Ресурсы
-    gpu_memory_used_mb: float
-    gpu_memory_peak_mb: float
+    gpu_memory_used_mb: Optional[float] = None
+    gpu_memory_peak_mb: Optional[float] = None
     cpu_memory_used_mb: Optional[float] = None
     
     # Параметры генерации
-    seed_used: int
-    actual_steps_completed: int
-    guidance_scale_used: float
+    seed_used: Optional[int] = None
+    actual_steps_completed: Optional[int] = None
+    guidance_scale_used: Optional[float] = None
     
     # Статистика модели
     model_loading_time_ms: Optional[int] = None
@@ -193,79 +178,6 @@ class PromptAnalysisResult:
 
 
 @dataclass
-class QualityAssessment:
-    """Оценка качества сгенерированного изображения"""
-    overall_score: float  # 0.0 - 1.0
-    
-    # Компонентные оценки
-    visual_coherence: float = 0.0        # Визуальная согласованность
-    semantic_accuracy: float = 0.0       # Семантическая точность
-    style_consistency: float = 0.0       # Соответствие стилю
-    technical_quality: float = 0.0       # Техническое качество
-    
-    # Детальная оценка
-    conditioning_effectiveness: Dict[str, float] = field(default_factory=dict) # Эффективность каждого conditioning
-    prompt_adherence: float = 0.0        # Соответствие промпту
-    
-    # Проблемы и рекомендации
-    identified_issues: List[str] = field(default_factory=list)
-    improvement_suggestions: List[str] = field(default_factory=list)
-    
-    # Автоматическая оценка
-    automated_scores: Dict[str, float] = field(default_factory=dict)
-    confidence_in_assessment: float = 0.0
-
-
-@dataclass
-class MethodComparisonResult:
-    """Результат сравнения различных методов conditioning"""
-    comparison_type: str  # "canny", "depth", "segmentation", "scribble"
-    
-    # Ранжирование методов
-    method_rankings: List[Dict[str, Any]] = field(default_factory=list) # [{"method": "opencv_canny", "score": 0.8, "rank": 1}]
-    
-    # Сравнительные метрики
-    quality_comparison: Dict[str, float] = field(default_factory=dict)    # {"opencv_canny": 0.8, "hed_canny": 0.9}
-    speed_comparison: Dict[str, int] = field(default_factory=dict)        # Время в мс
-    resource_usage: Dict[str, float] = field(default_factory=dict)        # Использование ресурсов
-    
-    # Рекомендации
-    best_method_overall: str = ""
-    best_method_for_speed: str = ""
-    best_method_for_quality: str = ""
-    
-    # Анализ различий
-    visual_differences_description: str = ""
-    use_case_recommendations: Dict[str, str] = field(default_factory=dict) # {"comic_style": "opencv_canny"}
-
-
-@dataclass
-class BatchGenerationResult:
-    """Результат пакетной генерации изображений"""
-    total_requests: int
-    successful_generations: int
-    failed_generations: int
-    
-    # Индивидуальные результаты
-    individual_results: List[AIImageResponse] = field(default_factory=list)
-    
-    # Сводная статистика
-    total_processing_time_ms: int = 0
-    average_generation_time_ms: float = 0.0
-    total_gpu_memory_used_mb: float = 0.0
-    
-    # Ошибки пакета
-    batch_errors: List[str] = field(default_factory=list)
-    
-    # Анализ эффективности пакетной обработки
-    batch_efficiency_score: float = 0.0
-    parallel_processing_benefit: float = 0.0  # Выигрыш от параллельной обработки
-    
-    # Рекомендации для оптимизации
-    optimization_suggestions: List[str] = field(default_factory=list)
-
-
-@dataclass
 class ModelStatusResponse:
     """Ответ на запрос статуса AI моделей"""
     timestamp: datetime = field(default_factory=datetime.now)
@@ -297,29 +209,6 @@ class ModelStatusResponse:
     # Проблемы и предупреждения
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
-
-
-@dataclass
-class CacheStatusResponse:
-    """Ответ на запрос статуса кэша"""
-    timestamp: datetime = field(default_factory=datetime.now)
-    
-    # Статус разных типов кэша
-    model_cache: Dict[str, Any] = field(default_factory=dict)
-    conditioning_cache: Dict[str, Any] = field(default_factory=dict)
-    semantic_cache: Dict[str, Any] = field(default_factory=dict)
-    
-    # Общая статистика
-    total_cache_size_mb: float = 0.0
-    total_cached_items: int = 0
-    cache_hit_rate_percent: float = 0.0
-    
-    # Эффективность кэша
-    memory_savings_mb: float = 0.0
-    time_savings_ms: float = 0.0
-    
-    # Рекомендации по оптимизации
-    optimization_suggestions: List[str] = field(default_factory=list)
 
 
 @dataclass

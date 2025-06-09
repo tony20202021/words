@@ -11,6 +11,12 @@ import logging
 from typing import Tuple, Optional, Dict, Any
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
+import sys
+from pathlib import Path
+
+# Добавляем путь к корневой директории проекта для импорта common
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from common.utils.font_utils import get_font_manager, FontManager
 
@@ -253,7 +259,6 @@ class ImageProcessor:
         self,
         image: Image.Image,
         format: str = "PNG",
-        quality: int = 90
     ) -> bytes:
         """
         Convert PIL Image to bytes.
@@ -262,7 +267,6 @@ class ImageProcessor:
         Args:
             image: PIL Image object
             format: Image format (PNG, JPEG, etc.)
-            quality: Image quality (1-100, for JPEG)
             
         Returns:
             Image as bytes
@@ -271,8 +275,6 @@ class ImageProcessor:
         
         # Save parameters
         save_kwargs = {"format": format, "optimize": True}
-        if format.upper() == "JPEG":
-            save_kwargs["quality"] = quality
         
         image.save(buffer, **save_kwargs)
         buffer.seek(0)
@@ -283,7 +285,6 @@ class ImageProcessor:
         self,
         image: Image.Image,
         format: str = "PNG",
-        quality: int = 90
     ) -> str:
         """
         Convert PIL Image to base64 string.
@@ -292,12 +293,11 @@ class ImageProcessor:
         Args:
             image: PIL Image object
             format: Image format (PNG, JPEG, etc.)
-            quality: Image quality (1-100, for JPEG)
             
         Returns:
             Base64 encoded image string
         """
-        image_bytes = await self.image_to_bytes(image, format, quality)
+        image_bytes = await self.image_to_bytes(image, format)
         return base64.b64encode(image_bytes).decode('utf-8')
     
     async def calculate_text_size(

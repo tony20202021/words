@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-from app.api.routes.models.requests import WritingImageRequest, BatchWritingImageRequest
+from app.api.routes.models.requests import AIImageRequest
 from app.utils import config_holder
 
 logger = logging.getLogger(__name__)
@@ -45,18 +45,6 @@ class ValidationService:
         self.max_width = 2048
         self.min_height = 100
         self.max_height = 2048
-        self.min_quality = 1
-        self.max_quality = 100
-        
-        # Universal language support - no restrictions
-        self.universal_language_support = True
-        
-        # Common styles (informational only, no restrictions)
-        self.common_styles = {
-            'traditional', 'simplified', 'calligraphy', 'print', 'cursive',
-            'hiragana', 'katakana', 'kanji', 'hangul', 'naskh', 'nastaliq', 
-            'devanagari', 'bold', 'italic', 'regular'
-        }
         
         try:
             if hasattr(config_holder, 'cfg') and hasattr(config_holder.cfg, 'generation'):
@@ -74,7 +62,7 @@ class ValidationService:
         except Exception as e:
             logger.warning(f"Could not load validation config, using defaults: {e}")
     
-    async def validate_request(self, request: WritingImageRequest) -> ValidationResult:
+    async def validate_request(self, request: AIImageRequest) -> ValidationResult:
         """
         Validate writing image generation request.
         Валидирует запрос на генерацию картинки написания.
@@ -93,35 +81,16 @@ class ValidationService:
         errors.extend(word_validation['errors'])
         warnings.extend(word_validation['warnings'])
         
-        # Validate language (universal support)
-        language_validation = self._validate_language(request.language)
-        errors.extend(language_validation['errors'])
-        warnings.extend(language_validation['warnings'])
-        
-        # Validate style (permissive)
-        style_validation = self._validate_style(request.style)
-        errors.extend(style_validation['errors'])
-        warnings.extend(style_validation['warnings'])
-        
         # Validate dimensions
         dimensions_validation = self._validate_dimensions(request.width, request.height)
         errors.extend(dimensions_validation['errors'])
         warnings.extend(dimensions_validation['warnings'])
         
-        # Validate quality
-        quality_validation = self._validate_quality(request.quality)
-        errors.extend(quality_validation['errors'])
-        warnings.extend(quality_validation['warnings'])
-        
         # Create sanitized data
         sanitized_data = {
             'word': request.word.strip(),
-            'language': request.language.lower().strip(),
-            'style': request.style.lower().strip(),
             'width': max(self.min_width, min(self.max_width, request.width)),
             'height': max(self.min_height, min(self.max_height, request.height)),
-            'quality': max(self.min_quality, min(self.max_quality, request.quality)),
-            'show_guidelines': request.show_guidelines
         }
         
         is_valid = len(errors) == 0
@@ -136,63 +105,6 @@ class ValidationService:
             errors=errors,
             warnings=warnings,
             sanitized_data=sanitized_data
-        )
-    
-    async def validate_batch_request(self, request: BatchWritingImageRequest) -> ValidationResult:
-        """
-        Validate batch writing image generation request.
-        Валидирует пакетный запрос на генерацию картинок написания.
-        
-        Args:
-            request: Batch writing image generation request
-            
-        Returns:
-            ValidationResult: Validation result
-        """
-        errors = []
-        warnings = []
-        
-        # Validate words list
-        if not request.words:
-            errors.append("Words list cannot be empty")
-        elif len(request.words) > 10:
-            errors.append("Maximum 10 words allowed in batch request")
-        else:
-            valid_words = []
-            for i, word in enumerate(request.words):
-                word_validation = self._validate_word(word)
-                if word_validation['errors']:
-                    errors.extend([f"Word {i+1}: {error}" for error in word_validation['errors']])
-                else:
-                    valid_words.append(word.strip())
-                warnings.extend([f"Word {i+1}: {warning}" for warning in word_validation['warnings']])
-            
-            if not valid_words:
-                errors.append("No valid words in the batch")
-        
-        # Validate other parameters (same as single request)
-        language_validation = self._validate_language(request.language)
-        errors.extend(language_validation['errors'])
-        warnings.extend(language_validation['warnings'])
-        
-        style_validation = self._validate_style(request.style)
-        errors.extend(style_validation['errors'])
-        warnings.extend(style_validation['warnings'])
-        
-        dimensions_validation = self._validate_dimensions(request.width, request.height)
-        errors.extend(dimensions_validation['errors'])
-        warnings.extend(dimensions_validation['warnings'])
-        
-        quality_validation = self._validate_quality(request.quality)
-        errors.extend(quality_validation['errors'])
-        warnings.extend(quality_validation['warnings'])
-        
-        is_valid = len(errors) == 0
-        
-        return ValidationResult(
-            is_valid=is_valid,
-            errors=errors,
-            warnings=warnings
         )
     
     def _validate_word(self, word: str) -> Dict[str, List[str]]:
@@ -223,50 +135,6 @@ class ValidationService:
         
         return {'errors': errors, 'warnings': warnings}
     
-    def _validate_language(self, language: str) -> Dict[str, List[str]]:
-        """Validate language parameter with universal support."""
-        errors = []
-        warnings = []
-        
-        if not language:
-            errors.append("Language cannot be empty")
-            return {'errors': errors, 'warnings': warnings}
-        
-        language_clean = language.strip().lower()
-        
-        # Very basic validation - just check for reasonable format
-        if not re.match(r'^[a-z][a-z0-9_-]{1,19}$', language_clean):
-            warnings.append("Language code should contain only lowercase letters, numbers, hyphens and underscores")
-        
-        # No language restrictions - all languages are supported
-        if len(language_clean) < 2:
-            warnings.append("Language code seems very short")
-        elif len(language_clean) > 20:
-            warnings.append("Language code seems unusually long")
-        
-        return {'errors': errors, 'warnings': warnings}
-    
-    def _validate_style(self, style: str) -> Dict[str, List[str]]:
-        """Validate style parameter with permissive approach."""
-        errors = []
-        warnings = []
-        
-        if not style:
-            warnings.append("Style not specified, using default")
-            return {'errors': errors, 'warnings': warnings}
-        
-        style_clean = style.strip().lower()
-        
-        # Basic format validation
-        if not re.match(r'^[a-z][a-z0-9_-]{0,19}$', style_clean):
-            warnings.append("Style should contain only lowercase letters, numbers, hyphens and underscores")
-        
-        # Informational note about common styles
-        if style_clean not in self.common_styles:
-            warnings.append(f"Style '{style}' is not commonly used, but will be accepted")
-        
-        return {'errors': errors, 'warnings': warnings}
-    
     def _validate_dimensions(self, width: int, height: int) -> Dict[str, List[str]]:
         """Validate image dimensions."""
         errors = []
@@ -294,21 +162,6 @@ class ValidationService:
         
         return {'errors': errors, 'warnings': warnings}
     
-    def _validate_quality(self, quality: int) -> Dict[str, List[str]]:
-        """Validate image quality parameter."""
-        errors = []
-        warnings = []
-        
-        if quality < self.min_quality:
-            errors.append(f"Quality must be at least {self.min_quality}")
-        elif quality > self.max_quality:
-            errors.append(f"Quality cannot exceed {self.max_quality}")
-        
-        if quality < 50:
-            warnings.append("Low quality setting may result in poor image quality")
-        
-        return {'errors': errors, 'warnings': warnings}
-    
     def get_validation_rules(self) -> Dict[str, Any]:
         """
         Get current validation rules and limits.
@@ -324,26 +177,10 @@ class ValidationService:
                 'max_width': self.max_width,
                 'min_height': self.min_height,
                 'max_height': self.max_height,
-                'min_quality': self.min_quality,
-                'max_quality': self.max_quality
-            },
-            'language_support': {
-                'universal': True,
-                'message': 'All languages are supported. Service automatically adapts to any language.',
-                'format_requirements': 'Lowercase letters, numbers, hyphens and underscores, 2-20 characters'
-            },
-            'style_support': {
-                'permissive': True,
-                'message': 'All styles are accepted. Service will use the most appropriate rendering.',
-                'common_styles': sorted(list(self.common_styles)),
-                'format_requirements': 'Lowercase letters, numbers, hyphens and underscores, 1-20 characters'
             },
             'requirements': {
                 'word': 'Non-empty string, max 50 characters, no control characters',
-                'language': 'Any language code, 2-20 characters',
-                'style': 'Any style name, 1-20 characters',
                 'dimensions': f'{self.min_width}-{self.max_width}x{self.min_height}-{self.max_height} pixels',
-                'quality': f'{self.min_quality}-{self.max_quality}'
             }
         }
     

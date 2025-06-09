@@ -125,9 +125,6 @@ class MultiControlNetPipeline:
             # Применяем оптимизации
             await self._apply_optimizations()
             
-            # Выполняем warmup
-            await self._warmup_pipeline()
-            
             self._is_loaded = True
             setup_time = time.time() - start_time
             
@@ -150,7 +147,6 @@ class MultiControlNetPipeline:
         
         Args:
             prompt: Текстовый промпт
-            negative_prompt: Негативный промпт
             control_images: Словарь conditioning изображений по типам
             conditioning_scales: Веса conditioning для каждого типа
             **generation_params: Дополнительные параметры генерации
@@ -355,38 +351,6 @@ class MultiControlNetPipeline:
         except Exception as e:
             logger.warning(f"Some optimizations failed: {e}")
     
-    async def _warmup_pipeline(self):
-        """Прогревает pipeline для ускорения первой генерации."""
-        if self.pipeline is None:
-            logger.info("Skipping warmup in development mode")
-            return
-        
-        try:
-            logger.info("Warming up pipeline...")
-            
-            # Создаем dummy inputs для warmup
-            dummy_prompt = "test"
-            dummy_image = Image.new('RGB', (512, 512), 'white')
-            dummy_controls = {
-                control_type: dummy_image 
-                for control_type in self.controlnets.keys()
-            }
-            
-            # Выполняем быструю генерацию с минимальными шагами
-            await self.generate(
-                prompt=dummy_prompt,
-                control_images=dummy_controls,
-                conditioning_scales={k: 0.5 for k in dummy_controls.keys()},
-                num_inference_steps=1,
-                width=512,
-                height=512
-            )
-            
-            logger.info("Pipeline warmup completed")
-            
-        except Exception as e:
-            logger.warning(f"Pipeline warmup failed: {e}")
-    
     async def _prepare_control_inputs(
         self,
         control_images: Dict[str, Image.Image],
@@ -567,71 +531,11 @@ class MultiControlNetPipeline:
             return torch.cuda.memory_allocated() / 1024**2
         return 0.0
     
-    def _update_stats(
-        self, 
-        inference_time: float, 
-        memory_before: float, 
-        memory_after: float
-    ):
-        """Обновляет статистику генерации."""
-        self.generation_count += 1
-        self.total_inference_time += inference_time
-        self.memory_stats.append({
-            'before': memory_before,
-            'after': memory_after,
-            'peak': memory_after,
-            'inference_time': inference_time
-        })
-        
-        # Ограничиваем размер статистики
-        if len(self.memory_stats) > 100:
-            self.memory_stats = self.memory_stats[-100:]
-    
     async def _cleanup_memory(self):
         """Очищает GPU память после генерации."""
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         gc.collect()
-    
-    # Публичные методы статистики и управления
-    
-    def get_pipeline_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику pipeline."""
-        memory_stats = {}
-        if self.memory_stats:
-            memory_values = [stat['after'] for stat in self.memory_stats]
-            memory_stats = {
-                'avg_memory_mb': sum(memory_values) / len(memory_values),
-                'peak_memory_mb': max(memory_values),
-                'min_memory_mb': min(memory_values)
-            }
-        
-        return {
-            'is_loaded': self._is_loaded,
-            'device': str(self._device),
-            'torch_dtype': str(self._torch_dtype),
-            'generation_count': self.generation_count,
-            'total_inference_time': self.total_inference_time,
-            'avg_inference_time': (
-                self.total_inference_time / max(self.generation_count, 1)
-            ),
-            'controlnet_count': len(self.controlnets),
-            'controlnet_types': list(self.controlnets.keys()),
-            'memory_stats': memory_stats,
-            'optimizations': {
-                'memory_efficient': self.config.memory_efficient,
-                'attention_slicing': self.config.enable_attention_slicing,
-                'cpu_offload': self.config.enable_cpu_offload,
-                'torch_compile': self.config.use_torch_compile
-            }
-        }
-    
-    def clear_stats(self):
-        """Очищает статистику pipeline."""
-        self.generation_count = 0
-        self.total_inference_time = 0
-        self.memory_stats = []
-        logger.info("Pipeline statistics cleared")
     
     async def unload_pipeline(self):
         """Выгружает pipeline для освобождения памяти."""
@@ -669,84 +573,4 @@ class MultiControlNetPipeline:
     def get_supported_controlnet_types(self) -> List[str]:
         """Возвращает поддерживаемые типы ControlNet."""
         return list(self.config.controlnet_models.keys())
-    
-    async def benchmark_generation(
-        self, 
-        num_iterations: int = 5,
-        **generation_params
-    ) -> Dict[str, Any]:
-        """
-        Выполняет бенчмарк генерации.
-        
-        Args:
-            num_iterations: Количество итераций
-            **generation_params: Параметры генерации
-            
-        Returns:
-            Dict[str, Any]: Результаты бенчмарка
-        """
-        if not self.is_ready():
-            raise RuntimeError("Pipeline not ready for benchmarking")
-        
-        logger.info(f"Starting benchmark with {num_iterations} iterations...")
-        
-        benchmark_results = {
-            'iterations': num_iterations,
-            'times': [],
-            'memory_usage': [],
-            'errors': 0
-        }
-        
-        # Подготавливаем тестовые данные
-        test_prompt = "A beautiful Chinese character illustration"
-        test_image = Image.new('RGB', (512, 512), 'white')
-        test_controls = {
-            control_type: test_image 
-            for control_type in self.controlnets.keys()
-        }
-        
-        for i in range(num_iterations):
-            try:
-                start_time = time.time()
-                memory_before = self._get_memory_usage()
-                
-                result = await self.generate(
-                    prompt=test_prompt,
-                    control_images=test_controls,
-                    num_inference_steps=10,  # Быстрый тест
-                    width=512,
-                    height=512,
-                    **generation_params
-                )
-                
-                end_time = time.time()
-                memory_after = self._get_memory_usage()
-                
-                benchmark_results['times'].append(end_time - start_time)
-                benchmark_results['memory_usage'].append(memory_after - memory_before)
-                
-                logger.debug(f"Benchmark iteration {i+1}/{num_iterations} completed")
-                
-            except Exception as e:
-                logger.error(f"Benchmark iteration {i+1} failed: {e}")
-                benchmark_results['errors'] += 1
-        
-        # Вычисляем статистики
-        if benchmark_results['times']:
-            times = benchmark_results['times']
-            memory_usage = benchmark_results['memory_usage']
-            
-            benchmark_results.update({
-                'avg_time': sum(times) / len(times),
-                'min_time': min(times),
-                'max_time': max(times),
-                'avg_memory_delta': sum(memory_usage) / len(memory_usage),
-                'max_memory_delta': max(memory_usage),
-                'success_rate': (num_iterations - benchmark_results['errors']) / num_iterations
-            })
-        
-        logger.info(f"Benchmark completed: avg_time={benchmark_results.get('avg_time', 0):.2f}s, "
-                   f"success_rate={benchmark_results.get('success_rate', 0):.2f}")
-        
-        return benchmark_results
-    
+   

@@ -82,7 +82,6 @@ class AIGenerationResult:
     
     # Промпты
     prompt_used: Optional[str] = None
-    negative_prompt_used: Optional[str] = None
     
     # Метаданные
     generation_metadata: Optional[Dict[str, Any]] = None
@@ -144,7 +143,6 @@ class AIImageGenerator:
         self,
         character: str,
         translation: str = "",
-        style: str = "comic",
         conditioning_weights: Optional[Dict[str, float]] = None,
         conditioning_methods: Optional[Dict[str, str]] = None,
         include_conditioning_images: bool = False,
@@ -185,9 +183,6 @@ class AIImageGenerator:
                 "scribble": "skeletonization_scribble"
             }
             
-            # Применяем стиль-специфичные веса
-            weights = self._apply_style_weights(weights, style)
-            
             # 1. Предобработка - рендеринг иероглифа
             base_image = await self._preprocess_character(
                 character, 
@@ -202,7 +197,7 @@ class AIImageGenerator:
             
             # 3. Построение промпта
             prompt, negative_prompt = await self._build_prompt(
-                character, translation, style
+                character, translation
             )
             
             # 4. AI генерация с Multi-ControlNet
@@ -215,9 +210,6 @@ class AIImageGenerator:
                 **generation_params
             )
             
-            # 5. Постобработка
-            final_image = await self._postprocess_result(generated_image, style)
-            
             # Подсчет времени генерации
             generation_time_ms = int((time.time() - start_time) * 1000)
             
@@ -229,7 +221,6 @@ class AIImageGenerator:
                 conditioning_images=conditioning_images if include_conditioning_images else None,
                 conditioning_images_base64=self._conditioning_to_base64(conditioning_images) if include_conditioning_images else None,
                 prompt_used=prompt if include_prompt else None,
-                negative_prompt_used=negative_prompt if include_prompt else None,
                 generation_metadata={
                     'character': character,
                     'translation': translation,
@@ -260,7 +251,6 @@ class AIImageGenerator:
                 error_message=str(e),
                 generation_metadata={
                     'character': character,
-                    'style': style,
                     'generation_time_ms': int((time.time() - start_time) * 1000),
                     'error_occurred': True
                 }
@@ -447,24 +437,10 @@ class AIImageGenerator:
                         f"stylized after the Chinese character {character}, cell shading, bright colors, manga influence"
             }
             
-            base_prompt = style_templates.get(style, style_templates["comic"])
-            
-            # Добавляем качественные модификаторы
-            quality_modifiers = "masterpiece, best quality, highly detailed, 8k resolution"
-            prompt = f"{base_prompt}, {quality_modifiers}"
-            
-            # Negative prompts
-            negative_prompts = {
-                "comic": "realistic, photographic, dark, gloomy, monochrome, blurry, low quality",
-                "watercolor": "sharp edges, digital art, 3d render, cartoon, harsh lighting", 
-                "realistic": "cartoon, anime, stylized, abstract, low quality, distorted",
-                "anime": "realistic, photographic, western style, low quality, blurry"
-            }
-            
-            negative_prompt = negative_prompts.get(style, "blurry, low quality, distorted, ugly, bad anatomy")
+            prompt = style_templates.get(style, style_templates["comic"])
             
             logger.debug(f"Built prompt for {character} ({style}): {prompt[:100]}...")
-            return prompt, negative_prompt
+            return prompt
             
         except Exception as e:
             logger.error(f"Error building prompt: {e}")
@@ -476,7 +452,6 @@ class AIImageGenerator:
     async def _run_ai_generation(
         self,
         prompt: str,
-        negative_prompt: str,
         conditioning_images: Dict[str, Image.Image],
         conditioning_weights: Dict[str, float],
         seed: Optional[int] = None,
@@ -526,81 +501,7 @@ class AIImageGenerator:
             logger.error(f"Error in AI generation: {e}")
             raise
     
-    async def _postprocess_result(
-        self, 
-        generated_image: Image.Image, 
-        style: str
-    ) -> Image.Image:
-        """
-        Постобработка сгенерированного изображения.
-        
-        Args:
-            generated_image: Сгенерированное изображение
-            style: Стиль генерации
-            
-        Returns:
-            Image.Image: Обработанное изображение
-        """
-        try:
-            # TODO: Стиль-специфичная постобработка
-            # from app.ai.postprocessing import PostProcessor
-            # processor = PostProcessor()
-            # return await processor.apply_style_filters(generated_image, style)
-            
-            # Пока возвращаем без изменений
-            return generated_image
-            
-        except Exception as e:
-            logger.error(f"Error in postprocessing: {e}")
-            return generated_image
-    
-    def _apply_style_weights(
-        self, 
-        base_weights: Dict[str, float], 
-        style: str
-    ) -> Dict[str, float]:
-        """
-        Применяет стиль-специфичные веса conditioning.
-        
-        Args:
-            base_weights: Базовые веса
-            style: Стиль генерации
-            
-        Returns:
-            Dict[str, float]: Модифицированные веса
-        """
-        style_weight_modifications = {
-            "comic": {
-                "canny": 0.9,
-                "depth": 0.5,
-                "segmentation": 0.7,
-                "scribble": 0.3
-            },
-            "watercolor": {
-                "canny": 0.4,
-                "depth": 0.3,
-                "segmentation": 0.3,
-                "scribble": 0.8
-            },
-            "realistic": {
-                "canny": 0.8,
-                "depth": 0.9,
-                "segmentation": 0.6,
-                "scribble": 0.2
-            },
-            "anime": {
-                "canny": 0.7,
-                "depth": 0.4,
-                "segmentation": 0.8,
-                "scribble": 0.5
-            }
-        }
-        
-        if style in style_weight_modifications:
-            return style_weight_modifications[style]
-        else:
-            return base_weights
-    
+    # TODO - избавится от понятия fallback, все эти методы перенести каждый в свой блок обуславливания как метод по умолчанию
     async def _create_fallback_conditioning(
         self, 
         base_image: Image.Image, 
@@ -646,6 +547,7 @@ class AIImageGenerator:
         # Fallback - возвращаем исходное изображение
         return base_image
     
+    # TODO - избавится от понятия fallback, все эти методы перенести каждый в свой блок обуславливания как метод по умолчанию
     async def _create_all_fallback_conditioning(
         self, 
         base_image: Image.Image
@@ -714,11 +616,6 @@ class AIImageGenerator:
             center_horizontal=True, offset_y=height//3
         )
         
-        # Добавляем рамку
-        placeholder = await self.image_processor.add_border_to_image(
-            placeholder, border_width=3, border_color=(180, 180, 180)
-        )
-        
         return placeholder
     
     def _to_base64(self, image: Image.Image) -> str:
@@ -734,55 +631,3 @@ class AIImageGenerator:
         for cond_type, image in conditioning_images.items():
             result[cond_type] = self._to_base64(image)
         return result
-    
-    # Методы статистики и мониторинга
-    
-    def get_generation_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику генерации"""
-        uptime_seconds = int(time.time() - self.start_time)
-        
-        return {
-            "total_generations": self.generation_count,
-            "total_generation_time_ms": self.total_generation_time,
-            "average_generation_time_ms": (
-                self.total_generation_time / max(self.generation_count, 1)
-            ),
-            "uptime_seconds": uptime_seconds,
-            "generations_per_hour": (
-                self.generation_count / max(uptime_seconds / 3600, 1/3600)
-            ),
-            "models_loaded": self._models_loaded,
-            "pipeline_available": self.pipeline is not None
-        }
-    
-    def clear_generation_stats(self):
-        """Очищает статистику генерации"""
-        self.generation_count = 0
-        self.total_generation_time = 0
-        self.start_time = time.time()
-        logger.info("Generation statistics cleared")
-    
-    async def warmup_models(self):
-        """Прогревает модели для ускорения первой генерации"""
-        try:
-            logger.info("Warming up AI models...")
-            
-            # Загружаем модели
-            await self._ensure_models_loaded()
-            
-            # Выполняем тестовую генерацию
-            test_result = await self.generate_character_image(
-                character="测试",
-                translation="test",
-                style="comic"
-            )
-            
-            if test_result.success:
-                logger.info("Model warmup completed successfully")
-            else:
-                logger.warning(f"Model warmup completed with warnings: {test_result.error_message}")
-                
-        except Exception as e:
-            logger.error(f"Error during model warmup: {e}")
-            raise
-        

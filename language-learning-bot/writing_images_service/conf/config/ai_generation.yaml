@@ -26,49 +26,16 @@ ai_generation:
   generation:
     num_inference_steps: 30
     guidance_scale: 7.5
-    width: 1024
-    height: 1024
-    batch_size: 1  # Можно увеличить для 80GB VRAM
+    width: 512
+    height: 512
+    batch_size: 4  # Можно увеличить для 80GB VRAM
     
-    # Negative prompts по умолчанию
-    negative_prompts:
-      default: "blurry, low quality, distorted, ugly, bad anatomy, text, watermark"
-      comic: "realistic, photographic, dark, gloomy, monochrome"
-      watercolor: "sharp edges, digital art, 3d render, cartoon"
-      realistic: "cartoon, anime, stylized, abstract"
-  
   # Веса conditioning по умолчанию
   conditioning_weights:
     canny: 0.8
     depth: 0.6
     segmentation: 0.5
     scribble: 0.4
-    
-  # Варианты весов для разных стилей
-  style_weights:
-    comic:
-      canny: 0.9        # Четкие контуры важны для комиксов
-      depth: 0.5        # Умеренная объемность
-      segmentation: 0.7 # Яркие цветовые зоны
-      scribble: 0.3     # Минимальная художественность
-      
-    watercolor:
-      canny: 0.4        # Размытые контуры
-      depth: 0.3        # Мягкая объемность
-      segmentation: 0.3 # Плавные переходы
-      scribble: 0.8     # Максимальная свобода
-      
-    realistic:
-      canny: 0.8        # Точные контуры
-      depth: 0.9        # Сильная объемность
-      segmentation: 0.6 # Реалистичные цвета
-      scribble: 0.2     # Минимальная стилизация
-      
-    anime:
-      canny: 0.7        # Четкие, но стилизованные контуры
-      depth: 0.4        # Легкая объемность
-      segmentation: 0.8 # Четкие цветовые зоны
-      scribble: 0.5     # Средняя стилизация
       
   # Настройки conditioning генерации
   conditioning:
@@ -104,6 +71,7 @@ ai_generation:
     # Методы генерации глубины
     depth:
       available_methods:
+        - "black_and_white_depth"
         - "stroke_thickness_depth"
         - "distance_transform_depth"
         - "morphological_depth"
@@ -111,8 +79,12 @@ ai_generation:
         - "synthetic_3d_depth"
         - "multi_layer_depth"
       
-      default_method: "stroke_thickness_depth"
+      default_method: "black_and_white_depth"
       
+      black_and_white_depth:
+        invert: false
+        gaussian_blur: 3
+        
       stroke_thickness_depth:
         normalize: true
         invert: false
@@ -129,6 +101,7 @@ ai_generation:
     # Методы сегментации
     segmentation:
       available_methods:
+        - "black_and_white_segmentation"
         - "radical_segmentation"
         - "stroke_type_segmentation"
         - "hierarchical_segmentation"
@@ -137,8 +110,12 @@ ai_generation:
         - "color_based_segmentation"
         - "geometric_segmentation"
       
-      default_method: "radical_segmentation"
+      default_method: "black_and_white_segmentation"
       
+      black_and_white_segmentation:
+        invert: false
+        gaussian_blur: 3
+
       radical_segmentation:
         use_kangxi_radicals: true
         color_per_radical: true
@@ -242,25 +219,7 @@ ai_generation:
     use_channels_last_memory_format: true
     enable_vae_slicing: false
     enable_vae_tiling: false
-    
-  # Кэширование
-  cache:
-    enable_model_cache: true
-    enable_conditioning_cache: true
-    enable_semantic_cache: true
-    
-    model_cache:
-      max_size: 10  # Количество моделей в памяти
-      ttl: 3600     # 1 час
-      
-    conditioning_cache:
-      max_size: 1000  # Количество conditioning результатов
-      ttl: 86400      # 24 часа
-      
-    semantic_cache:
-      max_size: 5000  # Количество семантических анализов
-      ttl: 604800     # 7 дней
-      
+
   # Промпт инжиниринг
   prompt_engineering:
     # Базовые шаблоны промптов
@@ -277,53 +236,6 @@ ai_generation:
       realistic: "photorealistic, detailed textures, natural lighting, high definition"
       anime: "cell shading, bright colors, expressive style, manga influence"
       
-    # Качественные модификаторы
-    quality_boosters:
-      - "masterpiece"
-      - "best quality" 
-      - "highly detailed"
-      - "8k resolution"
-      - "professional artwork"
-      
-    # Композиционные подсказки
-    composition_hints:
-      - "rule of thirds"
-      - "dynamic composition"
-      - "balanced layout"
-      - "focal point emphasis"
-      
-  # Постобработка
-  postprocessing:
-    enabled: true
-    
-    # Фильтры по стилям
-    style_filters:
-      comic:
-        - "enhance_contrast"
-        - "sharpen_edges"
-        - "boost_saturation"
-        
-      watercolor:
-        - "soft_blur"
-        - "edge_smoothing"
-        - "color_bleeding_effect"
-        
-      realistic:
-        - "noise_reduction"
-        - "detail_enhancement"
-        - "color_correction"
-        
-    # Параметры фильтров
-    filter_params:
-      enhance_contrast:
-        factor: 1.2
-        
-      boost_saturation:
-        factor: 1.1
-        
-      soft_blur:
-        radius: 1.5
-        
   # Мониторинг и отладка
   monitoring:
     enabled: true
