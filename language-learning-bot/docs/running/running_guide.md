@@ -450,8 +450,8 @@ python scripts/seed_data.py  # опционально
 
 # 4. Запуск всех сервисов
 ./start_2_backend.sh
-./start_4_writing_service.sh  # 🆕 Новый сервис
 ./start_3_frontend.sh
+./start_4_writing_service.sh  # 🆕 Новый сервис
 
 # 5. Проверка работоспособности
 curl http://localhost:8500/api/health  # Backend
