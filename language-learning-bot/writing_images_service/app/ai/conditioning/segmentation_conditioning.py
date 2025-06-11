@@ -4,15 +4,13 @@ Segmentation conditioning generation.
 """
 
 import time
-import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 import numpy as np
 import cv2
 from PIL import Image
-from sklearn.cluster import KMeans, MeanShift
-from scipy import ndimage
 from skimage import segmentation, measure, morphology
-import logging
+
+from sklearn.cluster import MeanShift, KMeans
 
 from .base_conditioning import BaseConditioning, ConditioningResult, ConditioningConfig
 from app.utils.logger import get_module_logger
@@ -34,11 +32,6 @@ class SegmentationConditioning(BaseConditioning):
         """
         super().__init__(config)
         
-        # Инициализация AI моделей для сегментации
-        self._sam_model = None
-        self._segformer_model = None
-        self._model_loading_attempted = False
-        
         # База данных радикалов для radical_segmentation
         self._radical_database = self._init_radical_database()
         
@@ -47,7 +40,7 @@ class SegmentationConditioning(BaseConditioning):
     async def generate_from_image(
         self, 
         image: Image.Image, 
-        method: str = "radical_segmentation",
+        method: str = "simple_segmentation",
         **kwargs
     ) -> ConditioningResult:
         """
@@ -71,29 +64,32 @@ class SegmentationConditioning(BaseConditioning):
             if not is_valid:
                 return ConditioningResult(
                     success=False,
-                    error_message=error_msg
+                    error_message=error_msg,
+                    processing_time_ms=int((time.time() - start_time) * 1000)
                 )
             
             # Выбор метода генерации
-            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
-            if method == "radical_segmentation":
+            if method == "simple_segmentation":
+                result_image = await self._simple_segmentation(processed_data['image'], **kwargs)
+            elif method == "radical_segmentation":
                 result_image = await self._radical_segmentation(processed_data['image'], **kwargs)
-            elif method == "stroke_type_segmentation":
-                result_image = await self._stroke_type_segmentation(processed_data['image'], **kwargs)
-            elif method == "hierarchical_segmentation":
-                result_image = await self._hierarchical_segmentation(processed_data['image'], **kwargs)
             elif method == "semantic_segmentation":
                 result_image = await self._semantic_segmentation(processed_data['image'], **kwargs)
-            elif method == "ai_segmentation":
-                result_image = await self._ai_segmentation(processed_data['image'], **kwargs)
             elif method == "color_based_segmentation":
                 result_image = await self._color_based_segmentation(processed_data['image'], **kwargs)
-            elif method == "geometric_segmentation":
-                result_image = await self._geometric_segmentation(processed_data['image'], **kwargs)
             else:
                 return ConditioningResult(
                     success=False,
-                    error_message=f"Unknown method: {method}"
+                    error_message=f"Unknown method: {method}",
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+            
+            # Проверяем результат
+            if result_image is None:
+                return ConditioningResult(
+                    success=False,
+                    error_message=f"Method {method} failed to generate image",
+                    processing_time_ms=int((time.time() - start_time) * 1000)
                 )
             
             # Вычисление времени обработки
@@ -107,9 +103,8 @@ class SegmentationConditioning(BaseConditioning):
                 processing_time_ms=processing_time_ms,
                 metadata={
                     'input_size': image.size,
-                    'output_size': result_image.size if result_image else None,
+                    'output_size': result_image.size,
                     'parameters_used': kwargs,
-                    'segment_stats': self._analyze_segments(result_image)
                 }
             )
             
@@ -126,7 +121,7 @@ class SegmentationConditioning(BaseConditioning):
     async def generate_from_text(
         self, 
         character: str, 
-        method: str = "radical_segmentation",
+        method: str = "simple_segmentation",
         width: int = 512, 
         height: int = 512,
         **kwargs
@@ -144,6 +139,8 @@ class SegmentationConditioning(BaseConditioning):
         Returns:
             ConditioningResult: Результат генерации
         """
+        start_time = time.time()
+        
         try:
             # Валидация входных данных
             is_valid, error_msg, processed_data = await self.validate_and_process_inputs(
@@ -152,7 +149,8 @@ class SegmentationConditioning(BaseConditioning):
             if not is_valid:
                 return ConditioningResult(
                     success=False,
-                    error_message=error_msg
+                    error_message=error_msg,
+                    processing_time_ms=int((time.time() - start_time) * 1000)
                 )
             
             # Рендеринг иероглифа
@@ -180,26 +178,34 @@ class SegmentationConditioning(BaseConditioning):
             logger.error(f"Error in Segmentation generation from text: {e}", exc_info=True)
             return ConditioningResult(
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
+                processing_time_ms=int((time.time() - start_time) * 1000)
             )
     
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов сегментации."""
         return [
-            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+            "simple_segmentation",
             "radical_segmentation",
-            "stroke_type_segmentation",
-            "hierarchical_segmentation",
             "semantic_segmentation",
-            "ai_segmentation",
             "color_based_segmentation",
-            "geometric_segmentation"
         ]
     
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
-            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+            "simple_segmentation": {
+                "description": "Простая бинарная сегментация",
+                "parameters": {
+                    "invert": {"type": "bool", "default": False},
+                    "gaussian_blur": {"type": "int", "default": 3, "range": [0, 15]}
+                },
+                "speed": "very_fast",
+                "quality": "basic",
+                "memory_usage": "very_low",
+                "best_for": "basic_separation"
+            },
+            
             "radical_segmentation": {
                 "description": "Сегментация по радикалам иероглифа - каждый радикал свой цвет",
                 "parameters": {
@@ -226,19 +232,6 @@ class SegmentationConditioning(BaseConditioning):
                 "best_for": "stroke_analysis"
             },
             
-            "hierarchical_segmentation": {
-                "description": "Многоуровневая иерархическая сегментация",
-                "parameters": {
-                    "levels": {"type": "int", "default": 3, "range": [2, 8]},
-                    "merge_threshold": {"type": "float", "default": 0.1, "range": [0.01, 0.5]},
-                    "min_segment_size": {"type": "int", "default": 100, "range": [10, 1000]}
-                },
-                "speed": "slow",
-                "quality": "very_good",
-                "memory_usage": "high",
-                "best_for": "complex_structures"
-            },
-            
             "semantic_segmentation": {
                 "description": "Семантическая сегментация по смыслу частей иероглифа",
                 "parameters": {
@@ -249,20 +242,6 @@ class SegmentationConditioning(BaseConditioning):
                 "quality": "very_good",
                 "memory_usage": "medium",
                 "best_for": "meaningful_parts"
-            },
-            
-            "ai_segmentation": {
-                "description": "AI сегментация с SAM (Segment Anything Model)",
-                "parameters": {
-                    "model_type": {"type": "str", "default": "vit_h", "options": ["vit_h", "vit_l", "vit_b"]},
-                    "points_per_side": {"type": "int", "default": 16, "range": [8, 64]},
-                    "confidence_threshold": {"type": "float", "default": 0.5, "range": [0.1, 0.9]}
-                },
-                "speed": "slow",
-                "quality": "excellent",
-                "memory_usage": "very_high",
-                "requires_gpu": True,
-                "best_for": "precise_segmentation"
             },
             
             "color_based_segmentation": {
@@ -296,7 +275,42 @@ class SegmentationConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+    
+    async def _simple_segmentation(
+        self, 
+        image: Image.Image,
+        invert: bool = False,
+        gaussian_blur: int = 3,
+        **kwargs
+    ) -> Optional[Image.Image]:
+        """
+        Простая бинарная сегментация.
+        """
+        try:
+            # Конвертация в numpy
+            img_array = np.array(image)
+            
+            # Конвертация в grayscale
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
+            
+            # Простая пороговая обработка
+            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            
+            if invert:
+                binary = 255 - binary
+            
+            # Опциональное размытие
+            if gaussian_blur > 0:
+                binary = cv2.GaussianBlur(binary, (gaussian_blur, gaussian_blur), 0)
+            
+            return Image.fromarray(binary, mode='L').convert('RGB')
+            
+        except Exception as e:
+            logger.error(f"Error in simple segmentation: {e}")
+            return None
 
     async def _radical_segmentation(
         self, 
@@ -305,78 +319,218 @@ class SegmentationConditioning(BaseConditioning):
         color_per_radical: bool = True,
         radical_detection_threshold: float = 0.7,
         **kwargs
-    ) -> Image.Image:
+    ) -> Optional[Image.Image]:
         """Сегментация по радикалам иероглифа."""
-        # Конвертация в numpy
-        img_array = np.array(image)
-        
-        if len(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = img_array
-        
-        # Создаем сегментационную карту
-        segment_map = np.zeros(gray.shape, dtype=np.uint8)
-        
-        # Детектируем границы
-        edges = cv2.Canny(gray, 50, 150)
-        
-        current_color = 64
-        
-        # Детектируем линии
-        if detect_lines:
-            lines = cv2.HoughLinesP(
-                edges, 
-                rho=1, 
-                theta=np.pi/180, 
-                threshold=hough_threshold,
-                minLineLength=20,
-                maxLineGap=5
-            )
+        try:
+            # Конвертация в numpy
+            img_array = np.array(image)
             
-            if lines is not None:
-                for line in lines:
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(segment_map, (x1, y1), (x2, y2), current_color, 3)
-                current_color += 32
-        
-        # Детектируем окружности
-        if detect_circles:
-            circles = cv2.HoughCircles(
-                gray,
-                cv2.HOUGH_GRADIENT,
-                dp=1,
-                minDist=30,
-                param1=50,
-                param2=30,
-                minRadius=5,
-                maxRadius=100
-            )
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
             
-            if circles is not None:
-                circles = np.round(circles[0, :]).astype("int")
-                for (x, y, r) in circles:
-                    cv2.circle(segment_map, (x, y), r, current_color, 3)
-                current_color += 32
-        
-        # Детектируем прямоугольники (приблизительно через контуры)
-        if detect_rectangles:
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # Создаем сегментационную карту
+            segment_map = np.zeros(gray.shape, dtype=np.uint8)
             
-            for contour in contours:
-                # Аппроксимируем контур
-                epsilon = 0.02 * cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, epsilon, True)
+            # Анализируем структуру для выделения потенциальных радикалов
+            # Находим связанные компоненты
+            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+            
+            # Морфологические операции для очистки
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+            
+            # Находим контуры (потенциальные радикалы)
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # Анализируем каждый контур
+            colors = self._generate_segment_colors(len(contours))
+            
+            for i, contour in enumerate(contours):
+                # Фильтруем слишком маленькие контуры
+                area = cv2.contourArea(contour)
+                if area < 50:  # Минимальная площадь
+                    continue
                 
-                # Если аппроксимация дает 4 точки, считаем прямоугольником
-                if len(approx) == 4:
-                    cv2.drawContours(segment_map, [approx], -1, current_color, 3)
-        
-        # Заполняем области между геометрическими примитивами
-        segment_map = self._fill_geometric_regions(segment_map, gray)
-        
-        # Конвертация в RGB
-        return Image.fromarray(segment_map, mode='L').convert('RGB')
+                # Создаем маску для текущего "радикала"
+                mask = np.zeros(gray.shape, dtype=np.uint8)
+                cv2.fillPoly(mask, [contour], 255)
+                
+                # Присваиваем цвет сегменту
+                color_value = colors[i % len(colors)]
+                segment_map[mask > 0] = color_value
+            
+            # Если сегментов мало, применяем дополнительную сегментацию
+            if len(contours) < 2:
+                # Используем watershed для дополнительного разделения
+                segment_map = self._apply_watershed_segmentation(binary, segment_map)
+            
+            # Конвертация в RGB
+            return Image.fromarray(segment_map, mode='L').convert('RGB')
+            
+        except Exception as e:
+            logger.error(f"Error in radical segmentation: {e}")
+            return None
+    
+    async def _semantic_segmentation(
+        self, 
+        image: Image.Image,
+        semantic_classes: List[str] = ["radical", "phonetic", "modifier", "background"],
+        context_analysis: bool = True,
+        **kwargs
+    ) -> Optional[Image.Image]:
+        """Семантическая сегментация по смыслу частей иероглифа."""
+        try:
+            # Упрощенная реализация семантической сегментации
+            # В будущем можно интегрировать с моделями понимания иероглифов
+            
+            # Пока используем комбинацию геометрического и позиционного анализа
+            img_array = np.array(image)
+            
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
+            
+            # Создаем сегментационную карту
+            segment_map = np.zeros(gray.shape, dtype=np.uint8)
+            
+            # Анализируем позиционную структуру иероглифа
+            h, w = gray.shape
+            
+            # Разделяем на потенциальные семантические зоны
+            # Левая часть - часто радикал
+            left_region = gray[:, :w//2]
+            # Правая часть - часто фонетический компонент
+            right_region = gray[:, w//2:]
+            # Верхняя часть - модификаторы
+            top_region = gray[:h//3, :]
+            # Нижняя часть - основание
+            bottom_region = gray[2*h//3:, :]
+            
+            # Анализируем плотность штрихов в каждой зоне
+            def analyze_stroke_density(region):
+                _, binary = cv2.threshold(region, 127, 255, cv2.THRESH_BINARY_INV)
+                return np.sum(binary) / region.size
+            
+            left_density = analyze_stroke_density(left_region)
+            right_density = analyze_stroke_density(right_region)
+            top_density = analyze_stroke_density(top_region)
+            bottom_density = analyze_stroke_density(bottom_region)
+            
+            # Присваиваем семантические метки на основе анализа
+            if left_density > 0.1:  # Достаточно штрихов слева
+                segment_map[:, :w//2] = 64  # Радикал
+            
+            if right_density > 0.1:  # Достаточно штрихов справа
+                segment_map[:, w//2:] = 128  # Фонетический компонент
+            
+            if top_density > 0.05:  # Модификаторы сверху
+                segment_map[:h//3, :] = np.maximum(segment_map[:h//3, :], 192)
+            
+            # Фон
+            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+            segment_map[binary == 0] = 32  # Фон
+            
+            # Конвертация в RGB
+            return Image.fromarray(segment_map, mode='L').convert('RGB')
+            
+        except Exception as e:
+            logger.error(f"Error in semantic segmentation: {e}")
+            return None
+    
+    async def _color_based_segmentation(
+        self, 
+        image: Image.Image,
+        num_clusters: int = 5,
+        algorithm: str = "kmeans",
+        color_space: str = "RGB",
+        **kwargs
+    ) -> Optional[Image.Image]:
+        """Сегментация на основе кластеризации цветов."""
+        try:
+            # Конвертация в numpy
+            img_array = np.array(image)
+            
+            # Конвертация цветового пространства
+            if color_space == "HSV" and len(img_array.shape) == 3:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
+            elif color_space == "LAB" and len(img_array.shape) == 3:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
+            
+            # Reshape для кластеризации
+            if len(img_array.shape) == 3:
+                pixel_values = img_array.reshape((-1, 3))
+            else:
+                # Для grayscale создаем псевдо-3D
+                pixel_values = np.stack([img_array.flatten()] * 3, axis=1)
+            
+            pixel_values = np.float32(pixel_values)
+            
+            if algorithm == "kmeans" or not SKLEARN_AVAILABLE:
+                # K-means кластеризация (OpenCV)
+                criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+                _, labels, centers = cv2.kmeans(
+                    pixel_values, 
+                    num_clusters, 
+                    None, 
+                    criteria, 
+                    10, 
+                    cv2.KMEANS_RANDOM_CENTERS
+                )
+                
+                # Создаем сегментационную карту
+                segment_map = labels.reshape(img_array.shape[:2])
+                
+            elif algorithm == "meanshift" and SKLEARN_AVAILABLE:
+                # Mean-shift кластеризация
+                ms = MeanShift(bandwidth=30)
+                labels = ms.fit_predict(pixel_values)
+                segment_map = labels.reshape(img_array.shape[:2])
+                
+            else:  # watershed
+                # Watershed сегментация
+                if len(img_array.shape) == 3:
+                    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+                else:
+                    gray = img_array
+                
+                # Находим маркеры
+                _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+                kernel = np.ones((3, 3), np.uint8)
+                sure_bg = cv2.dilate(binary, kernel, iterations=3)
+                
+                dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+                _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+                sure_fg = np.uint8(sure_fg)
+                
+                unknown = cv2.subtract(sure_bg, sure_fg)
+                
+                # Маркеры
+                _, markers = cv2.connectedComponents(sure_fg)
+                markers = markers + 1
+                markers[unknown == 255] = 0
+                
+                # Watershed
+                img_for_watershed = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR) if len(img_array.shape) == 3 else cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
+                markers = cv2.watershed(img_for_watershed, markers)
+                segment_map = markers
+            
+            # Нормализация значений сегментов
+            unique_labels = np.unique(segment_map)
+            normalized_map = np.zeros_like(segment_map, dtype=np.uint8)
+            
+            for i, label in enumerate(unique_labels):
+                color_value = int((i / len(unique_labels)) * 255)
+                normalized_map[segment_map == label] = color_value
+            
+            # Конвертация в RGB
+            return Image.fromarray(normalized_map, mode='L').convert('RGB')
+            
+        except Exception as e:
+            logger.error(f"Error in color based segmentation: {e}")
+            return None
     
     # Вспомогательные методы
     
@@ -454,23 +608,33 @@ class SegmentationConditioning(BaseConditioning):
         existing_segments: np.ndarray
     ) -> np.ndarray:
         """Применяет watershed сегментацию для дополнительного разделения."""
-        # Distance transform
-        dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-        
-        # Находим локальные максимумы
-        local_maxima = morphology.local_maxima(dist_transform, min_distance=20)
-        markers = measure.label(local_maxima)
-        
-        # Применяем watershed
         try:
+            # Distance transform
+            dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+            
+            # Находим локальные максимумы
+            try:
+                from skimage.feature import peak_local_maxima
+                peaks = peak_local_maxima(dist_transform, min_distance=20, threshold_abs=0.3)
+                markers = np.zeros_like(dist_transform, dtype=np.int32)
+                for i, (y, x) in enumerate(peaks):
+                    markers[y, x] = i + 1
+            except ImportError:
+                markers = None
+            
+            # Применяем watershed
             # Создаем 3-канальное изображение для watershed
             image_3ch = np.stack([binary] * 3, axis=-1)
-            segments = segmentation.watershed(-dist_transform, markers, mask=binary)
+            
+            try:
+                segments = segmentation.watershed(-dist_transform, markers, mask=binary)
+            except:
+                segments = None
             
             # Комбинируем с существующими сегментами
             combined = existing_segments.copy()
             mask = existing_segments == 0
-            combined[mask] = segments[mask] * 32  # Масштабируем новые сегменты
+            combined[mask] = (segments[mask] * 32) % 256  # Масштабируем новые сегменты
             
             return combined
         except Exception as e:
@@ -483,32 +647,36 @@ class SegmentationConditioning(BaseConditioning):
         gray: np.ndarray
     ) -> np.ndarray:
         """Заполняет области между штрихами."""
-        # Создаем маску незаполненных областей
-        unfilled_mask = segment_map == 0
-        
-        # Применяем морфологические операции для заполнения
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        filled_segments = cv2.morphologyEx(segment_map, cv2.MORPH_CLOSE, kernel)
-        
-        # Используем flood fill для заполнения больших областей
-        h, w = segment_map.shape
-        for y in range(0, h, 20):  # Сэмплируем каждые 20 пикселей
-            for x in range(0, w, 20):
-                if unfilled_mask[y, x] and gray[y, x] < 200:  # Не фон
-                    # Находим ближайший сегмент
-                    distances = []
-                    for seg_y in range(max(0, y-30), min(h, y+30)):
-                        for seg_x in range(max(0, x-30), min(w, x+30)):
-                            if segment_map[seg_y, seg_x] > 0:
-                                dist = np.sqrt((y-seg_y)**2 + (x-seg_x)**2)
-                                distances.append((dist, segment_map[seg_y, seg_x]))
-                    
-                    if distances:
-                        # Присваиваем цвет ближайшего сегмента
-                        _, nearest_color = min(distances)
-                        cv2.floodFill(filled_segments, None, (x, y), nearest_color)
-        
-        return filled_segments
+        try:
+            # Создаем маску незаполненных областей
+            unfilled_mask = segment_map == 0
+            
+            # Применяем морфологические операции для заполнения
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            filled_segments = cv2.morphologyEx(segment_map, cv2.MORPH_CLOSE, kernel)
+            
+            # Используем flood fill для заполнения больших областей
+            h, w = segment_map.shape
+            for y in range(0, h, 20):  # Сэмплируем каждые 20 пикселей
+                for x in range(0, w, 20):
+                    if unfilled_mask[y, x] and gray[y, x] < 200:  # Не фон
+                        # Находим ближайший сегмент
+                        distances = []
+                        for seg_y in range(max(0, y-30), min(h, y+30)):
+                            for seg_x in range(max(0, x-30), min(w, x+30)):
+                                if segment_map[seg_y, seg_x] > 0:
+                                    dist = np.sqrt((y-seg_y)**2 + (x-seg_x)**2)
+                                    distances.append((dist, segment_map[seg_y, seg_x]))
+                        
+                        if distances:
+                            # Присваиваем цвет ближайшего сегмента
+                            _, nearest_color = min(distances)
+                            cv2.floodFill(filled_segments, None, (x, y), int(nearest_color))
+            
+            return filled_segments
+        except Exception as e:
+            logger.warning(f"Error filling stroke regions: {e}")
+            return segment_map
     
     def _fill_geometric_regions(
         self, 
@@ -526,419 +694,83 @@ class SegmentationConditioning(BaseConditioning):
         threshold: float
     ) -> np.ndarray:
         """Объединяет маленькие сегменты с соседними."""
-        # Находим соседние сегменты
-        mask = segments == small_label
-        
-        # Расширяем маску для поиска соседей
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        expanded_mask = cv2.dilate(mask.astype(np.uint8), kernel)
-        
-        # Находим уникальные соседние сегменты
-        neighbor_values = segments[expanded_mask > 0]
-        unique_neighbors = np.unique(neighbor_values)
-        unique_neighbors = unique_neighbors[unique_neighbors != small_label]
-        
-        if len(unique_neighbors) > 0:
-            # Выбираем наиболее часто встречающегося соседа
-            neighbor_counts = [(np.sum(neighbor_values == neighbor), neighbor) 
-                             for neighbor in unique_neighbors]
-            _, best_neighbor = max(neighbor_counts)
-            
-            # Объединяем сегменты
-            segments[mask] = best_neighbor
-        
-        return segments
-    
-    async def _load_segmentation_models(self):
-        """Загружает модели для AI сегментации."""
         try:
-            self._model_loading_attempted = True
+            # Находим соседние сегменты
+            mask = segments == small_label
             
-            # TODO: Реализация загрузки SAM модели
-            # Пример с segment-anything:
-            # from segment_anything import sam_model_registry, SamPredictor
-            # sam_checkpoint = "path/to/sam_checkpoint.pth"
-            # model_type = "vit_h"
-            # device = "cuda" if torch.cuda.is_available() else "cpu"
-            # sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-            # sam.to(device=device)
-            # self._sam_model = sam
+            # Расширяем маску для поиска соседей
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            expanded_mask = cv2.dilate(mask.astype(np.uint8), kernel)
             
-            # Пример с Segformer:
-            # from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
-            # self._segformer_processor = SegformerImageProcessor.from_pretrained("nvidia/segformer-b5-finetuned-ade-640-640")
-            # self._segformer_model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b5-finetuned-ade-640-640")
+            # Находим уникальные соседние сегменты
+            neighbor_values = segments[expanded_mask > 0]
+            unique_neighbors = np.unique(neighbor_values)
+            unique_neighbors = unique_neighbors[unique_neighbors != small_label]
             
-            logger.info("Segmentation models loading not implemented yet - using fallback methods")
-            self._sam_model = None
-            self._segformer_model = None
+            if len(unique_neighbors) > 0:
+                # Выбираем наиболее часто встречающегося соседа
+                neighbor_counts = [(np.sum(neighbor_values == neighbor), neighbor) 
+                                 for neighbor in unique_neighbors]
+                _, best_neighbor = max(neighbor_counts)
+                
+                # Объединяем сегменты
+                segments[mask] = best_neighbor
             
+            return segments
         except Exception as e:
-            logger.warning(f"Could not load segmentation models: {e}")
-            self._sam_model = None
-            # self._segformer_model = None(img_array.shape) == 3:
-            # gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = None
-        
-        # Создаем сегментационную карту
-        segment_map = np.zeros(gray.shape, dtype=np.uint8)
-        
-        # Анализируем структуру для выделения потенциальных радикалов
-        # Находим связанные компоненты
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
-        
-        # Морфологические операции для очистки
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-        
-        # Находим контуры (потенциальные радикалы)
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Анализируем каждый контур
-        colors = self._generate_segment_colors(len(contours))
-        
-        for i, contour in enumerate(contours):
-            # Фильтруем слишком маленькие контуры
-            area = cv2.contourArea(contour)
-            if area < 50:  # Минимальная площадь
-                continue
-            
-            # Создаем маску для текущего "радикала"
-            mask = np.zeros(gray.shape, dtype=np.uint8)
-            cv2.fillPoly(mask, [contour], 255)
-            
-            # Присваиваем цвет сегменту
-            color_value = colors[i % len(colors)]
-            segment_map[mask > 0] = color_value
-        
-        # Если сегментов мало, применяем дополнительную сегментацию
-        if len(contours) < 2:
-            # Используем watershed для дополнительного разделения
-            segment_map = self._apply_watershed_segmentation(binary, segment_map)
-        
-        # Конвертация в RGB
-        return Image.fromarray(segment_map, mode='L').convert('RGB')
+            logger.warning(f"Error merging small segments: {e}")
+            return segments
     
-    async def _stroke_type_segmentation(
-        self, 
-        image: Image.Image,
-        segment_types: List[str] = ["horizontal", "vertical", "diagonal", "curved"],
-        angle_tolerance: float = 15.0,
-        min_stroke_length: int = 10,
-        **kwargs
-    ) -> Image.Image:
-        """Сегментация по типам штрихов."""
-        # Конвертация в numpy
-        img_array = np.array(image)
-        
-        if len(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = img_array
-        
-        # Создаем сегментационную карту
-        segment_map = np.zeros(gray.shape, dtype=np.uint8)
-        
-        # Детектируем границы
-        edges = cv2.Canny(gray, 50, 150)
-        
-        # Детектируем линии с помощью Hough Transform
-        lines = cv2.HoughLinesP(
-            edges, 
-            rho=1, 
-            theta=np.pi/180, 
-            threshold=50,
-            minLineLength=min_stroke_length,
-            maxLineGap=5
-        )
-        
-        if lines is not None:
-            # Классифицируем линии по типам
-            for line in lines:
-                x1, y1, x2, y2 = line[0]
-                
-                # Вычисляем угол линии
-                angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-                angle = abs(angle)
-                
-                # Определяем тип штриха
-                if angle <= angle_tolerance or angle >= (180 - angle_tolerance):
-                    stroke_type = "horizontal"
-                    color = 64  # Темно-серый
-                elif abs(angle - 90) <= angle_tolerance:
-                    stroke_type = "vertical"
-                    color = 128  # Средне-серый
-                elif 30 <= angle <= 60 or 120 <= angle <= 150:
-                    stroke_type = "diagonal"
-                    color = 192  # Светло-серый
-                else:
-                    stroke_type = "curved"
-                    color = 255  # Белый
-                
-                # Рисуем линию на карте сегментации
-                if stroke_type in segment_types:
-                    cv2.line(segment_map, (x1, y1), (x2, y2), color, 3)
-        
-        # Заполняем области между линиями
-        segment_map = self._fill_stroke_regions(segment_map, gray)
-        
-        # Конвертация в RGB
-        return Image.fromarray(segment_map, mode='L').convert('RGB')
-    
-    async def _hierarchical_segmentation(
-        self, 
-        image: Image.Image,
-        levels: int = 3,
-        merge_threshold: float = 0.1,
-        min_segment_size: int = 100,
-        **kwargs
-    ) -> Image.Image:
-        """Многоуровневая иерархическая сегментация."""
+    def _post_process_segments(self, segments: np.ndarray, min_area: int = 100) -> np.ndarray:
+        """Постобработка сегментов - объединение маленьких областей."""
         try:
-            # Конвертация в numpy
-            img_array = np.array(image)
+            # Находим уникальные сегменты и их размеры
+            unique_labels, counts = np.unique(segments, return_counts=True)
             
-            if len(img_array.shape) == 3:
-                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-            else:
-                gray = img_array
+            # Объединяем маленькие сегменты
+            for label, count in zip(unique_labels, counts):
+                if count < min_area and label != 0:  # Не трогаем фон
+                    segments = self._merge_small_segments(segments, label, min_area)
             
-            # Начинаем с базовой сегментации
-            # Используем SLIC superpixels как основу
-            segments = segmentation.slic(
-                img_array if len(img_array.shape) == 3 else np.stack([gray]*3, axis=-1),
-                n_segments=50,
-                compactness=10,
-                sigma=1
-            )
+            # Перенумеровываем сегменты для непрерывности
+            unique_labels = np.unique(segments)
+            normalized_segments = np.zeros_like(segments)
             
-            # Применяем иерархическое слияние
-            for level in range(levels):
-                # Вычисляем характеристики сегментов
-                segment_props = measure.regionprops(segments + 1, gray)
-                
-                # Находим соседние сегменты для потенциального слияния
-                for prop in segment_props:
-                    if prop.area < min_segment_size:
-                        # Объединяем маленькие сегменты с соседями
-                        segments = self._merge_small_segments(segments, prop.label - 1, merge_threshold)
+            for i, label in enumerate(unique_labels):
+                normalized_segments[segments == label] = i * (255 // len(unique_labels))
             
-            # Нормализуем значения сегментов
+            return normalized_segments
+        except Exception as e:
+            logger.warning(f"Error in post-processing segments: {e}")
+            return segments
+    
+    def _validate_segmentation_result(self, segments: np.ndarray) -> bool:
+        """Валидирует результат сегментации."""
+        try:
+            # Проверяем базовые условия
+            if segments is None or segments.size == 0:
+                return False
+            
+            # Проверяем количество уникальных сегментов
             unique_segments = np.unique(segments)
-            segment_map = np.zeros_like(segments, dtype=np.uint8)
+            if len(unique_segments) < 2:
+                logger.warning("Segmentation produced too few segments")
+                return False
             
-            for i, seg_val in enumerate(unique_segments):
-                color_value = int((i / len(unique_segments)) * 255)
-                segment_map[segments == seg_val] = color_value
+            if len(unique_segments) > 50:
+                logger.warning("Segmentation produced too many segments")
+                return False
             
-            # Конвертация в RGB
-            return Image.fromarray(segment_map, mode='L').convert('RGB')
+            # Проверяем распределение размеров сегментов
+            _, counts = np.unique(segments, return_counts=True)
+            largest_segment_ratio = np.max(counts) / segments.size
             
+            if largest_segment_ratio > 0.95:
+                logger.warning("One segment dominates the image")
+                return False
+            
+            return True
         except Exception as e:
-            logger.error(f"Error in hierarchical segmentation: {e}")
-            # Fallback к простой сегментации
-            return await self._color_based_segmentation(image, **kwargs)
-    
-    async def _semantic_segmentation(
-        self, 
-        image: Image.Image,
-        semantic_classes: List[str] = ["radical", "phonetic", "modifier", "background"],
-        context_analysis: bool = True,
-        **kwargs
-    ) -> Image.Image:
-        """Семантическая сегментация по смыслу частей иероглифа."""
-        # Упрощенная реализация семантической сегментации
-        # В будущем можно интегрировать с моделями понимания иероглифов
-        
-        # Пока используем комбинацию геометрического и позиционного анализа
-        img_array = np.array(image)
-        
-        if len(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = img_array
-        
-        # Создаем сегментационную карту
-        segment_map = np.zeros(gray.shape, dtype=np.uint8)
-        
-        # Анализируем позиционную структуру иероглифа
-        h, w = gray.shape
-        
-        # Разделяем на потенциальные семантические зоны
-        # Левая часть - часто радикал
-        left_region = gray[:, :w//2]
-        # Правая часть - часто фонетический компонент
-        right_region = gray[:, w//2:]
-        # Верхняя часть - модификаторы
-        top_region = gray[:h//3, :]
-        # Нижняя часть - основание
-        bottom_region = gray[2*h//3:, :]
-        
-        # Анализируем плотность штрихов в каждой зоне
-        def analyze_stroke_density(region):
-            _, binary = cv2.threshold(region, 127, 255, cv2.THRESH_BINARY_INV)
-            return np.sum(binary) / region.size
-        
-        left_density = analyze_stroke_density(left_region)
-        right_density = analyze_stroke_density(right_region)
-        top_density = analyze_stroke_density(top_region)
-        bottom_density = analyze_stroke_density(bottom_region)
-        
-        # Присваиваем семантические метки на основе анализа
-        if left_density > 0.1:  # Достаточно штрихов слева
-            segment_map[:, :w//2] = 64  # Радикал
-        
-        if right_density > 0.1:  # Достаточно штрихов справа
-            segment_map[:, w//2:] = 128  # Фонетический компонент
-        
-        if top_density > 0.05:  # Модификаторы сверху
-            segment_map[:h//3, :] = np.maximum(segment_map[:h//3, :], 192)
-        
-        # Фон
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
-        segment_map[binary == 0] = 32  # Фон
-        
-        # Конвертация в RGB
-        return Image.fromarray(segment_map, mode='L').convert('RGB')
-    
-    async def _ai_segmentation(
-        self, 
-        image: Image.Image,
-        model_type: str = "vit_h",
-        points_per_side: int = 16,
-        confidence_threshold: float = 0.5,
-        **kwargs
-    ) -> Image.Image:
-        """AI сегментация с использованием SAM."""
-        try:
-            # Попытка загрузки модели
-            if not self._model_loading_attempted:
-                await self._load_segmentation_models()
-            
-            if self._sam_model is None:
-                logger.warning("SAM model not available, falling back to color-based segmentation")
-                return await self._color_based_segmentation(image, **kwargs)
-            
-            # TODO: Реализация SAM inference
-            # Пример с segment-anything:
-            # from segment_anything import SamPredictor
-            # predictor = SamPredictor(self._sam_model)
-            # predictor.set_image(np.array(image))
-            # 
-            # # Автоматическая генерация точек
-            # input_points = self._generate_input_points(image, points_per_side)
-            # input_labels = np.ones(len(input_points))
-            # 
-            # masks, scores, logits = predictor.predict(
-            #     point_coords=input_points,
-            #     point_labels=input_labels,
-            #     multimask_output=True,
-            # )
-            # 
-            # # Комбинируем маски
-            # combined_mask = self._combine_sam_masks(masks, scores, confidence_threshold)
-            # return Image.fromarray(combined_mask, mode='L').convert('RGB')
-            
-            # Пока используем fallback
-            logger.info("SAM inference not implemented yet, using color-based segmentation")
-            return await self._color_based_segmentation(image, **kwargs)
-            
-        except Exception as e:
-            logger.error(f"Error in AI segmentation: {e}")
-            return await self._color_based_segmentation(image, **kwargs)
-    
-    async def _color_based_segmentation(
-        self, 
-        image: Image.Image,
-        num_clusters: int = 5,
-        algorithm: str = "kmeans",
-        color_space: str = "RGB",
-        **kwargs
-    ) -> Image.Image:
-        """Сегментация на основе кластеризации цветов."""
-        # Конвертация в numpy
-        img_array = np.array(image)
-        
-        # Конвертация цветового пространства
-        if color_space == "HSV":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-        elif color_space == "LAB":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
-        
-        # Reshape для кластеризации
-        pixel_values = img_array.reshape((-1, 3))
-        pixel_values = np.float32(pixel_values)
-        
-        if algorithm == "kmeans":
-            # K-means кластеризация
-            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
-            _, labels, centers = cv2.kmeans(
-                pixel_values, 
-                num_clusters, 
-                None, 
-                criteria, 
-                10, 
-                cv2.KMEANS_RANDOM_CENTERS
-            )
-            
-            # Создаем сегментационную карту
-            segment_map = labels.reshape(img_array.shape[:2])
-            
-        elif algorithm == "meanshift":
-            # Mean-shift кластеризация
-            ms = MeanShift(bandwidth=30)
-            labels = ms.fit_predict(pixel_values)
-            segment_map = labels.reshape(img_array.shape[:2])
-            
-        else:  # watershed
-            # Watershed сегментация
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY) if len(img_array.shape) == 3 else img_array
-            
-            # Находим маркеры
-            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
-            kernel = np.ones((3, 3), np.uint8)
-            sure_bg = cv2.dilate(binary, kernel, iterations=3)
-            
-            dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-            _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
-            sure_fg = np.uint8(sure_fg)
-            
-            unknown = cv2.subtract(sure_bg, sure_fg)
-            
-            # Маркеры
-            _, markers = cv2.connectedComponents(sure_fg)
-            markers = markers + 1
-            markers[unknown == 255] = 0
-            
-            # Watershed
-            img_for_watershed = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR) if len(img_array.shape) == 3 else cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
-            markers = cv2.watershed(img_for_watershed, markers)
-            segment_map = markers
-        
-        # Нормализация значений сегментов
-        unique_labels = np.unique(segment_map)
-        normalized_map = np.zeros_like(segment_map, dtype=np.uint8)
-        
-        for i, label in enumerate(unique_labels):
-            color_value = int((i / len(unique_labels)) * 255)
-            normalized_map[segment_map == label] = color_value
-        
-        # Конвертация в RGB
-        return Image.fromarray(normalized_map, mode='L').convert('RGB')
-    
-    async def _geometric_segmentation(
-        self, 
-        image: Image.Image,
-        detect_lines: bool = True,
-        detect_circles: bool = True,
-        detect_rectangles: bool = True,
-        hough_threshold: int = 50,
-        **kwargs
-    ) -> Image.Image:
-        """Сегментация по геометрическим примитивам."""
-        # Конвертация в numpy
-        img_array = np.array(image)
-        
-        if len
-        
+            logger.error(f"Error validating segmentation result: {e}")
+            return False
+   

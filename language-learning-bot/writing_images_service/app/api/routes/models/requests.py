@@ -22,13 +22,11 @@ class ConditioningMethod(str, Enum):
     DISTANCE_TRANSFORM = "distance_transform_depth"
     MORPHOLOGICAL_DEPTH = "morphological_depth"
     AI_DEPTH_ESTIMATION = "ai_depth_estimation"
-    SYNTHETIC_3D = "synthetic_3d_depth"
     MULTI_LAYER_DEPTH = "multi_layer_depth"
     
     # Segmentation methods
     RADICAL_SEGMENTATION = "radical_segmentation"
     STROKE_TYPE_SEGMENTATION = "stroke_type_segmentation"
-    HIERARCHICAL_SEGMENTATION = "hierarchical_segmentation"
     SEMANTIC_SEGMENTATION = "semantic_segmentation"
     AI_SEGMENTATION = "ai_segmentation"
     COLOR_BASED_SEGMENTATION = "color_based_segmentation"

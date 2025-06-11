@@ -75,20 +75,21 @@ async def generate_writing_image(
         result = AIImageResponse(
             success=True,
             status=GenerationStatus.SUCCESS,
-            generated_image=generation_result.image_data_base64,
-            generation_metadata=generation_result.metadata,
-            conditioning_images=generation_result.conditioning_images,
+            generated_image_base64=generation_result.image_data_base64,
+            base_image_base64=generation_result.base_image_base64,
+            conditioning_images_base64=generation_result.conditioning_images_base64,
             prompt_used=generation_result.prompt_used,
-            semantic_analysis=generation_result.semantic_analysis,
+            semantic_analysis=None,
+            generation_metadata=generation_result.metadata,
             error=generation_result.error,
-            warnings=generation_result.warnings,
+            warnings=None,
         )
         
         logger.info(f"result.success: '{result.success}'")
         logger.info(f"result.status: '{result.status}'")
-        logger.info(f"result.len(generated_image): '{len(result.generated_image)}'")
+        logger.info(f"result.len(generated_image): '{len(result.generated_image_base64)}'")
         logger.info(f"result.generation_metadata: '{result.generation_metadata}'")
-        logger.info(f"result.conditioning_images: '{result.conditioning_images}'")
+        logger.info(f"result.conditioning_images: '{result.conditioning_images_base64.keys()}'")
         logger.info(f"result.prompt_used: '{result.prompt_used}'")
         logger.info(f"result.semantic_analysis: '{result.semantic_analysis}'")
         logger.info(f"result.error: '{result.error}'")

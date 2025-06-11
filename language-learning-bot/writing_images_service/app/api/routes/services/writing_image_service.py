@@ -7,7 +7,6 @@ STUB IMPLEMENTATION - returns placeholder images for development.
 import base64
 import time
 import asyncio
-import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -16,8 +15,9 @@ from app.api.routes.models.responses import AIGenerationMetadata
 from app.utils.image_utils import get_image_processor, ImageProcessor
 from app.utils import config_holder
 from app.ai.ai_image_generator import AIImageGenerator
+from app.utils.logger import get_module_logger
 
-logger = logging.getLogger(__name__)
+logger = get_module_logger(__name__)
 
 
 class GenerationResult:
@@ -32,13 +32,20 @@ class GenerationResult:
         image_data_base64: Optional[str] = None,
         format: str = "png",
         metadata: Optional[AIGenerationMetadata] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
+        base_image_base64 = None,
+        conditioning_images_base64 = None,
+        prompt_used = None,
     ):
         self.success = success
         self.image_data_base64 = image_data_base64
         self.format = format
         self.metadata = metadata
         self.error = error
+
+        self.base_image_base64 = base_image_base64
+        self.conditioning_images_base64 = conditioning_images_base64
+        self.prompt_used = prompt_used
 
 
 class WritingImageService:
@@ -119,13 +126,6 @@ class WritingImageService:
             width = request.width if request.width else self.default_width
             height = request.height if request.height else self.default_height
             
-            # # Generate stub image using ImageProcessor
-            # image = await self._generate_stub_image_with_processor(
-            #     word=request.word,
-            #     translation=request.translation,
-            #     width=width,
-            #     height=height,
-            # )
             generation_result = await self.ai_generator.generate_character_image(
                 request.word, 
                 request.translation,
@@ -134,7 +134,10 @@ class WritingImageService:
                 include_semantic_analysis=request.include_semantic_analysis,
                 )
             
-            image_data_base64 = generation_result.conditioning_images_base64
+            image_data_base64 = generation_result.generated_image_base64
+            base_image_base64 = generation_result.base_image_base64
+            conditioning_images_base64 = generation_result.conditioning_images_base64
+            prompt_used = generation_result.prompt_used
 
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
@@ -155,11 +158,9 @@ class WritingImageService:
                 image_data_base64=image_data_base64,
                 format="png",
                 metadata=metadata,
-                # TODO - добавить include_conditioning_images, include_prompt, include_semantic_analysis
-                #                 include_conditioning_images=request.include_conditioning_images,
-                # include_prompt=request.include_prompt,
-                # include_semantic_analysis=request.include_semantic_analysis,
-
+                base_image_base64=base_image_base64,
+                conditioning_images_base64=conditioning_images_base64,
+                prompt_used=prompt_used,
             )
             
         except Exception as e:

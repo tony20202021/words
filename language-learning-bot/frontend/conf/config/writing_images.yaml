@@ -11,8 +11,8 @@ service_url: "http://localhost:8600"
 api_endpoint: "/api/writing/generate-writing-image"
 
 # Настройки запросов к сервису
-timeout: 10  # Таймаут запроса в секундах
-retry_count: 2  # Количество повторных попыток
+timeout: 120  # Таймаут запроса в секундах
+retry_count: 1  # Количество повторных попыток
 retry_delay: 1  # Задержка между попытками
 
 # Параметры генерации

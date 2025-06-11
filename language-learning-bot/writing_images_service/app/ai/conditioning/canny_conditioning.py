@@ -4,12 +4,10 @@ Canny edge detection conditioning generation.
 """
 
 import time
-import asyncio
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 import numpy as np
 import cv2
 from PIL import Image
-import logging
 
 from .base_conditioning import BaseConditioning, ConditioningResult, ConditioningConfig
 from app.utils.logger import get_module_logger
@@ -32,7 +30,6 @@ class CannyConditioning(BaseConditioning):
         super().__init__(config)
         
         # Инициализация AI моделей (если доступны)
-        self._hed_model = None
         self._structured_edge_model = None
         self._model_loading_attempted = False
         
@@ -41,7 +38,7 @@ class CannyConditioning(BaseConditioning):
     async def generate_from_image(
         self, 
         image: Image.Image, 
-        method: str = "opencv_canny",
+        method: str = "simple_canny",
         **kwargs
     ) -> ConditioningResult:
         """
@@ -49,7 +46,7 @@ class CannyConditioning(BaseConditioning):
         
         Args:
             image: Входное изображение
-            method: Метод детекции ("opencv_canny", "hed_canny", etc.)
+            method: Метод детекции ("simple_canny", "opencv_canny", "hed_canny", etc.)
             **kwargs: Дополнительные параметры
             
         Returns:
@@ -69,11 +66,10 @@ class CannyConditioning(BaseConditioning):
                 )
             
             # Выбор метода генерации
-            # TODO -  перенести сюда базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
-            if method == "opencv_canny":
+            if method == "simple_canny":
+                result_image = await self._simple_canny(processed_data['image'], **kwargs)
+            elif method == "opencv_canny":
                 result_image = await self._opencv_canny(processed_data['image'], **kwargs)
-            elif method == "hed_canny":
-                result_image = await self._hed_canny(processed_data['image'], **kwargs)
             elif method == "structured_edge_detection":
                 result_image = await self._structured_edge_detection(processed_data['image'], **kwargs)
             elif method == "multi_scale_canny":
@@ -115,7 +111,7 @@ class CannyConditioning(BaseConditioning):
     async def generate_from_text(
         self, 
         character: str, 
-        method: str = "opencv_canny",
+        method: str = "simple_canny",
         width: int = 512, 
         height: int = 512,
         **kwargs
@@ -171,9 +167,8 @@ class CannyConditioning(BaseConditioning):
     def get_available_methods(self) -> List[str]:
         """Возвращает список доступных методов Canny детекции."""
         return [
-            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+            "simple_canny",
             "opencv_canny",
-            "hed_canny",
             "structured_edge_detection", 
             "multi_scale_canny",
             "adaptive_canny"
@@ -182,7 +177,18 @@ class CannyConditioning(BaseConditioning):
     def get_method_info(self, method: str) -> Dict[str, Any]:
         """Возвращает информацию о конкретном методе."""
         method_info = {
-            # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+            "simple_canny": {
+                "description": "Простая детекция границ OpenCV с базовыми параметрами",
+                "parameters": {
+                    "low_threshold": {"type": "int", "default": 50, "range": [0, 255]},
+                    "high_threshold": {"type": "int", "default": 150, "range": [0, 255]}
+                },
+                "speed": "very_fast",
+                "quality": "good",
+                "memory_usage": "very_low",
+                "is_fallback": True
+            },
+            
             "opencv_canny": {
                 "description": "Классический алгоритм детекции границ OpenCV",
                 "parameters": {
@@ -194,18 +200,6 @@ class CannyConditioning(BaseConditioning):
                 "speed": "fast",
                 "quality": "good",
                 "memory_usage": "low"
-            },
-            
-            "hed_canny": {
-                "description": "Holistically-Nested Edge Detection с deep learning",
-                "parameters": {
-                    "threshold": {"type": "float", "default": 0.1, "range": [0.0, 1.0]},
-                    "nms_threshold": {"type": "float", "default": 0.4, "range": [0.0, 1.0]}
-                },
-                "speed": "slow",
-                "quality": "excellent",
-                "memory_usage": "high",
-                "requires_gpu": True
             },
             
             "structured_edge_detection": {
@@ -248,7 +242,37 @@ class CannyConditioning(BaseConditioning):
         return method_info.get(method, {})
     
     # Реализация конкретных методов
-    # TODO - добавить базовый простой метод, как метод по умолчанию, из модуля words/language-learning-bot/writing_images_service/app/ai/ai_image_generator.py, где он описан как fallback
+    
+    async def _simple_canny(
+        self, 
+        image: Image.Image,
+        low_threshold: int = 50,
+        high_threshold: int = 150,
+        **kwargs
+    ) -> Image.Image:
+        """
+        Простая детекция границ Canny (базовый fallback метод).
+        Перенесен из ai_image_generator._create_fallback_conditioning.
+        """
+        try:
+            # Конвертация в numpy
+            img_array = np.array(image)
+            
+            # Конвертация в grayscale
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
+            
+            # Простая детекция границ
+            edges = cv2.Canny(gray, low_threshold, high_threshold)
+            
+            # Конвертация обратно в PIL
+            return Image.fromarray(edges, mode='L').convert('RGB')
+            
+        except Exception as e:
+            logger.error(f"Error in simple canny: {e}")
+            return None
 
     async def _opencv_canny(
         self, 
@@ -260,49 +284,28 @@ class CannyConditioning(BaseConditioning):
         **kwargs
     ) -> Image.Image:
         """OpenCV Canny edge detection."""
-        # Конвертация в numpy
-        img_array = np.array(image)
-        
-        # Конвертация в grayscale
-        if len(img_array.shape) == 3:
-            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = img_array
-        
-        # Опциональное размытие
-        if gaussian_blur > 0:
-            gray = cv2.GaussianBlur(gray, (gaussian_blur, gaussian_blur), 0)
-        
-        # Canny edge detection
-        edges = cv2.Canny(gray, low_threshold, high_threshold, apertureSize=kernel_size)
-        
-        # Конвертация обратно в PIL
-        return Image.fromarray(edges, mode='L').convert('RGB')
-    
-    async def _hed_canny(
-        self, 
-        image: Image.Image,
-        threshold: float = 0.1,
-        nms_threshold: float = 0.4,
-        **kwargs
-    ) -> Image.Image:
-        """HED (Holistically-Nested Edge Detection) method."""
         try:
-            # Попытка загрузки модели
-            if not self._model_loading_attempted:
-                await self._load_hed_model()
+            # Конвертация в numpy
+            img_array = np.array(image)
             
-            if self._hed_model is None:
-                logger.warning("HED model not available, falling back to OpenCV Canny")
-                return None
+            # Конвертация в grayscale
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
             
-            # TODO: Реализация HED inference
-            # Пока используем fallback
-            logger.info("HED inference not implemented yet, using OpenCV Canny")
-            return None
+            # Опциональное размытие
+            if gaussian_blur > 0:
+                gray = cv2.GaussianBlur(gray, (gaussian_blur, gaussian_blur), 0)
+            
+            # Canny edge detection
+            edges = cv2.Canny(gray, low_threshold, high_threshold, apertureSize=kernel_size)
+            
+            # Конвертация обратно в PIL
+            return Image.fromarray(edges, mode='L').convert('RGB')
             
         except Exception as e:
-            logger.error(f"Error in HED Canny: {e}")
+            logger.error(f"Error in OpenCV Canny: {e}")
             return None
         
     async def _structured_edge_detection(
@@ -469,26 +472,3 @@ class CannyConditioning(BaseConditioning):
         except Exception as e:
             logger.error(f"Error in Adaptive Canny: {e}")
             return None
-    
-    async def _load_hed_model(self):
-        """Загружает модель HED для edge detection."""
-        try:
-            self._model_loading_attempted = True
-            
-            # TODO: Реализация загрузки HED модели
-            # Пример с использованием transformers:
-            # from transformers import pipeline
-            # self._hed_model = pipeline("image-segmentation", model="lllyasviel/Annotators")
-            
-            # Пример с прямой загрузкой модели:
-            # import torch
-            # model_path = "path/to/hed/model"
-            # self._hed_model = torch.jit.load(model_path)
-            
-            logger.info("HED model loading not implemented yet - using fallback methods")
-            self._hed_model = None
-            
-        except Exception as e:
-            logger.warning(f"Could not load HED model: {e}")
-            self._hed_model = None
- 

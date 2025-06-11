@@ -22,10 +22,11 @@ class AIImageResponse:
     """Ответ на запрос генерации AI изображения"""
     success: bool
     status: GenerationStatus
-    generated_image: Optional[str] = None  # base64
+    generated_image_base64: Optional[str] = None  # base64
     
     # Промежуточные результаты
-    conditioning_images: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
+    base_image_base64: Optional[str] = None
+    conditioning_images_base64: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
     prompt_used: Optional[str] = None
     
     # Семантический анализ

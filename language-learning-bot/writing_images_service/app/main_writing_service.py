@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from dotenv import load_dotenv
 
 # Add the parent directory to sys.path to allow imports from other modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,9 +23,6 @@ from hydra.core.global_hydra import GlobalHydra
 from app.api.routes import writing_images
 from app.utils.logger import setup_logger
 from app.utils import config_holder
-
-# Load environment variables
-load_dotenv()
 
 # Загрузка конфигурации Hydra (обязательно)
 try:

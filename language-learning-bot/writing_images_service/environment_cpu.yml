@@ -1,0 +1,30 @@
+
+# ==================================================
+# ОТДЕЛЬНОЕ ОКРУЖЕНИЕ ДЛЯ WRITING SERVICE
+# writing_service/environment.yml
+# ==================================================
+
+name: amikhalev_writing_images_service
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip>=23.0
+  
+  # ============ SYSTEM DEPENDENCIES ============
+  - conda-forge::git-lfs  # Для загрузки AI моделей
+  
+  # ============ SCIENTIFIC COMPUTING (MINIMAL) ============
+  - conda-forge::numpy
+  - conda-forge::scipy
+  - conda-forge::scikit-learn
+  
+  # ============ IMAGE PROCESSING ============
+  - conda-forge::opencv
+  - conda-forge::pillow
+  
+  # ============ PIP DEPENDENCIES ============
+  - pip:
+      - -r requirements_cpu.txt

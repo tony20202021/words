@@ -37,4 +37,5 @@ dependencies:
   
   # ============ PIP DEPENDENCIES ============
   - pip:
-      - -r requirements.txt
+      - -r requirements_cpu.txt
+      - -r requirements_gpu.txt

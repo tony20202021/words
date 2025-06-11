@@ -28,7 +28,7 @@ class WritingImageClient:
         service_url: str = "http://localhost:8600",
         api_endpoint: str = "/api/generate-writing-image",
         timeout: int = 10,
-        retry_count: int = 2,
+        retry_count: int = 1,
         retry_delay: int = 1
     ):
         """
@@ -159,16 +159,23 @@ class WritingImageClient:
                             
                             # Writing Service возвращает данные напрямую, не в поле "result"
                             if json_data.get("success"):
-                                if "generated_image" in json_data:
+                                if "generated_image_base64" in json_data:
                                     import base64
                                     try:
-                                        generated_image = base64.b64decode(json_data["generated_image"])
+                                        generated_image = base64.b64decode(json_data["generated_image_base64"]) if json_data["generated_image_base64"] is not None else None
+                                        base_image = base64.b64decode(json_data["base_image_base64"]) if json_data["base_image_base64"] is not None else None
+                                        conditioning_images  = {}
+                                        for key_type in json_data["conditioning_images_base64"].keys():
+                                            conditioning_images[key_type] = {}
+                                            for key_method in json_data["conditioning_images_base64"][key_type].keys():
+                                                conditioning_images[key_type][key_method] = base64.b64decode(json_data["conditioning_images_base64"][key_type][key_method]) if json_data["conditioning_images_base64"][key_type][key_method] is not None else None
                                         response_dict["result"] = {
                                             "generated_image": generated_image,
                                             "format": json_data.get("format", None),
                                             "success": json_data.get("success", False),
                                             "status": json_data.get("status", None),
-                                            "conditioning_images": json_data.get("conditioning_images", None),
+                                            "base_image": base_image,
+                                            "conditioning_images": conditioning_images,
                                             "prompt_used": json_data.get("prompt_used", None),
                                             "semantic_analysis": json_data.get("semantic_analysis", None),
                                             "generation_metadata": json_data.get("generation_metadata", None),

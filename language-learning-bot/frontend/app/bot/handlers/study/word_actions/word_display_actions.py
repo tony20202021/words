@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from aiogram.types import Message
-from aiogram.types import BufferedInputFile
+from aiogram.types import BufferedInputFile, InputMediaPhoto
 
 from app.utils.logger import setup_logger
 from app.utils.state_models import UserWordState
@@ -345,26 +345,61 @@ async def process_show_writing_image(
             return
         
         image_result = request_result["result"]
+        
         # Get image data from result
-        generated_image = image_result["generated_image"]
-        image_buffer = io.BytesIO(generated_image)
-        
-        # Create BufferedInputFile from BytesIO for Telegram
-        image_buffer.seek(0)  # Reset buffer position
-        input_file = BufferedInputFile(
-            file=image_buffer.read(),
-            filename=f"writing_{word_foreign}.png"
-        )
-        
+        base_image = image_result["base_image"]
+        if base_image is not None:
+            image_buffer = io.BytesIO(base_image)
+            image_buffer.seek(0)  # Reset buffer position
+            input_file = BufferedInputFile(
+                file=image_buffer.read(),
+                filename=f"base_image_{word_foreign}.png"
+            )
+
+            caption = f"base_image: <b>{word_foreign}</b>"
+            await message.answer_photo(
+                photo=input_file,
+                caption=caption,
+            )
+        else:
+            logger.warning(f"Base image is None for word: {word_foreign}")
+            await message.answer("Base image is None for word: {word_foreign}")
+
+        conditioning_images = image_result["conditioning_images"]
+        for key_type in conditioning_images.keys():
+            media = []
+            newline = '\n'
+            caption = f"{key_type}:{newline} {f',{newline}'.join([key_method if image is not None else f'{key_method}: (None)' for key_method, image in conditioning_images[key_type].items()])}"
+            first = True  # Caption можно указать только к первому элементу
+
+            for key_method, image in conditioning_images[key_type].items():
+                if image is not None:
+                    file = BufferedInputFile(image, filename=f"conditioning_{key_type}_{key_method}.png")
+
+                    input_media = InputMediaPhoto(
+                        media=file,
+                        caption=f"{caption}" if first else None,
+                        parse_mode="HTML" if first else None
+                    )
+                    media.append(input_media)
+                    first = False
+
+            await message.answer_media_group(media=media)
+
+        caption = f"prompt_used: {image_result['prompt_used']}"
+        await message.answer(caption)
+
+        caption = f"semantic_analysis: {image_result['semantic_analysis']}"
+        await message.answer(caption)
+
+        caption = f"generation_metadata: {image_result['generation_metadata']}"
+        await message.answer(caption)
+
         # Prepare caption
-        caption = f"🖼️ Картинка написания для: <b>{word_foreign}</b>"
+        caption = f"🖼️ Картинка написания для: <b>{word_foreign}</b>\n\n"
         if show_debug:
             caption += f"success: {image_result['success']}\n"
             caption += f"status: {image_result['status']}\n"
-            caption += f"conditioning_images: {image_result['conditioning_images']}\n"
-            caption += f"prompt_used: {image_result['prompt_used']}\n"
-            caption += f"semantic_analysis: {image_result['semantic_analysis']}\n"
-            caption += f"generation_metadata: {image_result['generation_metadata']}\n"
             caption += f"error: {image_result['error']}\n"
             caption += f"warnings: {image_result['warnings']}\n"
         
@@ -374,14 +409,23 @@ async def process_show_writing_image(
         # Set state
         await state.set_state(StudyStates.viewing_writing_image)
         
+        # Get image data from result
+        generated_image = image_result["generated_image"]
+        image_buffer = io.BytesIO(generated_image)
+        image_buffer.seek(0)  # Reset buffer position
+        input_file = BufferedInputFile(
+            file=image_buffer.read(),
+            filename=f"writing_{word_foreign}.png"
+        )
+
         # Send image
         await message.answer_photo(
             photo=input_file,
             caption=caption,
             reply_markup=keyboard,
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
-        
+
         logger.info(f"Successfully sent writing image for: {word_foreign}")
         
     except Exception as e:

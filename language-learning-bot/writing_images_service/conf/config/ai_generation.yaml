@@ -76,7 +76,6 @@ ai_generation:
         - "distance_transform_depth"
         - "morphological_depth"
         - "ai_depth_estimation"
-        - "synthetic_3d_depth"
         - "multi_layer_depth"
       
       default_method: "black_and_white_depth"
@@ -94,21 +93,14 @@ ai_generation:
         model_name: "intel-isl/MiDaS"
         model_type: "MiDaS_small"
         
-      synthetic_3d_depth:
-        extrusion_depth: 10
-        perspective_angle: 15
-        
     # Методы сегментации
     segmentation:
       available_methods:
         - "black_and_white_segmentation"
         - "radical_segmentation"
         - "stroke_type_segmentation"
-        - "hierarchical_segmentation"
-        - "semantic_segmentation"
         - "ai_segmentation"
         - "color_based_segmentation"
-        - "geometric_segmentation"
       
       default_method: "black_and_white_segmentation"
       

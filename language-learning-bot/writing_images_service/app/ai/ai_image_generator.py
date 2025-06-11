@@ -9,9 +9,9 @@ from typing import Dict, Any, Optional, List, Tuple, Union
 from dataclasses import dataclass
 from PIL import Image
 import numpy as np
-import logging
 import io
 import base64
+import random
 
 from app.utils.logger import get_module_logger
 from app.utils.image_utils import get_image_processor
@@ -19,6 +19,7 @@ from app.ai.conditioning.canny_conditioning import CannyConditioning
 from app.ai.conditioning.depth_conditioning import DepthConditioning
 from app.ai.conditioning.segmentation_conditioning import SegmentationConditioning
 from app.ai.conditioning.scribble_conditioning import ScribbleConditioning
+from app.ai.prompt.prompt_builder import PromptBuilder, PromptResult
 
 logger = get_module_logger(__name__)
 
@@ -69,12 +70,11 @@ class AIGenerationConfig:
 class AIGenerationResult:
     """Результат AI генерации изображения"""
     success: bool
-    generated_image: Optional[Image.Image] = None
     generated_image_base64: Optional[str] = None
     
     # Промежуточные результаты
-    conditioning_images: Optional[Dict[str, Image.Image]] = None
-    conditioning_images_base64: Optional[Dict[str, str]] = None
+    base_image_base64: Optional[str] = None
+    conditioning_images_base64: Optional[Dict[str, Dict[str, str]]] = None
     
     # Промпты
     prompt_used: Optional[str] = None
@@ -143,6 +143,7 @@ class AIImageGenerator:
         conditioning_methods: Optional[Dict[str, str]] = None,
         include_conditioning_images: bool = False,
         include_prompt: bool = False,
+        include_semantic_analysis: bool = False,
         seed: Optional[int] = None,
         **generation_params
     ) -> AIGenerationResult:
@@ -152,11 +153,11 @@ class AIImageGenerator:
         Args:
             character: Китайский иероглиф
             translation: Перевод иероглифа
-            style: Стиль генерации (comic, watercolor, realistic, anime)
             conditioning_weights: Веса для разных типов conditioning
             conditioning_methods: Методы для разных типов conditioning
             include_conditioning_images: Включать ли conditioning изображения в результат
             include_prompt: Включать ли промпт в результат
+            include_semantic_analysis: Включать ли семантический анализ в результат
             seed: Seed для воспроизводимости
             **generation_params: Дополнительные параметры генерации
             
@@ -172,12 +173,6 @@ class AIImageGenerator:
             
             # Настраиваем параметры
             weights = conditioning_weights or self.config.conditioning_weights
-            methods = conditioning_methods or {
-                "canny": "opencv_canny",
-                "depth": "stroke_thickness_depth", 
-                "segmentation": "radical_segmentation",
-                "scribble": "skeletonization_scribble"
-            }
             
             # 1. Предобработка - рендеринг иероглифа
             base_image = await self._preprocess_character(
@@ -185,26 +180,35 @@ class AIImageGenerator:
                 self.config.width, 
                 self.config.height
             )
-            
+
+            logger.info(f"base_image={base_image}")
+
             # 2. Генерация всех conditioning изображений
             conditioning_images = await self._generate_all_conditioning(
-                base_image, character, methods
+                base_image, character
             )
+            logger.info(f"conditioning_images={conditioning_images.keys()}")
             
             # 3. Построение промпта
-            prompt, negative_prompt = await self._build_prompt(
+            prompts = await self._generate_all_prompts(
                 character, translation
             )
+            logger.info(f"prompts={prompts.keys()}")
             
-            # 4. AI генерация с Multi-ControlNet
-            generated_image = await self._run_ai_generation(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                conditioning_images=conditioning_images,
-                conditioning_weights=weights,
-                seed=seed,
-                **generation_params
-            )
+            for style_name, prompt in prompts.items():
+                logger.info(f"prompt_style={style_name}")
+                logger.info(f"prompt={prompt.main_prompt}")
+                logger.info(f"prompt_length={len(prompt.main_prompt)}")
+                logger.info(f"prompt_style={prompt.style_data.keys()}")
+
+                # 4. AI генерация с Multi-ControlNet
+                final_image = await self._run_ai_generation(
+                    prompt=prompt.main_prompt,
+                    conditioning_images=conditioning_images,
+                    conditioning_weights=weights,
+                    seed=seed,
+                    **generation_params
+                )
             
             # Подсчет времени генерации
             generation_time_ms = int((time.time() - start_time) * 1000)
@@ -212,17 +216,18 @@ class AIImageGenerator:
             # Создание результата
             result = AIGenerationResult(
                 success=True,
-                generated_image=final_image,
                 generated_image_base64=self._to_base64(final_image) if final_image else None,
-                conditioning_images=conditioning_images if include_conditioning_images else None,
+                base_image_base64=self._to_base64(base_image) if include_conditioning_images else None,
                 conditioning_images_base64=self._conditioning_to_base64(conditioning_images) if include_conditioning_images else None,
                 prompt_used=prompt if include_prompt else None,
                 generation_metadata={
                     'character': character,
                     'translation': translation,
-                    'style': style,
                     'conditioning_weights_used': weights,
-                    'conditioning_methods_used': methods,
+                    'conditioning_methods_used': {
+                        conditioning_type: list(conditioning_images[conditioning_type].keys())
+                        for conditioning_type in conditioning_images.keys()
+                    },
                     'generation_time_ms': generation_time_ms,
                     'seed_used': seed,
                     'model_used': self.config.base_model,
@@ -235,7 +240,7 @@ class AIImageGenerator:
             self.total_generation_time += generation_time_ms
             
             logger.info(f"Successfully generated AI image for character: {character} "
-                       f"(style: {style}, time: {generation_time_ms}ms)")
+                       f"(time: {generation_time_ms}ms)")
             
             return result
             
@@ -330,8 +335,7 @@ class AIImageGenerator:
         self,
         base_image: Image.Image,
         character: str,
-        methods: Dict[str, str]
-    ) -> Dict[str, Image.Image]:
+    ) -> Dict[str, Dict[str, Image.Image]]:
         """
         Генерирует все типы conditioning изображений.
         
@@ -350,100 +354,76 @@ class AIImageGenerator:
             tasks = []
             
             for conditioning_type, generator in self.conditioning_generators.items():
-                method = methods.get(conditioning_type, "default")
-                
+                conditioning_images[conditioning_type] = {}
+                method = random.sample(generator.get_available_methods(), 1)[0]
+                conditioning_images[conditioning_type][method] = None
+                logger.info(f"Generating {conditioning_type} conditioning with method: {method}")
                 # Создаем задачу для генерации
                 task = asyncio.create_task(
                     generator.generate_from_image(base_image, method=method),
-                    name=f"conditioning_{conditioning_type}"
+                    name=f"conditioning_{conditioning_type}_{method}"
                 )
-                tasks.append((conditioning_type, task))
+                tasks.append((conditioning_type, method, task))
             
             # Ожидаем завершения всех задач
-            for conditioning_type, task in tasks:
+            for conditioning_type, method, task in tasks:
                 try:
                     result = await task
                     if result.success and result.image:
-                        conditioning_images[conditioning_type] = result.image
+                        conditioning_images[conditioning_type][method] = result.image
                         logger.debug(f"Generated {conditioning_type} conditioning "
                                    f"(method: {result.method_used}, "
-                                   f"quality: {result.quality_score:.2f})")
+                                   f"time: {result.processing_time_ms}ms)")
                     else:
-                        logger.warning(f"Failed to generate {conditioning_type} conditioning: "
+                        logger.warning(f"Failed to generate {conditioning_type} conditioning {method}: "
                                      f"{result.error_message}")
                         
-                        # Создаем fallback изображение
-                        conditioning_images[conditioning_type] = await self._create_fallback_conditioning(
-                            base_image, conditioning_type
-                        )
+                        conditioning_images[conditioning_type][method] = None
                         
                 except Exception as e:
-                    logger.error(f"Error generating {conditioning_type} conditioning: {e}")
-                    conditioning_images[conditioning_type] = await self._create_fallback_conditioning(
-                        base_image, conditioning_type
-                    )
+                    logger.error(f"Error generating {conditioning_type} conditioning {method}: {e}")
+                    conditioning_images[conditioning_type][method] = None
             
             logger.info(f"Generated {len(conditioning_images)} conditioning images for character: {character}")
             return conditioning_images
             
         except Exception as e:
             logger.error(f"Error in conditioning generation: {e}")
-            # Возвращаем fallback conditioning для всех типов
-            return await self._create_all_fallback_conditioning(base_image)
+            return None
     
-    async def _build_prompt(
+    async def _generate_all_prompts(
         self,
         character: str,
-        translation: str,
-        style: str
-    ) -> Tuple[str, str]:
+        translation: str
+    ) -> Dict[str, PromptResult]:
         """
         Строит промпт для AI генерации.
         
         Args:
             character: Иероглиф
             translation: Перевод
-            style: Стиль генерации
             
         Returns:
             Tuple[str, str]: (prompt, negative_prompt)
         """
         try:
-            # TODO: Интеграция с системой промптов
-            # from app.ai.prompt.prompt_builder import PromptBuilder
-            # prompt_builder = PromptBuilder()
-            # prompt, negative_prompt = await prompt_builder.build_prompt(
-            #     character=character,
-            #     translation=translation,
-            #     style=style
-            # )
+            prompts = {}
+            prompt_builder = PromptBuilder()
+
+            for style_name in prompt_builder.style_definitions.get_style_names():
+                prompt_result = await prompt_builder.build_prompt(
+                    character=character,
+                    translation=translation,
+                    style=style_name
+                )
+                prompts[style_name] = prompt_result
             
-            # Пока используем простые шаблоны
-            style_templates = {
-                "comic": f"A vibrant comic book style illustration of {translation or 'Chinese character'}, "
-                        f"inspired by the character {character}, bold outlines, bright colors, pop art style",
-                        
-                "watercolor": f"A soft watercolor painting depicting {translation or 'Chinese character'}, "
-                             f"with flowing brushstrokes inspired by {character}, delicate washes, artistic style",
-                             
-                "realistic": f"A detailed realistic illustration representing {translation or 'Chinese character'}, "
-                            f"maintaining the essence of Chinese character {character}, photorealistic, natural lighting",
-                            
-                "anime": f"An anime-style artwork showing {translation or 'Chinese character'}, "
-                        f"stylized after the Chinese character {character}, cell shading, bright colors, manga influence"
-            }
-            
-            prompt = style_templates.get(style, style_templates["comic"])
-            
-            logger.debug(f"Built prompt for {character} ({style}): {prompt[:100]}...")
-            return prompt
+            logger.debug(f"Built prompt for {character}: {len(prompts)} prompts (styles: {prompts.keys()})")
+            return prompts
             
         except Exception as e:
             logger.error(f"Error building prompt: {e}")
-            # Fallback промпт
-            fallback_prompt = f"A beautiful illustration of {translation or character}, masterpiece, best quality"
-            fallback_negative = "blurry, low quality, distorted"
-            return fallback_prompt, fallback_negative
+            return None
     
     async def _run_ai_generation(
         self,
@@ -458,7 +438,6 @@ class AIImageGenerator:
         
         Args:
             prompt: Промпт для генерации
-            negative_prompt: Негативный промпт
             conditioning_images: Conditioning изображения
             conditioning_weights: Веса conditioning
             seed: Seed для воспроизводимости
@@ -496,67 +475,6 @@ class AIImageGenerator:
         except Exception as e:
             logger.error(f"Error in AI generation: {e}")
             raise
-    
-    # TODO - избавится от понятия fallback, все эти методы перенести каждый в свой блок обуславливания как метод по умолчанию
-    async def _create_fallback_conditioning(
-        self, 
-        base_image: Image.Image, 
-        conditioning_type: str
-    ) -> Image.Image:
-        """
-        Создает fallback conditioning изображение.
-        
-        Args:
-            base_image: Базовое изображение
-            conditioning_type: Тип conditioning
-            
-        Returns:
-            Image.Image: Fallback изображение
-        """
-        # Простые fallback методы
-        img_array = np.array(base_image.convert('L'))
-        
-        if conditioning_type == "canny":
-            # Простая детекция границ
-            import cv2
-            edges = cv2.Canny(img_array, 50, 150)
-            return Image.fromarray(edges, mode='L').convert('RGB')
-            
-        elif conditioning_type == "depth":
-            # Простая инверсия для имитации глубины
-            depth = 255 - img_array
-            return Image.fromarray(depth, mode='L').convert('RGB')
-            
-        elif conditioning_type == "segmentation":
-            # Простая бинаризация
-            _, binary = cv2.threshold(img_array, 127, 255, cv2.THRESH_BINARY)
-            return Image.fromarray(binary, mode='L').convert('RGB')
-            
-        elif conditioning_type == "scribble":
-            # Простая скелетизация
-            from skimage import morphology
-            binary = img_array < 127
-            skeleton = morphology.skeletonize(binary)
-            skeleton_img = (skeleton * 255).astype(np.uint8)
-            return Image.fromarray(255 - skeleton_img, mode='L').convert('RGB')
-        
-        # Fallback - возвращаем исходное изображение
-        return base_image
-    
-    # TODO - избавится от понятия fallback, все эти методы перенести каждый в свой блок обуславливания как метод по умолчанию
-    async def _create_all_fallback_conditioning(
-        self, 
-        base_image: Image.Image
-    ) -> Dict[str, Image.Image]:
-        """Создает fallback conditioning для всех типов."""
-        conditioning_images = {}
-        
-        for conditioning_type in self.conditioning_generators.keys():
-            conditioning_images[conditioning_type] = await self._create_fallback_conditioning(
-                base_image, conditioning_type
-            )
-        
-        return conditioning_images
     
     async def _create_development_placeholder(
         self,
@@ -624,6 +542,9 @@ class AIImageGenerator:
     def _conditioning_to_base64(self, conditioning_images: Dict[str, Image.Image]) -> Dict[str, str]:
         """Конвертирует conditioning изображения в base64"""
         result = {}
-        for cond_type, image in conditioning_images.items():
-            result[cond_type] = self._to_base64(image)
+        for cond_type, cond_data in conditioning_images.items():
+            result[cond_type] = {}
+            for method, image in cond_data.items():
+                result[cond_type][method] = self._to_base64(image) if image is not None else None
         return result
+    

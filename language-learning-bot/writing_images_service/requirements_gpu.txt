@@ -1,0 +1,19 @@
+# ==================================================  
+# МИНИМАЛЬНЫЕ REQUIREMENTS ДЛЯ WRITING SERVICE
+# writing_service/writing_service_requirements.txt
+# ==================================================
+
+# HuggingFace ecosystem
+transformers>=4.35.0
+diffusers>=0.24.0
+accelerate>=0.24.0
+safetensors>=0.4.0
+tokenizers>=0.14.0
+
+# ============ AI MODELS & COMPUTER VISION ============
+# ControlNet и auxiliary models
+controlnet-aux>=0.0.9
+xformers>=0.0.22
+
+# ============ MONITORING & LOGGING ============
+gpustat>=1.1.0
