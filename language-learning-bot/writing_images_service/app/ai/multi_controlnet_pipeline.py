@@ -59,7 +59,6 @@ class PipelineConfig:
 class GenerationParams:
     """Параметры генерации"""
     prompt: str
-    negative_prompt: str = ""
     num_inference_steps: int = 30
     guidance_scale: float = 7.5
     width: int = 1024
@@ -87,7 +86,7 @@ class MultiControlNetPipeline:
         """
         self.config = config or PipelineConfig()
         
-        # Pipeline компоненты (будут инициализированы позже)
+        # Pipeline компоненты
         self.pipeline = None
         self.controlnets = {}
         self.vae = None
@@ -103,11 +102,18 @@ class MultiControlNetPipeline:
         self.total_inference_time = 0
         self.memory_stats = []
         
+        # Проверяем доступность CUDA
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available. GPU is required for Multi-ControlNet pipeline.")
+        
         logger.info(f"MultiControlNetPipeline initialized for device: {self.config.device}")
     
     async def setup_pipeline(self):
         """
         Настраивает и загружает все компоненты pipeline.
+        
+        Raises:
+            RuntimeError: Если настройка pipeline не удалась
         """
         try:
             logger.info("Setting up Multi-ControlNet pipeline...")
@@ -132,12 +138,11 @@ class MultiControlNetPipeline:
             
         except Exception as e:
             logger.error(f"Failed to setup Multi-ControlNet pipeline: {e}")
-            raise
+            raise RuntimeError(f"Pipeline setup failed: {e}")
     
     async def generate(
         self,
         prompt: str,
-        negative_prompt: str = "",
         control_images: Dict[str, Image.Image] = None,
         conditioning_scales: Dict[str, float] = None,
         **generation_params
@@ -153,6 +158,9 @@ class MultiControlNetPipeline:
             
         Returns:
             Image.Image: Сгенерированное изображение
+            
+        Raises:
+            RuntimeError: Если генерация не удалась
         """
         if not self._is_loaded:
             raise RuntimeError("Pipeline not loaded. Call setup_pipeline() first.")
@@ -163,7 +171,6 @@ class MultiControlNetPipeline:
             # Подготавливаем параметры
             params = GenerationParams(
                 prompt=prompt,
-                negative_prompt=negative_prompt,
                 **generation_params
             )
             
@@ -180,13 +187,7 @@ class MultiControlNetPipeline:
             memory_before = self._get_memory_usage()
             
             # Основная генерация
-            if self.pipeline is None:
-                # Development fallback
-                logger.info("Pipeline not available, creating development placeholder")
-                result_image = await self._create_generation_placeholder(params, prepared_controls)
-            else:
-                # Реальная AI генерация
-                result_image = await self._run_inference(params, prepared_controls, generator)
+            result_image = await self._run_inference(params, prepared_controls, generator)
             
             # Статистика
             inference_time = time.time() - start_time
@@ -201,57 +202,66 @@ class MultiControlNetPipeline:
             
         except Exception as e:
             logger.error(f"Error in Multi-ControlNet generation: {e}")
-            raise
+            raise RuntimeError(f"Generation failed: {e}")
         finally:
             # Очистка памяти
             await self._cleanup_memory()
     
     async def _check_device_availability(self):
         """Проверяет доступность GPU и настраивает устройство."""
-        if self.config.device == "cuda":
-            if not torch.cuda.is_available():
-                logger.warning("CUDA not available, falling back to CPU")
-                self.config.device = "cpu"
-                self._device = torch.device("cpu")
-            else:
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                logger.info(f"Using GPU with {gpu_memory:.1f}GB memory")
-                
-                # Настраиваем оптимизации для GPU памяти
-                if gpu_memory < 12:  # Меньше 12GB
-                    self.config.memory_efficient = True
-                    self.config.enable_attention_slicing = True
-                    self.config.enable_cpu_offload = True
-                    logger.info("Enabled memory optimizations for GPU < 12GB")
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+        
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        logger.info(f"Using GPU with {gpu_memory:.1f}GB memory")
+        
+        # Настраиваем оптимизации для GPU памяти
+        if gpu_memory < 12:  # Меньше 12GB
+            self.config.memory_efficient = True
+            self.config.enable_attention_slicing = True
+            self.config.enable_cpu_offload = True
+            logger.info("Enabled memory optimizations for GPU < 12GB")
+        elif gpu_memory >= 80:  # 80GB+ - минимальные оптимизации
+            self.config.memory_efficient = False
+            self.config.enable_attention_slicing = False
+            self.config.max_batch_size = 4
+            logger.info("Configured for high-memory GPU (80GB+)")
         
         logger.info(f"Using device: {self._device}")
     
     async def _load_controlnets(self):
-        """Загружает все ControlNet модели."""
+        """
+        Загружает все ControlNet модели.
+        
+        Raises:
+            RuntimeError: Если загрузка критичных моделей не удалась
+        """
         try:
             logger.info("Loading ControlNet models...")
             
-            # TODO: Реальная загрузка ControlNet моделей
-            # from diffusers import ControlNetModel
-            # 
-            # for control_type, model_name in self.config.controlnet_models.items():
-            #     logger.info(f"Loading {control_type} ControlNet: {model_name}")
-            #     
-            #     controlnet = ControlNetModel.from_pretrained(
-            #         model_name,
-            #         torch_dtype=self._torch_dtype,
-            #         use_safetensors=True
-            #     )
-            #     
-            #     if self.config.memory_efficient:
-            #         controlnet = controlnet.to(self._device)
-            #     
-            #     self.controlnets[control_type] = controlnet
+            from diffusers import ControlNetModel
             
-            # Development заглушка
-            logger.info("ControlNet loading not implemented yet - using development mode")
-            for control_type in self.config.controlnet_models.keys():
-                self.controlnets[control_type] = None
+            for control_type, model_name in self.config.controlnet_models.items():
+                logger.info(f"Loading {control_type} ControlNet: {model_name}")
+                
+                try:
+                    controlnet = ControlNetModel.from_pretrained(
+                        model_name,
+                        torch_dtype=self._torch_dtype,
+                        use_safetensors=True
+                    )
+                    
+                    controlnet = controlnet.to(self._device)
+                    self.controlnets[control_type] = controlnet
+                    
+                    logger.info(f"✓ Loaded {control_type} ControlNet")
+                    
+                except Exception as e:
+                    logger.error(f"✗ Failed to load {control_type} ControlNet: {e}")
+                    raise RuntimeError(f"Failed to load {control_type} ControlNet: {e}")
+            
+            if not self.controlnets:
+                raise RuntimeError("No ControlNet models loaded")
             
             logger.info(f"Loaded {len(self.controlnets)} ControlNet models")
             
@@ -260,96 +270,111 @@ class MultiControlNetPipeline:
             raise
     
     async def _load_base_pipeline(self):
-        """Загружает основной Stable Diffusion pipeline."""
+        """
+        Загружает основной Stable Diffusion pipeline.
+        
+        Raises:
+            RuntimeError: Если загрузка pipeline не удалась
+        """
         try:
             logger.info(f"Loading base pipeline: {self.config.base_model}")
             
-            # TODO: Реальная загрузка pipeline
-            # from diffusers import StableDiffusionXLControlNetPipeline
-            # 
-            # # Объединяем все ControlNet в MultiControlNet
-            # if len(self.controlnets) > 1:
-            #     from diffusers import MultiControlNetModel
-            #     multi_controlnet = MultiControlNetModel(list(self.controlnets.values()))
-            # else:
-            #     multi_controlnet = list(self.controlnets.values())[0]
-            # 
-            # self.pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
-            #     self.config.base_model,
-            #     controlnet=multi_controlnet,
-            #     torch_dtype=self._torch_dtype,
-            #     use_safetensors=True,
-            #     variant="fp16" if self._torch_dtype == torch.float16 else None
-            # )
-            # 
-            # # Настраиваем scheduler
-            # from diffusers import DPMSolverMultistepScheduler
-            # self.pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
-            #     self.pipeline.scheduler.config
-            # )
-            # 
-            # # Перемещаем на устройство
-            # if not self.config.enable_cpu_offload:
-            #     self.pipeline = self.pipeline.to(self._device)
+            from diffusers import StableDiffusionXLControlNetPipeline, MultiControlNetModel
             
-            # Development заглушка
-            logger.info("Pipeline loading not implemented yet - using development mode")
-            self.pipeline = None
+            # Объединяем все ControlNet в MultiControlNet
+            if len(self.controlnets) > 1:
+                multi_controlnet = MultiControlNetModel(list(self.controlnets.values()))
+                logger.info(f"Created MultiControlNet with {len(self.controlnets)} models")
+            else:
+                multi_controlnet = list(self.controlnets.values())[0]
+                logger.info("Using single ControlNet model")
+            
+            # Загружаем pipeline
+            self.pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
+                self.config.base_model,
+                controlnet=multi_controlnet,
+                torch_dtype=self._torch_dtype,
+                use_safetensors=True,
+                variant="fp16" if self._torch_dtype == torch.float16 else None
+            )
+            
+            # Настраиваем scheduler
+            from diffusers import DPMSolverMultistepScheduler
+            self.pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
+                self.pipeline.scheduler.config
+            )
+            
+            # Перемещаем на устройство
+            if not self.config.enable_cpu_offload:
+                self.pipeline = self.pipeline.to(self._device)
+            
+            logger.info("✓ Base pipeline loaded successfully")
             
         except Exception as e:
             logger.error(f"Failed to load base pipeline: {e}")
-            raise
+            raise RuntimeError(f"Failed to load base pipeline: {e}")
     
     async def _apply_optimizations(self):
-        """Применяет оптимизации для экономии памяти и ускорения."""
-        if self.pipeline is None:
-            logger.info("Skipping optimizations in development mode")
-            return
+        """
+        Применяет оптимизации для экономии памяти и ускорения.
         
+        Raises:
+            RuntimeError: Если критичные оптимизации не удались
+        """
         try:
             logger.info("Applying pipeline optimizations...")
             
             # Attention slicing для экономии памяти
             if self.config.enable_attention_slicing:
                 self.pipeline.enable_attention_slicing()
-                logger.debug("Enabled attention slicing")
+                logger.debug("✓ Enabled attention slicing")
             
             # CPU offload для экономии GPU памяти
             if self.config.enable_cpu_offload:
                 self.pipeline.enable_model_cpu_offload()
-                logger.debug("Enabled model CPU offload")
+                logger.debug("✓ Enabled model CPU offload")
             elif self.config.enable_sequential_cpu_offload:
                 self.pipeline.enable_sequential_cpu_offload()
-                logger.debug("Enabled sequential CPU offload")
+                logger.debug("✓ Enabled sequential CPU offload")
             
             # VAE optimizations
             if self.config.enable_vae_slicing:
                 self.pipeline.enable_vae_slicing()
-                logger.debug("Enabled VAE slicing")
+                logger.debug("✓ Enabled VAE slicing")
             
             if self.config.enable_vae_tiling:
                 self.pipeline.enable_vae_tiling()
-                logger.debug("Enabled VAE tiling")
+                logger.debug("✓ Enabled VAE tiling")
             
             # Torch optimizations
             if self.config.use_torch_compile and hasattr(torch, 'compile'):
-                self.pipeline.unet = torch.compile(self.pipeline.unet, mode="reduce-overhead")
-                logger.debug("Enabled torch.compile for UNet")
+                try:
+                    self.pipeline.unet = torch.compile(self.pipeline.unet, mode="reduce-overhead")
+                    logger.debug("✓ Enabled torch.compile for UNet")
+                except Exception as e:
+                    logger.warning(f"torch.compile failed: {e}")
             
             # Memory format optimization
             if self.config.use_channels_last_memory_format:
-                if hasattr(self.pipeline, 'unet'):
-                    self.pipeline.unet.to(memory_format=torch.channels_last)
-                logger.debug("Enabled channels_last memory format")
+                try:
+                    if hasattr(self.pipeline, 'unet'):
+                        self.pipeline.unet.to(memory_format=torch.channels_last)
+                    logger.debug("✓ Enabled channels_last memory format")
+                except Exception as e:
+                    logger.warning(f"channels_last failed: {e}")
             
             # Отключаем safety checker если не нужен
             if not self.config.enable_safety_checker:
                 self.pipeline.safety_checker = None
                 self.pipeline.requires_safety_checker = False
-                logger.debug("Disabled safety checker")
+                logger.debug("✓ Disabled safety checker")
+            
+            logger.info("Pipeline optimizations applied successfully")
             
         except Exception as e:
-            logger.warning(f"Some optimizations failed: {e}")
+            logger.error(f"Failed to apply optimizations: {e}")
+            # Оптимизации не критичны, продолжаем без них
+            logger.warning("Continuing without some optimizations")
     
     async def _prepare_control_inputs(
         self,
@@ -381,7 +406,7 @@ class MultiControlNetPipeline:
                 scale = conditioning_scales.get(control_type, 1.0)
                 
                 # Приводим изображение к нужному размеру
-                if image.size != (self.config.base_model_size, self.config.base_model_size):
+                if image.size != (1024, 1024):
                     image = image.resize((1024, 1024), Image.Resampling.LANCZOS)
                 
                 prepared_controls['images'].append(image)
@@ -418,118 +443,72 @@ class MultiControlNetPipeline:
             
         Returns:
             Image.Image: Сгенерированное изображение
+            
+        Raises:
+            RuntimeError: Если генерация не удалась
         """
         try:
-            # TODO: Реальная AI генерация
-            # result = self.pipeline(
-            #     prompt=params.prompt,
-            #     negative_prompt=params.negative_prompt,
-            #     image=prepared_controls['images'],
-            #     controlnet_conditioning_scale=prepared_controls['scales'],
-            #     num_inference_steps=params.num_inference_steps,
-            #     guidance_scale=params.guidance_scale,
-            #     width=params.width,
-            #     height=params.height,
-            #     generator=generator,
-            #     num_images_per_prompt=params.num_images_per_prompt,
-            #     eta=params.eta,
-            #     callback_on_step_end=params.callback_on_step_end
-            # )
-            # 
-            # return result.images[0]
+            logger.debug(f"Running inference with prompt: '{params.prompt[:50]}...'")
             
-            # Development fallback
-            return await self._create_generation_placeholder(params, prepared_controls)
+            # Подготавливаем аргументы для pipeline
+            pipeline_args = {
+                "prompt": params.prompt,
+                "num_inference_steps": params.num_inference_steps,
+                "guidance_scale": params.guidance_scale,
+                "width": params.width,
+                "height": params.height,
+                "generator": generator,
+                "num_images_per_prompt": params.num_images_per_prompt,
+                "eta": params.eta,
+            }
+            
+            # Добавляем control inputs если есть
+            if prepared_controls['images']:
+                pipeline_args["image"] = prepared_controls['images']
+                pipeline_args["controlnet_conditioning_scale"] = prepared_controls['scales']
+            
+            # Добавляем callback если есть
+            if params.callback_on_step_end:
+                pipeline_args["callback_on_step_end"] = params.callback_on_step_end
+            
+            # Запускаем генерацию
+            with torch.no_grad():
+                result = self.pipeline(**pipeline_args)
+            
+            # Возвращаем первое изображение
+            generated_image = result.images[0]
+            
+            logger.debug("✓ Inference completed successfully")
+            return generated_image
             
         except Exception as e:
             logger.error(f"Error in inference: {e}")
-            raise
-    
-    async def _create_generation_placeholder(
-        self,
-        params: GenerationParams,
-        prepared_controls: Dict[str, Any]
-    ) -> Image.Image:
-        """
-        Создает placeholder изображение для development режима.
-        
-        Args:
-            params: Параметры генерации
-            prepared_controls: Control inputs
-            
-        Returns:
-            Image.Image: Placeholder изображение
-        """
-        from app.utils.image_utils import get_image_processor
-        
-        processor = get_image_processor()
-        
-        # Создаем placeholder
-        placeholder = await processor.create_image(
-            params.width, params.height, (245, 245, 250)
-        )
-        
-        # Заголовок
-        title = "Multi-ControlNet Generation"
-        placeholder, _ = await processor.add_auto_fit_text(
-            placeholder, title, params.width - 40, 60,
-            initial_font_size=32, text_color=(70, 70, 70),
-            center_horizontal=True, offset_y=-params.height//4
-        )
-        
-        # Информация о промпте
-        prompt_info = f"Prompt: {params.prompt[:40]}..."
-        placeholder, _ = await processor.add_auto_fit_text(
-            placeholder, prompt_info, params.width - 40, 40,
-            initial_font_size=16, text_color=(100, 100, 100),
-            center_horizontal=True, offset_y=-params.height//8
-        )
-        
-        # Информация о conditioning
-        if prepared_controls['types']:
-            control_info = f"Controls: {', '.join(prepared_controls['types'])}"
-            scales_info = f"Scales: {[f'{s:.1f}' for s in prepared_controls['scales']]}"
-            
-            placeholder, _ = await processor.add_auto_fit_text(
-                placeholder, control_info, params.width - 40, 30,
-                initial_font_size=14, text_color=(120, 120, 120),
-                center_horizontal=True, offset_y=0
-            )
-            
-            placeholder, _ = await processor.add_auto_fit_text(
-                placeholder, scales_info, params.width - 40, 30,
-                initial_font_size=12, text_color=(140, 140, 140),
-                center_horizontal=True, offset_y=params.height//12
-            )
-        
-        # Параметры генерации
-        gen_info = f"Steps: {params.num_inference_steps}, CFG: {params.guidance_scale}"
-        placeholder, _ = await processor.add_auto_fit_text(
-            placeholder, gen_info, params.width - 40, 25,
-            initial_font_size=12, text_color=(160, 160, 160),
-            center_horizontal=True, offset_y=params.height//6
-        )
-        
-        # Development маркер
-        dev_marker = "(Development Pipeline)"
-        placeholder, _ = await processor.add_auto_fit_text(
-            placeholder, dev_marker, params.width - 40, 30,
-            initial_font_size=18, text_color=(180, 180, 180),
-            center_horizontal=True, offset_y=params.height//3
-        )
-        
-        # Рамка
-        placeholder = await processor.add_border_to_image(
-            placeholder, border_width=2, border_color=(200, 200, 200)
-        )
-        
-        return placeholder
+            raise RuntimeError(f"Inference failed: {e}")
     
     def _get_memory_usage(self) -> float:
         """Возвращает использование GPU памяти в MB."""
         if torch.cuda.is_available():
             return torch.cuda.memory_allocated() / 1024**2
         return 0.0
+    
+    def _update_stats(self, inference_time: float, memory_before: float, memory_after: float):
+        """Обновляет статистику производительности."""
+        self.generation_count += 1
+        self.total_inference_time += inference_time
+        
+        stats = {
+            "generation_id": self.generation_count,
+            "inference_time": inference_time,
+            "memory_before": memory_before,
+            "memory_after": memory_after,
+            "memory_diff": memory_after - memory_before
+        }
+        
+        self.memory_stats.append(stats)
+        
+        # Сохраняем только последние 100 записей
+        if len(self.memory_stats) > 100:
+            self.memory_stats = self.memory_stats[-100:]
     
     async def _cleanup_memory(self):
         """Очищает GPU память после генерации."""
@@ -568,9 +547,26 @@ class MultiControlNetPipeline:
     
     def is_ready(self) -> bool:
         """Проверяет готовность pipeline к генерации."""
-        return self._is_loaded and (self.pipeline is not None or True)  # True для dev режима
+        return self._is_loaded and self.pipeline is not None
     
     def get_supported_controlnet_types(self) -> List[str]:
         """Возвращает поддерживаемые типы ControlNet."""
         return list(self.config.controlnet_models.keys())
-   
+    
+    def get_generation_stats(self) -> Dict[str, Any]:
+        """Возвращает статистику генерации."""
+        if not self.memory_stats:
+            return {}
+        
+        avg_time = self.total_inference_time / self.generation_count if self.generation_count > 0 else 0
+        recent_stats = self.memory_stats[-10:] if len(self.memory_stats) >= 10 else self.memory_stats
+        
+        return {
+            "total_generations": self.generation_count,
+            "total_inference_time": self.total_inference_time,
+            "average_inference_time": avg_time,
+            "recent_memory_usage": [s["memory_after"] for s in recent_stats],
+            "pipeline_loaded": self._is_loaded,
+            "available_controlnets": list(self.controlnets.keys())
+        }
+    

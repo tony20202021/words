@@ -1,19 +1,119 @@
 # ==================================================  
-# МИНИМАЛЬНЫЕ REQUIREMENTS ДЛЯ WRITING SERVICE
-# writing_service/writing_service_requirements.txt
+# AI REQUIREMENTS FOR WRITING SERVICE - REAL GENERATION
+# writing_service/requirements_gpu.txt
 # ==================================================
 
-# HuggingFace ecosystem
+# ============ CORE AI FRAMEWORKS ============
+# HuggingFace ecosystem - КРИТИЧНО для AI генерации
 transformers>=4.35.0
 diffusers>=0.24.0
 accelerate>=0.24.0
 safetensors>=0.4.0
 tokenizers>=0.14.0
 
-# ============ AI MODELS & COMPUTER VISION ============
-# ControlNet и auxiliary models
+# Hugging Face Hub для загрузки моделей
+huggingface-hub>=0.17.0
+
+# ============ DEEP LEARNING & COMPUTER VISION ============
+# ControlNet и auxiliary models - ОБЯЗАТЕЛЬНО
 controlnet-aux>=0.0.9
+
+# XFormers для оптимизации attention - КРИТИЧНО для производительности
 xformers>=0.0.22
 
-# ============ MONITORING & LOGGING ============
+# OpenCV для image processing - ОБЯЗАТЕЛЬНО для conditioning
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+
+# Дополнительные CV библиотеки
+scikit-image>=0.21.0
+imageio>=2.31.0
+
+# ============ AI MODEL SPECIFIC ============
+# Segment Anything Model (SAM) для сегментации
+segment-anything>=1.0
+
+# Для depth estimation (MiDaS)
+timm>=0.9.0
+
+# Для edge detection и preprocessing
+scipy>=1.11.0
+
+# ============ GPU MONITORING & OPTIMIZATION ============
+# GPU мониторинг и статистика
 gpustat>=1.1.0
+pynvml>=11.5.0  # NVIDIA Management Library для детального мониторинга
+
+# Memory profiling
+psutil>=5.9.0
+py3nvml>=0.2.7  # Альтернативная библиотека для NVIDIA
+
+# ============ OPTIMIZATION LIBRARIES ============
+# Triton для custom CUDA kernels (если нужно)
+triton>=2.1.0
+
+# Torch Audio для дополнительных возможностей
+torchaudio>=2.0.0
+
+# ============ UTILITIES & HELPERS ============
+# Для обработки конфигураций
+omegaconf>=2.3.0
+
+# Для прогресс-баров при загрузке моделей
+tqdm>=4.65.0
+
+# Для работы с изображениями
+pillow-simd>=9.0.0  # Оптимизированная версия Pillow
+
+# Для валидации и сериализации
+pydantic>=2.4.0
+
+# ============ DEVELOPMENT & DEBUGGING ============
+# Для отладки GPU памяти
+memory-profiler>=0.60.0
+
+# Для логирования и мониторинга
+wandb>=0.15.0  # Weights & Biases для tracking экспериментов (опционально)
+
+# ============ FORMAT SUPPORT ============
+# Для работы с различными форматами изображений
+webp>=0.1.6
+avif>=0.1.0
+
+# ============ TESTING (OPTIONAL) ============
+# Для unit тестов AI компонентов
+pytest-gpu>=0.1.0  # Специализированные GPU тесты
+
+# ============ EXPERIMENTAL (CUTTING EDGE) ============
+# Для экспериментальных возможностей
+# flash-attn>=2.0.0  # Flash Attention (может требовать специальную сборку)
+
+# ============ COMPATIBILITY NOTES ============
+# ВАЖНО: Некоторые библиотеки могут конфликтовать:
+# - Убедитесь что PyTorch установлен с CUDA support
+# - XFormers должен быть совместим с версией PyTorch
+# - flash-attn требует специальной компиляции под GPU
+
+# ============ INSTALLATION ORDER ============
+# Рекомендуемый порядок установки:
+# 1. conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+# 2. pip install -r requirements_gpu.txt
+
+# ============ MEMORY REQUIREMENTS ============
+# Минимальные требования GPU памяти:
+# - 12GB: Базовая генерация (batch_size=1)
+# - 24GB: Стандартная генерация (batch_size=2)
+# - 40GB+: Продвинутая генерация (batch_size=4+)
+# - 80GB+: Максимальная производительность (batch_size=8+)
+
+# ============ KNOWN ISSUES & WORKAROUNDS ============
+# 1. XFormers может требовать CUDA 11.8+
+# 2. controlnet-aux может конфликтовать с некоторыми версиями transformers
+# 3. segment-anything требует значительно GPU памяти
+# 4. pynvml может не работать в некоторых Docker контейнерах
+
+# ============ ENVIRONMENT VARIABLES ============
+# Рекомендуемые переменные окружения:
+# export CUDA_VISIBLE_DEVICES=0
+# export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+# export TOKENIZERS_PARALLELISM=false

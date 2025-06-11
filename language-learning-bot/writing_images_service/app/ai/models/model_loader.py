@@ -6,8 +6,10 @@ Model loader for AI image generation.
 import logging
 import torch
 import asyncio
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +35,27 @@ class ModelLoader:
         self.loaded_models = {}
         self.model_status = {}
         self._loading_lock = asyncio.Lock()
+        
+        # Проверяем доступность CUDA
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA not available. GPU is required for AI image generation.")
+        
+        # Проверяем доступность необходимых библиотек
+        try:
+            import diffusers
+            import transformers
+            import accelerate
+        except ImportError as e:
+            raise RuntimeError(f"Required AI libraries not installed: {e}")
+        
         logger.info(f"ModelLoader initialized on device: {self.device}")
+        logger.info(f"CUDA device: {torch.cuda.get_device_name()}")
+        logger.info(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
     
-    async def load_stable_diffusion_xl(self, model_name: str = "stabilityai/stable-diffusion-xl-base-1.0"):
+    async def load_stable_diffusion_xl(
+        self, 
+        model_name: str = "stabilityai/stable-diffusion-xl-base-1.0"
+    ):
         """
         Загружает Stable Diffusion XL модель.
         
@@ -43,57 +63,68 @@ class ModelLoader:
             model_name: Название модели на HuggingFace
             
         Returns:
-            Загруженная модель или None при ошибке
+            Загруженная модель
+            
+        Raises:
+            RuntimeError: Если загрузка не удалась
         """
         async with self._loading_lock:
             if "stable_diffusion_xl" in self.loaded_models:
                 return self.loaded_models["stable_diffusion_xl"]
             
+            start_time = time.time()
+            memory_before = self._get_memory_usage()
+            
             try:
                 logger.info(f"Loading Stable Diffusion XL: {model_name}")
                 
-                # Попытка загрузки из diffusers
-                try:
-                    from diffusers import StableDiffusionXLPipeline
-                    
-                    pipeline = StableDiffusionXLPipeline.from_pretrained(
-                        model_name,
-                        torch_dtype=torch.float16,
-                        use_safetensors=True,
-                        variant="fp16"
-                    )
-                    
-                    if self.device == "cuda":
-                        pipeline = pipeline.to(self.device)
-                        pipeline.enable_memory_efficient_attention()
-                    
-                    self.loaded_models["stable_diffusion_xl"] = pipeline
-                    self.model_status["stable_diffusion_xl"] = ModelStatus(
-                        loaded=True,
-                        model_name=model_name,
-                        memory_usage_mb=self._get_model_memory_usage()
-                    )
-                    
-                    logger.info("Stable Diffusion XL loaded successfully")
-                    return pipeline
-                    
-                except ImportError:
-                    logger.warning("diffusers not available, using development mode")
-                    self.model_status["stable_diffusion_xl"] = ModelStatus(
-                        loaded=False,
-                        model_name=model_name,
-                        error_message="diffusers not installed"
-                    )
-                    return None
+                from diffusers import StableDiffusionXLPipeline
+                
+                # Загружаем с оптимизациями
+                pipeline = StableDiffusionXLPipeline.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.float16,
+                    use_safetensors=True,
+                    variant="fp16"
+                )
+                
+                # Перемещаем на GPU
+                pipeline = pipeline.to(self.device)
+                
+                # Применяем базовые оптимизации
+                pipeline.enable_memory_efficient_attention()
+                
+                # Проверяем размер GPU памяти для дополнительных оптимизаций
+                total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                if total_memory < 24:  # Меньше 24GB
+                    pipeline.enable_attention_slicing()
+                    pipeline.enable_vae_slicing()
+                    logger.info("Applied memory optimizations for smaller GPU")
+                
+                load_time = time.time() - start_time
+                memory_after = self._get_memory_usage()
+                memory_used = memory_after - memory_before
+                
+                self.loaded_models["stable_diffusion_xl"] = pipeline
+                self.model_status["stable_diffusion_xl"] = ModelStatus(
+                    loaded=True,
+                    model_name=model_name,
+                    memory_usage_mb=memory_used,
+                    load_time_seconds=load_time
+                )
+                
+                logger.info(f"Stable Diffusion XL loaded successfully in {load_time:.1f}s "
+                           f"(Memory used: {memory_used:.1f}MB)")
+                return pipeline
                     
             except Exception as e:
-                logger.error(f"Error loading Stable Diffusion XL: {e}")
+                logger.error(f"Failed to load Stable Diffusion XL: {e}")
                 self.model_status["stable_diffusion_xl"] = ModelStatus(
                     loaded=False,
                     model_name=model_name,
                     error_message=str(e)
                 )
-                return None
+                raise RuntimeError(f"Failed to load Stable Diffusion XL: {e}")
     
     async def load_controlnet_models(self, model_configs: Dict[str, str]):
         """
@@ -104,14 +135,24 @@ class ModelLoader:
             
         Returns:
             Словарь загруженных ControlNet моделей
+            
+        Raises:
+            RuntimeError: Если загрузка критичных моделей не удалась
         """
         async with self._loading_lock:
+            if "controlnets" in self.loaded_models:
+                return self.loaded_models["controlnets"]
+            
             controlnets = {}
+            failed_models = []
             
             try:
                 from diffusers import ControlNetModel
                 
                 for control_type, model_id in model_configs.items():
+                    start_time = time.time()
+                    memory_before = self._get_memory_usage()
+                    
                     try:
                         logger.info(f"Loading ControlNet {control_type}: {model_id}")
                         
@@ -121,78 +162,46 @@ class ModelLoader:
                             use_safetensors=True
                         )
                         
-                        if self.device == "cuda":
-                            controlnet = controlnet.to(self.device)
+                        controlnet = controlnet.to(self.device)
+                        
+                        load_time = time.time() - start_time
+                        memory_after = self._get_memory_usage()
+                        memory_used = memory_after - memory_before
                         
                         controlnets[control_type] = controlnet
                         self.model_status[f"controlnet_{control_type}"] = ModelStatus(
                             loaded=True,
                             model_name=model_id,
-                            memory_usage_mb=self._get_model_memory_usage()
+                            memory_usage_mb=memory_used,
+                            load_time_seconds=load_time
                         )
                         
-                        logger.info(f"ControlNet {control_type} loaded successfully")
+                        logger.info(f"ControlNet {control_type} loaded in {load_time:.1f}s "
+                                   f"(Memory: {memory_used:.1f}MB)")
                         
                     except Exception as e:
-                        logger.error(f"Error loading ControlNet {control_type}: {e}")
+                        logger.error(f"Failed to load ControlNet {control_type}: {e}")
+                        failed_models.append(control_type)
                         self.model_status[f"controlnet_{control_type}"] = ModelStatus(
                             loaded=False,
                             model_name=model_id,
                             error_message=str(e)
                         )
                 
+                # Проверяем что хотя бы одна ControlNet модель загружена
+                if not controlnets:
+                    raise RuntimeError("No ControlNet models could be loaded")
+                
+                if failed_models:
+                    logger.warning(f"Some ControlNet models failed to load: {failed_models}")
+                
                 self.loaded_models["controlnets"] = controlnets
+                logger.info(f"Loaded {len(controlnets)} ControlNet models successfully")
                 return controlnets
                 
-            except ImportError:
-                logger.warning("diffusers not available for ControlNet")
-                return {}
-    
-    async def load_auxiliary_models(self):
-        """Загружает вспомогательные модели для conditioning."""
-        auxiliary_models = {}
-        
-        # HED Edge Detection
-        try:
-            logger.info("Loading HED edge detection model")
-            # Заглушка - в реальности здесь будет загрузка HED модели
-            auxiliary_models["hed"] = None
-            self.model_status["hed"] = ModelStatus(
-                loaded=False,
-                model_name="hed_pretrained",
-                error_message="HED model not implemented yet"
-            )
-        except Exception as e:
-            logger.error(f"Error loading HED model: {e}")
-        
-        # MiDaS Depth Estimation
-        try:
-            logger.info("Loading MiDaS depth estimation model")
-            # Заглушка - в реальности здесь будет загрузка MiDaS модели
-            auxiliary_models["midas"] = None
-            self.model_status["midas"] = ModelStatus(
-                loaded=False,
-                model_name="midas_v3_large",
-                error_message="MiDaS model not implemented yet"
-            )
-        except Exception as e:
-            logger.error(f"Error loading MiDaS model: {e}")
-        
-        # SAM Segmentation
-        try:
-            logger.info("Loading SAM segmentation model")
-            # Заглушка - в реальности здесь будет загрузка SAM модели
-            auxiliary_models["sam"] = None
-            self.model_status["sam"] = ModelStatus(
-                loaded=False,
-                model_name="sam_vit_h",
-                error_message="SAM model not implemented yet"
-            )
-        except Exception as e:
-            logger.error(f"Error loading SAM model: {e}")
-        
-        self.loaded_models["auxiliary"] = auxiliary_models
-        return auxiliary_models
+            except Exception as e:
+                logger.error(f"Critical error loading ControlNet models: {e}")
+                raise RuntimeError(f"Failed to load ControlNet models: {e}")
     
     async def setup_multi_controlnet_pipeline(self, controlnets: Dict):
         """
@@ -202,62 +211,81 @@ class ModelLoader:
             controlnets: Словарь загруженных ControlNet моделей
             
         Returns:
-            Multi-ControlNet pipeline или None
+            Multi-ControlNet pipeline
+            
+        Raises:
+            RuntimeError: Если настройка pipeline не удалась
         """
         try:
             if not controlnets:
-                logger.warning("No ControlNet models available for pipeline")
-                return None
+                raise RuntimeError("No ControlNet models available for pipeline")
             
             from diffusers import StableDiffusionXLControlNetPipeline, MultiControlNetModel
             
             base_pipeline = self.loaded_models.get("stable_diffusion_xl")
             if not base_pipeline:
-                logger.error("Base Stable Diffusion XL not loaded")
-                return None
+                raise RuntimeError("Base Stable Diffusion XL not loaded")
             
-            # Создаем MultiControlNet
+            start_time = time.time()
+            logger.info("Setting up Multi-ControlNet pipeline...")
+            
+            # Создаем MultiControlNet из загруженных моделей
             controlnet_list = list(controlnets.values())
             if len(controlnet_list) > 1:
                 multi_controlnet = MultiControlNetModel(controlnet_list)
+                logger.info(f"Created MultiControlNet with {len(controlnet_list)} models")
             else:
                 multi_controlnet = controlnet_list[0]
+                logger.info("Using single ControlNet model")
             
             # Создаем pipeline с MultiControlNet
-            pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
-                "stabilityai/stable-diffusion-xl-base-1.0",
+            # Используем компоненты из уже загруженного base pipeline
+            pipeline = StableDiffusionXLControlNetPipeline(
+                vae=base_pipeline.vae,
+                text_encoder=base_pipeline.text_encoder,
+                text_encoder_2=base_pipeline.text_encoder_2,
+                tokenizer=base_pipeline.tokenizer,
+                tokenizer_2=base_pipeline.tokenizer_2,
+                unet=base_pipeline.unet,
                 controlnet=multi_controlnet,
-                torch_dtype=torch.float16,
-                use_safetensors=True
+                scheduler=base_pipeline.scheduler,
             )
             
-            if self.device == "cuda":
-                pipeline = pipeline.to(self.device)
-                pipeline.enable_memory_efficient_attention()
+            # Перемещаем на GPU
+            pipeline = pipeline.to(self.device)
+            
+            # Применяем оптимизации
+            pipeline.enable_memory_efficient_attention()
+            
+            # Проверяем размер GPU памяти
+            total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            if total_memory < 24:  # Меньше 24GB
+                pipeline.enable_attention_slicing()
+                pipeline.enable_vae_slicing()
+                logger.info("Applied memory optimizations for Multi-ControlNet pipeline")
+            
+            setup_time = time.time() - start_time
             
             self.loaded_models["multi_controlnet_pipeline"] = pipeline
             self.model_status["multi_controlnet_pipeline"] = ModelStatus(
                 loaded=True,
                 model_name="multi_controlnet_sdxl",
-                memory_usage_mb=self._get_model_memory_usage()
+                load_time_seconds=setup_time
             )
             
-            logger.info("Multi-ControlNet pipeline setup successfully")
+            logger.info(f"Multi-ControlNet pipeline setup successfully in {setup_time:.1f}s")
             return pipeline
             
-        except ImportError:
-            logger.warning("diffusers not available for Multi-ControlNet pipeline")
-            return None
         except Exception as e:
-            logger.error(f"Error setting up Multi-ControlNet pipeline: {e}")
+            logger.error(f"Failed to setup Multi-ControlNet pipeline: {e}")
             self.model_status["multi_controlnet_pipeline"] = ModelStatus(
                 loaded=False,
                 model_name="multi_controlnet_sdxl",
                 error_message=str(e)
             )
-            return None
+            raise RuntimeError(f"Failed to setup Multi-ControlNet pipeline: {e}")
     
-    def _get_model_memory_usage(self) -> float:
+    def _get_memory_usage(self) -> float:
         """Возвращает использование GPU памяти в MB."""
         if torch.cuda.is_available():
             return torch.cuda.memory_allocated() / 1024**2
@@ -299,4 +327,20 @@ class ModelLoader:
             torch.cuda.empty_cache()
         
         logger.info("All models unloaded")
+    
+    def get_total_memory_usage(self) -> Dict[str, float]:
+        """Возвращает общую статистику использования памяти."""
+        if not torch.cuda.is_available():
+            return {"total_mb": 0, "available_mb": 0, "used_mb": 0}
         
+        total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**2
+        allocated_memory = torch.cuda.memory_allocated() / 1024**2
+        cached_memory = torch.cuda.memory_reserved() / 1024**2
+        
+        return {
+            "total_mb": total_memory,
+            "allocated_mb": allocated_memory,
+            "cached_mb": cached_memory,
+            "free_mb": total_memory - cached_memory
+        }
+    
