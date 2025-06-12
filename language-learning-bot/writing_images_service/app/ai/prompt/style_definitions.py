@@ -62,7 +62,7 @@ class StyleDefinitions:
             name="comic",
             display_name="Comic Book",
             description="Яркий комиксовый стиль с четкими контурами и насыщенными цветами",
-            base_template="A vibrant comic book style illustration of {meaning}, inspired by the Chinese character {character}, featuring bold outlines and dynamic composition",
+            base_template="A vibrant comic book style illustration of '{meaning}', inspired by the Chinese character '{character}', featuring bold outlines and dynamic composition",
             recommended_steps=25,
             recommended_cfg=8.0,
             controlnet_weights={
@@ -78,7 +78,7 @@ class StyleDefinitions:
             name="watercolor",
             display_name="Watercolor Painting",
             description="Мягкая акварельная живопись с плавными переходами и художественными мазками",
-            base_template="A soft watercolor painting depicting {meaning}, with flowing brushstrokes inspired by the Chinese character {character}, featuring delicate washes and artistic spontaneity",
+            base_template="A soft watercolor painting depicting '{meaning}', with flowing brushstrokes inspired by the Chinese character '{character}', featuring delicate washes and artistic spontaneity",
             recommended_steps=35,
             recommended_cfg=6.5,
             controlnet_weights={
@@ -94,7 +94,7 @@ class StyleDefinitions:
             name="realistic",
             display_name="Photorealistic",
             description="Детализированная реалистичная иллюстрация с естественным освещением",
-            base_template="A detailed realistic illustration representing {meaning}, maintaining the essence of the Chinese character {character}, with photorealistic quality and natural lighting",
+            base_template="A detailed realistic illustration representing '{meaning}', maintaining the essence of the Chinese character '{character}', with photorealistic quality and natural lighting",
             recommended_steps=40,
             recommended_cfg=7.5,
             controlnet_weights={
@@ -110,7 +110,7 @@ class StyleDefinitions:
             name="anime",
             display_name="Anime Art",
             description="Японский анимационный стиль с яркими цветами и выразительным дизайном",
-            base_template="An anime-style artwork showing {meaning}, stylized after the Chinese character {character}, featuring cel shading and expressive design",
+            base_template="An anime-style artwork showing '{meaning}', stylized after the Chinese character '{character}', featuring cel shading and expressive design",
             recommended_steps=28,
             recommended_cfg=7.0,
             controlnet_weights={
@@ -126,7 +126,7 @@ class StyleDefinitions:
             name="ink",
             display_name="Chinese Ink Painting",
             description="Традиционная китайская живопись тушью с философской глубиной",
-            base_template="A traditional Chinese ink painting of {meaning}, capturing the spirit of the character {character}, with flowing brushstrokes and philosophical depth",
+            base_template="A traditional Chinese ink painting of '{meaning}', capturing the spirit of the character '{character}', with flowing brushstrokes and philosophical depth",
             recommended_steps=32,
             recommended_cfg=6.0,
             controlnet_weights={
@@ -142,7 +142,7 @@ class StyleDefinitions:
             name="digital",
             display_name="Digital Art",
             description="Современное цифровое искусство с техническим совершенством",
-            base_template="A modern digital artwork representing {meaning}, inspired by the Chinese character {character}, with contemporary digital techniques and polished finish",
+            base_template="A modern digital artwork representing '{meaning}', inspired by the Chinese character '{character}', with contemporary digital techniques and polished finish",
             recommended_steps=30,
             recommended_cfg=7.5,
             controlnet_weights={
@@ -158,7 +158,7 @@ class StyleDefinitions:
             name="fantasy",
             display_name="Fantasy Art",
             description="Фэнтезийный стиль с магическими элементами и мистической атмосферой",
-            base_template="A mystical fantasy artwork depicting {meaning}, embodying the magical essence of the Chinese character {character}, with ethereal atmosphere and enchanting details",
+            base_template="A mystical fantasy artwork depicting '{meaning}', embodying the magical essence of the Chinese character '{character}', with ethereal atmosphere and enchanting details",
             recommended_steps=35,
             recommended_cfg=8.0,
             controlnet_weights={

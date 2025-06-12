@@ -1,17 +1,16 @@
 """
 Multi-ControlNet Pipeline для AI генерации изображений.
-Интегрирует Stable Diffusion XL с множественными ControlNet моделями.
+Интегрирует Stable Diffusion XL с Union ControlNet моделью.
 """
 
 import time
-import asyncio
+import traceback
 from typing import Dict, Any, Optional, List, Tuple, Union
 from dataclasses import dataclass
 from PIL import Image
-import numpy as np
-import logging
 import torch
 import gc
+from diffusers import AutoencoderKL, EulerAncestralDiscreteScheduler
 
 from app.utils.logger import get_module_logger
 
@@ -47,11 +46,9 @@ class PipelineConfig:
     def __post_init__(self):
         """Инициализация значений по умолчанию"""
         if self.controlnet_models is None:
+            # UPDATED: Single Union ControlNet instead of 4 separate models
             self.controlnet_models = {
-                "canny": "diffusers/controlnet-canny-sdxl-1.0",
-                "depth": "diffusers/controlnet-depth-sdxl-1.0",
-                "segmentation": "diffusers/controlnet-seg-sdxl-1.0", 
-                "scribble": "diffusers/controlnet-scribble-sdxl-1.0"
+                "union": "xinsir/controlnet-union-sdxl-1.0"
             }
 
 
@@ -73,8 +70,7 @@ class GenerationParams:
 
 class MultiControlNetPipeline:
     """
-    Multi-ControlNet pipeline для генерации изображений с множественным conditioning.
-    Поддерживает до 4 типов ControlNet одновременно.
+    Multi-ControlNet pipeline для генерации изображений с Union ControlNet.
     """
     
     def __init__(self, config: Optional[PipelineConfig] = None):
@@ -106,7 +102,7 @@ class MultiControlNetPipeline:
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA not available. GPU is required for Multi-ControlNet pipeline.")
         
-        logger.info(f"MultiControlNetPipeline initialized for device: {self.config.device}")
+        logger.info(f"MultiControlNetPipeline initialized for Union ControlNet on device: {self.config.device}")
     
     async def setup_pipeline(self):
         """
@@ -116,7 +112,7 @@ class MultiControlNetPipeline:
             RuntimeError: Если настройка pipeline не удалась
         """
         try:
-            logger.info("Setting up Multi-ControlNet pipeline...")
+            logger.info("Setting up Union ControlNet pipeline...")
             start_time = time.time()
             
             # Проверяем доступность GPU
@@ -128,27 +124,26 @@ class MultiControlNetPipeline:
             # Загружаем основной pipeline
             await self._load_base_pipeline()
             
-            # Применяем оптимизации
-            await self._apply_optimizations()
+            # # Применяем оптимизации
+            # await self._apply_optimizations()
             
             self._is_loaded = True
             setup_time = time.time() - start_time
             
-            logger.info(f"Multi-ControlNet pipeline setup completed in {setup_time:.2f}s")
+            logger.info(f"Union ControlNet pipeline setup completed in {setup_time:.2f}s")
             
         except Exception as e:
-            logger.error(f"Failed to setup Multi-ControlNet pipeline: {e}")
+            logger.error(f"Failed to setup Union ControlNet pipeline: {e}")
             raise RuntimeError(f"Pipeline setup failed: {e}")
     
     async def generate(
         self,
         prompt: str,
         control_images: Dict[str, Image.Image] = None,
-        conditioning_scales: Dict[str, float] = None,
         **generation_params
     ) -> Image.Image:
         """
-        Генерирует изображение с Multi-ControlNet conditioning.
+        Генерирует изображение с Union ControlNet conditioning.
         
         Args:
             prompt: Текстовый промпт
@@ -174,10 +169,9 @@ class MultiControlNetPipeline:
                 **generation_params
             )
             
-            # Подготавливаем conditioning
-            prepared_controls = await self._prepare_control_inputs(
+            # Подготавливаем conditioning для Union ControlNet
+            prepared_controls = await self._prepare_union_control_inputs(
                 control_images or {}, 
-                conditioning_scales or {}
             )
             
             # Настраиваем генератор для seed
@@ -186,8 +180,8 @@ class MultiControlNetPipeline:
             # Мониторинг памяти
             memory_before = self._get_memory_usage()
             
-            # Основная генерация
-            result_image = await self._run_inference(params, prepared_controls, generator)
+            # Основная генерация с Union ControlNet
+            result_image = await self._run_union_inference(params, prepared_controls, generator)
             
             # Статистика
             inference_time = time.time() - start_time
@@ -195,13 +189,13 @@ class MultiControlNetPipeline:
             
             self._update_stats(inference_time, memory_before, memory_after)
             
-            logger.info(f"Generated image in {inference_time:.2f}s "
+            logger.info(f"Generated image with Union ControlNet in {inference_time:.2f}s "
                        f"(GPU memory: {memory_before:.1f}MB -> {memory_after:.1f}MB)")
             
             return result_image
             
         except Exception as e:
-            logger.error(f"Error in Multi-ControlNet generation: {e}")
+            logger.error(f"Error in Union ControlNet generation: {e}")
             raise RuntimeError(f"Generation failed: {e}")
         finally:
             # Очистка памяти
@@ -231,72 +225,108 @@ class MultiControlNetPipeline:
     
     async def _load_controlnets(self):
         """
-        Загружает все ControlNet модели.
+        Загружает Union ControlNet модель.
         
         Raises:
             RuntimeError: Если загрузка критичных моделей не удалась
         """
         try:
-            logger.info("Loading ControlNet models...")
+            logger.info("Loading Union ControlNet model...")
             
-            from diffusers import ControlNetModel
+            # FIXED: Используем оригинальный класс Union ControlNet
+            try:
+                from app.ai.models.controlnet_union import ControlNetModel_Union
+                logger.info("Using ControlNetModel_Union (original class)")
+                controlnet_class = ControlNetModel_Union
+            except ImportError as e:
+                logger.error(f"ControlNetModel_Union not available: {e}")
+                logger.error(traceback.format_exc())
+                raise RuntimeError("ControlNetModel_Union import failed")
             
-            for control_type, model_name in self.config.controlnet_models.items():
-                logger.info(f"Loading {control_type} ControlNet: {model_name}")
+            model_name = self.config.controlnet_models["union"]
+            logger.info(f"Loading Union ControlNet: {model_name}")
+            
+            try:
+                controlnet = controlnet_class.from_pretrained(
+                    model_name,
+                    # torch_dtype=self._torch_dtype,
+                    torch_dtype=torch.float16, 
+                    use_safetensors=True
+                )
+                # controlnet_model = ControlNetModel_Union.from_pretrained(
+                # "xinsir/controlnet-union-sdxl-1.0", 
+                # torch_dtype=torch.float16, 
+                # use_safetensors=True)
+
                 
-                try:
-                    controlnet = ControlNetModel.from_pretrained(
-                        model_name,
-                        torch_dtype=self._torch_dtype,
-                        use_safetensors=True
-                    )
-                    
-                    controlnet = controlnet.to(self._device)
-                    self.controlnets[control_type] = controlnet
-                    
-                    logger.info(f"✓ Loaded {control_type} ControlNet")
-                    
-                except Exception as e:
-                    logger.error(f"✗ Failed to load {control_type} ControlNet: {e}")
-                    raise RuntimeError(f"Failed to load {control_type} ControlNet: {e}")
+                controlnet = controlnet.to(self._device)
+                self.controlnets["union"] = controlnet
+                
+                logger.info(f"✓ Loaded Union ControlNet successfully")
+                
+            except Exception as e:
+                logger.error(f"✗ Failed to load Union ControlNet: {e}")
+                raise RuntimeError(f"Failed to load Union ControlNet: {e}")
             
             if not self.controlnets:
                 raise RuntimeError("No ControlNet models loaded")
             
-            logger.info(f"Loaded {len(self.controlnets)} ControlNet models")
+            logger.info("Union ControlNet model loaded successfully")
             
         except Exception as e:
-            logger.error(f"Failed to load ControlNet models: {e}")
+            logger.error(f"Failed to load Union ControlNet model: {e}")
             raise
     
     async def _load_base_pipeline(self):
         """
-        Загружает основной Stable Diffusion pipeline.
+        Загружает основной Stable Diffusion pipeline с Union ControlNet.
         
         Raises:
             RuntimeError: Если загрузка pipeline не удалась
         """
         try:
-            logger.info(f"Loading base pipeline: {self.config.base_model}")
+            logger.info(f"Loading Union ControlNet pipeline: {self.config.base_model}")
             
-            from diffusers import StableDiffusionXLControlNetPipeline, MultiControlNetModel
+            # FIXED: Используем оригинальный Union ControlNet pipeline
+            try:
+                from app.ai.pipeline.pipeline_controlnet_union_sd_xl import StableDiffusionXLControlNetUnionPipeline
+                pipeline_class = StableDiffusionXLControlNetUnionPipeline
+                logger.info("Using StableDiffusionXLControlNetUnionPipeline (original class)")
+            except ImportError as e:
+                logger.error(f"StableDiffusionXLControlNetUnionPipeline not available: {e}")
+                logger.error(traceback.format_exc())
+                raise RuntimeError("StableDiffusionXLControlNetUnionPipeline import failed")
             
-            # Объединяем все ControlNet в MultiControlNet
-            if len(self.controlnets) > 1:
-                multi_controlnet = MultiControlNetModel(list(self.controlnets.values()))
-                logger.info(f"Created MultiControlNet with {len(self.controlnets)} models")
-            else:
-                multi_controlnet = list(self.controlnets.values())[0]
-                logger.info("Using single ControlNet model")
+            # Получаем Union ControlNet
+            union_controlnet = self.controlnets["union"]
             
-            # Загружаем pipeline
-            self.pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
+            eulera_scheduler = EulerAncestralDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", subfolder="scheduler")
+            vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
+
+            logger.info(f"self._torch_dtype={self._torch_dtype}")
+
+            # Создаем Union ControlNet pipeline
+            self.pipeline = pipeline_class.from_pretrained(
                 self.config.base_model,
-                controlnet=multi_controlnet,
-                torch_dtype=self._torch_dtype,
-                use_safetensors=True,
-                variant="fp16" if self._torch_dtype == torch.float16 else None
+                controlnet=union_controlnet,
+                # torch_dtype=self._torch_dtype,
+                # use_safetensors=True,
+                # variant="fp16" if self._torch_dtype == torch.float16 else None
+                vae=vae,
+                torch_dtype=torch.float16,
+                scheduler=eulera_scheduler,
             )
+
+            self.pipeline = self.pipeline.to(self._device)
+
+#             pipe = StableDiffusionXLControlNetUnionPipeline.from_pretrained(
+#     "stabilityai/stable-diffusion-xl-base-1.0", 
+#     controlnet=controlnet_model, 
+#     vae=vae,
+#     torch_dtype=torch.float16,
+#     scheduler=eulera_scheduler,
+# )
+
             
             # Настраиваем scheduler
             from diffusers import DPMSolverMultistepScheduler
@@ -308,18 +338,15 @@ class MultiControlNetPipeline:
             if not self.config.enable_cpu_offload:
                 self.pipeline = self.pipeline.to(self._device)
             
-            logger.info("✓ Base pipeline loaded successfully")
+            logger.info("✓ Union ControlNet pipeline loaded successfully")
             
         except Exception as e:
-            logger.error(f"Failed to load base pipeline: {e}")
-            raise RuntimeError(f"Failed to load base pipeline: {e}")
+            logger.error(f"Failed to load Union ControlNet pipeline: {e}")
+            raise RuntimeError(f"Failed to load Union ControlNet pipeline: {e}")
     
     async def _apply_optimizations(self):
         """
         Применяет оптимизации для экономии памяти и ускорения.
-        
-        Raises:
-            RuntimeError: Если критичные оптимизации не удались
         """
         try:
             logger.info("Applying pipeline optimizations...")
@@ -346,23 +373,6 @@ class MultiControlNetPipeline:
                 self.pipeline.enable_vae_tiling()
                 logger.debug("✓ Enabled VAE tiling")
             
-            # Torch optimizations
-            if self.config.use_torch_compile and hasattr(torch, 'compile'):
-                try:
-                    self.pipeline.unet = torch.compile(self.pipeline.unet, mode="reduce-overhead")
-                    logger.debug("✓ Enabled torch.compile for UNet")
-                except Exception as e:
-                    logger.warning(f"torch.compile failed: {e}")
-            
-            # Memory format optimization
-            if self.config.use_channels_last_memory_format:
-                try:
-                    if hasattr(self.pipeline, 'unet'):
-                        self.pipeline.unet.to(memory_format=torch.channels_last)
-                    logger.debug("✓ Enabled channels_last memory format")
-                except Exception as e:
-                    logger.warning(f"channels_last failed: {e}")
-            
             # Отключаем safety checker если не нужен
             if not self.config.enable_safety_checker:
                 self.pipeline.safety_checker = None
@@ -373,48 +383,71 @@ class MultiControlNetPipeline:
             
         except Exception as e:
             logger.error(f"Failed to apply optimizations: {e}")
-            # Оптимизации не критичны, продолжаем без них
             logger.warning("Continuing without some optimizations")
     
-    async def _prepare_control_inputs(
+    async def _prepare_union_control_inputs(
         self,
         control_images: Dict[str, Image.Image],
-        conditioning_scales: Dict[str, float]
     ) -> Dict[str, Any]:
         """
-        Подготавливает control inputs для генерации.
+        Подготавливает control inputs для Union ControlNet.
+        Использует формат из документации: image_list и union_control_type.
         
         Args:
             control_images: Conditioning изображения
             conditioning_scales: Веса conditioning
             
         Returns:
-            Dict[str, Any]: Подготовленные control inputs
+            Dict[str, Any]: Подготовленные control inputs для Union ControlNet
         """
-        prepared_controls = {
-            'images': [],
-            'scales': [],
-            'types': []
+        # FIXED: Используем правильный формат для Union ControlNet
+        # Порядок согласно документации: [openpose, depth, hed/scribble, canny, normal, segment]
+        control_type_mapping = {
+            "openpose": 0,
+            "depth": 1,
+            "scribble": 2,  # hed/pidi/scribble/ted
+            "canny": 3,     # canny/lineart/anime_lineart/mlsd
+            "normal": 4,
+            "segment": 5    # segmentation
         }
         
-        # Проверяем доступные ControlNet
-        available_types = list(self.controlnets.keys())
+        # Маппинг наших типов к Union ControlNet типам
+        our_to_union_mapping = {
+            "depth": "depth",
+            "canny": "canny", 
+            "segmentation": "segment",
+            "scribble": "scribble"
+        }
         
-        for control_type in available_types:
-            if control_type in control_images:
-                image = control_images[control_type]
-                scale = conditioning_scales.get(control_type, 1.0)
-                
-                # Приводим изображение к нужному размеру
-                if image.size != (1024, 1024):
-                    image = image.resize((1024, 1024), Image.Resampling.LANCZOS)
-                
-                prepared_controls['images'].append(image)
-                prepared_controls['scales'].append(scale)
-                prepared_controls['types'].append(control_type)
+        # Инициализация массивов для Union ControlNet
+        image_list = [torch.zeros(1)] * 6  # 6 слотов для всех типов
+        union_control_type = torch.zeros(6)  # Тензор флагов
         
-        logger.debug(f"Prepared {len(prepared_controls['images'])} control inputs: "
-                    f"{prepared_controls['types']}")
+        used_types = []
+        
+        # Заполняем доступные изображения
+        for our_type, image in control_images.items():
+            if our_type in our_to_union_mapping:
+                union_type = our_to_union_mapping[our_type]
+                if union_type in control_type_mapping:
+                    idx = control_type_mapping[union_type]
+                    
+                    # Приводим изображение к нужному размеру
+                    if image.size != (1024, 1024):
+                        image = image.resize((1024, 1024), Image.Resampling.LANCZOS)
+                    
+                    image_list[idx] = image
+                    union_control_type[idx] = 1.0  # Активируем этот тип
+                    used_types.append(union_type)
+        
+        prepared_controls = {
+            'image_list': image_list,
+            'union_control_type': union_control_type,
+            'used_types': used_types
+        }
+        
+        logger.debug(f"Prepared Union ControlNet with types: {used_types}")
+        logger.debug(f"Union control type tensor: {union_control_type}")
         
         return prepared_controls
     
@@ -427,14 +460,15 @@ class MultiControlNetPipeline:
             return generator
         return None
     
-    async def _run_inference(
+    async def _run_union_inference(
         self,
         params: GenerationParams,
         prepared_controls: Dict[str, Any],
         generator: Optional[torch.Generator]
     ) -> Image.Image:
         """
-        Выполняет основную AI генерацию.
+        Выполняет AI генерацию с Union ControlNet.
+        Использует правильный API согласно документации.
         
         Args:
             params: Параметры генерации
@@ -443,34 +477,35 @@ class MultiControlNetPipeline:
             
         Returns:
             Image.Image: Сгенерированное изображение
-            
-        Raises:
-            RuntimeError: Если генерация не удалась
         """
         try:
-            logger.debug(f"Running inference with prompt: '{params.prompt[:50]}...'")
+            logger.debug(f"Running Union ControlNet inference with prompt: '{params.prompt[:50]}...'")
             
-            # Подготавливаем аргументы для pipeline
+            # FIXED: Используем правильный API для Union ControlNet
             pipeline_args = {
-                "prompt": params.prompt,
+                "prompt": [params.prompt],  # Список промптов
                 "num_inference_steps": params.num_inference_steps,
                 "guidance_scale": params.guidance_scale,
                 "width": params.width,
                 "height": params.height,
                 "generator": generator,
-                "num_images_per_prompt": params.num_images_per_prompt,
-                "eta": params.eta,
+                "crops_coords_top_left": (0, 0),
+                "target_size": (params.width, params.height),
+                "original_size": (params.width * 2, params.height * 2),
             }
             
-            # Добавляем control inputs если есть
-            if prepared_controls['images']:
-                pipeline_args["image"] = prepared_controls['images']
-                pipeline_args["controlnet_conditioning_scale"] = prepared_controls['scales']
+            # Добавляем Union ControlNet параметры согласно документации
+            if any(prepared_controls['union_control_type']):
+                pipeline_args.update({
+                    "image_list": prepared_controls['image_list'],
+                    "union_control": True,
+                    "union_control_type": prepared_controls['union_control_type'],
+                })
+                
+                logger.debug(f"Union ControlNet active types: {prepared_controls['used_types']}")
             
-            # Добавляем callback если есть
-            if params.callback_on_step_end:
-                pipeline_args["callback_on_step_end"] = params.callback_on_step_end
-            
+            logger.info(f"pipeline_args={pipeline_args.keys()}")
+
             # Запускаем генерацию
             with torch.no_grad():
                 result = self.pipeline(**pipeline_args)
@@ -478,12 +513,13 @@ class MultiControlNetPipeline:
             # Возвращаем первое изображение
             generated_image = result.images[0]
             
-            logger.debug("✓ Inference completed successfully")
+            logger.debug("✓ Union ControlNet inference completed successfully")
             return generated_image
             
         except Exception as e:
-            logger.error(f"Error in inference: {e}")
-            raise RuntimeError(f"Inference failed: {e}")
+            logger.error(f"Error in Union ControlNet inference: {e}")
+            logger.error(traceback.format_exc())
+            raise RuntimeError(f"Union ControlNet inference failed: {e}")
     
     def _get_memory_usage(self) -> float:
         """Возвращает использование GPU памяти в MB."""
@@ -519,7 +555,7 @@ class MultiControlNetPipeline:
     async def unload_pipeline(self):
         """Выгружает pipeline для освобождения памяти."""
         try:
-            logger.info("Unloading Multi-ControlNet pipeline...")
+            logger.info("Unloading Union ControlNet pipeline...")
             
             # Очищаем компоненты
             if self.pipeline is not None:
@@ -535,15 +571,10 @@ class MultiControlNetPipeline:
             await self._cleanup_memory()
             
             self._is_loaded = False
-            logger.info("Pipeline unloaded successfully")
+            logger.info("Union ControlNet pipeline unloaded successfully")
             
         except Exception as e:
             logger.error(f"Error unloading pipeline: {e}")
-    
-    async def reload_pipeline(self):
-        """Перезагружает pipeline."""
-        await self.unload_pipeline()
-        await self.setup_pipeline()
     
     def is_ready(self) -> bool:
         """Проверяет готовность pipeline к генерации."""
@@ -551,7 +582,7 @@ class MultiControlNetPipeline:
     
     def get_supported_controlnet_types(self) -> List[str]:
         """Возвращает поддерживаемые типы ControlNet."""
-        return list(self.config.controlnet_models.keys())
+        return ["canny", "depth", "segmentation", "scribble"]
     
     def get_generation_stats(self) -> Dict[str, Any]:
         """Возвращает статистику генерации."""
@@ -567,6 +598,7 @@ class MultiControlNetPipeline:
             "average_inference_time": avg_time,
             "recent_memory_usage": [s["memory_after"] for s in recent_stats],
             "pipeline_loaded": self._is_loaded,
-            "available_controlnets": list(self.controlnets.keys())
+            "available_controlnets": ["union"],
+            "controlnet_type": "union"
         }
     

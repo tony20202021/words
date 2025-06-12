@@ -9,19 +9,12 @@ ai_generation:
     # base_model: "stabilityai/stable-diffusion-xl-refiner-1.0"
     # base_model: "playground-ai/playground-v2.5-1024px-aesthetic"
     
+    # UPDATED: Single Union ControlNet instead of 4 separate models
     controlnet_models:
-      canny: "diffusers/controlnet-canny-sdxl-1.0"
-      depth: "diffusers/controlnet-depth-sdxl-1.0" 
-      segmentation: "diffusers/controlnet-seg-sdxl-1.0"
-      scribble: "diffusers/controlnet-scribble-sdxl-1.0"
+      union: "xinsir/controlnet-union-sdxl-1.0"
+      # Alternative ProMax version with additional features:
+      # union: "xinsir/controlnet-union-sdxl-1.0-promax"
       
-    # Дополнительные AI модели для conditioning
-    auxiliary_models:
-      hed_edge_detection: "lllyasviel/Annotators"
-      midas_depth: "intel-isl/MiDaS"
-      segment_anything: "facebook/sam-vit-huge"
-      sketch_model: "lllyasviel/sd-controlnet-scribble"
-  
   # Параметры генерации
   generation:
     num_inference_steps: 30
@@ -30,7 +23,7 @@ ai_generation:
     height: 512
     batch_size: 4  # Можно увеличить для 80GB VRAM
     
-  # Веса conditioning по умолчанию
+  # UPDATED: Union ControlNet conditioning weights
   conditioning_weights:
     canny: 0.8
     depth: 0.6

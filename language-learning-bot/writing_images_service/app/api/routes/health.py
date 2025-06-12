@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import torch
 
-from app.services.writing_image_service import WritingImageService
+from app.api.routes.services.writing_image_service import WritingImageService
 from app.ai.models.gpu_manager import GPUManager
 from app.utils.logger import get_module_logger
 

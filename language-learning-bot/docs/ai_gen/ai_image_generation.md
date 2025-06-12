@@ -124,7 +124,6 @@ class ModelLoader:
     
     async def load_stable_diffusion_xl(self, model_name: str)
     async def load_controlnet_models(self, model_configs: Dict[str, str])
-    async def load_auxiliary_models(self)
     async def setup_multi_controlnet_pipeline(self, controlnets: Dict)
 ```
 
@@ -639,9 +638,14 @@ ai_generation:
     controlnet_models:
       canny: "diffusers/controlnet-canny-sdxl-1.0"
       depth: "diffusers/controlnet-depth-sdxl-1.0"
-      segmentation: "diffusers/controlnet-seg-sdxl-1.0"
-      scribble: "diffusers/controlnet-scribble-sdxl-1.0"
-  
+                # "segmentation": "diffusers/controlnet-seg-sdxl-1.0",
+                # "segmentation": "diffusers/controlnet-segmentation-sdxl-1.0",
+                "segmentation": "SargeZT/sdxl-controlnet-seg",
+    #             Используй SargeZT/sdxl-controlnet-seg для одной сегментации.
+	# Или xinsir/controlnet-union-sdxl-1.0 для комбинированных типов conditioning (например depth + seg + cont).
+      scribble: "xinsir/controlnet-scribble-sdxl-1.0"
+        # "xinsir/controlnet-scribble-sdxl-1.0",
+
   # Generation Parameters
   generation:
     num_inference_steps: 30

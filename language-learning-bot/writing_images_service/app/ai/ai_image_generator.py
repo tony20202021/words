@@ -21,7 +21,7 @@ from app.ai.conditioning.segmentation_conditioning import SegmentationConditioni
 from app.ai.conditioning.scribble_conditioning import ScribbleConditioning
 from app.ai.prompt.prompt_builder import PromptBuilder, PromptResult
 from app.ai.multi_controlnet_pipeline import MultiControlNetPipeline, PipelineConfig
-from app.models.model_loader import ModelLoader
+from app.ai.models.model_loader import ModelLoader
 
 logger = get_module_logger(__name__)
 
@@ -52,11 +52,9 @@ class AIGenerationConfig:
     def __post_init__(self):
         """Инициализация значений по умолчанию"""
         if self.controlnet_models is None:
+            # UPDATED: Single Union ControlNet instead of 4 separate models
             self.controlnet_models = {
-                "canny": "diffusers/controlnet-canny-sdxl-1.0",
-                "depth": "diffusers/controlnet-depth-sdxl-1.0", 
-                "segmentation": "diffusers/controlnet-seg-sdxl-1.0",
-                "scribble": "diffusers/controlnet-scribble-sdxl-1.0"
+                "union": "xinsir/controlnet-union-sdxl-1.0"
             }
         
         if self.conditioning_weights is None:
@@ -136,7 +134,7 @@ class AIImageGenerator:
         self.total_generation_time = 0
         self.start_time = time.time()
         
-        logger.info("AIImageGenerator initialized")
+        logger.info("AIImageGenerator initialized with ControlNet Union support")
     
     async def generate_character_image(
         self,
@@ -159,7 +157,6 @@ class AIImageGenerator:
             conditioning_methods: Методы для разных типов conditioning
             include_conditioning_images: Включать ли conditioning изображения в результат
             include_prompt: Включать ли промпт в результат
-            include_semantic_analysis: Включать ли семантический анализ в результат
             seed: Seed для воспроизводимости
             **generation_params: Дополнительные параметры генерации
             
@@ -230,6 +227,7 @@ class AIImageGenerator:
                     'generation_time_ms': generation_time_ms,
                     'seed_used': seed,
                     'model_used': self.config.base_model,
+                    'controlnet_model': "union",  # UPDATED: Single union model
                     'image_size': (self.config.width, self.config.height),
                     'inference_steps': generation_params.get('num_inference_steps', self.config.num_inference_steps),
                     'guidance_scale': generation_params.get('guidance_scale', self.config.guidance_scale)
@@ -279,11 +277,8 @@ class AIImageGenerator:
                 # Загружаем Stable Diffusion XL
                 await self.model_loader.load_stable_diffusion_xl(self.config.base_model)
                 
-                # Загружаем ControlNet модели
+                # UPDATED: Load single union ControlNet model
                 controlnets = await self.model_loader.load_controlnet_models(self.config.controlnet_models)
-                
-                # Загружаем auxiliary модели для conditioning
-                await self.model_loader.load_auxiliary_models()
                 
                 # Настраиваем Multi-ControlNet pipeline
                 pipeline_config = PipelineConfig(
@@ -528,7 +523,6 @@ class AIImageGenerator:
             result_image = await self.pipeline.generate(
                 prompt=prompt,
                 control_images=control_images,
-                conditioning_scales=used_weights,
                 seed=seed,
                 **gen_params
             )
@@ -578,6 +572,7 @@ class AIImageGenerator:
                 "average_generation_time_ms": avg_generation_time,
                 "uptime_seconds": uptime_seconds,
                 "available_conditioning_types": list(self.conditioning_generators.keys()),
+                "controlnet_model": "union",  # UPDATED: Single union model
             }
             
             # Добавляем статистику моделей если доступно
@@ -623,3 +618,4 @@ class AIImageGenerator:
             
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
+            

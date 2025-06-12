@@ -4,15 +4,13 @@ Writing image generation service.
 REAL AI IMPLEMENTATION - uses actual AI models for generation.
 """
 
-import base64
 import time
 import asyncio
 from typing import Dict, Any, Optional
-from datetime import datetime
 
 from app.api.routes.models.requests import AIImageRequest
 from app.api.routes.models.responses import AIGenerationMetadata
-from app.utils.image_utils import get_image_processor, ImageProcessor
+from app.utils.image_utils import get_image_processor
 from app.utils import config_holder
 from app.ai.ai_image_generator import AIImageGenerator, AIGenerationConfig
 from app.utils.logger import get_module_logger
@@ -67,7 +65,7 @@ class WritingImageService:
         self._ai_initialization_lock = asyncio.Lock()
         self._ai_initialized = False
         
-        logger.info("WritingImageService initialized with real AI generation")
+        logger.info("WritingImageService initialized with real AI generation (ControlNet Union)")
     
     def _load_config(self):
         """Load configuration from Hydra config."""
@@ -100,6 +98,7 @@ class WritingImageService:
                         if hasattr(models_cfg, 'base_model'):
                             self.ai_config.base_model = models_cfg.base_model
                         
+                        # UPDATED: Load union controlnet model
                         if hasattr(models_cfg, 'controlnet_models'):
                             self.ai_config.controlnet_models = dict(models_cfg.controlnet_models)
                     
@@ -124,7 +123,10 @@ class WritingImageService:
                         self.ai_config.enable_attention_slicing = gpu_cfg.get('enable_attention_slicing', True)
                         self.ai_config.enable_cpu_offload = gpu_cfg.get('enable_cpu_offload', False)
                 
+                # UPDATED: Log union model info
+                controlnet_info = "Union ControlNet" if "union" in self.ai_config.controlnet_models else "Separate ControlNets"
                 logger.info(f"Loaded AI config: model={self.ai_config.base_model}, "
+                           f"controlnet={controlnet_info}, "
                            f"device={self.ai_config.device}, "
                            f"steps={self.ai_config.num_inference_steps}")
                 
@@ -143,7 +145,7 @@ class WritingImageService:
                 return
             
             try:
-                logger.info("Initializing AI Image Generator...")
+                logger.info("Initializing AI Image Generator with ControlNet Union...")
                 start_time = time.time()
                 
                 # Create AI Generator with config
@@ -168,12 +170,14 @@ class WritingImageService:
                 init_time = time.time() - start_time
                 self._ai_initialized = True
                 
-                logger.info(f"✓ AI Image Generator initialized successfully in {init_time:.1f}s")
+                logger.info(f"✓ AI Image Generator with ControlNet Union initialized successfully in {init_time:.1f}s")
                 
                 # Log AI status
                 ai_status = await self.ai_generator.get_generation_status()
+                controlnet_model = ai_status.get('controlnet_model', 'unknown')
                 logger.info(f"AI Status: models_loaded={ai_status.get('models_loaded')}, "
-                           f"pipeline_ready={ai_status.get('pipeline_ready')}")
+                           f"pipeline_ready={ai_status.get('pipeline_ready')}, "
+                           f"controlnet_model={controlnet_model}")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize AI Image Generator: {e}")
@@ -247,10 +251,11 @@ class WritingImageService:
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
             
-            # Create metadata
+            # UPDATED: Create metadata with union model info
             metadata = AIGenerationMetadata(
                 generation_time_ms=generation_time_ms,
                 ai_model_used=self.ai_config.base_model,
+                controlnet_model_used="union",  # UPDATED: Union model
                 conditioning_types_used=list(ai_result.generation_metadata.get('conditioning_methods_used', {}).keys()),
                 inference_steps_used=generation_params.get('num_inference_steps'),
                 guidance_scale_used=generation_params.get('guidance_scale'),
@@ -288,7 +293,7 @@ class WritingImageService:
                 error=f"AI generation failed: {str(e)}",
                 metadata=AIGenerationMetadata(
                     generation_time_ms=error_time_ms,
-                    error_occurred=True
+                    error=True
                 )
             )
     
@@ -308,13 +313,14 @@ class WritingImageService:
             "version": "1.0.0",
             "uptime_seconds": uptime_seconds,
             "total_generations": self.generation_count,
-            "implementation": "real_ai_generation",
+            "implementation": "real_ai_generation_union",  # UPDATED
             "supported_formats": ["png"],
             "max_image_size": {"width": 2048, "height": 2048},
             "default_image_size": {"width": self.default_width, "height": self.default_height},
             "features": {
                 "ai_generation": True,
-                "multi_controlnet": True,
+                "controlnet_union": True,  # UPDATED: Union ControlNet
+                "multi_controlnet": False,  # UPDATED: Not using separate models
                 "conditioning_types": ["canny", "depth", "segmentation", "scribble"],
                 "prompt_engineering": True,
                 "style_variations": True,
@@ -341,11 +347,12 @@ class WritingImageService:
             if not self._ai_initialized:
                 base_status["status"] = "initializing"
         
-        # Add configuration info
+        # UPDATED: Add configuration info for union model
         base_status["ai_config"] = {
             "base_model": self.ai_config.base_model,
             "device": self.ai_config.device,
-            "controlnet_models": list(self.ai_config.controlnet_models.keys()),
+            "controlnet_model": "union",  # UPDATED: Single union model
+            "controlnet_types_supported": ["canny", "depth", "segmentation", "scribble"],
             "inference_steps": self.ai_config.num_inference_steps,
             "guidance_scale": self.ai_config.guidance_scale,
             "image_size": (self.ai_config.width, self.ai_config.height)
@@ -362,7 +369,7 @@ class WritingImageService:
             Dict with warmup results
         """
         try:
-            logger.info("Starting AI warmup...")
+            logger.info("Starting AI warmup with ControlNet Union...")
             start_time = time.time()
             
             # Ensure AI is initialized
@@ -406,7 +413,7 @@ class WritingImageService:
             total_warmup_time = int((time.time() - start_time) * 1000)
             successful_warmups = sum(1 for r in warmup_results if r["success"])
             
-            logger.info(f"✓ AI warmup completed: {successful_warmups}/{len(warmup_characters)} successful "
+            logger.info(f"✓ AI warmup with ControlNet Union completed: {successful_warmups}/{len(warmup_characters)} successful "
                        f"in {total_warmup_time}ms")
             
             return {
@@ -414,7 +421,8 @@ class WritingImageService:
                 "total_time_ms": total_warmup_time,
                 "successful_warmups": successful_warmups,
                 "total_warmups": len(warmup_characters),
-                "warmup_results": warmup_results
+                "warmup_results": warmup_results,
+                "controlnet_model": "union"  # UPDATED
             }
             
         except Exception as e:

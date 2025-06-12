@@ -79,7 +79,6 @@ async def generate_writing_image(
             base_image_base64=generation_result.base_image_base64,
             conditioning_images_base64=generation_result.conditioning_images_base64,
             prompt_used=generation_result.prompt_used,
-            semantic_analysis=None,
             generation_metadata=generation_result.metadata,
             error=generation_result.error,
             warnings=None,
@@ -91,7 +90,6 @@ async def generate_writing_image(
         logger.info(f"result.generation_metadata: '{result.generation_metadata}'")
         logger.info(f"result.conditioning_images: '{result.conditioning_images_base64.keys()}'")
         logger.info(f"result.prompt_used: '{result.prompt_used}'")
-        logger.info(f"result.semantic_analysis: '{result.semantic_analysis}'")
         logger.info(f"result.error: '{result.error}'")
         return result
     

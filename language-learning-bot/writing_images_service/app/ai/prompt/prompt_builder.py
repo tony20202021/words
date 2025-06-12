@@ -155,8 +155,7 @@ class PromptBuilder:
         # Заменяем плейсхолдеры
         base_prompt = base_template.format(
             character=character,
-            translation=translation or "Chinese character",
-            meaning=translation or character
+            meaning=translation.replace("\n", ",")
         )
         prompt_parts.append(base_prompt)
         

@@ -17,39 +17,17 @@ class GenerationStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     QUEUED = "queued"
 
-@dataclass
-class AIImageResponse:
-    """Ответ на запрос генерации AI изображения"""
-    success: bool
-    status: GenerationStatus
-    generated_image_base64: Optional[str] = None  # base64
-    
-    # Промежуточные результаты
-    base_image_base64: Optional[str] = None
-    conditioning_images_base64: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
-    prompt_used: Optional[str] = None
-    
-    # Семантический анализ
-    semantic_analysis: Optional['SemanticAnalysisResult'] = None
-    
-    # Метаданные генерации
-    generation_metadata: Optional['AIGenerationMetadata'] = None
-    
-    # Информация об ошибках
-    error: Optional[str] = None
-    warnings: List[str] = field(default_factory=list)
-    
 
 @dataclass 
 class AIGenerationMetadata:
     """Метаданные процесса AI генерации"""
     # Модели
-    model_used: str = None
-    controlnet_models_used: Dict[str, str] = None
+    ai_model_used: str = None
+    controlnet_model_used: str = None  # UPDATED: Single field for union model
     
     # Параметры conditioning
     conditioning_weights_used: Dict[str, float] = None
-    conditioning_methods_used: Dict[str, List[str]] = None
+    conditioning_types_used: List[str] = None  # UPDATED: List of conditioning types for union model
     
     # Временные метрики
     generation_time_ms: Optional[int] = None
@@ -64,8 +42,9 @@ class AIGenerationMetadata:
     
     # Параметры генерации
     seed_used: Optional[int] = None
-    actual_steps_completed: Optional[int] = None
+    inference_steps_used: Optional[int] = None  # UPDATED: Added inference steps
     guidance_scale_used: Optional[float] = None
+    image_dimensions: Optional[tuple] = None  # UPDATED: Added image dimensions
     
     # Версии и окружение
     diffusers_version: str = ""
@@ -73,6 +52,28 @@ class AIGenerationMetadata:
     cuda_version: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
 
+    error: bool = None
+
+
+@dataclass
+class AIImageResponse:
+    """Ответ на запрос генерации AI изображения"""
+    success: bool
+    status: GenerationStatus
+    generated_image_base64: Optional[str] = None  # base64
+    
+    # Промежуточные результаты
+    base_image_base64: Optional[str] = None
+    conditioning_images_base64: Optional[Dict[str, Dict[str, str]]] = None  # {"canny": {"opencv_canny": "base64", "hed_canny": "base64"}}
+    prompt_used: Optional[str] = None
+    
+    # Метаданные генерации
+    generation_metadata: Optional[AIGenerationMetadata] = None
+    
+    # Информация об ошибках
+    error: Optional[str] = None
+    warnings: List[str] = field(default_factory=list)
+    
 
 @dataclass
 class ConditioningResult:
@@ -94,53 +95,18 @@ class ConditioningResult:
     recommended_methods: Dict[str, str] = None         # {"canny": "hed_canny", "depth": "stroke_thickness"}
     
     # Сравнительный анализ
-    method_comparison: Optional['MethodComparisonResult'] = None
+    method_comparison: Optional["MethodComparisonResult"] = None
     
     # Ошибки по методам
     method_errors: Dict[str, Dict[str, str]] = None    # {"canny": {"hed_canny": "Model not available"}}
 
 
 @dataclass
-class SemanticAnalysisResult:
-    """Результаты семантического анализа иероглифа"""
-    character: str
-    analysis_successful: bool
-    
-    # Базовая информация
-    basic_info: Dict[str, Any] = field(default_factory=dict)  # Unihan данные
-    meanings: List[str] = field(default_factory=list)         # Все значения
-    primary_meaning: str = ""                                 # Основное значение
-    pronunciations: Dict[str, str] = field(default_factory=dict) # {"mandarin": "huǒ", "cantonese": "fo2"}
-    
-    # Структурный анализ
-    radicals: Dict[str, Any] = field(default_factory=dict)    # Анализ радикалов
-    composition: Dict[str, Any] = field(default_factory=dict) # IDS композиция
-    etymology: Dict[str, Any] = field(default_factory=dict)   # Этимология
-    stroke_analysis: Dict[str, Any] = field(default_factory=dict) # Анализ штрихов
-    
-    # Контекстуальный анализ
-    context: Dict[str, Any] = field(default_factory=dict)     # Частотность, коллокации
-    semantic_domains: List[str] = field(default_factory=list) # Семантические области
-    usage_examples: List[str] = field(default_factory=list)   # Примеры использования
-    
-    # Визуальные свойства
-    visual_properties: Dict[str, Any] = field(default_factory=dict) # Визуальные свойства
-    color_associations: List[str] = field(default_factory=list)     # Цветовые ассоциации
-    texture_associations: List[str] = field(default_factory=list)   # Текстурные ассоциации
-    motion_associations: List[str] = field(default_factory=list)    # Ассоциации движения
-    
-    # Элементы для промпта
-    prompt_elements: Dict[str, Any] = field(default_factory=dict)   # Готовые элементы для промпта
-    suggested_modifiers: List[str] = field(default_factory=list)    # Рекомендуемые модификаторы
-    
-    # Метаданные анализа
-    analysis_metadata: Dict[str, Any] = field(default_factory=dict) # Время, версии баз данных
-    confidence_scores: Dict[str, float] = field(default_factory=dict) # Уверенность в разных аспектах
-    data_sources_used: List[str] = field(default_factory=list)      # Использованные источники данных
-    
-    # Предупреждения и ограничения
-    warnings: List[str] = field(default_factory=list)
-    limitations: List[str] = field(default_factory=list)
+class MethodComparisonResult:
+    """Результат сравнения методов conditioning"""
+    best_method: str
+    comparison_metrics: Dict[str, float] = field(default_factory=dict)
+    recommendations: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -187,7 +153,7 @@ class ModelStatusResponse:
     model_status: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     # {
     #   "stable_diffusion": {"loaded": True, "memory_mb": 3500, "load_time_ms": 5000},
-    #   "controlnet_canny": {"loaded": True, "memory_mb": 1200, "load_time_ms": 2000}
+    #   "controlnet_union": {"loaded": True, "memory_mb": 2500, "load_time_ms": 3000}  # UPDATED
     # }
     
     # Использование ресурсов

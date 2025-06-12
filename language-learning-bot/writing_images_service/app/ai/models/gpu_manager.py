@@ -333,6 +333,7 @@ class GPUManager:
         
         try:
             # Memory efficient attention
+            # pipeline.enable_xformers_memory_efficient_attention
             if profile.memory_efficient and hasattr(pipeline, 'enable_memory_efficient_attention'):
                 try:
                     pipeline.enable_memory_efficient_attention()

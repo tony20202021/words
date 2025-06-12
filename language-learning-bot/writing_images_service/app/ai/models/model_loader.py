@@ -13,6 +13,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 @dataclass
 class ModelStatus:
@@ -92,7 +93,8 @@ class ModelLoader:
                 pipeline = pipeline.to(self.device)
                 
                 # Применяем базовые оптимизации
-                pipeline.enable_memory_efficient_attention()
+                # pipeline.enable_memory_efficient_attention()
+                pipeline.enable_xformers_memory_efficient_attention
                 
                 # Проверяем размер GPU памяти для дополнительных оптимизаций
                 total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
@@ -149,12 +151,15 @@ class ModelLoader:
             try:
                 from diffusers import ControlNetModel
                 
-                for control_type, model_id in model_configs.items():
+                # UPDATED: Handle Union ControlNet model
+                if "union" in model_configs:
+                    # Single Union ControlNet model
+                    model_id = model_configs["union"]
                     start_time = time.time()
                     memory_before = self._get_memory_usage()
                     
                     try:
-                        logger.info(f"Loading ControlNet {control_type}: {model_id}")
+                        logger.info(f"Loading Union ControlNet: {model_id}")
                         
                         controlnet = ControlNetModel.from_pretrained(
                             model_id,
@@ -168,25 +173,67 @@ class ModelLoader:
                         memory_after = self._get_memory_usage()
                         memory_used = memory_after - memory_before
                         
-                        controlnets[control_type] = controlnet
-                        self.model_status[f"controlnet_{control_type}"] = ModelStatus(
+                        controlnets["union"] = controlnet
+                        self.model_status["controlnet_union"] = ModelStatus(
                             loaded=True,
                             model_name=model_id,
                             memory_usage_mb=memory_used,
                             load_time_seconds=load_time
                         )
                         
-                        logger.info(f"ControlNet {control_type} loaded in {load_time:.1f}s "
+                        logger.info(f"Union ControlNet loaded in {load_time:.1f}s "
                                    f"(Memory: {memory_used:.1f}MB)")
                         
                     except Exception as e:
-                        logger.error(f"Failed to load ControlNet {control_type}: {e}")
-                        failed_models.append(control_type)
-                        self.model_status[f"controlnet_{control_type}"] = ModelStatus(
+                        logger.error(f"Failed to load Union ControlNet: {e}")
+                        failed_models.append("union")
+                        self.model_status["controlnet_union"] = ModelStatus(
                             loaded=False,
                             model_name=model_id,
                             error_message=str(e)
                         )
+                        raise RuntimeError(f"Failed to load Union ControlNet: {e}")
+                        
+                else:
+                    # Fallback: Load separate ControlNet models
+                    for control_type, model_id in model_configs.items():
+                        start_time = time.time()
+                        memory_before = self._get_memory_usage()
+                        
+                        try:
+                            logger.info(f"Loading ControlNet {control_type}: {model_id}")
+                            
+                            controlnet = ControlNetModel.from_pretrained(
+                                model_id,
+                                torch_dtype=torch.float16,
+                                use_safetensors=True
+                            )
+                            
+                            controlnet = controlnet.to(self.device)
+                            
+                            load_time = time.time() - start_time
+                            memory_after = self._get_memory_usage()
+                            memory_used = memory_after - memory_before
+                            
+                            controlnets[control_type] = controlnet
+                            self.model_status[f"controlnet_{control_type}"] = ModelStatus(
+                                loaded=True,
+                                model_name=model_id,
+                                memory_usage_mb=memory_used,
+                                load_time_seconds=load_time
+                            )
+                            
+                            logger.info(f"ControlNet {control_type} loaded in {load_time:.1f}s "
+                                       f"(Memory: {memory_used:.1f}MB)")
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to load ControlNet {control_type}: {e}")
+                            failed_models.append(control_type)
+                            self.model_status[f"controlnet_{control_type}"] = ModelStatus(
+                                loaded=False,
+                                model_name=model_id,
+                                error_message=str(e)
+                            )
                 
                 # Проверяем что хотя бы одна ControlNet модель загружена
                 if not controlnets:
@@ -196,7 +243,13 @@ class ModelLoader:
                     logger.warning(f"Some ControlNet models failed to load: {failed_models}")
                 
                 self.loaded_models["controlnets"] = controlnets
-                logger.info(f"Loaded {len(controlnets)} ControlNet models successfully")
+                
+                # UPDATED: Log for Union vs separate models
+                if "union" in controlnets:
+                    logger.info("Loaded Union ControlNet model successfully")
+                else:
+                    logger.info(f"Loaded {len(controlnets)} separate ControlNet models successfully")
+                    
                 return controlnets
                 
             except Exception as e:
@@ -229,16 +282,22 @@ class ModelLoader:
             start_time = time.time()
             logger.info("Setting up Multi-ControlNet pipeline...")
             
-            # Создаем MultiControlNet из загруженных моделей
-            controlnet_list = list(controlnets.values())
-            if len(controlnet_list) > 1:
-                multi_controlnet = MultiControlNetModel(controlnet_list)
-                logger.info(f"Created MultiControlNet with {len(controlnet_list)} models")
+            # UPDATED: Handle Union ControlNet vs multiple separate models
+            if "union" in controlnets:
+                # Single Union ControlNet
+                controlnet = controlnets["union"]
+                logger.info("Using Union ControlNet model")
             else:
-                multi_controlnet = controlnet_list[0]
-                logger.info("Using single ControlNet model")
+                # Multiple separate ControlNet models
+                controlnet_list = list(controlnets.values())
+                if len(controlnet_list) > 1:
+                    controlnet = MultiControlNetModel(controlnet_list)
+                    logger.info(f"Created MultiControlNet with {len(controlnet_list)} models")
+                else:
+                    controlnet = controlnet_list[0]
+                    logger.info("Using single ControlNet model")
             
-            # Создаем pipeline с MultiControlNet
+            # Создаем pipeline с ControlNet
             # Используем компоненты из уже загруженного base pipeline
             pipeline = StableDiffusionXLControlNetPipeline(
                 vae=base_pipeline.vae,
@@ -247,7 +306,7 @@ class ModelLoader:
                 tokenizer=base_pipeline.tokenizer,
                 tokenizer_2=base_pipeline.tokenizer_2,
                 unet=base_pipeline.unet,
-                controlnet=multi_controlnet,
+                controlnet=controlnet,
                 scheduler=base_pipeline.scheduler,
             )
             
@@ -255,7 +314,8 @@ class ModelLoader:
             pipeline = pipeline.to(self.device)
             
             # Применяем оптимизации
-            pipeline.enable_memory_efficient_attention()
+            # pipeline.enable_memory_efficient_attention()
+            pipeline.enable_xformers_memory_efficient_attention
             
             # Проверяем размер GPU памяти
             total_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
@@ -266,10 +326,14 @@ class ModelLoader:
             
             setup_time = time.time() - start_time
             
-            self.loaded_models["multi_controlnet_pipeline"] = pipeline
-            self.model_status["multi_controlnet_pipeline"] = ModelStatus(
+            # UPDATED: Pipeline naming for Union vs MultiControlNet
+            pipeline_name = "union_controlnet_pipeline" if "union" in controlnets else "multi_controlnet_pipeline"
+            model_description = "union_controlnet_sdxl" if "union" in controlnets else "multi_controlnet_sdxl"
+            
+            self.loaded_models[pipeline_name] = pipeline
+            self.model_status[pipeline_name] = ModelStatus(
                 loaded=True,
-                model_name="multi_controlnet_sdxl",
+                model_name=model_description,
                 load_time_seconds=setup_time
             )
             
@@ -278,9 +342,12 @@ class ModelLoader:
             
         except Exception as e:
             logger.error(f"Failed to setup Multi-ControlNet pipeline: {e}")
-            self.model_status["multi_controlnet_pipeline"] = ModelStatus(
+            pipeline_name = "union_controlnet_pipeline" if "union" in controlnets else "multi_controlnet_pipeline"
+            model_description = "union_controlnet_sdxl" if "union" in controlnets else "multi_controlnet_sdxl"
+            
+            self.model_status[pipeline_name] = ModelStatus(
                 loaded=False,
-                model_name="multi_controlnet_sdxl",
+                model_name=model_description,
                 error_message=str(e)
             )
             raise RuntimeError(f"Failed to setup Multi-ControlNet pipeline: {e}")
@@ -343,4 +410,4 @@ class ModelLoader:
             "cached_mb": cached_memory,
             "free_mb": total_memory - cached_memory
         }
-    
+        

@@ -1,231 +1,66 @@
-# ==================================================
-# COMPLETE AI ENVIRONMENT FOR WRITING SERVICE
-# writing_service/environment_gpu.yml
-# ==================================================
-
 name: amikhalev_writing_images_service
 channels:
   - pytorch
-  - nvidia  # КРИТИЧНО для CUDA пакетов
+  - nvidia
   - conda-forge
   - defaults
-  - huggingface  # Для HuggingFace моделей
 
 dependencies:
-  - python=3.10  # Оптимальная версия для AI библиотек
+  - python=3.10
   - pip>=23.0
   
-  # ============ CUDA & GPU SUPPORT ============
-  # PyTorch с CUDA - ОСНОВА для AI генерации
+  # CUDA and GPU support
   - pytorch::pytorch>=2.1.0
   - pytorch::torchvision>=0.16.0
   - pytorch::torchaudio>=2.1.0
-  - pytorch::pytorch-cuda=11.8  # Совместимость с большинством GPU
-  
-  # CUDA toolkit компоненты
   - nvidia::cuda-toolkit=11.8
-  - nvidia::cuda-runtime=11.8
-  - nvidia::cudnn>=8.7.0
   
-  # ============ SYSTEM & BUILD DEPENDENCIES ============
-  - conda-forge::git-lfs  # Для загрузки больших AI моделей
-  - conda-forge::cmake>=3.24.0  # Для компиляции некоторых пакетов
-  - conda-forge::ninja>=1.11.0  # Быстрый build system
+  # System libraries
+  - conda-forge::ffmpeg>=4.4
+  - conda-forge::git-lfs
   
-  # Компиляторы для native extensions
-  - conda-forge::gcc_linux-64>=9.0.0  # Linux
-  - conda-forge::gxx_linux-64>=9.0.0
+  # Development tools
+  - conda-forge::ipython
+  - conda-forge::jupyter
   
-  # ============ SCIENTIFIC COMPUTING CORE ============
-  - conda-forge::numpy>=1.24.0
-  - conda-forge::scipy>=1.11.0
-  - conda-forge::scikit-learn>=1.3.0
-  - conda-forge::scikit-image>=0.21.0
-  
-  # ============ IMAGE & VIDEO PROCESSING ============
-  - conda-forge::opencv>=4.8.0
-  - conda-forge::pillow>=10.0.0
-  - conda-forge::imageio>=2.31.0
-  - conda-forge::ffmpeg>=6.0.0  # Для video processing если нужно
-  
-  # ============ MONITORING & PROFILING ============
-  - conda-forge::psutil>=5.9.0  # Системный мониторинг
-  - conda-forge::py-cpuinfo>=9.0.0  # CPU информация
-  
-  # Memory profiling
-  - conda-forge::memory_profiler>=0.60.0
-  
-  # ============ NETWORKING & APIs ============
-  - conda-forge::requests>=2.31.0
-  - conda-forge::urllib3>=2.0.0
-  
-  # ============ SERIALIZATION & CONFIG ============
-  - conda-forge::pyyaml>=6.0.0
-  - conda-forge::tomli>=2.0.0  # TOML support
-  - conda-forge::jsonschema>=4.19.0
-  
-  # ============ CLI & UTILITIES ============
-  - conda-forge::tqdm>=4.65.0  # Progress bars
-  - conda-forge::click>=8.1.0  # CLI framework
-  - conda-forge::rich>=13.0.0  # Rich terminal output
-  
-  # ============ DEVELOPMENT TOOLS ============
-  - conda-forge::ipython>=8.15.0
-  - conda-forge::jupyter>=1.0.0
-  - conda-forge::jupyterlab>=4.0.0
-  
-  # ============ TESTING FRAMEWORK ============
-  - conda-forge::pytest>=7.4.0
-  - conda-forge::pytest-asyncio>=0.21.0
-  - conda-forge::pytest-cov>=4.1.0
-  
-  # ============ PIP DEPENDENCIES ============
+  # Install via pip (better version control)
   - pip:
-      # ======== CORE AI FRAMEWORKS ========
-      # HuggingFace ecosystem - КРИТИЧНО
-      - transformers>=4.35.0
-      - diffusers>=0.24.0
-      - accelerate>=0.24.0
-      - safetensors>=0.4.0
-      - tokenizers>=0.14.0
-      - huggingface-hub>=0.17.0
-      
-      # ======== CONTROLNET & CONDITIONING ========
-      - controlnet-aux>=0.0.9
-      
-      # ======== PERFORMANCE OPTIMIZATION ========
-      # XFormers для attention optimization
-      - xformers>=0.0.22
-      
-      # Triton для custom CUDA kernels
-      - triton>=2.1.0
-      
-      # ======== SPECIALIZED AI MODELS ========
-      # Segment Anything Model
-      - segment-anything>=1.0
-      
-      # Timm для vision models (MiDaS depth estimation)
-      - timm>=0.9.0
-      
-      # ======== GPU MONITORING ========
-      - gpustat>=1.1.0
-      - pynvml>=11.5.0
-      - py3nvml>=0.2.7
-      
-      # ======== WEB FRAMEWORK ========
-      - fastapi>=0.103.0
-      - uvicorn[standard]>=0.23.0
-      - pydantic>=2.4.0
-      
-      # ======== CONFIGURATION ========
-      - hydra-core>=1.3.0
-      - omegaconf>=2.3.0
-      
-      # ======== IMAGE FORMATS ========
-      - webp>=0.1.6
-      - pillow-simd>=9.0.0  # Оптимизированная версия Pillow
-      
-      # ======== EXPERIMENT TRACKING (OPTIONAL) ========
-      # - wandb>=0.15.0  # Для tracking экспериментов
-      # - tensorboard>=2.14.0  # Для визуализации
-      
-      # ======== DEVELOPMENT & TESTING ========
-      - pytest-gpu>=0.1.0
-      - memory-profiler>=0.60.0
-      
-      # ======== UTILITY LIBRARIES ========
-      - python-multipart>=0.0.6  # Для file uploads
-      - aiofiles>=23.2.0  # Async file operations
-      
-      # ======== EXPERIMENTAL (CUTTING EDGE) ========
-      # Flash Attention для экстремальной оптимизации
-      # ВНИМАНИЕ: Требует специальной компиляции!
-      # - flash-attn>=2.0.0
-
-# ============ ENVIRONMENT VARIABLES ============
-variables:
-  # CUDA настройки
-  CUDA_VISIBLE_DEVICES: "0"
-  PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:128"
-  
-  # HuggingFace настройки
-  TOKENIZERS_PARALLELISM: "false"
-  HF_HOME: "./cache/huggingface"
-  TRANSFORMERS_CACHE: "./cache/transformers"
-  HF_DATASETS_CACHE: "./cache/datasets"
-  
-  # PyTorch настройки
-  TORCH_HOME: "./cache/torch"
-  PYTORCH_KERNEL_CACHE_PATH: "./cache/pytorch_kernel_cache"
-  
-  # XFormers настройки
-  XFORMERS_MORE_DETAILS: "1"
-  
-  # Общие настройки производительности
-  OMP_NUM_THREADS: "8"
-  MKL_NUM_THREADS: "8"
-  NUMEXPR_NUM_THREADS: "8"
-  
-  # Debugging (отключить в продакшене)
-  CUDA_LAUNCH_BLOCKING: "0"
-  TORCH_USE_CUDA_DSA: "0"
-
-# ============ POST-INSTALL COMMANDS ============
-# После создания окружения выполнить:
-# 
-# 1. Проверка CUDA:
-#    python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Devices: {torch.cuda.device_count()}')"
-#
-# 2. Проверка XFormers:
-#    python -c "import xformers; print(f'XFormers: {xformers.__version__}')"
-#
-# 3. Тест загрузки модели:
-#    python -c "from diffusers import StableDiffusionXLPipeline; print('Diffusers OK')"
-#
-# 4. Создание cache директорий:
-#    mkdir -p cache/{huggingface,transformers,datasets,torch,pytorch_kernel_cache}
-#
-# 5. Загрузка тестовой модели (опционально):
-#    python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('openai/clip-vit-base-patch32')"
-
-# ============ TROUBLESHOOTING ============
-# 
-# Если установка не удалась:
-#
-# 1. CUDA проблемы:
-#    - Убедитесь что NVIDIA drivers установлены
-#    - Проверьте совместимость CUDA версии с вашей GPU
-#    - nvidia-smi должен показывать GPU
-#
-# 2. XFormers проблемы:
-#    - Может требовать точную версию PyTorch
-#    - Попробуйте установить из источника: pip install xformers --index-url https://download.pytorch.org/whl/cu118
-#
-# 3. Memory проблемы:
-#    - Увеличьте swap если не хватает RAM
-#    - Для 80GB GPU может потребоваться 64GB+ RAM
-#
-# 4. Build проблемы:
-#    - Убедитесь что gcc/g++ установлены
-#    - Может потребоваться: conda install -c conda-forge cxx-compiler
-#
-# 5. Сетевые проблемы:
-#    - Для корпоративных сетей может потребоваться proxy настройка
-#    - pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org
-
-# ============ HARDWARE REQUIREMENTS ============
-#
-# Минимальные требования:
-# - GPU: 12GB VRAM (RTX 3080, RTX 4070 Ti, A4000)
-# - RAM: 32GB System RAM
-# - Storage: 100GB+ для моделей и cache
-#
-# Рекомендуемые требования:
-# - GPU: 24GB+ VRAM (RTX 3090, RTX 4090, A5000, A6000)
-# - RAM: 64GB System RAM
-# - Storage: 500GB+ NVMe SSD
-#
-# Оптимальные требования:
-# - GPU: 80GB VRAM (A100, H100)
-# - RAM: 128GB+ System RAM
-# - Storage: 1TB+ NVMe SSD
+    # Core ML frameworks
+    - torch>=2.1.0
+    - torchvision>=0.16.0
+    - torchaudio>=2.1.0
+    
+    # Diffusers and AI models
+    - diffusers>=0.24.0
+    - transformers>=4.35.0
+    - accelerate>=0.24.0
+    - xformers>=0.0.22
+    - controlnet-aux>=0.4.0
+    
+    # Image processing
+    - Pillow>=10.0.0
+    - opencv-python>=4.8.0
+    - scikit-image>=0.21.0
+    
+    # Web framework - FIXED compatibility
+    - fastapi>=0.104.0,<0.105.0
+    - pydantic>=2.4.0,<2.5.0
+    - uvicorn[standard]>=0.24.0
+    
+    # Configuration
+    - hydra-core>=1.3.0
+    - omegaconf>=2.3.0
+    
+    # Utils
+    - numpy>=1.24.0
+    - pandas>=2.0.0
+    - requests>=2.31.0
+    - python-multipart>=0.0.6
+    
+    # GPU monitoring
+    - pynvml>=11.5.0
+    
+    # Development
+    - pytest>=7.4.0
+    - pytest-asyncio>=0.21.0
+    

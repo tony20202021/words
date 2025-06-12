@@ -5,18 +5,17 @@
 
 # ============ CORE AI FRAMEWORKS ============
 # HuggingFace ecosystem - КРИТИЧНО для AI генерации
-transformers>=4.35.0
-diffusers>=0.24.0
+transformers==4.39.3
+diffusers==0.25.0
 accelerate>=0.24.0
 safetensors>=0.4.0
 tokenizers>=0.14.0
-
 # Hugging Face Hub для загрузки моделей
-huggingface-hub>=0.17.0
+huggingface_hub >= 0.23.0
 
 # ============ DEEP LEARNING & COMPUTER VISION ============
 # ControlNet и auxiliary models - ОБЯЗАТЕЛЬНО
-controlnet-aux>=0.0.9
+controlnet-aux>=0.0.10
 
 # XFormers для оптимизации attention - КРИТИЧНО для производительности
 xformers>=0.0.22
@@ -29,12 +28,23 @@ opencv-contrib-python>=4.8.0
 scikit-image>=0.21.0
 imageio>=2.31.0
 
+# ============ WEB FRAMEWORK ============
+# FIXED: FastAPI/Pydantic compatibility issue
+fastapi>=0.103.0,<0.105.0
+pydantic>=2.4.0,<2.6.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+
+# ============ CONFIGURATION ============
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+
 # ============ AI MODEL SPECIFIC ============
 # Segment Anything Model (SAM) для сегментации
-segment-anything>=1.0
+# segment-anything>=1.0
 
 # Для depth estimation (MiDaS)
-timm>=0.9.0
+# timm>=0.9.0
 
 # Для edge detection и preprocessing
 scipy>=1.11.0
@@ -50,39 +60,39 @@ py3nvml>=0.2.7  # Альтернативная библиотека для NVIDI
 
 # ============ OPTIMIZATION LIBRARIES ============
 # Triton для custom CUDA kernels (если нужно)
-triton>=2.1.0
+# triton>=2.1.0
 
 # Torch Audio для дополнительных возможностей
-torchaudio>=2.0.0
+# torchaudio>=2.0.0
 
 # ============ UTILITIES & HELPERS ============
-# Для обработки конфигураций
-omegaconf>=2.3.0
-
 # Для прогресс-баров при загрузке моделей
 tqdm>=4.65.0
 
 # Для работы с изображениями
-pillow-simd>=9.0.0  # Оптимизированная версия Pillow
+Pillow>=10.0.0
+# pillow-simd>=9.0.0  # Оптимизированная версия Pillow
 
-# Для валидации и сериализации
-pydantic>=2.4.0
+# ============ BASIC DEPENDENCIES ============
+numpy>=1.24.0
+requests>=2.31.0
 
 # ============ DEVELOPMENT & DEBUGGING ============
 # Для отладки GPU памяти
 memory-profiler>=0.60.0
 
-# Для логирования и мониторинга
-wandb>=0.15.0  # Weights & Biases для tracking экспериментов (опционально)
+# ============ TESTING ============
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
 
 # ============ FORMAT SUPPORT ============
 # Для работы с различными форматами изображений
-webp>=0.1.6
-avif>=0.1.0
+# webp>=0.1.6
+# avif>=0.1.0
 
 # ============ TESTING (OPTIONAL) ============
 # Для unit тестов AI компонентов
-pytest-gpu>=0.1.0  # Специализированные GPU тесты
+# pytest-gpu>=0.1.0  # Специализированные GPU тесты
 
 # ============ EXPERIMENTAL (CUTTING EDGE) ============
 # Для экспериментальных возможностей

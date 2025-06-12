@@ -4,6 +4,8 @@ Entry point for the writing image generation service with AI capabilities.
 This module initializes and runs the FastAPI application for generating writing images using real AI models.
 """
 
+# lsof -i :8600
+
 import logging
 import argparse
 import os
@@ -30,8 +32,8 @@ from hydra.core.global_hydra import GlobalHydra
 from app.api.routes import writing_images, health
 from app.utils.logger import setup_logger
 from app.utils import config_holder
-from app.models.gpu_manager import GPUManager
-from app.services.writing_image_service import WritingImageService
+from app.ai.models.gpu_manager import GPUManager
+from app.api.routes.services.writing_image_service import WritingImageService
 
 # Глобальные сервисы
 gpu_manager: Optional[GPUManager] = None
