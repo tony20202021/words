@@ -68,6 +68,7 @@ output_cells/
 output_images/
 sample_images/
 results/
+temp/
 
 # Local settings
 local_settings.py

@@ -181,19 +181,23 @@ class AIImageGenerator:
                 self.config.height
             )
             
-            logger.debug(f"✓ Character preprocessed: {base_image.size}")
+            logger.info(f"✓ Character preprocessed: {base_image.size}")
+            base_image.save("./temp/base_image.png")
 
             # 2. Генерация всех conditioning изображений
             conditioning_images = await self._generate_all_conditioning(
                 base_image, character
             )
-            logger.debug(f"✓ Generated conditioning for: {list(conditioning_images.keys())}")
+            logger.info(f"✓ Generated conditioning for: {list(conditioning_images.keys())}")
+            for cond_type, cond_data in conditioning_images.items():
+                for method, image in cond_data.items():
+                    image.save(f"./temp/{cond_type}_{method}.png")
             
             # 3. Построение промпта
             prompt_result = await self._generate_prompt(
                 character, translation
             )
-            logger.debug(f"✓ Generated prompt: '{prompt_result.main_prompt}...'")
+            logger.info(f"✓ Generated prompt: '{prompt_result.main_prompt}...'")
             
             # 4. AI генерация с Multi-ControlNet
             final_image = await self._run_ai_generation(
@@ -204,7 +208,7 @@ class AIImageGenerator:
                 **generation_params
             )
             
-            logger.debug(f"✓ AI generation completed: {final_image.size}")
+            logger.info(f"✓ AI generation completed: {final_image.size}")
             
             # Подсчет времени генерации
             generation_time_ms = int((time.time() - start_time) * 1000)
@@ -344,13 +348,13 @@ class AIImageGenerator:
                 text=character,
                 max_width=max_text_width,
                 max_height=max_text_height,
-                initial_font_size=min(width, height) // 2,
+                initial_font_size=min(width, height),
                 text_color=(0, 0, 0),
                 center_horizontal=True,
                 center_vertical=True
             )
             
-            logger.debug(f"Rendered character '{character}' with font size {font_size}")
+            logger.info(f"Rendered character '{character}' with font size {font_size}")
             return image
             
         except Exception as e:
@@ -372,26 +376,30 @@ class AIImageGenerator:
         Returns:
             Dict[str, Dict[str, Image.Image]]: Conditioning изображения
         """
-        conditioning_images = {}
         
         try:
             # Генерируем все типы conditioning параллельно
             tasks = []
             
-            for conditioning_type, generator in self.conditioning_generators.items():
-                conditioning_images[conditioning_type] = {}
-                # Выбираем случайный метод для разнообразия
-                available_methods = generator.get_available_methods()
-                method = random.choice(available_methods)
-                
-                logger.debug(f"Generating {conditioning_type} conditioning with method: {method}")
-                
-                # Создаем задачу для генерации
-                task = asyncio.create_task(
-                    generator.generate_from_image(base_image, method=method),
-                    name=f"conditioning_{conditioning_type}_{method}"
-                )
-                tasks.append((conditioning_type, method, task))
+            # Выбираем случайный метод для разнообразия
+            conditioning_type = random.choice(list(self.conditioning_generators.keys()))
+            generator = self.conditioning_generators[conditioning_type]
+            method = random.choice(generator.get_available_methods())
+
+            conditioning_images = {
+                conditioning_type: {
+                    method: None
+                }
+            }
+            
+            logger.debug(f"Generating {conditioning_type} conditioning with method: {method}")
+            
+            # Создаем задачу для генерации
+            task = asyncio.create_task(
+                generator.generate_from_image(base_image, method=method),
+                name=f"conditioning_{conditioning_type}_{method}"
+            )
+            tasks.append((conditioning_type, method, task))
             
             # Ожидаем завершения всех задач
             for conditioning_type, method, task in tasks:

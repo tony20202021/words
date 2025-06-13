@@ -7,20 +7,20 @@ import io
 import os
 import base64
 import asyncio
-import logging
 from typing import Tuple, Optional, Dict, Any
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 import sys
 from pathlib import Path
+from app.utils.logger import get_module_logger
+
+logger = get_module_logger(__name__)
 
 # Добавляем путь к корневой директории проекта для импорта common
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from common.utils.font_utils import get_font_manager, FontManager
-
-logger = logging.getLogger(__name__)
+from common.utils.font_utils import get_font_manager
 
 
 class ImageProcessor:
@@ -139,7 +139,7 @@ class ImageProcessor:
         
         # Calculate position
         image_width, image_height = image.size
-        
+
         if center_horizontal:
             x = (image_width - text_width) // 2 + offset_x
         else:
@@ -152,7 +152,22 @@ class ImageProcessor:
         
         # Draw text
         draw = ImageDraw.Draw(image)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        begin_x = bbox[0]
+        begin_y = bbox[1]
+
+        (x, y) = (x - begin_x, y - begin_y)
+
         draw.text((x, y), text, fill=text_color, font=font)
+        
+        logger.info(f"image_width: {image_width}, image_height: {image_height}")
+        logger.info(f"max_width: {max_width}, max_height: {max_height}")
+        logger.info(f"text_width: {text_width}, text_height: {text_height}")
+        logger.info(f"font: {font}")
+        logger.info(f"final_font_size: {final_font_size}")
+        logger.info(f"center_horizontal: {center_horizontal}, center_vertical: {center_vertical}")
+        logger.info(f"(x, y): {(x, y)}")
+        logger.info(f"(begin_x, begin_y): {(begin_x, begin_y)}")
         
         return image, final_font_size
     

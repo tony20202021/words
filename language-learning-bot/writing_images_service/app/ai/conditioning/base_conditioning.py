@@ -6,7 +6,8 @@ Base class for conditioning generation.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Union
 from dataclasses import dataclass
-from PIL import Image
+from PIL import Image, ImageFilter
+import numpy as np
 
 from app.utils.logger import get_module_logger
 from app.utils.image_utils import get_image_processor
@@ -291,4 +292,37 @@ class BaseConditioning(ABC):
             processed_data['character'] = character.strip()
         
         return True, "", processed_data
+        
+    def add_noise_to_mask(self, img: Image.Image, noise_level=30, mask_threshold=50, mask_is_less_than=True):
+        arr = np.array(img).astype(np.int16)
+
+        if mask_is_less_than:
+            mask = np.all(arr < mask_threshold, axis=2)
+        else:
+            mask = np.all(arr > mask_threshold, axis=2)
+
+        noise = np.random.randint(-noise_level, noise_level + 1, arr.shape)
+
+        noisy_arr = arr.copy()
+        noisy_arr[mask] += noise[mask]
+
+        noisy_arr = np.clip(noisy_arr, 0, 255).astype(np.uint8)
+
+        return Image.fromarray(noisy_arr)
+    
+    def wave_distort(self, img: Image.Image, amplitude=5, wavelength=50):
+        width, height = img.size
+        pixels = img.load()
+        new_img = Image.new("RGB", (width, height), "white")
+        new_pixels = new_img.load()
+        for y in range(height):
+            offset = int(amplitude * np.sin(2 * np.pi * y / wavelength))
+            for x in range(width):
+                new_x = x + offset
+                if 0 <= new_x < width:
+                    new_pixels[x, y] = pixels[new_x, y]
+        return new_img
+    
+    def blur_image(self, img: Image.Image, radius=2):
+        return img.filter(ImageFilter.GaussianBlur(radius=radius))
     

@@ -85,6 +85,9 @@ memory-profiler>=0.60.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 
+freetype-py
+matplotlib
+
 # ============ FORMAT SUPPORT ============
 # Для работы с различными форматами изображений
 # webp>=0.1.6

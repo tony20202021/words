@@ -82,6 +82,10 @@ class CannyConditioning(BaseConditioning):
                     error_message=f"Unknown method: {method}"
                 )
             
+            result_image = self.wave_distort(result_image, amplitude=5, wavelength=100)
+            # result_image = self.blur_image(result_image, radius=10)
+            result_image = self.add_noise_to_mask(result_image, noise_level=10, mask_threshold=50, mask_is_less_than=False)
+            
             # Вычисление времени обработки
             processing_time_ms = int((time.time() - start_time) * 1000)
             

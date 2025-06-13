@@ -151,22 +151,6 @@ class WritingImageService:
                 # Create AI Generator with config
                 self.ai_generator = AIImageGenerator(self.ai_config)
                 
-                # Pre-load models to check if everything works
-                # This will trigger model loading and pipeline setup
-                test_character = "测"
-                test_translation = "test"
-                
-                logger.info("Testing AI pipeline with test character...")
-                test_result = await self.ai_generator.generate_character_image(
-                    character=test_character,
-                    translation=test_translation,
-                    include_conditioning_images=False,
-                    include_prompt=False
-                )
-                
-                if not test_result.success:
-                    raise RuntimeError(f"AI pipeline test failed: {test_result.error_message}")
-                
                 init_time = time.time() - start_time
                 self._ai_initialized = True
                 

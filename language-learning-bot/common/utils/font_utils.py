@@ -5,12 +5,18 @@ Utilities for working with fonts in image generation.
 
 import os
 import asyncio
-import logging
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+from common.utils.logger import get_module_logger
+import freetype
 
-logger = logging.getLogger(__name__)
+logger = get_module_logger(__name__)
+
+
+def relative_path_to_absolute_path(relative_path: str) -> str:
+    """Convert relative path to absolute path."""
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), relative_path))
 
 
 class FontManager:
@@ -92,59 +98,91 @@ class FontManager:
         
         logger.info(f"Found {len(existing_paths)} Unicode font files")
         if existing_paths:
-            logger.debug(f"Available fonts: {existing_paths[:3]}...")  # Show first 3
+            logger.info(f"Available fonts: {existing_paths[:3]}...")  # Show first 3
         
         return existing_paths
-    
-    def get_font(self, size: int, font_path: Optional[str] = None) -> ImageFont.ImageFont:
-        """
-        Get font with Unicode support.
-        Получает шрифт с поддержкой Unicode.
+
+    def _has_real_glyph(self, font_path: str, char: str) -> bool:
+        try:
+            face = freetype.Face(font_path)
+            return face.get_char_index(ord(char)) != 0
+        except Exception:
+            return False
+
+    def _supports_unicode(self, font_path: str, test_chars: list[str], min_supported: int = 1) -> bool:
+        supported = 0
+        for ch in test_chars:
+            logger.info(f"font_path: {font_path}, ch: {ch}")
+            logger.info(f"self._has_real_glyph(font_path, ch): {self._has_real_glyph(font_path, ch)}")
+            if self._has_real_glyph(font_path, ch):
+                supported += 1
+            if supported >= min_supported:
+                return True
+        return False
+
+    def _find_all_system_fonts(self) -> list[str]:
+        from matplotlib import font_manager
+        return list(set(font_manager.findSystemFonts(fontpaths=None, fontext='ttf')))
         
-        Args:
-            size: Font size
-            font_path: Specific font file path (optional)
-            
-        Returns:
-            ImageFont object with Unicode support
-        """
+    def get_font(self, size: int, font_path: Optional[str] = None) -> Optional[ImageFont.ImageFont]:
         cache_key = (font_path or "auto", size)
-        
-        # Check cache first
         if cache_key in self._font_cache:
             return self._font_cache[cache_key]
-        
+
         font = None
-        
+        test_chars = ["得", ]
+
+        logger.info(f"searching font for {size} size")
+
         try:
-            if font_path and os.path.exists(font_path):
-                # Use specific font
-                font = self._load_and_test_font(font_path, size)
-                if font:
-                    logger.debug(f"Using specified font: {font_path} (size: {size})")
-            
+            # # 1. Если задан конкретный путь
+            # if font_path and os.path.exists(font_path):
+            #     if self._supports_unicode(font_path, test_chars):
+            #         font = ImageFont.truetype(font_path, size)
+            #         logger.info(f"Using specified font: {font_path} (size: {size})")
+
+            # 1.5. Попробовать шрифты из скачанных
             if not font:
-                # Try Unicode fonts
-                for font_path_candidate in self.get_unicode_font_paths():
-                    font = self._load_and_test_font(font_path_candidate, size)
-                    if font:
-                        logger.debug(f"Using Unicode font: {font_path_candidate} (size: {size})")
-                        break
-            
-            if not font:
-                # Fallback to default font
-                logger.warning(f"No Unicode fonts found, using default font (size: {size})")
-                font = ImageFont.load_default()
+                logger.info(f"Current directory: {os.getcwd()}")
+
+                # font_path_candidate = os.path.abspath(os.path.join(os.getcwd(), "./fonts/noto_cjk/NotoSansCJK-Regular.ttc"))
+                font_path_candidate = os.path.abspath(os.path.join(os.getcwd(), "./fonts/NotoSansSC-Regular/NotoSansSC-Regular.otf"))
+                logger.info(f"font_path_candidate: {font_path_candidate}")
                 
+                if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
+                    font = ImageFont.truetype(font_path_candidate, size)
+                    logger.info(f"Using downoaded font: {font_path_candidate} (size: {size})")
+                   
+            # # 2. Попробовать шрифты из get_unicode_font_paths
+            # if not font:
+            #     for font_path_candidate in self.get_unicode_font_paths():
+            #         if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
+            #             font = ImageFont.truetype(font_path_candidate, size)
+            #             logger.info(f"Using Unicode font: {font_path_candidate} (size: {size})")
+            #             break
+
+            # # 3. Проверить все системные шрифты
+            # if not font:
+            #     logger.info("Scanning all system fonts...")
+            #     for font_path_candidate in self._find_all_system_fonts():
+            #         if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
+            #             font = ImageFont.truetype(font_path_candidate, size)
+            #             logger.info(f"Found fallback Unicode font: {font_path_candidate} (size: {size})")
+            #             break
+
+            # 4. Fallback
+            if not font:
+                logger.warning(f"No suitable font found, using default PIL font.")
+                font = None
+
         except Exception as e:
             logger.error(f"Error loading font: {e}")
-            font = ImageFont.load_default()
-        
-        # Cache the result
+            font = None
+
         self._font_cache[cache_key] = font
-        
+        logger.info(f"font: {font}: {font_path or 'auto'} (size: {size})")
         return font
-    
+
     def _load_and_test_font(self, font_path: str, size: int) -> Optional[ImageFont.ImageFont]:
         """
         Load font and test Unicode support.
@@ -161,23 +199,28 @@ class FontManager:
             font = ImageFont.truetype(font_path, size)
             
             # Test Unicode support with various characters
-            test_chars = ["得", "あ", "한", "ا", "य", "А", "ñ", "ü"]
+            test_chars = ["得", ]
             
-            temp_img = Image.new('RGB', (100, 100), (255, 255, 255))
-            temp_draw = ImageDraw.Draw(temp_img)
+            temp_img = Image.new('RGB', (1000, 1000), (0, 255, 255))
             
             unicode_support_count = 0
             for test_char in test_chars:
                 try:
-                    bbox = temp_draw.textbbox((0, 0), test_char, font=font)
-                    # If bbox has non-zero dimensions, font supports the character
-                    if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+                    if self.has_glyph(font_path, test_char):
                         unicode_support_count += 1
+                    
+                        logger.info(f"Font {font_path}, test_char: {test_char}, unicode_support_count: {unicode_support_count}")
+                        
+                        temp_img_copy = temp_img.copy()
+                        temp_draw_for_save = ImageDraw.Draw(temp_img_copy)
+                        temp_draw_for_save.text((50, 50), test_char, font=font, fill=(255, 0, 0))
+                        temp_img_copy.save(f"temp_img_{test_char}.png")
+
                 except Exception:
                     continue
             
             # Consider font good if it supports at least 3 out of 8 test characters
-            if unicode_support_count >= 3:
+            if unicode_support_count > 0:
                 return font
             else:
                 logger.debug(f"Font {font_path} supports only {unicode_support_count}/{len(test_chars)} test characters")

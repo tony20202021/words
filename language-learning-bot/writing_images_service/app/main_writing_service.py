@@ -11,7 +11,6 @@ import argparse
 import os
 import sys
 import time
-import signal
 import asyncio
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -158,17 +157,6 @@ async def _initialize_writing_service():
         logger.error(f"❌ Failed to initialize Writing Service: {e}")
         raise
 
-def _setup_signal_handlers():
-    """Настраивает обработчики сигналов для graceful shutdown."""
-    def signal_handler(signum, frame):
-        logger.info(f"📡 Received signal {signum}, initiating graceful shutdown...")
-        # uvicorn будет обрабатывать shutdown через lifespan
-        
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    logger.info("📡 Signal handlers configured")
-
 async def _log_service_configuration():
     """Логирует конфигурацию сервиса."""
     logger.info("⚙️ Service Configuration:")
@@ -253,10 +241,7 @@ async def lifespan(app: FastAPI):
         # 3. Инициализируем Writing Service (без загрузки AI моделей)
         await _initialize_writing_service()
         
-        # 4. Настраиваем обработку сигналов
-        _setup_signal_handlers()
-        
-        # 5. Логируем конфигурацию
+        # 4. Логируем конфигурацию
         await _log_service_configuration()
         
         startup_time = time.time() - startup_start
@@ -266,6 +251,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"🌐 API docs: http://{cfg.api.host}:{cfg.api.port}{cfg.api.prefix}/docs")
         logger.info(f"❤️ Health check: http://{cfg.api.host}:{cfg.api.port}/health")
         logger.info(f"🤖 AI models will load on first request")
+        logger.info(f"💡 Press Ctrl+C to stop the service")
         logger.info("=" * 60)
         
         yield  # Сервис работает
@@ -355,17 +341,41 @@ def run_server(port_override=None):
         logger.info(f"Port overridden to: {port}")
     
     if debug_mode:
+        # Получаем настройки reload из конфигурации
+        reload_dirs = ["app"]  # По умолчанию
+        
+        if hasattr(cfg.api, 'development') and hasattr(cfg.api.development, 'reload_dirs'):
+            reload_dirs = list(cfg.api.development.reload_dirs)
+            logger.info(f"📂 Using reload dirs from config: {reload_dirs}")
+        
+        # Проверяем существование путей и конвертируем в абсолютные
+        valid_reload_dirs = []
+        current_dir = Path(__file__).parent
+        
+        for reload_dir in reload_dirs:
+            if reload_dir.startswith("../"):
+                # Относительный путь от текущего файла
+                abs_path = (current_dir / reload_dir).resolve()
+            else:
+                # Относительный путь от рабочей директории
+                abs_path = Path(reload_dir).resolve()
+            
+            if abs_path.exists():
+                valid_reload_dirs.append(str(abs_path))
+                logger.info(f"✅ Watching: {abs_path}")
+            else:
+                logger.warning(f"⚠️ Path not found, skipping: {abs_path}")
+        
         # Development mode with specific reload directories
         logger.info("🔄 Starting in DEVELOPMENT mode with auto-reload")
+        
         uvicorn.run(
             "app.main_writing_service:app",
             host=host,
             port=port,
             reload=True,
-            reload_dirs=["app"], 
+            reload_dirs=valid_reload_dirs,
             log_level="info"
-            # отслеживаются только файлы *.py
-            # при изменениях конфигурации в каталоге "conf" - перезапускать сервис руками
         )
     else:
         # Production mode without reload
@@ -378,7 +388,7 @@ def run_server(port_override=None):
             log_level="info",
             workers=1  # AI модели не поддерживают multi-worker
         )
-
+            
 if __name__ == "__main__":
     try:
         parser = argparse.ArgumentParser(description='Запуск сервиса генерации картинок написания с AI')

@@ -46,6 +46,8 @@ development:
   reload_dirs: 
     - "app"
     - "conf"
+    - "../conf"
+    - "../../common/utils"
   # Расширения файлов для мониторинга
   reload_includes:
     - "*.py"
