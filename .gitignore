@@ -69,6 +69,7 @@ output_images/
 sample_images/
 results/
 temp/
+cache/
 
 # Local settings
 local_settings.py

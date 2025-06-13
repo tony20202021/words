@@ -160,14 +160,15 @@ class ImageProcessor:
 
         draw.text((x, y), text, fill=text_color, font=font)
         
-        logger.info(f"image_width: {image_width}, image_height: {image_height}")
-        logger.info(f"max_width: {max_width}, max_height: {max_height}")
-        logger.info(f"text_width: {text_width}, text_height: {text_height}")
-        logger.info(f"font: {font}")
         logger.info(f"final_font_size: {final_font_size}")
-        logger.info(f"center_horizontal: {center_horizontal}, center_vertical: {center_vertical}")
-        logger.info(f"(x, y): {(x, y)}")
-        logger.info(f"(begin_x, begin_y): {(begin_x, begin_y)}")
+
+        logger.debug(f"image_width: {image_width}, image_height: {image_height}")
+        logger.debug(f"max_width: {max_width}, max_height: {max_height}")
+        logger.debug(f"text_width: {text_width}, text_height: {text_height}")
+        logger.debug(f"font: {font}")
+        logger.debug(f"center_horizontal: {center_horizontal}, center_vertical: {center_vertical}")
+        logger.debug(f"(x, y): {(x, y)}")
+        logger.debug(f"(begin_x, begin_y): {(begin_x, begin_y)}")
         
         return image, final_font_size
     

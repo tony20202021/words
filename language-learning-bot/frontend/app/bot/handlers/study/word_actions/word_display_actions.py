@@ -328,7 +328,7 @@ async def process_show_writing_image(
         # Generate writing image using real service
         logger.info(f"Generating writing image for word: '{word_foreign}', translation: '{translation}'")
         
-        await message.answer("🖼️ Генерирую картинку написания...")
+        await message.answer("🖼️ Генерирую картинку написания...\n\n Ожидаемое время: около 10 секунд...")
         
         # Get writing image client and call service
         client = get_writing_image_client()

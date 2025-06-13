@@ -1,0 +1,283 @@
+# Translation Service Configuration
+# Конфигурация сервиса перевода русских значений в английские промпты
+# writing_service/conf/config/translation.yaml
+
+# Основные настройки
+enabled: true
+
+# Модели для анализа и выбора (в порядке приоритета)
+candidate_models:
+  # Qwen модели - новое поколение, отличная поддержка CJK
+  qwen2_7b:
+    model_id: "Qwen/Qwen2-7B-Instruct"
+    size_gb: 14
+    languages: ["zh", "en", "ru"]
+    strengths: ["cjk_languages", "instruction_following", "fast_inference"]
+    
+  qwen2_1_5b:
+    model_id: "Qwen/Qwen2-1.5B-Instruct"
+    size_gb: 3
+    languages: ["zh", "en", "ru"] 
+    strengths: ["lightweight", "fast", "good_cjk"]
+    
+  # NLLB - Meta's multilingual model
+  nllb_3_3b:
+    model_id: "facebook/nllb-200-3.3B"
+    size_gb: 6.6
+    languages: ["zho_Hans", "eng_Latn", "rus_Cyrl"]
+    strengths: ["multilingual", "translation_specific", "stable"]
+    
+  nllb_1_3b:
+    model_id: "facebook/nllb-200-1.3B"
+    size_gb: 2.6
+    languages: ["zho_Hans", "eng_Latn", "rus_Cyrl"]
+    strengths: ["lightweight", "translation_specific"]
+    
+  # mT5 - Google's multilingual T5
+  mt5_xl:
+    model_id: "google/mt5-xl"
+    size_gb: 7.4
+    languages: ["zh", "en", "ru"]
+    strengths: ["multilingual", "text2text", "reliable"]
+    
+  mt5_large:
+    model_id: "google/mt5-large"  
+    size_gb: 2.4
+    languages: ["zh", "en", "ru"]
+    strengths: ["balanced_size", "good_quality"]
+    
+  # Специализированные модели
+  opus_zh_en:
+    model_id: "Helsinki-NLP/opus-mt-zh-en"
+    size_gb: 0.3
+    languages: ["zh", "en"]
+    strengths: ["specialized", "lightweight", "fast"]
+    
+  opus_ru_en:
+    model_id: "Helsinki-NLP/opus-mt-ru-en"
+    size_gb: 0.3
+    languages: ["ru", "en"]
+    strengths: ["specialized", "lightweight", "fast"]
+
+# Автоматический выбор модели на основе доступной памяти
+auto_model_selection:
+  enabled: true
+  memory_profiles:
+    # Для 80GB+ VRAM - можно использовать большие модели
+    high_memory:
+      threshold_gb: 70
+      preferred_models: ["qwen2_7b", "nllb_3_3b", "mt5_xl"]
+    
+    # Для 40-70GB VRAM - средние модели
+    medium_memory:
+      threshold_gb: 35
+      preferred_models: ["qwen2_1_5b", "nllb_1_3b", "mt5_large"]
+    
+    # Для <40GB VRAM - легкие модели
+    low_memory:
+      threshold_gb: 0
+      preferred_models: ["opus_zh_en", "opus_ru_en"]
+
+# Основная конфигурация выбранной модели
+active_model: "qwen2_7b"  # Будет переопределено автоматически
+
+# Параметры генерации перевода
+generation_params:
+  max_length: 128
+  temperature: 0.3  # Низкая для стабильных переводов
+  do_sample: true
+  top_p: 0.9
+  repetition_penalty: 1.1
+
+# Промпт шаблоны для разных моделей
+prompt_templates:
+  qwen:
+    system_prompt: "You are a professional translator. Translate the given text to English concisely and accurately for AI image generation prompts."
+    user_template: "Chinese character: {character}\nRussian meaning: {translation}\nTranslate to English (short phrase for image prompt):"
+    
+  nllb:
+    # NLLB использует специальные токены языков
+    source_lang: "rus_Cyrl"  # Русский
+    target_lang: "eng_Latn"  # Английский
+    
+  mt5:
+    prefix: "translate Russian to English: "
+    template: "Character {character} means: {translation}"
+    
+  opus:
+    # Opus модели работают напрямую с текстом
+    template: "{translation}"
+
+# Кэширование переводов
+caching:
+  enabled: true
+  max_cache_size: 10000  # Количество переводов в кэше
+  cache_ttl_hours: 168   # 7 дней
+  persistent_cache: true  # Сохранять кэш между перезапусками
+  cache_file: "./cache/translation_cache.json"
+
+# Фильтрация и постобработка переводов
+postprocessing:
+  enabled: true
+  max_output_length: 50   # Максимальная длина английского перевода
+  remove_articles: false  # Убирать ли артикли (a, an, the)
+  lowercase: false        # Приводить к нижнему регистру
+  remove_punctuation: false
+  
+  # Словарь замен для улучшения промптов
+  replacements:
+    "изучение": "learning, study"
+    "писать": "writing, calligraphy" 
+    "красивый": "beautiful, elegant"
+    "дом": "house, home, building"
+    "школа": "school"
+    "работа": "work, job"
+    "друг": "friend"
+    "семья": "family"
+    "время": "time"
+    "день": "day"
+    "ночь": "night"
+    "вода": "water"
+    "огонь": "fire"
+    "земля": "earth, ground"
+    "небо": "sky, heaven"
+    "солнце": "sun"
+    "луна": "moon"
+    "звезда": "star"
+    "дерево": "tree"
+    "цветок": "flower"
+    "животное": "animal"
+    "человек": "person, human"
+    "ребенок": "child"
+    "мужчина": "man"
+    "женщина": "woman"
+    "старый": "old"
+    "молодой": "young"
+    "большой": "big, large"
+    "маленький": "small, little"
+    "хороший": "good"
+    "плохой": "bad"
+    "новый": "new"
+    "быстрый": "fast, quick"
+    "медленный": "slow"
+    "сильный": "strong"
+    "слабый": "weak"
+    "высокий": "tall, high"
+    "низкий": "low, short"
+
+# Fallback стратегии при ошибках
+fallback:
+  enabled: true
+  strategies:
+    - "use_cache"          # Попробовать найти в кэше
+    - "use_simple_dict"    # Использовать простой словарь
+    - "return_original"    # Вернуть оригинальный русский текст
+    - "use_character_only" # Использовать только иероглиф
+  
+  # Простой словарь для fallback
+  simple_dictionary:
+    "учить": "learn"
+    "изучать": "study" 
+    "писать": "write"
+    "читать": "read"
+    "говорить": "speak"
+    "слушать": "listen"
+    "смотреть": "look, see"
+    "дом": "house"
+    "школа": "school"
+    "работа": "work"
+    "семья": "family"
+    "друг": "friend"
+    "время": "time"
+    "день": "day"
+    "ночь": "night"
+    "утром": "morning"
+    "вечером": "evening"
+    "есть": "eat"
+    "пить": "drink"
+    "спать": "sleep"
+    "идти": "go, walk"
+    "приходить": "come"
+    "любить": "love"
+    "нравиться": "like"
+    "хотеть": "want"
+    "мочь": "can, be able"
+    "знать": "know"
+    "понимать": "understand"
+    "думать": "think"
+    "помнить": "remember"
+    "забывать": "forget"
+    "покупать": "buy"
+    "продавать": "sell"
+    "играть": "play"
+    "работать": "work"
+    "отдыхать": "rest"
+
+# Мониторинг и логирование
+monitoring:
+  enabled: true
+  log_translations: true
+  log_performance: true
+  track_cache_hits: true
+  alert_on_failures: true
+  
+  # Уровни логирования для разных компонентов
+  log_levels:
+    translation_service: "INFO"
+    model_loading: "INFO"
+    cache_operations: "DEBUG"
+    fallback_usage: "WARNING"
+
+# GPU настройки для translation модели
+gpu:
+  device: "cuda"
+  torch_dtype: "float16"  # Экономия памяти
+  load_in_8bit: false     # Квантизация при необходимости
+  load_in_4bit: false     # Агрессивная квантизация
+  
+  # Memory management
+  max_memory_allocation_gb: 15  # Максимально для translation
+  enable_gradient_checkpointing: false  # Не нужно для inference
+  
+  # Оптимизации
+  use_torch_compile: false  # Может быть нестабильно для некоторых моделей
+  enable_attention_slicing: true  # Для экономии памяти
+  enable_cpu_offload: false  # Автоматически при нехватке памяти
+
+# Интеграция с основной AI системой
+integration:
+  # Настройки интеграции с AI Image Generator
+  enable_in_generation: true
+  fallback_to_original_on_error: true
+  timeout_seconds: 30
+  max_retries: 2
+  
+  # Приоритет в pipeline
+  translation_priority: "high"  # high, medium, low
+  
+  # Уведомления об ошибках
+  notify_on_translation_failures: false
+  failure_threshold_percent: 10  # При превышении - уведомление
+
+# Настройки для разработки
+development:
+  # Быстрые настройки для тестирования
+  quick_test_mode: false
+  use_mock_translation: false
+  enable_debug_logging: true
+  save_translation_examples: true
+  examples_file: "./temp/translation_examples.json"
+
+# Настройки для продакшена
+production:
+  # Оптимизации для продакшена
+  enable_model_caching: true
+  aggressive_memory_cleanup: true
+  batch_translation_size: 1  # Пока не поддерживается batch
+  connection_pooling: false
+  
+  # Мониторинг
+  enable_metrics_collection: true
+  metrics_export_interval_seconds: 60
+  health_check_interval_seconds: 30
+  

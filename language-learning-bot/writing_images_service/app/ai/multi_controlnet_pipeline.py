@@ -303,7 +303,7 @@ class MultiControlNetPipeline:
             eulera_scheduler = EulerAncestralDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", subfolder="scheduler")
             vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
 
-            logger.info(f"self._torch_dtype={self._torch_dtype}")
+            logger.debug(f"self._torch_dtype={self._torch_dtype}")
 
             # Создаем Union ControlNet pipeline
             self.pipeline = pipeline_class.from_pretrained(

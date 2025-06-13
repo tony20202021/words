@@ -35,7 +35,7 @@ class SegmentationConditioning(BaseConditioning):
         # База данных радикалов для radical_segmentation
         self._radical_database = self._init_radical_database()
         
-        logger.info("SegmentationConditioning initialized")
+        logger.debug("SegmentationConditioning initialized")
     
     async def generate_from_image(
         self, 

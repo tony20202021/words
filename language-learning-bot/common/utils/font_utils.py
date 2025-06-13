@@ -112,8 +112,8 @@ class FontManager:
     def _supports_unicode(self, font_path: str, test_chars: list[str], min_supported: int = 1) -> bool:
         supported = 0
         for ch in test_chars:
-            logger.info(f"font_path: {font_path}, ch: {ch}")
-            logger.info(f"self._has_real_glyph(font_path, ch): {self._has_real_glyph(font_path, ch)}")
+            logger.debug(f"font_path: {font_path}, ch: {ch}")
+            logger.debug(f"self._has_real_glyph(font_path, ch): {self._has_real_glyph(font_path, ch)}")
             if self._has_real_glyph(font_path, ch):
                 supported += 1
             if supported >= min_supported:
@@ -132,43 +132,43 @@ class FontManager:
         font = None
         test_chars = ["得", ]
 
-        logger.info(f"searching font for {size} size")
+        logger.debug(f"searching font for {size} size")
 
         try:
-            # # 1. Если задан конкретный путь
-            # if font_path and os.path.exists(font_path):
-            #     if self._supports_unicode(font_path, test_chars):
-            #         font = ImageFont.truetype(font_path, size)
-            #         logger.info(f"Using specified font: {font_path} (size: {size})")
+            # 1. Если задан конкретный путь
+            if font_path and os.path.exists(font_path):
+                if self._supports_unicode(font_path, test_chars):
+                    font = ImageFont.truetype(font_path, size)
+                    logger.info(f"Using specified font: {font_path} (size: {size})")
 
             # 1.5. Попробовать шрифты из скачанных
             if not font:
-                logger.info(f"Current directory: {os.getcwd()}")
+                logger.debug(f"Current directory: {os.getcwd()}")
 
                 # font_path_candidate = os.path.abspath(os.path.join(os.getcwd(), "./fonts/noto_cjk/NotoSansCJK-Regular.ttc"))
                 font_path_candidate = os.path.abspath(os.path.join(os.getcwd(), "./fonts/NotoSansSC-Regular/NotoSansSC-Regular.otf"))
-                logger.info(f"font_path_candidate: {font_path_candidate}")
+                logger.debug(f"font_path_candidate: {font_path_candidate}")
                 
                 if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
                     font = ImageFont.truetype(font_path_candidate, size)
-                    logger.info(f"Using downoaded font: {font_path_candidate} (size: {size})")
+                    logger.debug(f"Using downloaded font: {font_path_candidate} (size: {size})")
                    
-            # # 2. Попробовать шрифты из get_unicode_font_paths
-            # if not font:
-            #     for font_path_candidate in self.get_unicode_font_paths():
-            #         if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
-            #             font = ImageFont.truetype(font_path_candidate, size)
-            #             logger.info(f"Using Unicode font: {font_path_candidate} (size: {size})")
-            #             break
+            # 2. Попробовать шрифты из get_unicode_font_paths
+            if not font:
+                for font_path_candidate in self.get_unicode_font_paths():
+                    if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
+                        font = ImageFont.truetype(font_path_candidate, size)
+                        logger.info(f"Using Unicode font: {font_path_candidate} (size: {size})")
+                        break
 
-            # # 3. Проверить все системные шрифты
-            # if not font:
-            #     logger.info("Scanning all system fonts...")
-            #     for font_path_candidate in self._find_all_system_fonts():
-            #         if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
-            #             font = ImageFont.truetype(font_path_candidate, size)
-            #             logger.info(f"Found fallback Unicode font: {font_path_candidate} (size: {size})")
-            #             break
+            # 3. Проверить все системные шрифты
+            if not font:
+                logger.info("Scanning all system fonts...")
+                for font_path_candidate in self._find_all_system_fonts():
+                    if self._supports_unicode(font_path_candidate, test_chars, min_supported=1):
+                        font = ImageFont.truetype(font_path_candidate, size)
+                        logger.info(f"Found fallback Unicode font: {font_path_candidate} (size: {size})")
+                        break
 
             # 4. Fallback
             if not font:
@@ -180,7 +180,7 @@ class FontManager:
             font = None
 
         self._font_cache[cache_key] = font
-        logger.info(f"font: {font}: {font_path or 'auto'} (size: {size})")
+        logger.debug(f"font: {font}: {font_path or 'auto'} (size: {size})")
         return font
 
     def _load_and_test_font(self, font_path: str, size: int) -> Optional[ImageFont.ImageFont]:

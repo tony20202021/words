@@ -92,322 +92,6 @@ docs/
     └── ai_image_generation.md            # 🔥 ПОЛНОСТЬЮ ОБНОВЛЕН: реальная AI система
 ```
 
-## 🔥 Writing Service (Реальный AI микросервис генерации)
-
-```
-writing_service/
-├── app/
-│   ├── __init__.py
-│   ├── main_writing_service.py           # 🔥 РЕАЛЬНАЯ AI инициализация
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── models/
-│   │       │   ├── __init__.py
-│   │       │   ├── requests.py           # 🔥 Реальные AI запросы
-│   │       │   └── responses.py          # 🔥 Реальные AI ответы с метаданными
-│   │       ├── services/
-│   │       │   ├── __init__.py
-│   │       │   ├── writing_image_service.py  # 🔥 РЕАЛЬНАЯ AI интеграция
-│   │       │   └── validation_service.py     # 🔥 Универсальная валидация
-│   │       ├── writing_images.py         # 🔥 РЕАЛЬНАЯ AI генерация эндпоинты
-│   │       └── health.py                 # 🔥 AI health checks с GPU мониторингом
-│   ├── ai/                               # 🔥 РЕАЛЬНЫЕ AI компоненты
-│   │   ├── __init__.py
-│   │   ├── ai_image_generator.py         # 🔥 ОСНОВНОЙ AI ГЕНЕРАТОР (РЕАЛЬНЫЙ)
-│   │   ├── multi_controlnet_pipeline.py  # 🔥 Union ControlNet Pipeline (РЕАЛЬНЫЙ)
-│   │   ├── conditioning/                 # 🔥 РЕАЛЬНЫЕ Conditioning генераторы
-│   │   │   ├── __init__.py
-│   │   │   ├── base_conditioning.py     # 🔥 Базовый класс для conditioning
-│   │   │   ├── canny_conditioning.py    # 🔥 Canny edge detection (РЕАЛЬНЫЙ)
-│   │   │   ├── depth_conditioning.py    # 🔥 Depth estimation (РЕАЛЬНЫЙ)
-│   │   │   ├── segmentation_conditioning.py # 🔥 Сегментация (РЕАЛЬНЫЙ)
-│   │   │   ├── scribble_conditioning.py # 🔥 Scribble generation (РЕАЛЬНЫЙ)
-│   │   │   ├── preprocessing.py         # 🔥 Утилиты предобработки
-│   │   │   └── evaluation.py            # 🔥 Оценка качества conditioning
-│   │   ├── prompt/                       # 🔥 РЕАЛЬНЫЙ Prompt engineering
-│   │   │   ├── __init__.py
-│   │   │   ├── prompt_builder.py        # 🔥 РЕАЛЬНЫЙ построитель промптов
-│   │   │   └── style_definitions.py     # 🔥 РЕАЛЬНЫЕ стилевые определения
-│   │   ├── semantic/                     # 🔥 Семантический анализ (заготовка)
-│   │   │   ├── __init__.py
-│   │   │   ├── character_analyzer.py    # 🔥 Анализ иероглифов
-│   │   │   ├── radical_database.py      # 🔥 База радикалов
-│   │   │   └── visual_associations.py   # 🔥 Визуальные ассоциации
-│   │   ├── pipeline/                     # 🔥 РЕАЛЬНЫЕ AI Pipeline компоненты
-│   │   │   ├── __init__.py
-│   │   │   ├── pipeline_controlnet_union_sd_xl.py  # 🔥 Union ControlNet Pipeline
-│   │   │   └── pipeline_utils.py        # 🔥 Утилиты pipeline
-│   │   └── utils/                        # 🔥 AI утилиты
-│   │       ├── __init__.py
-│   │       ├── image_preprocessing.py   # 🔥 Предобработка для AI
-│   │       ├── tensor_utils.py          # 🔥 Работа с тензорами
-│   │       └── batch_processor.py       # 🔥 Batch обработка
-│   ├── models/                           # 🔥 РЕАЛЬНЫЕ AI модели
-│   │   ├── __init__.py
-│   │   ├── model_loader.py              # 🔥 РЕАЛЬНАЯ загрузка моделей
-│   │   ├── gpu_manager.py               # 🔥 РЕАЛЬНОЕ GPU управление
-│   │   ├── model_cache.py               # 🔥 Кэширование моделей
-│   │   ├── model_config.py              # 🔥 Конфигурации моделей
-│   │   └── controlnet_union.py          # 🔥 Union ControlNet модель
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   ├── dependencies.py
-│   │   └── exceptions.py
-│   └── utils/
-│       ├── __init__.py
-│       ├── config_holder.py
-│       ├── image_utils.py               # 🔥 РЕАЛЬНЫЙ ImageProcessor с AI
-│       └── logger.py                    # 🔥 Из common
-├── conf/
-│   ├── __init__.py
-│   └── config/
-│       ├── __init__.py
-│       ├── default.yaml
-│       ├── api.yaml                     # 🔥 РЕАЛЬНЫЕ AI настройки
-│       ├── generation.yaml              # 🔥 Базовые настройки генерации
-│       ├── ai_generation.yaml           # 🔥 ПОЛНАЯ РЕАЛЬНАЯ AI конфигурация
-│       └── logging.yaml
-├── requirements_cpu.txt                 # Базовые зависимости
-├── requirements_gpu.txt                 # 🔥 РЕАЛЬНЫЕ AI зависимости с GPU
-├── environment.yml                      # Базовое окружение  
-├── environment_gpu.yml                  # 🔥 РЕАЛЬНОЕ AI окружение с GPU
-├── logs/
-│   └── writing_service.log
-├── temp/
-│   ├── generated_images/                # 🔥 РЕАЛЬНЫЕ сгенерированные AI изображения
-│   └── model_cache/                     # 🔥 Кэш AI моделей
-├── cache/                               # 🔥 РЕАЛЬНЫЕ AI кэши
-│   ├── huggingface/                     # HuggingFace модели (Stable Diffusion XL, Union ControlNet)
-│   ├── transformers/                    # Transformers кэш
-│   ├── torch/                           # PyTorch кэш
-│   └── pytorch_kernel_cache/            # Compiled CUDA kernels
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_health.py
-    ├── test_writing_images.py
-    ├── test_validation_service.py        # 🔥 РЕАЛЬНЫЕ тесты валидации
-    ├── test_writing_image_service.py     # 🔥 РЕАЛЬНЫЕ тесты AI генерации
-    ├── test_ai/                          # 🔥 РЕАЛЬНЫЕ AI тесты
-    │   ├── __init__.py
-    │   ├── test_ai_image_generator.py    # 🔥 Тесты AI генератора
-    │   ├── test_multi_controlnet.py      # 🔥 Тесты Union ControlNet
-    │   ├── test_conditioning/            # 🔥 Тесты conditioning
-    │   │   ├── test_canny_conditioning.py
-    │   │   ├── test_depth_conditioning.py
-    │   │   ├── test_segmentation_conditioning.py
-    │   │   └── test_scribble_conditioning.py
-    │   ├── test_prompt/                  # 🔥 Тесты prompt engineering
-    │   │   ├── test_prompt_builder.py
-    │   │   └── test_style_definitions.py
-    │   └── test_models/                  # 🔥 Тесты AI моделей
-    │       ├── test_model_loader.py
-    │       └── test_gpu_manager.py
-    ├── integration/                      # 🔥 РЕАЛЬНЫЕ интеграционные AI тесты
-    │   ├── __init__.py
-    │   ├── test_full_ai_pipeline.py      # 🔥 Полный AI pipeline
-    │   └── test_gpu_scenarios.py         # 🔥 GPU сценарии
-    ├── fixtures/                         # 🔥 Тестовые данные
-    │   ├── __init__.py
-    │   ├── sample_characters.py          # 🔥 Тестовые иероглифы
-    │   └── mock_models.py                # 🔥 Mock AI модели
-    └── benchmarks/                       # 🔥 РЕАЛЬНЫЕ Performance тесты
-        ├── __init__.py
-        ├── performance_suite.py          # 🔥 AI performance benchmarks
-        └── memory_profiling.py           # 🔥 GPU memory профилирование
-```
-
-## Фронтенд (Telegram-бот)
-
-```
-frontend/
-├── app/
-│   ├── __init__.py
-│   ├── main_frontend.py
-│   ├── bot/
-│   │   ├── __init__.py
-│   │   ├── bot.py
-│   │   ├── states/
-│   │   │   ├── __init__.py
-│   │   │   └── centralized_states.py
-│   │   ├── handlers/
-│   │   │   ├── __init__.py
-│   │   │   ├── admin_handlers.py
-│   │   │   ├── common_handlers.py
-│   │   │   ├── language_handlers.py
-│   │   │   ├── study_handlers.py
-│   │   │   ├── user_handlers.py
-│   │   │   ├── admin/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── admin_basic_handlers.py
-│   │   │   │   ├── admin_language_handlers.py
-│   │   │   │   ├── admin_upload_handlers.py
-│   │   │   │   ├── admin_word_handlers.py
-│   │   │   │   ├── admin_ai_handlers.py  # 🔥 НОВЫЙ: AI администрирование
-│   │   │   │   └── file_upload/
-│   │   │   │       ├── __init__.py
-│   │   │   │       ├── language_router.py
-│   │   │   │       ├── file_router.py
-│   │   │   │       ├── column_router.py
-│   │   │   │       ├── column_type_router.py
-│   │   │   │       ├── settings_router.py
-│   │   │   │       └── template_router.py
-│   │   │   ├── user/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── basic_handlers.py
-│   │   │   │   ├── help_handlers.py
-│   │   │   │   ├── hint_handlers.py
-│   │   │   │   ├── settings_handlers.py
-│   │   │   │   ├── stats_handlers.py
-│   │   │   │   └── ai_image_handlers.py  # 🔥 НОВЫЙ: AI изображения для пользователей
-│   │   │   └── study/
-│   │   │       ├── __init__.py
-│   │   │       ├── study_commands.py
-│   │   │       ├── study_words.py
-│   │   │       ├── study_word_actions.py
-│   │   │       ├── study_hint_handlers.py
-│   │   │       ├── ai_writing_handlers.py  # 🔥 НОВЫЙ: AI генерация в изучении
-│   │   │       ├── hint/
-│   │   │       │   ├── __init__.py
-│   │   │       │   ├── common.py
-│   │   │       │   ├── create_handlers.py
-│   │   │       │   ├── edit_handlers.py
-│   │   │       │   ├── toggle_handlers.py
-│   │   │       │   └── unknown.py
-│   │   │       └── word_actions/
-│   │   │           ├── __init__.py
-│   │   │           ├── word_display_actions.py
-│   │   │           ├── word_evaluation_actions.py
-│   │   │           ├── word_navigation_actions.py
-│   │   │           └── word_utility_actions.py
-│   │   ├── keyboards/
-│   │   │   ├── __init__.py
-│   │   │   ├── admin_keyboards.py
-│   │   │   ├── user_keyboards.py
-│   │   │   ├── inline_keyboards.py
-│   │   │   ├── study_keyboards.py
-│   │   │   └── ai_keyboards.py          # 🔥 НОВЫЙ: клавиатуры для AI функций
-│   │   └── middleware/
-│   │       ├── __init__.py
-│   │       └── auth_middleware.py
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── client.py                     # 🔥 ОБНОВЛЕН: реальная Writing Service интеграция
-│   │   └── models/
-│   │       ├── __init__.py
-│   │       ├── language.py
-│   │       ├── user.py
-│   │       ├── word.py
-│   │       └── ai_models.py             # 🔥 НОВЫЙ: модели для AI запросов
-│   └── utils/
-│       ├── __init__.py
-│       ├── admin_utils.py
-│       ├── api_utils.py
-│       ├── audio_utils.py
-│       ├── callback_constants.py
-│       ├── error_utils.py
-│       ├── ffmpeg_utils.py
-│       ├── file_utils.py
-│       ├── formatting_utils.py
-│       ├── hint_constants.py
-│       ├── hint_settings_utils.py
-│       ├── logger.py
-│       ├── message_utils.py
-│       ├── settings_utils.py
-│       ├── state_models.py
-│       ├── user_utils.py
-│       ├── voice_recognition.py
-│       ├── voice_utils.py
-│       ├── word_data_utils.py
-│       ├── big_word_generator.py         # Генератор крупных изображений слов
-│       └── ai_utils.py                   # 🔥 НОВЫЙ: утилиты для AI интеграции
-├── conf/
-│   ├── __init__.py
-│   └── config/
-│       ├── __init__.py
-│       ├── default.yaml
-│       ├── bot.yaml
-│       ├── api.yaml                      # 🔥 ОБНОВЛЕН: реальный Writing Service URL
-│       ├── logging.yaml
-│       ├── learning.yaml
-│       └── ai.yaml                       # 🔥 НОВЫЙ: настройки AI интеграции
-├── logs/
-│   └── app.log
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_main.py
-│   ├── test_bot_commands.py
-│   ├── bot_test_framework/
-│   │   ├── __init__.py
-│   │   ├── bot_actions.py
-│   │   ├── bot_test_context.py
-│   │   ├── command_handler.py
-│   │   ├── message_handler.py
-│   │   ├── callback_handler.py
-│   │   ├── bot_test_scenario.py
-│   │   ├── bot_test_framework.py
-│   │   └── scenario_executor.py
-│   ├── test_scenarios/
-│   │   ├── __init__.py
-│   │   ├── test_user_scenario.py
-│   │   ├── test_ai_generation_scenario.py  # 🔥 НОВЫЙ: AI тесты сценариев
-│   │   └── scenarios/
-│   │       ├── start_help_settings.yaml
-│   │       ├── settings_toggle.yaml
-│   │       └── ai_generation_flow.yaml  # 🔥 НОВЫЙ: AI генерация сценарий
-│   ├── test_handlers/
-│   │   ├── test_user/
-│   │   │   ├── test_user_handlers.py
-│   │   │   ├── test_basic_handlers.py
-│   │   │   ├── test_help_handlers.py
-│   │   │   ├── test_settings_handlers.py
-│   │   │   ├── test_stats_handlers.py
-│   │   │   └── test_ai_image_handlers.py  # 🔥 НОВЫЙ: тесты AI изображений
-│   │   ├── test_admin/
-│   │   │   ├── test_admin_basic_handlers.py
-│   │   │   ├── test_admin_language_handlers.py
-│   │   │   ├── test_admin_upload_handlers.py
-│   │   │   ├── test_admin_upload_column_handlers.py
-│   │   │   ├── test_admin_upload_routers.py
-│   │   │   ├── test_admin_word_handlers.py
-│   │   │   └── test_admin_ai_handlers.py  # 🔥 НОВЫЙ: тесты AI администрирования
-│   │   └── test_study/
-│   │       ├── __init__.py
-│   │       ├── test_study_commands.py
-│   │       ├── test_study_words.py
-│   │       ├── test_ai_writing_handlers.py  # 🔥 НОВЫЙ: тесты AI в изучении
-│   │       ├── test_word_actions/
-│   │       │   ├── test_word_display_actions.py
-│   │       │   ├── test_word_evaluation_actions.py
-│   │       │   ├── test_word_navigation_actions.py
-│   │       │   └── test_word_utility_actions.py
-│   │       └── test_hint/
-│   │           ├── test_create_handlers.py
-│   │           ├── test_edit_handlers.py
-│   │           ├── test_toggle_handlers.py
-│   │           └── test_common.py
-│   ├── test_utils/
-│   │   ├── test_admin_utils.py
-│   │   ├── test_callback_constants.py
-│   │   ├── test_centralized_states.py
-│   │   ├── test_voice_utils.py
-│   │   ├── test_big_word_generator.py    # Тесты генератора изображений
-│   │   ├── test_hint_settings_utils.py
-│   │   ├── test_state_models.py
-│   │   ├── test_batch_loading.py
-│   │   └── test_ai_utils.py              # 🔥 НОВЫЙ: тесты AI утилит
-│   └── test_api/
-│       ├── __init__.py
-│       ├── test_client.py               # 🔥 ОБНОВЛЕН: реальные Writing Service тесты
-│       ├── test_ai_integration.py       # 🔥 НОВЫЙ: интеграционные AI тесты
-│       └── test_models.py
-└── watch_and_reload.py
-```
-
 ## Общие модули (Common)
 
 ```
@@ -424,6 +108,210 @@ common/
     └── test_font_utils.py               # 🔥 ОБНОВЛЕН: тесты FontManager для AI
 ```
 
+
+
+# Структура каталогов и файлов проекта (ОБНОВЛЕНО с Translation Service + Модульная архитектура)
+
+## 🔥 Writing Service (Реальный AI микросервис с переводом)
+
+```
+writing_service/
+├── app/
+│   ├── __init__.py
+│   ├── main_writing_service.py           # 🔥 РЕАЛЬНАЯ AI + Translation инициализация
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── routes/
+│   │       ├── __init__.py
+│   │       ├── models/
+│   │       │   ├── __init__.py
+│   │       │   ├── requests.py           # 🔥 AI + Translation запросы
+│   │       │   └── responses.py          # 🔥 AI + Translation ответы
+│   │       ├── services/
+│   │       │   ├── __init__.py
+│   │       │   ├── writing_image_service.py  # 🔥 AI + Translation интеграция
+│   │       │   └── validation_service.py
+│   │       ├── writing_images.py         # 🔥 AI + Translation эндпоинты
+│   │       └── health.py                 # 🔥 AI + Translation health checks
+│   ├── ai/                               # 🔥 РЕАЛЬНЫЕ AI компоненты
+│   │   ├── __init__.py
+│   │   ├── ai_image_generator.py         # 🔥 РЕФАКТОРИНГ: основной orchestrator
+│   │   ├── multi_controlnet_pipeline.py  # 🔥 Union ControlNet Pipeline
+│   │   ├── 🆕 core/                      # 🆕 МОДУЛЬНАЯ АРХИТЕКТУРА
+│   │   │   ├── __init__.py
+│   │   │   ├── generation_config.py     # 🆕 Конфигурация AI
+│   │   │   ├── generation_result.py     # 🆕 Результаты генерации
+│   │   │   ├── model_manager.py         # 🆕 Управление AI моделями
+│   │   │   ├── conditioning_manager.py  # 🆕 Conditioning генерация
+│   │   │   ├── translation_manager.py   # 🆕 Translation Service интеграция
+│   │   │   ├── prompt_manager.py        # 🆕 Prompt building
+│   │   │   └── image_processor.py       # 🆕 Обработка изображений
+│   │   ├── 🆕 services/                  # 🆕 TRANSLATION SERVICE
+│   │   │   ├── __init__.py
+│   │   │   └── translation_service.py   # 🆕 РЕАЛЬНЫЙ Translation Service
+│   │   ├── conditioning/                 # 🔥 РЕАЛЬНЫЕ Conditioning генераторы
+│   │   │   ├── __init__.py
+│   │   │   ├── base_conditioning.py
+│   │   │   ├── canny_conditioning.py    # 🔥 Canny edge detection
+│   │   │   ├── depth_conditioning.py    # 🔥 Depth estimation
+│   │   │   ├── segmentation_conditioning.py # 🔥 Сегментация
+│   │   │   └── scribble_conditioning.py # 🔥 Scribble generation
+│   │   ├── prompt/                       # 🔥 РЕАЛЬНЫЙ Prompt engineering
+│   │   │   ├── __init__.py
+│   │   │   ├── prompt_builder.py        # 🔥 РЕАЛЬНЫЙ построитель промптов
+│   │   │   └── style_definitions.py     # 🔥 РЕАЛЬНЫЕ стилевые определения
+│   │   ├── models/                       # 🔥 РЕАЛЬНЫЕ AI + Translation модели
+│   │   │   ├── __init__.py
+│   │   │   ├── model_loader.py          # 🔥 AI модели загрузка
+│   │   │   ├── gpu_manager.py           # 🔥 GPU управление
+│   │   │   ├── translation_model.py     # 🆕 РЕАЛЬНЫЕ Translation модели
+│   │   │   └── controlnet_union.py      # 🔥 Union ControlNet модель
+│   │   └── pipeline/                     # 🔥 РЕАЛЬНЫЕ AI Pipeline компоненты
+│   │       ├── __init__.py
+│   │       ├── pipeline_controlnet_union_sd_xl.py  # 🔥 Union ControlNet Pipeline
+│   │       └── pipeline_utils.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── config_holder.py
+│       ├── image_utils.py               # 🔥 РЕАЛЬНЫЙ ImageProcessor
+│       └── logger.py
+├── conf/
+│   ├── __init__.py
+│   └── config/
+│       ├── __init__.py
+│       ├── default.yaml                 # 🆕 ОБНОВЛЕН: подключает translation.yaml
+│       ├── api.yaml
+│       ├── generation.yaml
+│       ├── ai_generation.yaml           # 🔥 AI генерация (без translation)
+│       ├── 🆕 translation.yaml          # 🆕 ОТДЕЛЬНАЯ Translation конфигурация
+│       └── logging.yaml
+├── requirements_cpu.txt
+├── requirements_gpu.txt                 # 🆕 ОБНОВЛЕН: Translation зависимости
+├── environment.yml
+├── environment_gpu.yml                  # 🆕 ОБНОВЛЕН: Translation environment
+├── cache/                               # 🔥 РЕАЛЬНЫЕ AI + Translation кэши
+│   ├── huggingface/                     # HuggingFace модели
+│   │   ├── models--stabilityai--stable-diffusion-xl-base-1.0/
+│   │   ├── models--xinsir--controlnet-union-sdxl-1.0/
+│   │   ├── 🆕 models--Qwen--Qwen2-7B-Instruct/           # 🆕 Qwen модели
+│   │   ├── 🆕 models--facebook--nllb-200-3.3B/           # 🆕 NLLB модели
+│   │   └── 🆕 models--google--mt5-xl/                    # 🆕 mT5 модели
+│   ├── transformers/                    # Transformers кэш
+│   ├── torch/                           # PyTorch кэш
+│   ├── 🆕 translation_cache.json        # 🆕 Кэш переводов
+│   └── pytorch_kernel_cache/            # Compiled CUDA kernels
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_health.py
+    ├── test_writing_images.py
+    ├── test_ai/                          # 🔥 РЕАЛЬНЫЕ AI тесты
+    │   ├── __init__.py
+    │   ├── test_ai_image_generator.py
+    │   ├── test_multi_controlnet.py
+    │   ├── 🆕 test_core/                 # 🆕 Тесты модульной архитектуры
+    │   │   ├── test_translation_manager.py  # 🆕 Тесты Translation Manager
+    │   │   ├── test_model_manager.py        # 🆕 Тесты Model Manager
+    │   │   ├── test_conditioning_manager.py # 🆕 Тесты Conditioning Manager
+    │   │   ├── test_prompt_manager.py       # 🆕 Тесты Prompt Manager
+    │   │   └── test_image_processor.py      # 🆕 Тесты Image Processor
+    │   ├── 🆕 test_services/             # 🆕 Тесты Translation Service
+    │   │   ├── test_translation_service.py  # 🆕 РЕАЛЬНЫЕ тесты перевода
+    │   │   └── test_translation_models.py   # 🆕 Тесты Translation Models
+    │   ├── test_conditioning/
+    │   │   ├── test_canny_conditioning.py
+    │   │   ├── test_depth_conditioning.py
+    │   │   ├── test_segmentation_conditioning.py
+    │   │   └── test_scribble_conditioning.py
+    │   ├── test_prompt/
+    │   │   ├── test_prompt_builder.py
+    │   │   └── test_style_definitions.py
+    │   └── test_models/
+    │       ├── test_model_loader.py
+    │       ├── test_gpu_manager.py
+    │       └── 🆕 test_translation_model.py  # 🆕 Тесты Translation Models
+    ├── integration/
+    │   ├── __init__.py
+    │   ├── test_full_ai_pipeline.py
+    │   ├── 🆕 test_translation_pipeline.py   # 🆕 Интеграционные тесты перевода
+    │   └── test_gpu_scenarios.py
+    └── benchmarks/
+        ├── __init__.py
+        ├── performance_suite.py
+        ├── 🆕 translation_benchmarks.py     # 🆕 Бенчмарки Translation Service
+        └── memory_profiling.py
+```
+
+## Фронтенд (Telegram-бот)
+
+```
+frontend/
+├── app/
+│   ├── __init__.py
+│   ├── main_frontend.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── client.py                     # 🆕 ОБНОВЛЕН: Translation Service интеграция
+│   │   └── models/
+│   │       ├── __init__.py
+│   │       ├── language.py
+│   │       ├── user.py
+│   │       ├── word.py
+│   │       └── 🆕 ai_models.py           # 🆕 AI + Translation модели
+│   ├── handlers/
+│   │   ├── admin/
+│   │   │   ├── __init__.py
+│   │   │   ├── admin_basic_handlers.py
+│   │   │   ├── admin_language_handlers.py
+│   │   │   ├── admin_upload_handlers.py
+│   │   │   ├── admin_word_handlers.py
+│   │   │   └── 🆕 admin_ai_handlers.py   # 🆕 AI + Translation администрирование
+│   │   ├── user/
+│   │   │   ├── __init__.py
+│   │   │   ├── basic_handlers.py
+│   │   │   ├── help_handlers.py
+│   │   │   ├── hint_handlers.py
+│   │   │   ├── settings_handlers.py
+│   │   │   ├── stats_handlers.py
+│   │   │   └── 🆕 ai_image_handlers.py   # 🆕 AI + Translation для пользователей
+│   │   └── study/
+│   │       ├── __init__.py
+│   │       ├── study_commands.py
+│   │       ├── study_words.py
+│   │       ├── study_word_actions.py
+│   │       ├── study_hint_handlers.py
+│   │       └── 🆕 ai_writing_handlers.py # 🆕 AI + Translation в изучении
+│   └── utils/
+│       ├── __init__.py
+│       ├── admin_utils.py
+│       ├── api_utils.py
+│       ├── big_word_generator.py
+│       └── 🆕 ai_utils.py                # 🆕 AI + Translation утилиты
+├── conf/
+│   ├── __init__.py
+│   └── config/
+│       ├── __init__.py
+│       ├── default.yaml
+│       ├── bot.yaml
+│       ├── api.yaml                      # 🆕 ОБНОВЛЕН: Writing Service + Translation URL
+│       ├── logging.yaml
+│       ├── learning.yaml
+│       └── 🆕 ai.yaml                    # 🆕 AI + Translation настройки frontend
+└── tests/
+    ├── test_handlers/
+    │   ├── test_admin/
+    │   │   └── 🆕 test_admin_ai_handlers.py  # 🆕 Тесты AI администрирования
+    │   ├── test_user/
+    │   │   └── 🆕 test_ai_image_handlers.py  # 🆕 Тесты AI изображений
+    │   └── test_study/
+    │       └── 🆕 test_ai_writing_handlers.py # 🆕 Тесты AI в изучении
+    ├── test_utils/
+    │   └── 🆕 test_ai_utils.py              # 🆕 Тесты AI утилит
+    └── test_api/
+        ├── test_client.py               # 🆕 ОБНОВЛЕН: Translation Service тесты
+        └── 🆕 test_ai_integration.py    # 🆕 Интеграционные AI + Translation тесты
+```
+
 ## Служебные скрипты
 
 ```
@@ -434,10 +322,10 @@ scripts/
 ├── run_tests.py
 ├── migrate_data.py
 ├── admin_manager.py
-├── create_user_language_settings_collection.py
-├── ai_model_downloader.py               # 🔥 НОВЫЙ: загрузка AI моделей
-├── gpu_benchmark.py                     # 🔥 НОВЫЙ: бенчмарк GPU
-├── ai_warmup.py                         # 🔥 НОВЫЙ: прогрев AI моделей
-├── ai_model_optimizer.py               # 🔥 НОВЫЙ: оптимизация AI моделей
-└── ai_cache_cleaner.py                  # 🔥 НОВЫЙ: очистка AI кэшей
+├── 🆕 ai_model_downloader.py            # 🆕 Загрузка AI + Translation моделей
+├── 🆕 translation_model_downloader.py   # 🆕 Специально для Translation моделей
+├── 🆕 gpu_benchmark.py                  # 🆕 Бенчмарк GPU
+├── 🆕 ai_warmup.py                      # 🆕 Прогрев AI + Translation моделей
+├── 🆕 translation_cache_manager.py      # 🆕 Управление кэшем переводов
+└── 🆕 ai_cache_cleaner.py               # 🆕 Очистка AI кэшей
 ```

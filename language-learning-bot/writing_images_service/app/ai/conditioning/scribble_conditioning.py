@@ -32,7 +32,7 @@ class ScribbleConditioning(BaseConditioning):
         """
         super().__init__(config)
         
-        logger.info("ScribbleConditioning initialized")
+        logger.debug("ScribbleConditioning initialized")
     
     async def generate_from_image(
         self, 

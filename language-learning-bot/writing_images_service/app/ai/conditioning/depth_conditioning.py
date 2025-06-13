@@ -29,7 +29,7 @@ class DepthConditioning(BaseConditioning):
         """
         super().__init__(config)
         
-        logger.info("DepthConditioning initialized")
+        logger.debug("DepthConditioning initialized")
     
     async def generate_from_image(
         self, 

@@ -1,5 +1,6 @@
 # Основная конфигурация сервиса генерации картинок написания
-# Этот файл должен быть сохранен как writing_images_service/conf/config/default.yaml
+# Этот файл должен быть сохранен как writing_service/conf/config/default.yaml
+# ОБНОВЛЕНО: Добавлен translation.yaml для Translation Service
 
 # Подключение других конфигурационных файлов
 defaults:
@@ -7,30 +8,247 @@ defaults:
   - api@api
   - logging@logging
   - generation@generation
-
+  - ai_generation@ai_generation
+  - translation@translation  # НОВЫЙ: Конфигурация Translation Service
 
 # Настройки приложения
 app:
   # Название приложения
   name: "Writing Image Service"
   # Версия
-  version: "1.0.0"
+  version: "1.5.1"  # ОБНОВЛЕНО: Увеличена версия для Translation Service
   # Окружение (development, production)
   environment: "development"
   # Описание
-  description: "Service for generating writing images for language learning"
+  description: "Service for generating writing images for language learning with AI translation support"
+  
+  # НОВЫЙ: Компоненты системы
+  components:
+    ai_generation: true
+    translation_service: true
+    controlnet_union: true
+    caching: true
+    monitoring: true
   
 # Настройки временных файлов
 temp:
   # Директория для временных изображений
   images_dir: "./temp/generated_images"
+  # НОВЫЙ: Директория для translation кэша
+  translation_cache_dir: "./cache"
   # Автоочистка временных файлов (в секундах)
   cleanup_interval: 300  # 5 минут
   # Максимальный возраст файлов для удаления (в секундах)
   max_file_age: 1800  # 30 минут
+  
+  # НОВЫЙ: Настройки кэша
+  cache_cleanup:
+    enabled: true
+    max_cache_size_mb: 1000  # 1GB максимум для всех кэшей
+    cleanup_on_startup: false
 
 # Настройки производительности
 performance:
   max_concurrent_generations: 5
   generation_timeout: 30
   
+  # НОВЫЙ: Translation performance
+  max_concurrent_translations: 10
+  translation_timeout: 15
+  
+  # НОВЫЙ: Memory management
+  memory_management:
+    auto_cleanup_on_memory_pressure: true
+    memory_pressure_threshold_percent: 85
+    aggressive_cleanup_threshold_percent: 95
+
+# НОВЫЙ: Интеграционные настройки между компонентами
+integration:
+  # Настройки взаимодействия AI Generation и Translation Service
+  ai_translation:
+    enabled: true
+    mode: "async"  # async, sync, background
+    priority: "normal"  # high, normal, low
+    
+  # Pipeline настройки
+  pipeline:
+    enable_translation_in_generation: true
+    translation_timeout_in_pipeline: 20
+    fallback_on_translation_failure: true
+    
+  # Shared cache между компонентами
+  shared_cache:
+    enabled: true
+    max_shared_cache_size_mb: 500
+
+# НОВЫЙ: Мониторинг всей системы
+monitoring:
+  enabled: true
+  
+  # Компоненты для мониторинга
+  components:
+    ai_generation: true
+    translation_service: true
+    memory_usage: true
+    performance_metrics: true
+    error_tracking: true
+  
+  # Intervals
+  health_check_interval_seconds: 30
+  metrics_collection_interval_seconds: 60
+  log_rotation_interval_hours: 24
+  
+  # Alerting
+  alerts:
+    enabled: false
+    error_rate_threshold_percent: 5
+    memory_usage_threshold_percent: 90
+    translation_failure_threshold_percent: 10
+
+# НОВЫЙ: Настройки окружения
+environment_specific:
+  development:
+    # Быстрая отладка
+    enable_debug_mode: true
+    verbose_logging: true
+    save_intermediate_results: true
+    
+    # Translation debugging
+    translation_debug:
+      save_translation_examples: true
+      log_all_translations: true
+      enable_translation_metrics: true
+    
+    # Performance relaxed для dev
+    performance:
+      max_concurrent_generations: 2
+      max_concurrent_translations: 5
+      
+  production:
+    # Production оптимизации
+    enable_debug_mode: false
+    verbose_logging: false
+    save_intermediate_results: false
+    
+    # Translation production settings
+    translation_production:
+      aggressive_caching: true
+      batch_processing: false  # Пока не поддерживается
+      connection_pooling: false
+    
+    # Performance optimized для prod
+    performance:
+      max_concurrent_generations: 8
+      max_concurrent_translations: 15
+
+# НОВЫЙ: Health checks конфигурация
+health_checks:
+  enabled: true
+  
+  # Компоненты для проверки
+  checks:
+    ai_models_loaded: true
+    translation_service_ready: true
+    gpu_availability: true
+    memory_usage: true
+    cache_accessibility: true
+    
+  # Таймауты для health checks
+  timeouts:
+    ai_model_check_seconds: 10
+    translation_check_seconds: 5
+    gpu_check_seconds: 3
+    cache_check_seconds: 2
+  
+  # Результаты health checks
+  response_format: "detailed"  # minimal, detailed, full
+
+# НОВЫЙ: Startup настройки
+startup:
+  # Последовательность инициализации
+  initialization_order:
+    - "gpu_detection"
+    - "cache_setup" 
+    - "translation_service"
+    - "ai_models"
+    - "pipeline_setup"
+    - "health_checks"
+  
+  # Таймауты инициализации
+  timeouts:
+    total_startup_timeout_seconds: 300  # 5 минут максимум
+    translation_service_init_seconds: 120
+    ai_models_init_seconds: 180
+    
+  # Настройки warm-up
+  warmup:
+    enabled: true
+    warmup_translation_service: true
+    warmup_ai_pipeline: true
+    warmup_examples:
+      - character: "学"
+        translation: "учить"
+      - character: "写"  
+        translation: "писать"
+
+# НОВЫЙ: Error handling и recovery
+error_handling:
+  # Стратегии восстановления
+  recovery_strategies:
+    translation_service_failure:
+      - "restart_translation_service"
+      - "switch_to_fallback_model"
+      - "use_cache_only"
+      - "disable_translation"
+    
+    ai_generation_failure:
+      - "clear_gpu_memory"
+      - "reload_models"
+      - "restart_pipeline"
+    
+    memory_pressure:
+      - "clear_caches"
+      - "unload_unused_models"
+      - "enable_cpu_offload"
+  
+  # Retry настройки
+  retry_config:
+    max_retries: 3
+    retry_delay_seconds: 5
+    exponential_backoff: true
+    
+# НОВЫЙ: Security настройки
+security:
+  # API security
+  api:
+    enable_rate_limiting: true
+    max_requests_per_minute: 100
+    enable_request_validation: true
+    
+  # Model security
+  models:
+    verify_model_checksums: false  # Для HuggingFace моделей
+    allow_remote_code: true        # Нужно для Qwen моделей
+    trust_remote_code_sources: ["Qwen"]
+    
+  # Cache security
+  cache:
+    encrypt_cache_files: false
+    validate_cache_integrity: true
+
+# НОВЫЙ: Features flags
+features:
+  # Экспериментальные фичи
+  experimental:
+    enable_batch_translation: false
+    enable_async_pipeline: true
+    enable_model_switching: true
+    enable_dynamic_memory_management: true
+    
+  # Stable features
+  stable:
+    enable_caching: true
+    enable_fallback_strategies: true
+    enable_monitoring: true
+    enable_health_checks: true
+    

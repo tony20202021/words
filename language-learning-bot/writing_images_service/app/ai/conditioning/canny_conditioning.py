@@ -33,7 +33,7 @@ class CannyConditioning(BaseConditioning):
         self._structured_edge_model = None
         self._model_loading_attempted = False
         
-        logger.info("CannyConditioning initialized")
+        logger.debug("CannyConditioning initialized")
     
     async def generate_from_image(
         self, 
