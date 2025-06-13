@@ -2,6 +2,7 @@
 Writing image generation service.
 Сервис генерации картинок написания.
 REAL AI IMPLEMENTATION - uses actual AI models for generation.
+ОБНОВЛЕНО: Добавлена поддержка пользовательской подсказки hint_writing
 """
 
 import time
@@ -22,6 +23,7 @@ class GenerationResult:
     """
     Result of image generation operation.
     Результат операции генерации изображения.
+    ОБНОВЛЕНО: Добавлена поддержка метаданных пользовательской подсказки
     """
     
     def __init__(
@@ -34,6 +36,8 @@ class GenerationResult:
         base_image_base64: Optional[str] = None,
         conditioning_images_base64: Optional[Dict[str, Dict[str, str]]] = None,
         prompt_used: Optional[str] = None,
+        # НОВОЕ: метаданные пользовательской подсказки
+        user_hint_metadata: Optional[Dict[str, Any]] = None,
     ):
         self.success = success
         self.image_data_base64 = image_data_base64
@@ -43,17 +47,20 @@ class GenerationResult:
         self.base_image_base64 = base_image_base64
         self.conditioning_images_base64 = conditioning_images_base64
         self.prompt_used = prompt_used
+        self.user_hint_metadata = user_hint_metadata or {}
 
 
 class WritingImageService:
     """
     Service for generating writing images using real AI models.
     Сервис для генерации картинок написания с использованием реальных AI моделей.
+    ОБНОВЛЕНО: Поддержка пользовательских подсказок hint_writing
     """
     
     def __init__(self):
         """Initialize the writing image service."""
         self.generation_count = 0
+        self.hint_usage_count = 0  # НОВОЕ: счетчик использования подсказок
         self.start_time = time.time()
         self.image_processor = get_image_processor()
         
@@ -65,7 +72,7 @@ class WritingImageService:
         self._ai_initialization_lock = asyncio.Lock()
         self._ai_initialized = False
         
-        logger.info("WritingImageService initialized with real AI generation (ControlNet Union)")
+        logger.info("WritingImageService initialized with real AI generation and hint support")
     
     def _load_config(self):
         """Load configuration from Hydra config."""
@@ -76,6 +83,14 @@ class WritingImageService:
         
         # AI Generation defaults
         self.ai_config = AIGenerationConfig()
+        
+        # НОВОЕ: настройки для пользовательских подсказок
+        self.hint_config = {
+            "max_hint_length": 200,
+            "translate_hints": True,
+            "include_hints_in_prompt": True,
+            "hint_weight": 0.3,  # Вес подсказки в финальном промпте
+        }
         
         try:
             if hasattr(config_holder, 'cfg'):
@@ -123,12 +138,23 @@ class WritingImageService:
                         self.ai_config.enable_attention_slicing = gpu_cfg.get('enable_attention_slicing', True)
                         self.ai_config.enable_cpu_offload = gpu_cfg.get('enable_cpu_offload', False)
                 
-                # UPDATED: Log union model info
+                # НОВОЕ: Load hint configuration
+                if hasattr(cfg, 'user_hints'):
+                    hint_cfg = cfg.user_hints
+                    self.hint_config.update({
+                        "max_hint_length": hint_cfg.get('max_length', 200),
+                        "translate_hints": hint_cfg.get('translate', True),
+                        "include_hints_in_prompt": hint_cfg.get('include_in_prompt', True),
+                        "hint_weight": hint_cfg.get('weight', 0.3),
+                    })
+                
+                # UPDATED: Log union model info + hint support
                 controlnet_info = "Union ControlNet" if "union" in self.ai_config.controlnet_models else "Separate ControlNets"
                 logger.info(f"Loaded AI config: model={self.ai_config.base_model}, "
                            f"controlnet={controlnet_info}, "
                            f"device={self.ai_config.device}, "
-                           f"steps={self.ai_config.num_inference_steps}")
+                           f"steps={self.ai_config.num_inference_steps}, "
+                           f"hint_support=enabled")
                 
         except Exception as e:
             logger.warning(f"Could not load full AI config, using defaults: {e}")
@@ -145,23 +171,24 @@ class WritingImageService:
                 return
             
             try:
-                logger.info("Initializing AI Image Generator with ControlNet Union...")
+                logger.info("Initializing AI Image Generator with ControlNet Union + hint support...")
                 start_time = time.time()
                 
-                # Create AI Generator with config
+                # Create AI Generator with config (now includes hint support)
                 self.ai_generator = AIImageGenerator(self.ai_config)
                 
                 init_time = time.time() - start_time
                 self._ai_initialized = True
                 
-                logger.info(f"✓ AI Image Generator with ControlNet Union initialized successfully in {init_time:.1f}s")
+                logger.info(f"✓ AI Image Generator with ControlNet Union + hint support initialized successfully in {init_time:.1f}s")
                 
                 # Log AI status
                 ai_status = await self.ai_generator.get_generation_status()
                 controlnet_model = ai_status.get('controlnet_model', 'unknown')
                 logger.info(f"AI Status: models_loaded={ai_status.get('models_loaded')}, "
                            f"pipeline_ready={ai_status.get('pipeline_ready')}, "
-                           f"controlnet_model={controlnet_model}")
+                           f"controlnet_model={controlnet_model}, "
+                           f"hint_support=true")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize AI Image Generator: {e}")
@@ -172,12 +199,13 @@ class WritingImageService:
     async def generate_image(self, request: AIImageRequest) -> GenerationResult:
         """
         Generate writing image for the given request using real AI models.
+        ОБНОВЛЕНО: Поддержка пользовательской подсказки hint_writing
         
         Args:
-            request: Writing image generation request
+            request: Writing image generation request with optional user hint
             
         Returns:
-            GenerationResult: Result of generation
+            GenerationResult: Result of generation with hint metadata
             
         Raises:
             RuntimeError: If generation fails
@@ -185,7 +213,9 @@ class WritingImageService:
         start_time = time.time()
         
         try:
-            logger.info(f"Generating AI image for word: '{request.word}', translation: '{request.translation}'")
+            # Логируем с информацией о подсказке
+            hint_info = f", hint: '{request.hint_writing}'" if request.has_user_hint() else ""
+            logger.info(f"Generating AI image for word: '{request.word}', translation: '{request.translation}'{hint_info}")
             
             # Ensure AI is initialized
             await self._ensure_ai_initialized()
@@ -213,14 +243,30 @@ class WritingImageService:
             # Extract seed if provided
             seed = getattr(request, 'seed', None)
             
+            # НОВОЕ: Extract style if provided
+            style = getattr(request, 'style', 'comic')
+            
             logger.debug(f"Generation params: {generation_params}")
             logger.debug(f"Conditioning weights: {conditioning_weights}")
-            logger.debug(f"Seed: {seed}")
+            logger.debug(f"Seed: {seed}, Style: {style}")
             
-            # Generate AI image
+            # НОВОЕ: Prepare hint data
+            hint_data = None
+            if request.has_user_hint():
+                hint_data = {
+                    "hint_writing": request.hint_writing,
+                    "translate": self.hint_config["translate_hints"],
+                    "include_in_prompt": self.hint_config["include_hints_in_prompt"],
+                    "weight": self.hint_config["hint_weight"]
+                }
+                logger.debug(f"User hint data: {hint_data}")
+            
+            # ОБНОВЛЕНО: Generate AI image with hint support
             ai_result = await self.ai_generator.generate_character_image(
                 character=request.word,
                 translation=request.translation,
+                user_hint=request.hint_writing if request.has_user_hint() else None,  # НОВОЕ
+                style=style,  # НОВОЕ
                 conditioning_weights=conditioning_weights,
                 include_conditioning_images=request.include_conditioning_images,
                 include_prompt=request.include_prompt,
@@ -235,7 +281,7 @@ class WritingImageService:
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
             
-            # UPDATED: Create metadata with union model info
+            # ОБНОВЛЕНО: Create metadata with union model info + hint metadata
             metadata = AIGenerationMetadata(
                 generation_time_ms=generation_time_ms,
                 ai_model_used=self.ai_config.base_model,
@@ -248,13 +294,32 @@ class WritingImageService:
                 total_processing_time_ms=ai_result.generation_metadata.get('generation_time_ms', 0)
             )
             
+            # НОВОЕ: Add hint metadata to main metadata
+            if request.has_user_hint():
+                # Добавляем метаданные о подсказке в основной объект metadata
+                hint_metadata = ai_result.generation_metadata.get('user_hint_metadata', {})
+                metadata.user_hint_original = request.hint_writing
+                metadata.user_hint_translated = hint_metadata.get('translated_hint', request.hint_writing)
+                metadata.user_hint_used = hint_metadata.get('used_in_prompt', False)
+                metadata.translation_source = hint_metadata.get('translation_source', 'fallback')
+                
+                # Обновляем счетчик использования подсказок
+                self.hint_usage_count += 1
+            
             # Update statistics
             self.generation_count += 1
+            
+            # Логируем с информацией о подсказке
+            hint_result_info = ""
+            if request.has_user_hint():
+                translated_hint = getattr(metadata, 'user_hint_translated', request.hint_writing)
+                hint_used = getattr(metadata, 'user_hint_used', False)
+                hint_result_info = f" (hint: '{request.hint_writing}' -> '{translated_hint}', used: {hint_used})"
             
             logger.info(f"✓ Generated AI image for word: {request.word} "
                        f"(total_time: {generation_time_ms}ms, "
                        f"ai_time: {ai_result.generation_metadata.get('generation_time_ms')}ms, "
-                       f"size: {len(ai_result.generated_image_base64)} chars)")
+                       f"size: {len(ai_result.generated_image_base64)} chars{hint_result_info})")
             
             return GenerationResult(
                 success=True,
@@ -264,6 +329,7 @@ class WritingImageService:
                 base_image_base64=ai_result.base_image_base64,
                 conditioning_images_base64=ai_result.conditioning_images_base64,
                 prompt_used=ai_result.prompt_used,
+                user_hint_metadata=ai_result.generation_metadata.get('user_hint_metadata', {})  # НОВОЕ
             )
             
         except Exception as e:
@@ -283,8 +349,8 @@ class WritingImageService:
     
     async def get_service_status(self) -> Dict[str, Any]:
         """
-        Get service status information including AI components.
-        Получает информацию о статусе сервиса включая AI компоненты.
+        Get service status information including AI components and hint support.
+        Получает информацию о статусе сервиса включая AI компоненты и поддержку подсказок.
         
         Returns:
             Dict with service status
@@ -294,10 +360,15 @@ class WritingImageService:
         base_status = {
             "service": "writing_image_service",
             "status": "healthy",
-            "version": "1.0.0",
+            "version": "1.5.1",  # ОБНОВЛЕНО: версия с поддержкой подсказок
             "uptime_seconds": uptime_seconds,
             "total_generations": self.generation_count,
-            "implementation": "real_ai_generation_union",  # UPDATED
+            "hint_usage_count": self.hint_usage_count,  # НОВОЕ
+            "hint_usage_percentage": (
+                (self.hint_usage_count / self.generation_count * 100) 
+                if self.generation_count > 0 else 0
+            ),  # НОВОЕ
+            "implementation": "real_ai_generation_union_with_hints",  # UPDATED
             "supported_formats": ["png"],
             "max_image_size": {"width": 2048, "height": 2048},
             "default_image_size": {"width": self.default_width, "height": self.default_height},
@@ -309,8 +380,12 @@ class WritingImageService:
                 "prompt_engineering": True,
                 "style_variations": True,
                 "seed_control": True,
-                "universal_language_support": True
-            }
+                "universal_language_support": True,
+                "user_hints": True,  # НОВОЕ
+                "hint_translation": self.hint_config["translate_hints"],  # НОВОЕ
+                "translation_service": True  # НОВОЕ
+            },
+            "hint_config": self.hint_config  # НОВОЕ
         }
         
         # Add AI status if available
@@ -318,7 +393,7 @@ class WritingImageService:
             try:
                 ai_status = await self.ai_generator.get_generation_status()
                 base_status["ai_status"] = ai_status
-                base_status["status"] = "healthy_with_ai"
+                base_status["status"] = "healthy_with_ai_and_hints"
             except Exception as e:
                 logger.warning(f"Could not get AI status: {e}")
                 base_status["ai_status"] = {"error": str(e)}
@@ -331,7 +406,7 @@ class WritingImageService:
             if not self._ai_initialized:
                 base_status["status"] = "initializing"
         
-        # UPDATED: Add configuration info for union model
+        # UPDATED: Add configuration info for union model + hints
         base_status["ai_config"] = {
             "base_model": self.ai_config.base_model,
             "device": self.ai_config.device,
@@ -339,7 +414,9 @@ class WritingImageService:
             "controlnet_types_supported": ["canny", "depth", "segmentation", "scribble"],
             "inference_steps": self.ai_config.num_inference_steps,
             "guidance_scale": self.ai_config.guidance_scale,
-            "image_size": (self.ai_config.width, self.ai_config.height)
+            "image_size": (self.ai_config.width, self.ai_config.height),
+            "hint_support": True,  # НОВОЕ
+            "max_hint_length": self.hint_config["max_hint_length"]  # НОВОЕ
         }
         
         return base_status
@@ -348,12 +425,13 @@ class WritingImageService:
         """
         Warm up AI models for faster generation.
         Прогревает AI модели для более быстрой генерации.
+        ОБНОВЛЕНО: Включает тестирование подсказок
         
         Returns:
             Dict with warmup results
         """
         try:
-            logger.info("Starting AI warmup with ControlNet Union...")
+            logger.info("Starting AI warmup with ControlNet Union + hint support...")
             start_time = time.time()
             
             # Ensure AI is initialized
@@ -362,18 +440,26 @@ class WritingImageService:
             if not self.ai_generator:
                 return {"success": False, "error": "AI Generator not available"}
             
-            # Perform a few warmup generations
-            warmup_characters = ["测", "试", "验"]
+            # Perform a few warmup generations including hints
+            warmup_data = [
+                {"char": "测", "hint": ""},
+                {"char": "试", "hint": "красивый рисунок"},
+                {"char": "验", "hint": ""}
+            ]
             warmup_results = []
             
-            for char in warmup_characters:
+            for data in warmup_data:
                 try:
-                    logger.debug(f"Warming up with character: {char}")
+                    char = data["char"]
+                    hint = data["hint"]
+                    hint_info = f" with hint: '{hint}'" if hint else ""
+                    logger.debug(f"Warming up with character: {char}{hint_info}")
                     char_start = time.time()
                     
                     result = await self.ai_generator.generate_character_image(
                         character=char,
                         translation=f"warmup_{char}",
+                        user_hint=hint if hint else None,  # НОВОЕ: тестируем подсказки
                         include_conditioning_images=False,
                         include_prompt=False
                     )
@@ -381,32 +467,41 @@ class WritingImageService:
                     char_time = int((time.time() - char_start) * 1000)
                     warmup_results.append({
                         "character": char,
+                        "hint": hint,
                         "success": result.success,
                         "time_ms": char_time,
-                        "error": result.error_message if not result.success else None
+                        "error": result.error_message if not result.success else None,
+                        "hint_used": bool(hint and result.success)  # НОВОЕ
                     })
                     
                 except Exception as e:
-                    logger.warning(f"Warmup failed for character {char}: {e}")
+                    logger.warning(f"Warmup failed for character {data['char']}: {e}")
                     warmup_results.append({
-                        "character": char,
+                        "character": data["char"],
+                        "hint": data["hint"],
                         "success": False,
-                        "error": str(e)
+                        "error": str(e),
+                        "hint_used": False
                     })
             
             total_warmup_time = int((time.time() - start_time) * 1000)
             successful_warmups = sum(1 for r in warmup_results if r["success"])
+            hint_warmups = sum(1 for r in warmup_results if r.get("hint_used", False))
             
-            logger.info(f"✓ AI warmup with ControlNet Union completed: {successful_warmups}/{len(warmup_characters)} successful "
+            logger.info(f"✓ AI warmup with ControlNet Union + hint support completed: "
+                       f"{successful_warmups}/{len(warmup_data)} successful, "
+                       f"{hint_warmups} with hints tested, "
                        f"in {total_warmup_time}ms")
             
             return {
                 "success": True,
                 "total_time_ms": total_warmup_time,
                 "successful_warmups": successful_warmups,
-                "total_warmups": len(warmup_characters),
+                "total_warmups": len(warmup_data),
+                "hint_warmups_tested": hint_warmups,  # НОВОЕ
                 "warmup_results": warmup_results,
-                "controlnet_model": "union"  # UPDATED
+                "controlnet_model": "union",  # UPDATED
+                "hint_support": True  # НОВОЕ
             }
             
         except Exception as e:

@@ -320,6 +320,7 @@ async def process_show_writing_image(
         # Extract word
         word_foreign = current_word.get("word_foreign", "")
         translation = current_word.get("translation", "")
+        hint_writing = current_word.get("hint_writing", "")
         
         if not word_foreign:
             await message.answer("❌ Слово на иностранном языке не найдено")
@@ -335,6 +336,7 @@ async def process_show_writing_image(
         request_result = await client.generate_writing_image(
             word=word_foreign,
             translation=translation,
+            hint_writing=hint_writing,
             show_debug=show_debug,
         )
         logger.info(f"Writing image result: {request_result['success']}")

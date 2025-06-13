@@ -53,7 +53,7 @@ class WritingImageClient:
         self, 
         word: str, 
         translation: str = "",
-        # TODO - добавить hint_writing
+        hint_writing: str = "",
         show_debug: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -63,6 +63,7 @@ class WritingImageClient:
         Args:
             word: Word to generate image for
             translation: Translation of the word
+            hint_writing: Hint for writing the word
             show_debug: Whether to show debug information
             
         Returns:
