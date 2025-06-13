@@ -53,6 +53,7 @@ class WritingImageClient:
         self, 
         word: str, 
         translation: str = "",
+        # TODO - добавить hint_writing
         show_debug: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -99,6 +100,7 @@ class WritingImageClient:
         request_data = {
             "word": word,
             "translation": translation,
+            "hint_writing": hint_writing,
             "width": width,
             "height": height,
             "include_conditioning_images": include_conditioning_images,
