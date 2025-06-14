@@ -49,6 +49,9 @@ async def generate_writing_image(
     Raises:
         HTTPException: If generation fails
     """
+    # TODO - если в парамтере hint_writing передает None - то сюда выполнение вообще не доходит
+    # исправить
+
     try:
         # Логируем информацию о запросе с подсказкой
         hint_info = f", hint: '{request.hint_writing}'" if request.has_user_hint() else ""
