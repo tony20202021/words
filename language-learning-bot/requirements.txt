@@ -132,3 +132,5 @@ pickle5>=0.0.12  # Better pickle support
 # ============ COMPATIBILITY ============
 typing-extensions>=4.7.0
 packaging>=23.0
+
+freetype-py

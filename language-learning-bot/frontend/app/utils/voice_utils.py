@@ -193,7 +193,7 @@ async def process_hint_input(
     """
     hint_text = await get_text_or_voice(
         message,
-        voice_processing_message=f"🎙️ Распознаю голосовую подсказку для «{hint_name}»...",
+        voice_processing_message=f"🎙️ Распознаю голосовую подсказку для «{hint_name}». Ожидаемое время: 10 секунд...",
         show_voice_result=False  # We'll show custom message
     )
     
