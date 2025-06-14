@@ -140,7 +140,6 @@ class PromptBuilder:
             translation: Перевод
             style: Стиль генерации
             style_data: Данные стиля
-            semantic_data: Семантические данные
             include_visual: Включать визуальные элементы
             include_cultural: Включать культурный контекст
             custom_elements: Дополнительные элементы

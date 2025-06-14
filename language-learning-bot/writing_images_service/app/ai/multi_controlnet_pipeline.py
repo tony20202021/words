@@ -505,6 +505,7 @@ class MultiControlNetPipeline:
                 logger.debug(f"Union ControlNet active types: {prepared_controls['used_types']}")
             
             logger.info(f"pipeline_args={pipeline_args.keys()}")
+            logger.info(f"pipeline_args[guidance_scale]={pipeline_args['guidance_scale']}")
 
             # Запускаем генерацию
             with torch.no_grad():

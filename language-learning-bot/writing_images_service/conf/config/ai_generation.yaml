@@ -22,14 +22,7 @@ ai_generation:
     width: 512
     height: 512
     batch_size: 4  # Можно увеличить для 80GB VRAM
-    
-  # UPDATED: Union ControlNet conditioning weights
-  conditioning_weights:
-    canny: 0.8
-    depth: 0.6
-    segmentation: 0.5
-    scribble: 0.4
-      
+        
   # Настройки conditioning генерации
   conditioning:
     # Методы генерации контуров
@@ -68,7 +61,6 @@ ai_generation:
         - "stroke_thickness_depth"
         - "distance_transform_depth"
         - "morphological_depth"
-        - "ai_depth_estimation"
         - "multi_layer_depth"
       
       default_method: "black_and_white_depth"
@@ -92,7 +84,6 @@ ai_generation:
         - "black_and_white_segmentation"
         - "radical_segmentation"
         - "stroke_type_segmentation"
-        - "ai_segmentation"
         - "color_based_segmentation"
       
       default_method: "black_and_white_segmentation"
@@ -122,7 +113,6 @@ ai_generation:
         - "skeletonization_scribble"
         - "morphological_simplification"
         - "vectorization_simplification"
-        - "ai_sketch_generation"
         - "hand_drawn_simulation"
         - "multi_level_abstraction"
         - "style_aware_scribble"
@@ -166,26 +156,6 @@ ai_generation:
         enabled: true
         variant: "cc-cedict"
         
-    # Визуальные ассоциации
-    visual_associations:
-      color_mappings:
-        fire: ["red", "orange", "yellow", "bright"]
-        water: ["blue", "cyan", "transparent", "flowing"]
-        wood: ["brown", "green", "natural", "growing"]
-        metal: ["silver", "gold", "metallic", "shiny", "hard"]
-        earth: ["brown", "yellow", "muddy", "stable"]
-        
-      texture_mappings:
-        fire: ["flickering", "dancing", "glowing", "consuming"]
-        water: ["flowing", "rippling", "smooth", "wet"]
-        wood: ["rough", "textured", "organic", "fibrous"]
-        metal: ["polished", "reflective", "smooth", "cold"]
-        earth: ["granular", "rocky", "solid", "dusty"]
-        
-      motion_mappings:
-        fire: ["upward", "dancing", "consuming", "spreading"]
-        water: ["flowing", "cascading", "rippling", "dripping"]
-        wind: ["swirling", "gentle", "strong", "directional"]
         
   # GPU настройки для 80GB VRAM
   gpu:
@@ -209,17 +179,14 @@ ai_generation:
   prompt_engineering:
     # Базовые шаблоны промптов
     base_templates:
-      comic: "A vibrant comic book style illustration of {meaning}, inspired by Chinese character {character}"
-      watercolor: "A soft watercolor painting depicting {meaning}, with flowing brushstrokes inspired by {character}"
-      realistic: "A detailed realistic illustration representing {meaning}, maintaining the essence of Chinese character {character}"
-      anime: "An anime-style artwork showing {meaning}, stylized after the Chinese character {character}"
-      
-    # Модификаторы стиля
-    style_modifiers:
-      comic: "bold outlines, vibrant colors, pop art style, graphic novel aesthetic"
-      watercolor: "soft edges, bleeding colors, artistic brushstrokes, delicate washes"
-      realistic: "photorealistic, detailed textures, natural lighting, high definition"
-      anime: "cell shading, bright colors, expressive style, manga influence"
+      anime: "An anime-style artwork showing concept: {meaning}, stylized in the form of Chinese character {character}. {hint}"
+      cartoon: "A cartoon picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
+      comics: "A vibrant comics book style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint}"
+      cyberpunk: "A cyberpunk style picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
+      disney: "A Disney animation style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint}"
+      realistic: "A detailed realistic illustration representing concept: {meaning}, maintaining the form of Chinese character {character}. {hint}"
+      techno: "A modern techno style picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
+      watercolor: "A soft watercolor painting depicting concept: {meaning}, with flowing brushstrokes in the form of Chinese character {character}. {hint}"
       
   # Мониторинг и отладка
   monitoring:

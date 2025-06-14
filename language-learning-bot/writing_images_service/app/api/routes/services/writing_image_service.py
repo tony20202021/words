@@ -270,7 +270,6 @@ class WritingImageService:
                 conditioning_weights=conditioning_weights,
                 include_conditioning_images=request.include_conditioning_images,
                 include_prompt=request.include_prompt,
-                include_semantic_analysis=request.include_semantic_analysis,
                 seed=seed,
                 **generation_params
             )

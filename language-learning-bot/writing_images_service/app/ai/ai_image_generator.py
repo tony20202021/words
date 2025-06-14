@@ -62,7 +62,6 @@ class AIImageGenerator:
         conditioning_methods: Optional[Dict[str, str]] = None,
         include_conditioning_images: bool = False,
         include_prompt: bool = False,
-        include_semantic_analysis: bool = False,
         seed: Optional[int] = None,
         **generation_params
     ) -> AIGenerationResult:
@@ -79,7 +78,6 @@ class AIImageGenerator:
             conditioning_methods: Методы для разных типов conditioning
             include_conditioning_images: Включать ли conditioning изображения в результат
             include_prompt: Включать ли промпт в результат
-            include_semantic_analysis: Включать ли semantic analysis в результат
             seed: Seed для воспроизводимости
             **generation_params: Дополнительные параметры генерации
             
@@ -151,6 +149,9 @@ class AIImageGenerator:
             )
             logger.info(f"✓ Generated prompt: '{prompt_result.main_prompt[:100]}...'")
             
+            logger.info(f"generation_params={generation_params.keys()}")
+            logger.info(f"generation_params[guidance_scale]={generation_params['guidance_scale']}")
+            
             # 7. AI генерация
             final_image = await self.model_manager.run_generation(
                 prompt=prompt_result.main_prompt,
@@ -178,8 +179,8 @@ class AIImageGenerator:
                 generation_time_ms=generation_time_ms,
                 seed_used=seed,
                 model_config=self.config,
-                user_hint_metadata=user_hint_data,  # НОВОЕ: метаданные подсказки
-                style_used=style  # НОВОЕ: использованный стиль
+                # user_hint_metadata=user_hint_data,  # НОВОЕ: метаданные подсказки
+                # style_used=style  # НОВОЕ: использованный стиль
             )
             
             # Обновляем статистику
@@ -204,7 +205,7 @@ class AIImageGenerator:
                 original_translation=translation,
                 error_message=str(e),
                 generation_time_ms=int((time.time() - start_time) * 1000),
-                user_hint=user_hint  # НОВОЕ: сохраняем подсказку в случае ошибки
+                # user_hint=user_hint  # НОВОЕ: сохраняем подсказку в случае ошибки
             )
     
     async def _ensure_managers_ready(self):

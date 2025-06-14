@@ -49,7 +49,7 @@ def setup_logger(
         logger.setLevel(log_level)
         
         # Format for log messages
-        default_format = '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+        default_format = '%(asctime)s{%(levelname)s}[%(filename)s:%(lineno)d]: %(message)s'
         format_str = log_format if log_format else default_format
         
         formatter = logging.Formatter(

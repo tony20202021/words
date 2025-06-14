@@ -29,7 +29,6 @@ __all__ = [
     "DepthConditioning",
     "SegmentationConditioning",
     "ScribbleConditioning",
-    "SemanticAnalyzer",
     "PromptBuilder",
     "StyleDefinitions", 
     "RadicalAnalyzer",

@@ -64,24 +64,19 @@ class AIImageRequest:
     style: str = "comic"
     
     # AI параметры генерации
-    num_inference_steps: Optional[int] = None
-    guidance_scale: Optional[float] = None
     seed: Optional[int] = None
     
     # ControlNet параметры
-    conditioning_weights: Optional[Dict[str, float]] = None
     conditioning_methods: Optional[Dict[str, str]] = None
     
     # Translation параметры
     include_translation: bool = True
     translation_model: str = "auto"
     translation_cache: bool = True
-    translation_fallback: bool = True
     
     # Отладочная информация
     include_conditioning_images: bool = False
     include_prompt: bool = False
-    include_semantic_analysis: bool = False
     
     def __post_init__(self):
         """Валидация и инициализация после создания"""
@@ -99,25 +94,7 @@ class AIImageRequest:
             raise ValueError("Width must be between 64 and 2048 pixels")
         if self.height < 64 or self.height > 2048:
             raise ValueError("Height must be between 64 and 2048 pixels")
-        
-        # Валидация AI параметров
-        if self.num_inference_steps is not None:
-            if not (10 <= self.num_inference_steps <= 100):
-                raise ValueError("num_inference_steps must be between 10 and 100")
-        
-        if self.guidance_scale is not None:
-            if not (1.0 <= self.guidance_scale <= 20.0):
-                raise ValueError("guidance_scale must be between 1.0 and 20.0")
-        
-        # Валидация ControlNet весов
-        if self.conditioning_weights:
-            valid_types = {"canny", "depth", "segmentation", "scribble"}
-            for control_type, weight in self.conditioning_weights.items():
-                if control_type not in valid_types:
-                    raise ValueError(f"Invalid conditioning type: {control_type}")
-                if not (0.0 <= weight <= 1.0):
-                    raise ValueError(f"Conditioning weight for {control_type} must be between 0.0 and 1.0")
-    
+            
     def has_user_hint(self) -> bool:
         """
         Проверяет есть ли пользовательская подсказка.
@@ -160,18 +137,13 @@ class AIImageRequest:
             "height": self.height,
             "batch_size": self.batch_size,
             "style": self.style,
-            "num_inference_steps": self.num_inference_steps,
-            "guidance_scale": self.guidance_scale,
             "seed": self.seed,
-            "conditioning_weights": self.conditioning_weights,
             "conditioning_methods": self.conditioning_methods,
             "include_translation": self.include_translation,
             "translation_model": self.translation_model,
             "translation_cache": self.translation_cache,
-            "translation_fallback": self.translation_fallback,
             "include_conditioning_images": self.include_conditioning_images,
             "include_prompt": self.include_prompt,
-            "include_semantic_analysis": self.include_semantic_analysis
         }
     
     @classmethod

@@ -391,9 +391,6 @@ async def process_show_writing_image(
         caption = f"prompt_used: {image_result['prompt_used']}"
         await message.answer(caption)
 
-        caption = f"semantic_analysis: {image_result['semantic_analysis']}"
-        await message.answer(caption)
-
         caption = f"generation_metadata: {image_result['generation_metadata']}"
         await message.answer(caption)
 

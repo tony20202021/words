@@ -32,7 +32,6 @@ class AIGenerationMetadata:
     # Временные метрики
     generation_time_ms: Optional[int] = None
     conditioning_time_ms: Optional[Dict[str, Dict[str, int]]] = None # {"canny": {"opencv_canny": 150, "hed_canny": 200}}
-    semantic_analysis_time_ms: Optional[int] = None
     total_processing_time_ms: Optional[int] = None
     
     # Ресурсы
@@ -118,27 +117,7 @@ class PromptAnalysisResult:
     
     # Сгенерированные промпты
     main_prompt: str
-    negative_prompt: str
-    prompt_variations: List[str] = field(default_factory=list)
     
-    # Анализ элементов промпта
-    prompt_elements: Dict[str, List[str]] = field(default_factory=dict) # {"visual": [...], "style": [...]}
-    semantic_contribution: Dict[str, float] = field(default_factory=dict) # Вклад семантики в промпт
-    
-    # Оценки
-    estimated_quality_score: Optional[float] = None     # Оценка ожидаемого качества
-    prompt_complexity_score: float = 0.0                # Сложность промпта
-    semantic_richness_score: float = 0.0                # Семантическая насыщенность
-    
-    # Рекомендации
-    suggestions: List[str] = field(default_factory=list)
-    alternative_approaches: List[str] = field(default_factory=list)
-    
-    # Использованные данные
-    semantic_analysis_used: bool = False
-    visual_elements_used: List[str] = field(default_factory=list)
-    cultural_context_used: List[str] = field(default_factory=list)
-
 
 @dataclass
 class ModelStatusResponse:

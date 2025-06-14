@@ -95,7 +95,6 @@ class WritingImageClient:
 
         include_conditioning_images = show_debug
         include_prompt = show_debug
-        include_semantic_analysis = show_debug
 
         # Prepare request data
         request_data = {
@@ -106,7 +105,6 @@ class WritingImageClient:
             "height": height,
             "include_conditioning_images": include_conditioning_images,
             "include_prompt": include_prompt,
-            "include_semantic_analysis": include_semantic_analysis,
             "batch_size": batch_size,
         }
 
@@ -180,7 +178,6 @@ class WritingImageClient:
                                             "base_image": base_image,
                                             "conditioning_images": conditioning_images,
                                             "prompt_used": json_data.get("prompt_used", None),
-                                            "semantic_analysis": json_data.get("semantic_analysis", None),
                                             "generation_metadata": json_data.get("generation_metadata", None),
                                             "error": json_data.get("error", None),
                                             "warnings": json_data.get("warnings", None),

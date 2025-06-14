@@ -140,7 +140,7 @@ class PromptManager:
             prompt_result = await self.prompt_builder.build_prompt(
                 character=character,
                 translation=translation,
-                user_hint=user_hint,  # НОВОЕ: передаем подсказку
+                # user_hint=user_hint,  # НОВОЕ: передаем подсказку
                 style=style,  # НОВОЕ: передаем стиль
                 **kwargs
             )
