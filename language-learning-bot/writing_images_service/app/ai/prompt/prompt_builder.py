@@ -147,64 +147,24 @@ class PromptBuilder:
             str: Основной промпт
         """
         prompt_parts = []
-        
-        # 1. Базовая часть промпта на основе стиля
+
+        if hint_writing:
+            prompt_parts.append(hint_writing.replace("\n", ","))
+
+        # Базовая часть промпта на основе стиля
         base_template = style_data.get("base_template", "")
         # Заменяем плейсхолдеры
         base_prompt = base_template.format(
             character=character,
             meaning=translation.replace("\n", ","),
-            hint_writing=hint_writing.replace("\n", ",") if hint_writing else "",
+            hint_writing="",
         )
         prompt_parts.append(base_prompt)
         
-        main_prompt = ", ".join(filter(None, prompt_parts))
+        main_prompt = ". ".join(filter(None, prompt_parts))
         
         return main_prompt
     
     def _optimize_prompt_length(self, prompt: str, max_length: int) -> str:
-        """
-        Оптимизирует длину промпта.
+        return prompt[:max_length]
         
-        Args:
-            prompt: Исходный промпт
-            max_length: Максимальная длина
-            
-        Returns:
-            str: Оптимизированный промпт
-        """
-        if len(prompt) <= max_length:
-            return prompt
-        
-        # Разбиваем на части по запятым
-        parts = [part.strip() for part in prompt.split(",")]
-        
-        # Приоритетность частей (сначала важные)
-        prioritized_parts = []
-        quality_parts = []
-        detail_parts = []
-        
-        for part in parts:
-            if any(keyword in part.lower() for keyword in ["masterpiece", "best quality", "highly detailed"]):
-                quality_parts.append(part)
-            elif any(keyword in part.lower() for keyword in ["illustration", "artwork", "painting", "style"]):
-                prioritized_parts.insert(0, part)  # В начало
-            else:
-                detail_parts.append(part)
-        
-        # Собираем в порядке приоритета
-        optimized_parts = prioritized_parts + quality_parts + detail_parts
-        
-        # Добавляем части пока не превысим лимит
-        result_parts = []
-        current_length = 0
-        
-        for part in optimized_parts:
-            if current_length + len(part) + 2 <= max_length:  # +2 для ", "
-                result_parts.append(part)
-                current_length += len(part) + 2
-            else:
-                break
-        
-        return ", ".join(result_parts)
- 

@@ -145,12 +145,17 @@ class ModelManager:
             )
             guidance_scale = generation_params.get(
                 'guidance_scale', 
-                self.config.guidance_scale if hasattr(self.config, 'guidance_scale') else 7.5
+                self.config.guidance_scale if hasattr(self.config, 'guidance_scale') else 20.0
+            )
+            controlnet_conditioning_scale = generation_params.get(
+                'controlnet_conditioning_scale', 
+                self.config.controlnet_conditioning_scale if hasattr(self.config, 'controlnet_conditioning_scale') else 0.7
             )
 
             gen_params = {
                 'num_inference_steps': num_inference_steps,
                 'guidance_scale': guidance_scale,
+                'controlnet_conditioning_scale': controlnet_conditioning_scale,
                 'width': generation_params.get('width', self.config.width),
                 'height': generation_params.get('height', self.config.height),
             }

@@ -92,8 +92,8 @@ generation_params:
 # Промпт шаблоны для разных моделей
 prompt_templates:
   qwen:
-    system_prompt: "You are a professional translator. Translate the given text to English concisely and accurately for AI image generation prompts."
-    user_template: "Chinese character: {character}\nRussian meaning: {translation}\nTranslate to English (short phrase for image prompt):"
+    system_prompt: "You are a professional translator. Translate the given text to English concisely and accurately. The translation must be 3 to 5 words.This text will be used for AI image generation prompts."
+    user_template: "Chinese character: {character}\nRussian meaning: {translation}\nTranslate to English (short phrase, enough to generate image prompt):"
     
   nllb:
     # NLLB использует специальные токены языков

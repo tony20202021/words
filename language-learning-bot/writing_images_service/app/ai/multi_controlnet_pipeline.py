@@ -62,6 +62,7 @@ class GenerationParams:
     num_images_per_prompt: int = 1
     num_inference_steps: int = 30
     guidance_scale: float = 5.0
+    controlnet_conditioning_scale: float = 1.0
     eta: float = 0.0
     generator: Optional[torch.Generator] = None
     latents: Optional[torch.FloatTensor] = None
@@ -492,6 +493,7 @@ class MultiControlNetPipeline:
                 "original_size": (params.width * 2, params.height * 2),
                 "num_inference_steps": params.num_inference_steps,
                 "guidance_scale": params.guidance_scale,
+                "controlnet_conditioning_scale": params.controlnet_conditioning_scale,
             }
             
             # Добавляем Union ControlNet параметры согласно документации
@@ -506,6 +508,7 @@ class MultiControlNetPipeline:
             
             logger.info(f"pipeline_args={pipeline_args.keys()}")
             logger.info(f"pipeline_args[guidance_scale]={pipeline_args['guidance_scale']}")
+            logger.info(f"pipeline_args[controlnet_conditioning_scale]={pipeline_args['controlnet_conditioning_scale']}")
 
             # Запускаем генерацию
             with torch.no_grad():

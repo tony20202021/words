@@ -247,11 +247,13 @@ class WritingImageService:
                 logger.debug(f"User hint data: {hint_data}")
             
             # ОБНОВЛЕНО: Generate AI image with hint support
+            logger.info(f"request.has_user_hint()={request.has_user_hint()}")
+            logger.info(f"request.hint_writing={request.hint_writing}")
+
             ai_result = await self.ai_generator.generate_character_image(
                 character=request.word,
                 translation=request.translation,
-                user_hint=request.hint_writing if request.has_user_hint() else None,  # НОВОЕ
-                style=style,  # НОВОЕ
+                hint_writing=request.hint_writing if request.has_user_hint() else None,  # НОВОЕ
                 include_conditioning_images=request.include_conditioning_images,
                 include_prompt=request.include_prompt,
                 seed=seed,
@@ -280,6 +282,7 @@ class WritingImageService:
                 # Добавляем метаданные о подсказке в основной объект metadata
                 hint_metadata = ai_result.generation_metadata.get('user_hint_metadata', {})
                 metadata.user_hint_original = request.hint_writing
+                # TODO - добавить нужные поля
                 metadata.user_hint_translated = hint_metadata.get('translated_hint', request.hint_writing)
                 metadata.user_hint_used = hint_metadata.get('used_in_prompt', False)
                 metadata.translation_source = hint_metadata.get('translation_source', 'fallback')

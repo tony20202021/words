@@ -64,15 +64,16 @@ async def generate_writing_image(
                 detail=f"Validation failed: {', '.join(validation_result.errors)}"
             )
         
+        # TODO - сделать реализацию
         # Validate user hint if provided
-        if request.has_user_hint():
-            hint_validation = await validation_service.validate_user_hint(request.hint_writing)
-            if not hint_validation.is_valid:
-                logger.warning(f"Invalid user hint: {hint_validation.errors}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"User hint validation failed: {', '.join(hint_validation.errors)}"
-                )
+        # if request.has_user_hint():
+            # hint_validation = await validation_service.validate_user_hint(request.hint_writing)
+            # if not hint_validation.is_valid:
+            #     logger.warning(f"Invalid user hint: {hint_validation.errors}")
+            #     raise HTTPException(
+            #         status_code=400,
+            #         detail=f"User hint validation failed: {', '.join(hint_validation.errors)}"
+            #     )
         
         # Generate image with user hint support
         generation_result = await writing_service.generate_image(request)

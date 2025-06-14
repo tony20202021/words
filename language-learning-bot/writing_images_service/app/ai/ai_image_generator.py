@@ -5,9 +5,8 @@ AI Image Generator - основной класс для генерации из�
 """
 
 import time
-import asyncio
-from typing import Dict, Any, Optional, List, Tuple, Union
-from dataclasses import dataclass
+import random
+from typing import Dict, Any, Optional
 
 from app.utils.logger import get_module_logger
 from app.ai.core.generation_config import AIGenerationConfig
@@ -56,8 +55,7 @@ class AIImageGenerator:
         self,
         character: str,
         translation: str = "",
-        user_hint: Optional[str] = None,  # НОВОЕ: пользовательская подсказка
-        style: str = "comic",  # НОВОЕ: стиль генерации
+        hint_writing: Optional[str] = None,  # НОВОЕ: пользовательская подсказка
         conditioning_methods: Optional[Dict[str, str]] = None,
         include_conditioning_images: bool = False,
         include_prompt: bool = False,
@@ -86,9 +84,8 @@ class AIImageGenerator:
         
         try:
             # Логируем информацию о генерации с подсказкой
-            hint_info = f", user_hint: '{user_hint}'" if user_hint else ""
             logger.info(f"Starting AI generation for character: '{character}', "
-                       f"translation: '{translation}', style: '{style}'{hint_info}")
+                       f"translation: '{translation}', hint_writing={hint_writing}")
             
             # 1. Инициализация всех менеджеров
             await self._ensure_managers_ready()
@@ -116,33 +113,36 @@ class AIImageGenerator:
             user_hint_data = {}
             english_hint = ""
             
-            if user_hint and user_hint.strip():
-                logger.info(f"Processing user hint: '{user_hint}'")
+            if hint_writing and hint_writing.strip():
+                logger.info(f"Processing user hint: '{hint_writing}'")
                 
                 # Переводим подсказку на английский
                 english_hint, hint_translation_metadata = await self.translation_manager.translate_to_english(
-                    character, user_hint
+                    character, hint_writing
                 )
                 
                 user_hint_data = {
-                    "original_hint": user_hint,
+                    "original_hint": hint_writing,
                     "translated_hint": english_hint,
                     "translation_source": hint_translation_metadata.get('source', 'unknown'),
                     "translation_time_ms": hint_translation_metadata.get('time_ms', 0),
                     "used_in_prompt": True
                 }
                 
-                logger.info(f"✓ User hint translated: '{user_hint}' -> '{english_hint}' "
+                logger.info(f"✓ User hint translated: '{hint_writing}' -> '{english_hint}' "
                            f"(source: {hint_translation_metadata.get('source', 'unknown')})")
                 
                 # Увеличиваем счетчик генераций с подсказками
                 self.hint_generation_count += 1
             
-            # 6. Построение промпта с учетом подсказки
+            # 6. Получаем случайный стиль
+            style = random.choice(self.prompt_manager.prompt_builder.style_definitions.get_style_names())
+            
+            # Построение промпта с учетом подсказки
             prompt_result = await self.prompt_manager.build_prompt(
                 character=character,
                 translation=english_translation,
-                user_hint=english_hint,  # НОВОЕ: передаем переведенную подсказку
+                hint_writing=english_hint,  # НОВОЕ: передаем переведенную подсказку
                 style=style  # НОВОЕ: передаем стиль
             )
             logger.info(f"✓ Generated prompt: '{prompt_result.main_prompt}'")
@@ -174,6 +174,7 @@ class AIImageGenerator:
                 generation_time_ms=generation_time_ms,
                 seed_used=seed,
                 model_config=self.config,
+                # TODO - добавить поля
                 # user_hint_metadata=user_hint_data,  # НОВОЕ: метаданные подсказки
                 # style_used=style  # НОВОЕ: использованный стиль
             )
@@ -184,8 +185,8 @@ class AIImageGenerator:
             
             # Логируем с информацией о подсказке
             hint_result_info = ""
-            if user_hint:
-                hint_result_info = f" (hint: '{user_hint}' -> '{english_hint}', used: {user_hint_data.get('used_in_prompt', False)})"
+            if hint_writing:
+                hint_result_info = f" (hint_writing: '{hint_writing}' -> '{english_hint}', used: {user_hint_data.get('used_in_prompt', False)})"
             
             logger.info(f"✓ Successfully generated AI image for character: {character} "
                        f"(style: {style}, total_time: {generation_time_ms}ms{hint_result_info})")

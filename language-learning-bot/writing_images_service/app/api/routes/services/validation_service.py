@@ -184,3 +184,5 @@ class ValidationService:
             }
         }
     
+    # TODO - сделать реализацию
+    # hint_validation = await validation_service.validate_user_hint(request.hint_writing)
