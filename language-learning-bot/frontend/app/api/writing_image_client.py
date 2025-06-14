@@ -101,7 +101,7 @@ class WritingImageClient:
         request_data = {
             "word": word,
             "translation": translation,
-            # "hint_writing": hint_writing,
+            "hint_writing": hint_writing,
             "width": width,
             "height": height,
             "include_conditioning_images": include_conditioning_images,
