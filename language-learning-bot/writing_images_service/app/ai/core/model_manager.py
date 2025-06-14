@@ -102,7 +102,6 @@ class ModelManager:
         self,
         prompt: str,
         conditioning_images: Dict[str, Dict[str, Image.Image]],
-        conditioning_weights: Dict[str, float],
         seed: Optional[int] = None,
         **generation_params
     ) -> Image.Image:
@@ -112,7 +111,6 @@ class ModelManager:
         Args:
             prompt: Промпт для генерации
             conditioning_images: Conditioning изображения
-            conditioning_weights: Веса conditioning
             seed: Seed для воспроизводимости
             **generation_params: Дополнительные параметры
             
@@ -127,27 +125,32 @@ class ModelManager:
             
             # Подготавливаем conditioning изображения для pipeline
             control_images = {}
-            used_weights = {}
             
-            for control_type, weight in conditioning_weights.items():
-                if control_type in conditioning_images:
-                    type_images = conditioning_images[control_type]
-                    # Берем первое доступное изображение для этого типа
-                    for method, image in type_images.items():
-                        if image is not None:
-                            control_images[control_type] = image
-                            used_weights[control_type] = weight
-                            break
+            # Берем первое доступное изображение для каждого типа conditioning
+            for control_type, type_images in conditioning_images.items():
+                for method, image in type_images.items():
+                    if image is not None:
+                        control_images[control_type] = image
+                        break
             
             if not control_images:
                 raise RuntimeError("No valid conditioning images available for generation")
             
-            logger.debug(f"Using conditioning: {list(control_images.keys())} with weights: {used_weights}")
+            logger.debug(f"Using conditioning: {list(control_images.keys())}")
             
             # Настраиваем параметры генерации
+            num_inference_steps = generation_params.get(
+                'num_inference_steps', 
+                self.config.num_inference_steps if hasattr(self.config, 'num_inference_steps') else 30
+            )
+            guidance_scale = generation_params.get(
+                'guidance_scale', 
+                self.config.guidance_scale if hasattr(self.config, 'guidance_scale') else 7.5
+            )
+
             gen_params = {
-                'num_inference_steps': generation_params.get('num_inference_steps', self.config.num_inference_steps),
-                'guidance_scale': generation_params.get('guidance_scale', self.config.guidance_scale),
+                'num_inference_steps': num_inference_steps,
+                'guidance_scale': guidance_scale,
                 'width': generation_params.get('width', self.config.width),
                 'height': generation_params.get('height', self.config.height),
             }
@@ -172,6 +175,7 @@ class ModelManager:
             
         except Exception as e:
             logger.error(f"Error in AI generation: {e}")
+            logger.error(traceback.format_exc())
             raise RuntimeError(f"AI generation failed: {e}")
     
     async def get_status(self) -> Dict[str, Any]:

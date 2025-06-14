@@ -17,8 +17,6 @@ ai_generation:
       
   # Параметры генерации
   generation:
-    num_inference_steps: 30
-    guidance_scale: 7.5
     width: 512
     height: 512
     batch_size: 4  # Можно увеличить для 80GB VRAM

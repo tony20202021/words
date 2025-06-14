@@ -58,7 +58,6 @@ class AIImageGenerator:
         translation: str = "",
         user_hint: Optional[str] = None,  # НОВОЕ: пользовательская подсказка
         style: str = "comic",  # НОВОЕ: стиль генерации
-        conditioning_weights: Optional[Dict[str, float]] = None,
         conditioning_methods: Optional[Dict[str, str]] = None,
         include_conditioning_images: bool = False,
         include_prompt: bool = False,
@@ -74,7 +73,6 @@ class AIImageGenerator:
             translation: Перевод иероглифа на русском
             user_hint: Пользовательская подсказка для AI генерации
             style: Стиль генерации (comic, watercolor, realistic, etc.)
-            conditioning_weights: Веса для разных типов conditioning
             conditioning_methods: Методы для разных типов conditioning
             include_conditioning_images: Включать ли conditioning изображения в результат
             include_prompt: Включать ли промпт в результат
@@ -147,16 +145,14 @@ class AIImageGenerator:
                 user_hint=english_hint,  # НОВОЕ: передаем переведенную подсказку
                 style=style  # НОВОЕ: передаем стиль
             )
-            logger.info(f"✓ Generated prompt: '{prompt_result.main_prompt[:100]}...'")
+            logger.info(f"✓ Generated prompt: '{prompt_result.main_prompt}'")
             
             logger.info(f"generation_params={generation_params.keys()}")
-            logger.info(f"generation_params[guidance_scale]={generation_params['guidance_scale']}")
             
             # 7. AI генерация
             final_image = await self.model_manager.run_generation(
                 prompt=prompt_result.main_prompt,
                 conditioning_images=conditioning_images,
-                conditioning_weights=conditioning_weights or self.config.conditioning_weights,
                 seed=seed,
                 **generation_params
             )
@@ -175,7 +171,6 @@ class AIImageGenerator:
                 original_translation=translation,
                 english_translation=english_translation,
                 translation_metadata=translation_metadata,
-                conditioning_weights=conditioning_weights or self.config.conditioning_weights,
                 generation_time_ms=generation_time_ms,
                 seed_used=seed,
                 model_config=self.config,

@@ -17,30 +17,9 @@ class StyleDefinition:
     """Определение художественного стиля"""
     # Основная информация
     name: str
-    display_name: str
-    description: str
     
     # Шаблоны промптов
     base_template: str
-    
-    # Технические параметры
-    recommended_steps: int = 30
-    recommended_cfg: float = 7.5
-    recommended_size: tuple = (1024, 1024)
-    
-    # ControlNet веса для этого стиля
-    controlnet_weights: Dict[str, float] = None
-    
-    def __post_init__(self):
-        """Инициализация значений по умолчанию"""
-        if self.controlnet_weights is None:
-            self.controlnet_weights = {
-                "canny": 0.8,
-                "depth": 0.6,
-                "segmentation": 0.5,
-                "scribble": 0.4
-            }
-        
 
 class StyleDefinitions:
     """
@@ -57,116 +36,59 @@ class StyleDefinitions:
     def _initialize_default_styles(self):
         """Инициализирует стандартные стили."""
         
-        # Comic Book Style
-        self.styles["comic"] = StyleDefinition(
-            name="comic",
-            display_name="Comic Book",
-            description="Яркий комиксовый стиль с четкими контурами и насыщенными цветами",
-            base_template="A vibrant comic book style illustration of '{meaning}', inspired by the Chinese character '{character}', featuring bold outlines and dynamic composition",
-            recommended_steps=25,
-            recommended_cfg=8.0,
-            controlnet_weights={
-                "canny": 0.9,      # Сильные контуры для комиксов
-                "depth": 0.5,      # Умеренная объемность
-                "segmentation": 0.7, # Четкие цветовые зоны
-                "scribble": 0.3    # Минимальная художественность
-            },
-        )
-        
-        # Watercolor Style
-        self.styles["watercolor"] = StyleDefinition(
-            name="watercolor",
-            display_name="Watercolor Painting",
-            description="Мягкая акварельная живопись с плавными переходами и художественными мазками",
-            base_template="A soft watercolor painting depicting '{meaning}', with flowing brushstrokes inspired by the Chinese character '{character}', featuring delicate washes and artistic spontaneity",
-            recommended_steps=35,
-            recommended_cfg=6.5,
-            controlnet_weights={
-                "canny": 0.4,      # Размытые контуры
-                "depth": 0.3,      # Мягкая объемность
-                "segmentation": 0.3, # Плавные переходы
-                "scribble": 0.8    # Максимальная художественная свобода
-            },
-        )
-        
-        # Realistic Style
-        self.styles["realistic"] = StyleDefinition(
-            name="realistic",
-            display_name="Photorealistic",
-            description="Детализированная реалистичная иллюстрация с естественным освещением",
-            base_template="A detailed realistic illustration representing '{meaning}', maintaining the essence of the Chinese character '{character}', with photorealistic quality and natural lighting",
-            recommended_steps=40,
-            recommended_cfg=7.5,
-            controlnet_weights={
-                "canny": 0.8,      # Точные контуры
-                "depth": 0.9,      # Сильная объемность
-                "segmentation": 0.6, # Реалистичные цвета
-                "scribble": 0.2    # Минимальная стилизация
-            },
-        )
-        
-        # Anime Style
         self.styles["anime"] = StyleDefinition(
             name="anime",
-            display_name="Anime Art",
-            description="Японский анимационный стиль с яркими цветами и выразительным дизайном",
-            base_template="An anime-style artwork showing '{meaning}', stylized after the Chinese character '{character}', featuring cel shading and expressive design",
-            recommended_steps=28,
-            recommended_cfg=7.0,
-            controlnet_weights={
-                "canny": 0.7,      # Четкие, но стилизованные контуры
-                "depth": 0.4,      # Легкая объемность
-                "segmentation": 0.8, # Четкие цветовые зоны
-                "scribble": 0.5    # Средняя стилизация
-            },
+            base_template="An anime-style artwork showing concept: '{meaning}', stylized in the form of the Chinese character '{character}'. {hint_writing}",
         )
-        
-        # Traditional Chinese Ink Style
-        self.styles["ink"] = StyleDefinition(
-            name="ink",
-            display_name="Chinese Ink Painting",
-            description="Традиционная китайская живопись тушью с философской глубиной",
-            base_template="A traditional Chinese ink painting of '{meaning}', capturing the spirit of the character '{character}', with flowing brushstrokes and philosophical depth",
-            recommended_steps=32,
-            recommended_cfg=6.0,
-            controlnet_weights={
-                "canny": 0.6,      # Плавные контуры
-                "depth": 0.3,      # Минимальная объемность
-                "segmentation": 0.2, # Простые формы
-                "scribble": 0.9    # Максимальная художественность
-            },
+
+        self.styles["cartoon"] = StyleDefinition(
+            name="cartoon",
+            base_template="A cartoon picture of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
         )
-        
-        # Digital Art Style
+
+        self.styles["comic"] = StyleDefinition(
+            name="comic",
+            base_template="A vibrant comic book style illustration of concept: '{meaning}', inspired by the form of the Chinese character '{character}'. {hint_writing}",
+        )
+
+        self.styles["cyberpunk"] = StyleDefinition(
+            name="cyberpunk",
+            base_template="A cyberpunk style picture of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
+        )
+
         self.styles["digital"] = StyleDefinition(
             name="digital",
-            display_name="Digital Art",
-            description="Современное цифровое искусство с техническим совершенством",
-            base_template="A modern digital artwork representing '{meaning}', inspired by the Chinese character '{character}', with contemporary digital techniques and polished finish",
-            recommended_steps=30,
-            recommended_cfg=7.5,
-            controlnet_weights={
-                "canny": 0.7,
-                "depth": 0.7,
-                "segmentation": 0.6,
-                "scribble": 0.4
-            },
+            base_template="A modern digital artwork representing concept: '{meaning}', inspired by the form of the Chinese character '{character}'. {hint_writing}",
         )
-        
-        # Fantasy Style
+
+        self.styles["disney"] = StyleDefinition(
+            name="disney",
+            base_template="A Disney animation style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
+        )
+
         self.styles["fantasy"] = StyleDefinition(
             name="fantasy",
-            display_name="Fantasy Art",
-            description="Фэнтезийный стиль с магическими элементами и мистической атмосферой",
-            base_template="A mystical fantasy artwork depicting '{meaning}', embodying the magical essence of the Chinese character '{character}', with ethereal atmosphere and enchanting details",
-            recommended_steps=35,
-            recommended_cfg=8.0,
-            controlnet_weights={
-                "canny": 0.6,
-                "depth": 0.8,
-                "segmentation": 0.5,
-                "scribble": 0.7
-            },
+            base_template="A mystical fantasy artwork depicting concept: '{meaning}', embodying the form of the Chinese character '{character}'. {hint_writing}",
+        )
+
+        self.styles["ink"] = StyleDefinition(
+            name="ink",
+            base_template="A traditional Chinese ink painting of concept: '{meaning}', capturing the form of the Chinese character '{character}'. {hint_writing}",
+        )
+        
+        self.styles["realistic"] = StyleDefinition(
+            name="realistic",
+            base_template="A detailed realistic illustration representing concept: '{meaning}', maintaining the form of the Chinese character '{character}'. {hint_writing}",
+        )
+
+        self.styles["techno"] = StyleDefinition(
+            name="techno",
+            base_template="A modern techno style picture of concept: '{meaning}', in the form of the Chinese character '{character}'. {hint_writing}",
+        )
+
+        self.styles["watercolor"] = StyleDefinition(
+            name="watercolor",
+            base_template="A soft watercolor painting depicting concept: '{meaning}', with flowing brushstrokes inspired by the form of the Chinese character '{character}'. {hint_writing}",
         )
     
     def get_style_definition(self, style_name: str) -> Dict[str, Any]:
@@ -187,13 +109,7 @@ class StyleDefinitions:
         
         return {
             "name": style_def.name,
-            "display_name": style_def.display_name,
-            "description": style_def.description,
             "base_template": style_def.base_template,
-            "recommended_steps": style_def.recommended_steps,
-            "recommended_cfg": style_def.recommended_cfg,
-            "recommended_size": style_def.recommended_size,
-            "controlnet_weights": style_def.controlnet_weights,
         }
     
     def get_available_styles(self) -> List[Dict[str, str]]:
@@ -206,8 +122,6 @@ class StyleDefinitions:
         return [
             {
                 "name": style.name,
-                "display_name": style.display_name,
-                "description": style.description
             }
             for style in self.styles.values()
         ]
@@ -264,8 +178,6 @@ class StyleDefinitions:
         style_def = self.get_style_definition(style_name)
         
         return {
-            "num_inference_steps": style_def.get("recommended_steps", 30),
-            "guidance_scale": style_def.get("recommended_cfg", 7.5),
             "width": style_def.get("recommended_size", (1024, 1024))[0],
             "height": style_def.get("recommended_size", (1024, 1024))[1]
         }

@@ -71,7 +71,6 @@ class AIGenerationResult:
         original_translation: str,
         english_translation: str,
         translation_metadata: Dict[str, Any],
-        conditioning_weights: Dict[str, float],
         generation_time_ms: int,
         seed_used: Optional[int],
         model_config: AIGenerationConfig,
@@ -88,7 +87,6 @@ class AIGenerationResult:
             original_translation: Оригинальный русский перевод
             english_translation: Английский перевод
             translation_metadata: Метаданные перевода
-            conditioning_weights: Использованные веса conditioning
             generation_time_ms: Время генерации
             seed_used: Использованный seed
             model_config: Конфигурация модели
@@ -113,7 +111,6 @@ class AIGenerationResult:
                 'original_translation': original_translation,
                 'english_translation': english_translation,
                 'translation_metadata': translation_metadata,
-                'conditioning_weights_used': conditioning_weights,
                 'conditioning_methods_used': {
                     conditioning_type: list(conditioning_images[conditioning_type].keys())
                     for conditioning_type in conditioning_images.keys()
@@ -123,8 +120,6 @@ class AIGenerationResult:
                 'model_used': model_config.base_model,
                 'controlnet_model': "union",
                 'image_size': (model_config.width, model_config.height),
-                'inference_steps': model_config.num_inference_steps,
-                'guidance_scale': model_config.guidance_scale
             }
         )
     

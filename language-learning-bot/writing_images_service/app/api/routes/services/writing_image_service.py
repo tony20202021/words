@@ -120,15 +120,9 @@ class WritingImageService:
                     # Update generation parameters
                     if hasattr(ai_cfg, 'generation'):
                         gen_cfg = ai_cfg.generation
-                        self.ai_config.num_inference_steps = gen_cfg.get('num_inference_steps', 30)
-                        self.ai_config.guidance_scale = gen_cfg.get('guidance_scale', 7.5)
                         self.ai_config.width = gen_cfg.get('width', 1024)
                         self.ai_config.height = gen_cfg.get('height', 1024)
                         self.ai_config.batch_size = gen_cfg.get('batch_size', 1)
-                    
-                    # Update conditioning weights
-                    if hasattr(ai_cfg, 'conditioning_weights'):
-                        self.ai_config.conditioning_weights = dict(ai_cfg.conditioning_weights)
                     
                     # Update GPU settings
                     if hasattr(ai_cfg, 'gpu'):
@@ -153,7 +147,6 @@ class WritingImageService:
                 logger.info(f"Loaded AI config: model={self.ai_config.base_model}, "
                            f"controlnet={controlnet_info}, "
                            f"device={self.ai_config.device}, "
-                           f"steps={self.ai_config.num_inference_steps}, "
                            f"hint_support=enabled")
                 
         except Exception as e:
@@ -231,14 +224,7 @@ class WritingImageService:
             generation_params = {
                 'width': width,
                 'height': height,
-                'num_inference_steps': getattr(request, 'num_inference_steps', self.ai_config.num_inference_steps),
-                'guidance_scale': getattr(request, 'guidance_scale', self.ai_config.guidance_scale),
             }
-            
-            # Extract conditioning weights if provided
-            conditioning_weights = None
-            if hasattr(request, 'conditioning_weights') and request.conditioning_weights:
-                conditioning_weights = request.conditioning_weights
             
             # Extract seed if provided
             seed = getattr(request, 'seed', None)
@@ -247,7 +233,6 @@ class WritingImageService:
             style = getattr(request, 'style', 'comic')
             
             logger.debug(f"Generation params: {generation_params}")
-            logger.debug(f"Conditioning weights: {conditioning_weights}")
             logger.debug(f"Seed: {seed}, Style: {style}")
             
             # НОВОЕ: Prepare hint data
@@ -267,7 +252,6 @@ class WritingImageService:
                 translation=request.translation,
                 user_hint=request.hint_writing if request.has_user_hint() else None,  # НОВОЕ
                 style=style,  # НОВОЕ
-                conditioning_weights=conditioning_weights,
                 include_conditioning_images=request.include_conditioning_images,
                 include_prompt=request.include_prompt,
                 seed=seed,
@@ -286,8 +270,6 @@ class WritingImageService:
                 ai_model_used=self.ai_config.base_model,
                 controlnet_model_used="union",  # UPDATED: Union model
                 conditioning_types_used=list(ai_result.generation_metadata.get('conditioning_methods_used', {}).keys()),
-                inference_steps_used=generation_params.get('num_inference_steps'),
-                guidance_scale_used=generation_params.get('guidance_scale'),
                 seed_used=seed,
                 image_dimensions=(width, height),
                 total_processing_time_ms=ai_result.generation_metadata.get('generation_time_ms', 0)
@@ -411,8 +393,6 @@ class WritingImageService:
             "device": self.ai_config.device,
             "controlnet_model": "union",  # UPDATED: Single union model
             "controlnet_types_supported": ["canny", "depth", "segmentation", "scribble"],
-            "inference_steps": self.ai_config.num_inference_steps,
-            "guidance_scale": self.ai_config.guidance_scale,
             "image_size": (self.ai_config.width, self.ai_config.height),
             "hint_support": True,  # НОВОЕ
             "max_hint_length": self.hint_config["max_hint_length"]  # НОВОЕ

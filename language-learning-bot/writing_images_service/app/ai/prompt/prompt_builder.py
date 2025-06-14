@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List, Tuple, Union
 from dataclasses import dataclass
 import logging
 import re
+import traceback
 
 from app.utils.logger import get_module_logger
 from app.ai.prompt.style_definitions import StyleDefinitions
@@ -69,6 +70,7 @@ class PromptBuilder:
         self,
         character: str,
         translation: str = "",
+        hint_writing: Optional[str] = None,
         style: str = "comic",
     ) -> PromptResult:
         """
@@ -92,7 +94,7 @@ class PromptBuilder:
             main_prompt = await self._build_main_prompt(
                 character=character,
                 translation=translation,
-                style=style,
+                hint_writing=hint_writing,
                 style_data=style_data,
             )
             
@@ -110,13 +112,13 @@ class PromptBuilder:
                 style_data=style_data,
             )
             
-            logger.info(f"Built prompt for character '{character}' (style: {style}, "
-                       f"time: {generation_time_ms}ms)")
+            logger.info(f"Built prompt for character '{character}' (style: {style}) time: {generation_time_ms}ms)")
             
             return result
             
         except Exception as e:
             logger.error(f"Error building prompt for character {character}: {e}", exc_info=True)
+            logger.error(traceback.format_exc())
             
             return PromptResult(
                 success=False,
@@ -129,8 +131,8 @@ class PromptBuilder:
         self,
         character: str,
         translation: str,
-        style: str,
         style_data: Dict[str, Any],
+        hint_writing: Optional[str] = None,
     ) -> str:
         """
         Строит основной промпт для генерации.
@@ -138,11 +140,8 @@ class PromptBuilder:
         Args:
             character: Иероглиф
             translation: Перевод
-            style: Стиль генерации
             style_data: Данные стиля
-            include_visual: Включать визуальные элементы
-            include_cultural: Включать культурный контекст
-            custom_elements: Дополнительные элементы
+            hint_writing: Пользовательская подсказка
             
         Returns:
             str: Основной промпт
@@ -154,7 +153,8 @@ class PromptBuilder:
         # Заменяем плейсхолдеры
         base_prompt = base_template.format(
             character=character,
-            meaning=translation.replace("\n", ",")
+            meaning=translation.replace("\n", ","),
+            hint_writing=hint_writing.replace("\n", ",") if hint_writing else "",
         )
         prompt_parts.append(base_prompt)
         

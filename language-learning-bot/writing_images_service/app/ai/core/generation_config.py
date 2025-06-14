@@ -15,14 +15,9 @@ class AIGenerationConfig:
     controlnet_models: Optional[Dict[str, str]] = None
     
     # Параметры генерации
-    num_inference_steps: int = 30
-    guidance_scale: float = 7.5
     width: int = 1024
     height: int = 1024
     batch_size: int = 1
-    
-    # Conditioning веса по умолчанию
-    conditioning_weights: Optional[Dict[str, float]] = None
     
     # GPU настройки
     device: str = "cuda"
@@ -41,11 +36,3 @@ class AIGenerationConfig:
                 "union": "xinsir/controlnet-union-sdxl-1.0"
             }
         
-        if self.conditioning_weights is None:
-            self.conditioning_weights = {
-                "canny": 0.8,
-                "depth": 0.6,
-                "segmentation": 0.5,
-                "scribble": 0.4
-            }
-            

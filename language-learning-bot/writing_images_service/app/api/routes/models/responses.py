@@ -26,7 +26,6 @@ class AIGenerationMetadata:
     controlnet_model_used: str = None  # UPDATED: Single field for union model
     
     # Параметры conditioning
-    conditioning_weights_used: Dict[str, float] = None
     conditioning_types_used: List[str] = None  # UPDATED: List of conditioning types for union model
     
     # Временные метрики
@@ -41,8 +40,6 @@ class AIGenerationMetadata:
     
     # Параметры генерации
     seed_used: Optional[int] = None
-    inference_steps_used: Optional[int] = None  # UPDATED: Added inference steps
-    guidance_scale_used: Optional[float] = None
     image_dimensions: Optional[tuple] = None  # UPDATED: Added image dimensions
     
     # Версии и окружение

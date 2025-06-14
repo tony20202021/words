@@ -56,12 +56,12 @@ class PipelineConfig:
 class GenerationParams:
     """Параметры генерации"""
     prompt: str
-    num_inference_steps: int = 30
-    guidance_scale: float = 7.5
     width: int = 1024
     height: int = 1024
     seed: Optional[int] = None
     num_images_per_prompt: int = 1
+    num_inference_steps: int = 30
+    guidance_scale: float = 5.0
     eta: float = 0.0
     generator: Optional[torch.Generator] = None
     latents: Optional[torch.FloatTensor] = None
@@ -484,14 +484,14 @@ class MultiControlNetPipeline:
             # FIXED: Используем правильный API для Union ControlNet
             pipeline_args = {
                 "prompt": [params.prompt],  # Список промптов
-                "num_inference_steps": params.num_inference_steps,
-                "guidance_scale": params.guidance_scale,
                 "width": params.width,
                 "height": params.height,
                 "generator": generator,
                 "crops_coords_top_left": (0, 0),
                 "target_size": (params.width, params.height),
                 "original_size": (params.width * 2, params.height * 2),
+                "num_inference_steps": params.num_inference_steps,
+                "guidance_scale": params.guidance_scale,
             }
             
             # Добавляем Union ControlNet параметры согласно документации

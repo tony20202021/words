@@ -152,8 +152,6 @@ ai_generation:
       union: "xinsir/controlnet-union-sdxl-1.0"
   
   generation:
-    num_inference_steps: 30
-    guidance_scale: 7.5
     width: 1024
     height: 1024
     batch_size: 1  # Увеличить для 80GB GPU

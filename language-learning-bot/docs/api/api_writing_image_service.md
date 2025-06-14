@@ -47,8 +47,6 @@ Writing Service - это AI микросервис для генерации и�
   // 🆕 AI параметры
   "include_conditioning_images": false,
   "include_prompt": true,
-  "num_inference_steps": 30,
-  "guidance_scale": 7.5,
   "seed": null
 }
 ```
@@ -68,8 +66,6 @@ Writing Service - это AI микросервис для генерации и�
 |----------|-----|----------|--------------|
 | `include_conditioning_images` | boolean | Включать conditioning изображения | `false` |
 | `include_prompt` | boolean | Включать финальный промпт | `true` |
-| `num_inference_steps` | integer | Количество шагов AI генерации (10-50) | `30` |
-| `guidance_scale` | float | Guidance scale для AI (1.0-20.0) | `7.5` |
 | `seed` | integer/null | Seed для воспроизводимости | `null` |
 
 **Успешный ответ:**

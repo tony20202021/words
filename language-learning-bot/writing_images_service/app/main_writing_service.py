@@ -172,9 +172,6 @@ async def _log_service_configuration():
         ai_cfg = cfg.ai_generation
         if hasattr(ai_cfg, 'models'):
             logger.info(f"   🤖 Base Model: {ai_cfg.models.base_model}")
-        if hasattr(ai_cfg, 'generation'):
-            logger.info(f"   🎨 Inference Steps: {ai_cfg.generation.num_inference_steps}")
-            logger.info(f"   🎯 Guidance Scale: {ai_cfg.generation.guidance_scale}")
     
     # GPU конфигурация
     if gpu_manager:
