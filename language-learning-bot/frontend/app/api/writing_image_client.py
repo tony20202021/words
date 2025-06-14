@@ -100,13 +100,14 @@ class WritingImageClient:
         request_data = {
             "word": word,
             "translation": translation,
-            "hint_writing": hint_writing,
             "width": width,
             "height": height,
             "include_conditioning_images": include_conditioning_images,
             "include_prompt": include_prompt,
             "batch_size": batch_size,
         }
+        if hint_writing:
+            request_data["hint_writing"] = hint_writing
 
         logger.info(f"Generating writing image for word: '{word}', translation: '{translation}'")
         
