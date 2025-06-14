@@ -101,7 +101,7 @@ class WritingImageClient:
         request_data = {
             "word": word,
             "translation": translation,
-            "hint_writing": hint_writing,
+            # "hint_writing": hint_writing,
             "width": width,
             "height": height,
             "include_conditioning_images": include_conditioning_images,
@@ -180,7 +180,6 @@ class WritingImageClient:
                                             "base_image": base_image,
                                             "conditioning_images": conditioning_images,
                                             "prompt_used": json_data.get("prompt_used", None),
-                                            "semantic_analysis": json_data.get("semantic_analysis", None),
                                             "generation_metadata": json_data.get("generation_metadata", None),
                                             "error": json_data.get("error", None),
                                             "warnings": json_data.get("warnings", None),

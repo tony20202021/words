@@ -25,6 +25,8 @@ from app.bot.keyboards.study_keyboards import create_word_image_keyboard, create
 from app.api.writing_image_client import get_writing_image_client
 from app.utils.settings_utils import is_writing_images_enabled, get_user_language_settings
 from app.utils.message_utils import get_message_from_callback
+from app.utils.error_utils import validate_state_data
+from app.utils.word_data_utils import get_hint_text
 
 logger = setup_logger(__name__)
 
@@ -300,6 +302,14 @@ async def process_show_writing_image(
             await message.answer("❌ Картинки написания отключены в настройках")
             return
 
+        # Validate state data
+        is_valid, state_data = await validate_state_data(
+            state, 
+            ["db_user_id"],
+            message_or_callback,
+            "Ошибка: недостаточно данных"
+        )
+
         # Load user settings including individual hint settings
         settings = await get_user_language_settings(message_or_callback, state)
         show_debug = settings.get('show_debug', False)
@@ -316,12 +326,23 @@ async def process_show_writing_image(
         if not current_word:
             await message.answer("❌ Ошибка получения текущего слова")
             return
-
+        
         # Extract word
         word_foreign = current_word.get("word_foreign", "")
         translation = current_word.get("translation", "")
-        hint_writing = current_word.get("hint_writing", "")
+
+        db_user_id = user_word_state.user_id
+        word_id = user_word_state.word_id
+        hint_key = "hint_writing"
         
+        hint_writing = await get_hint_text(
+            message_or_callback.bot, 
+            db_user_id, 
+            word_id, 
+            hint_key, 
+            current_word
+        )
+       
         if not word_foreign:
             await message.answer("❌ Слово на иностранном языке не найдено")
             return
@@ -389,9 +410,6 @@ async def process_show_writing_image(
             await message.answer_media_group(media=media)
 
         caption = f"prompt_used: {image_result['prompt_used']}"
-        await message.answer(caption)
-
-        caption = f"semantic_analysis: {image_result['semantic_analysis']}"
         await message.answer(caption)
 
         caption = f"generation_metadata: {image_result['generation_metadata']}"
