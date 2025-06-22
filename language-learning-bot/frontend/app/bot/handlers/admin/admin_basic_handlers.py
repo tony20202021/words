@@ -373,11 +373,11 @@ async def process_view_user(callback: CallbackQuery, state: FSMContext):
     
     logger.info(f"View user {user_id} requested")
     
+    await callback.answer("Получаем прогресс по языкам...")
+
     # Вызываем функцию для отображения детальной информации о пользователе
     await show_user_details(callback, state, user_id)
     
-    await callback.answer()
-
 
 @admin_router.callback_query(AdminStates.viewing_user_details, F.data.startswith("user_stats_"))
 @admin_router.callback_query(F.data.startswith("user_stats_"))
@@ -394,11 +394,11 @@ async def process_user_stats(callback: CallbackQuery, state: FSMContext):
     
     logger.info(f"User stats for {user_id} requested")
     
+    await callback.answer("Получаем статистику по пользователю...")
+
     # Вызываем функцию для отображения подробной статистики пользователя
     await show_user_statistics(callback, state, user_id)
     
-    await callback.answer()
-
 
 @admin_router.callback_query(AdminStates.viewing_user_details, F.data.startswith("toggle_admin_"))
 @admin_router.callback_query(F.data.startswith("toggle_admin_"))
@@ -558,6 +558,8 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
         lang_id = language.get('_id', language.get('id'))
         progress_response = await api_client.get_user_progress(user_id, lang_id)
         
+        await callback.message.answer(f"Получен прогресс по языку {language.get('name_ru')}")
+
         if progress_response["success"] and progress_response["result"]:
             progress = progress_response["result"]
             words_studied = progress.get('words_studied', 0)
@@ -608,7 +610,7 @@ async def show_user_details(callback: CallbackQuery, state: FSMContext, user_id:
     from app.bot.keyboards.admin_keyboards import get_user_detail_keyboard
     keyboard = get_user_detail_keyboard(user_id)
     
-    await callback.message.edit_text(
+    await callback.message.answer(
         user_info,
         parse_mode="HTML",
         reply_markup=keyboard
@@ -653,10 +655,14 @@ async def show_user_statistics(callback: CallbackQuery, state: FSMContext, user_
     total_known = 0
     total_available = 0
     
+    await callback.answer("Получаем прогресс по языкам...")
+
     for language in languages:
         lang_id = language.get('_id', language.get('id'))
         progress_response = await api_client.get_user_progress(user_id, lang_id)
         
+        await callback.message.answer(f"Получен прогресс по языку {language.get('name_ru')}")
+
         if progress_response["success"] and progress_response["result"]:
             progress = progress_response["result"]
             
@@ -691,7 +697,7 @@ async def show_user_statistics(callback: CallbackQuery, state: FSMContext, user_
         [InlineKeyboardButton(text="⬅️ Назад к пользователю", callback_data=f"view_user_{user_id}")]
     ])
     
-    await callback.message.edit_text(
+    await callback.message.answer(
         stats_text,
         parse_mode="HTML",
         reply_markup=keyboard

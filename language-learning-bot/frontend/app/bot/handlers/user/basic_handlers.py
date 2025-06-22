@@ -58,8 +58,7 @@ def _format_welcome_message(
     Returns:
         str: Formatted welcome message
     """
-    message = f"👋 Здравствуйте, {full_name}!\n\n"
-    message += "Добро пожаловать в бот для изучения иностранных слов!\n\n"
+    message = ""
     
     # Handle error state
     if has_error:
@@ -128,6 +127,10 @@ async def handle_start_command(
     
     logger.info(f"Start command handler for {full_name} ({user_info.username})")
 
+    welcome_message = f"👋 Здравствуйте, {full_name}!\n\n"
+    welcome_message += "Добро пожаловать в бот для изучения иностранных слов!\n\n"
+    await message.answer(welcome_message)
+
     # Get API client
     api_client = get_api_client_from_bot(bot)
     if not api_client:
@@ -173,7 +176,7 @@ async def handle_start_command(
         await state.update_data(db_user_id=db_user_id)
         
         # Get progress summary
-        languages_with_progress, languages_without_progress = await get_user_progress_data(db_user_id, languages, api_client)
+        languages_with_progress, languages_without_progress = await get_user_progress_data(message, state, db_user_id, languages, api_client)
 
     # Handle user creation errors
     if not db_user_id and "error" in user_data:

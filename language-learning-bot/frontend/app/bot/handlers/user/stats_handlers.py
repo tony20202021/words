@@ -67,7 +67,7 @@ async def _get_languages_with_word_counts(api_client) -> Tuple[List[Dict], Optio
     
     return languages, None
 
-async def get_user_progress_data(db_user_id: str, languages: List[Dict], api_client) -> Tuple[List[Dict], List[Dict]]:
+async def get_user_progress_data(message, state, db_user_id: str, languages: List[Dict], api_client) -> Tuple[List[Dict], List[Dict]]:
     """
     Get user progress data for all languages.
     НОВОЕ: Разделение языков на те, где есть прогресс, и те, где его нет.
@@ -80,6 +80,9 @@ async def get_user_progress_data(db_user_id: str, languages: List[Dict], api_cli
     Returns:
         tuple: (languages_with_progress, languages_without_progress)
     """
+    current_data = await state.get_data()
+    languages_progress = current_data.get("languages_progress", {})
+
     languages_with_progress = []
     languages_without_progress = []
     
@@ -87,24 +90,30 @@ async def get_user_progress_data(db_user_id: str, languages: List[Dict], api_cli
         language_id = language.get("id")
         
         try:
+            await message.answer(f"Получаем прогресс по языку {language.get('name_ru')}...")
+
             success, progress_data = await safe_api_call(
                 lambda: api_client.get_user_progress(db_user_id, language_id),
-                None,
+                message,
                 f"получение прогресса для языка {language_id}",
-                handle_errors=False
+                handle_errors=True,
             )
             
             if success and progress_data and progress_data.get("words_studied", 0) > 0:
                 # Add total words info to progress data
                 progress_data["total_words"] = language.get("total_words", 0)
                 languages_with_progress.append(progress_data)
+                languages_progress[language_id] = progress_data
             else:
                 languages_without_progress.append(language)
+                languages_progress[language_id] = {}
                 
         except Exception as e:
             logger.error(f"Error getting progress for language {language_id}: {e}")
             languages_without_progress.append(language)
-    
+
+    await state.update_data(languages_progress=languages_progress)
+
     return languages_with_progress, languages_without_progress
 
 def _format_progress_stats(progress_data: List[Dict]) -> str:
@@ -316,7 +325,7 @@ async def process_stats(message_or_callback, state: FSMContext):
         return
 
     # Get user progress data
-    progress_data, available_languages = await get_user_progress_data(db_user_id, languages, api_client)
+    progress_data, available_languages = await get_user_progress_data(message, state, db_user_id, languages, api_client)
 
     # Check if user has any activity
     if not progress_data and not available_languages:

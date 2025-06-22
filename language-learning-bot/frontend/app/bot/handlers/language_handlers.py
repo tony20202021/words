@@ -120,16 +120,24 @@ async def process_language(message_or_callback: Message, state: FSMContext):
     
     # Если есть ID пользователя, получаем прогресс
     if db_user_id:
+        languages_progress = user_data.get("languages_progress", {})        
+
         for language in languages:
             lang_id = language.get("id")
+
             word_count_response = await api_client.get_word_count_by_language(lang_id)
             total_words = word_count_response.get("result", {}).get("count", 0) if word_count_response.get("success") else 0
             
-            progress_response = await api_client.get_user_progress(db_user_id, lang_id)
-            progress = None
-            if progress_response.get("success") and progress_response.get("result"):
-                progress = progress_response.get("result")
-            
+            if lang_id in languages_progress:
+                progress = languages_progress.get(lang_id)
+            else:
+                progress_response = await api_client.get_user_progress(db_user_id, lang_id)
+                progress = None
+                if progress_response.get("success") and progress_response.get("result"):
+                    progress = progress_response.get("result")
+                
+                await message.answer(f"Получен прогресс по языку {language.get('name_ru')}")
+
             # Формируем данные о языке
             lang_data = {
                 "id": lang_id,
@@ -239,6 +247,8 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
 
     logger.info(f"'=lang_select_' command from {full_name} ({username})")
     
+    await callback.answer("Язык выбран.")
+
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(callback.bot)
     
@@ -294,20 +304,27 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     await state.update_data(db_user_id=db_user_id)
     
     # Получаем прогресс пользователя по выбранному языку
-    api_response = await api_client.get_user_progress(user["id"], language_id)
-    if not api_response['success'] and api_response['status'] == 404:
-        # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
-        # Используем пустые значения прогресса
-        progress = {
-            "words_studied": 0,
-            "words_known": 0,
-            "words_skipped": 0,
-            "total_words": 0,
-            "progress_percentage": 0
-        }
+    languages_progress = user_data.get("languages_progress", {})        
+
+    if language_id in languages_progress:
+        progress = languages_progress.get(language_id)
     else:
-        progress = api_response['result']
-    
+        api_response = await api_client.get_user_progress(user["id"], language_id)
+        if not api_response['success'] and api_response['status'] == 404:
+            # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
+            # Используем пустые значения прогресса
+            progress = {
+                "words_studied": 0,
+                "words_known": 0,
+                "words_skipped": 0,
+                "total_words": 0,
+                "progress_percentage": 0
+            }
+        else:
+            progress = api_response['result']
+
+        await callback.message.answer(f"Получен прогресс по языку {language.get('name_ru')}")
+
     # Загружаем настройки пользователя для выбранного языка
     settings = await get_user_language_settings(callback, state)
     
@@ -353,7 +370,6 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         reply_markup=keyboard,
     )    
 
-    await callback.answer()
 
 def register_handlers(dp: Dispatcher):
     """

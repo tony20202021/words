@@ -33,17 +33,20 @@ async def get_user_statistics(
     language_id: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    validate_words: bool = Query(False, description="Only return statistics for existing words"),
     statistics_service: StatisticsService = Depends(get_statistics_service),
     user_service: UserService = Depends(get_user_service)
 ):
     """
     Get statistics for a specific user with optional language filter.
+    ОБНОВЛЕНО: добавлен параметр validate_words для фильтрации по существующим словам.
     
     Args:
         user_id: ID of the user
         language_id: Optional ID of the language to filter by
         skip: Number of records to skip
         limit: Maximum number of records to return
+        validate_words: If True, only return statistics for existing words
         statistics_service: Statistics service dependency
         user_service: User service dependency
         
@@ -53,7 +56,8 @@ async def get_user_statistics(
     Raises:
         HTTPException: If user not found
     """
-    logger.info(f"Getting statistics for user id={user_id}, language id={language_id}, skip={skip}, limit={limit}")
+    logger.info(f"Getting statistics for user id={user_id}, language id={language_id}, "
+               f"skip={skip}, limit={limit}, validate_words={validate_words}")
     
     # First check if user exists
     user = await user_service.get_user(user_id)
@@ -69,10 +73,59 @@ async def get_user_statistics(
         user_id=user_id,
         language_id=language_id,
         skip=skip,
-        limit=limit
+        limit=limit,
+        validate_words=validate_words
     )
     
     return statistics
+
+
+@router.get("/{user_id}/statistics/count", response_model=Dict[str, int])
+async def count_user_statistics(
+    user_id: str,
+    language_id: Optional[str] = Query(None, description="Optional language ID to filter by"),
+    validate_words: bool = Query(False, description="Only count statistics for existing words"),
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    НОВЫЙ ЭНДПОИНТ: Подсчет статистики пользователя без получения записей.
+    Намного быстрее чем получение всех записей для подсчета.
+    
+    Args:
+        user_id: ID of the user
+        language_id: Optional ID of the language to filter by
+        validate_words: If True, only count statistics for existing words
+        statistics_service: Statistics service dependency
+        user_service: User service dependency
+        
+    Returns:
+        Dict with count of statistics records
+        
+    Raises:
+        HTTPException: If user not found
+    """
+    logger.info(f"Counting statistics for user id={user_id}, language id={language_id}, "
+               f"validate_words={validate_words}")
+    
+    # First check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found when counting statistics")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    # Count statistics for user
+    count = await statistics_service.count_user_statistics(
+        user_id=user_id,
+        language_id=language_id,
+        validate_words=validate_words
+    )
+    
+    return {"count": count}
+
 
 @router.get("/{user_id}/word_data/{word_id}", response_model=Optional[UserStatistics])
 async def get_user_word_data(
@@ -82,6 +135,7 @@ async def get_user_word_data(
 ):
     """
     Get user data for a specific word.
+    ПРОВЕРЕНО: метод уже использует get_with_word_info с JOIN, корректен.
     """
     statistics = await statistics_service.get_user_word_statistics(user_id, word_id)
     
@@ -90,6 +144,7 @@ async def get_user_word_data(
         return None
     
     return statistics
+
 
 @router.post("/{user_id}/word_data", response_model=UserStatisticsInDB, status_code=HTTP_201_CREATED)
 async def create_user_word_data(
@@ -170,6 +225,7 @@ async def update_user_word_data(
     
     return updated_statistics
 
+
 @router.get("/{user_id}/languages/{language_id}/study", response_model=List[Dict[str, Any]])
 async def get_study_words(
     user_id: str,
@@ -184,6 +240,7 @@ async def get_study_words(
 ):
     """
     Get words for study with various filters.
+    ПРОВЕРЕНО: service метод уже использует оптимизированную логику с JOIN.
     """
     # Преобразование строковых значений в булевы
     skip_marked_bool = skip_marked.lower() == "true"
@@ -222,6 +279,7 @@ async def get_study_words(
             status_code=HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
 
 @router.put("/{user_id}/statistics/{word_id}/score/{score}", response_model=UserStatisticsInDB)
 async def update_score(
@@ -275,6 +333,7 @@ async def get_user_progress(
 ):
     """
     Get user progress for a specific language.
+    УЛЬТРА-ОПТИМИЗИРОВАНО: теперь использует исправленный service метод с эффективным подсчетом.
     
     Args:
         user_id: ID of the user
@@ -299,7 +358,7 @@ async def get_user_progress(
             detail=f"User with ID {user_id} not found"
         )
     
-    # Get progress
+    # Get progress - теперь использует ультра-оптимизированную логику
     progress = await statistics_service.get_user_progress(user_id, language_id)
     return progress
 
@@ -315,6 +374,7 @@ async def get_words_for_review(
 ):
     """
     Get words due for review today.
+    ПРОВЕРЕНО: service метод уже корректно использует JOIN в repository.
     
     Args:
         user_id: ID of the user
@@ -350,3 +410,122 @@ async def get_words_for_review(
     )
     
     return words
+
+
+# ===== НОВЫЕ АДМИНИСТРАТИВНЫЕ ЭНДПОИНТЫ =====
+
+@router.get("/admin/statistics/integrity", response_model=Dict[str, Any])
+async def get_statistics_integrity_report(
+    statistics_service: StatisticsService = Depends(get_statistics_service)
+):
+    """
+    НОВЫЙ АДМИНИСТРАТИВНЫЙ ЭНДПОИНТ: Получить отчет о целостности данных статистики.
+    Показывает количество и процент мертвых ссылок.
+    
+    Returns:
+        Отчет о целостности данных
+    """
+    logger.info("Getting statistics integrity report")
+    
+    try:
+        report = await statistics_service.get_data_integrity_report()
+        return {
+            "success": True,
+            "report": report
+        }
+    except Exception as e:
+        logger.error(f"Error getting integrity report: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Error generating integrity report: {str(e)}"
+        )
+
+
+@router.post("/admin/statistics/cleanup", response_model=Dict[str, Any])
+async def cleanup_orphaned_statistics(
+    dry_run: bool = Query(True, description="If true, only count orphaned records without deleting"),
+    statistics_service: StatisticsService = Depends(get_statistics_service)
+):
+    """
+    НОВЫЙ АДМИНИСТРАТИВНЫЙ ЭНДПОИНТ: Очистка статистики с мертвыми ссылками.
+    
+    Args:
+        dry_run: Если True, только подсчитывает без удаления
+        statistics_service: Statistics service dependency
+        
+    Returns:
+        Отчет об операции очистки
+    """
+    logger.info(f"Starting cleanup of orphaned statistics, dry_run={dry_run}")
+    
+    try:
+        cleanup_result = await statistics_service.cleanup_orphaned_statistics(dry_run=dry_run)
+        return {
+            "success": True,
+            "cleanup_result": cleanup_result
+        }
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Error during cleanup: {str(e)}"
+        )
+
+
+@router.get("/admin/statistics/health", response_model=Dict[str, Any])
+async def get_statistics_health(
+    statistics_service: StatisticsService = Depends(get_statistics_service)
+):
+    """
+    НОВЫЙ АДМИНИСТРАТИВНЫЙ ЭНДПОИНТ: Комплексная проверка здоровья системы статистики.
+    
+    Returns:
+        Комплексный отчет о состоянии статистики
+    """
+    logger.info("Getting comprehensive statistics health report")
+    
+    try:
+        # Получаем отчет о целостности
+        integrity_report = await statistics_service.get_data_integrity_report()
+        
+        # Дополнительные проверки можно добавить здесь
+        health_status = "healthy" if integrity_report["orphaned_percentage"] < 5.0 else "degraded"
+        
+        return {
+            "success": True,
+            "status": health_status,
+            "integrity": integrity_report,
+            "recommendations": _get_health_recommendations(integrity_report)
+        }
+    except Exception as e:
+        logger.error(f"Error getting health report: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Error generating health report: {str(e)}"
+        )
+
+
+def _get_health_recommendations(integrity_report: Dict[str, Any]) -> List[str]:
+    """
+    Генерирует рекомендации на основе отчета о целостности.
+    """
+    recommendations = []
+    
+    orphaned_percentage = integrity_report.get("orphaned_percentage", 0)
+    
+    if orphaned_percentage > 10:
+        recommendations.append("CRITICAL: High percentage of orphaned statistics (>10%). Run cleanup immediately.")
+    elif orphaned_percentage > 5:
+        recommendations.append("WARNING: Moderate percentage of orphaned statistics (>5%). Consider running cleanup.")
+    elif orphaned_percentage > 1:
+        recommendations.append("INFO: Low percentage of orphaned statistics (>1%). Cleanup can be scheduled.")
+    else:
+        recommendations.append("GOOD: Very low percentage of orphaned statistics (<1%).")
+    
+    if integrity_report.get("orphaned_statistics", 0) > 1000:
+        recommendations.append("Consider implementing cascade deletion for word removal.")
+    
+    if not recommendations:
+        recommendations.append("Statistics integrity is excellent.")
+    
+    return recommendations
