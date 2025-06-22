@@ -305,6 +305,8 @@ class WritingImageService:
                        f"ai_time: {ai_result.generation_metadata.get('generation_time_ms')}ms, "
                        f"size: {len(ai_result.generated_image_base64)} chars{hint_result_info})")
             
+            await self.cleanup()
+            
             return GenerationResult(
                 success=True,
                 image_data_base64=ai_result.generated_image_base64,
@@ -322,6 +324,8 @@ class WritingImageService:
             # Calculate error time
             error_time_ms = int((time.time() - start_time) * 1000)
             
+            await self.cleanup()
+
             return GenerationResult(
                 success=False,
                 error=f"AI generation failed: {str(e)}",
@@ -330,6 +334,8 @@ class WritingImageService:
                     error=True
                 )
             )
+
+
     
     async def get_service_status(self) -> Dict[str, Any]:
         """

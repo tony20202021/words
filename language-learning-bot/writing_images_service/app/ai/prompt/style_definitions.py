@@ -38,57 +38,57 @@ class StyleDefinitions:
         
         self.styles["anime"] = StyleDefinition(
             name="anime",
-            base_template="An anime-style artwork showing concept: '{meaning}', stylized in the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="An anime-style artwork showing concept: '{meaning}', stylized in the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["cartoon"] = StyleDefinition(
             name="cartoon",
-            base_template="A cartoon picture of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
+            base_template="A cartoon picture of concept: {meaning}, in the form of character {character}. {hint_writing}",
         )
 
         self.styles["comic"] = StyleDefinition(
             name="comic",
-            base_template="A vibrant comic book style illustration of concept: '{meaning}', inspired by the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A vibrant comic book style illustration of concept: '{meaning}', inspired by the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["cyberpunk"] = StyleDefinition(
             name="cyberpunk",
-            base_template="A cyberpunk style picture of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
+            base_template="A cyberpunk style picture of concept: {meaning}, in the form of character {character}. {hint_writing}",
         )
 
         self.styles["digital"] = StyleDefinition(
             name="digital",
-            base_template="A modern digital artwork representing concept: '{meaning}', inspired by the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A modern digital artwork representing concept: '{meaning}', inspired by the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["disney"] = StyleDefinition(
             name="disney",
-            base_template="A Disney animation style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint_writing}",
+            base_template="A Disney animation style illustration of concept: {meaning}, in the form of character {character}. {hint_writing}",
         )
 
         self.styles["fantasy"] = StyleDefinition(
             name="fantasy",
-            base_template="A mystical fantasy artwork depicting concept: '{meaning}', embodying the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A mystical fantasy artwork depicting concept: '{meaning}', embodying the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["ink"] = StyleDefinition(
             name="ink",
-            base_template="A traditional Chinese ink painting of concept: '{meaning}', capturing the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A traditional ink painting of concept: '{meaning}', capturing the form of the character '{character}'. {hint_writing}",
         )
         
         self.styles["realistic"] = StyleDefinition(
             name="realistic",
-            base_template="A detailed realistic illustration representing concept: '{meaning}', maintaining the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A detailed realistic illustration representing concept: '{meaning}', maintaining the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["techno"] = StyleDefinition(
             name="techno",
-            base_template="A modern techno style picture of concept: '{meaning}', in the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A modern techno style picture of concept: '{meaning}', in the form of the character '{character}'. {hint_writing}",
         )
 
         self.styles["watercolor"] = StyleDefinition(
             name="watercolor",
-            base_template="A soft watercolor painting depicting concept: '{meaning}', with flowing brushstrokes inspired by the form of the Chinese character '{character}'. {hint_writing}",
+            base_template="A soft watercolor painting depicting concept: '{meaning}', with flowing brushstrokes inspired by the form of the character '{character}'. {hint_writing}",
         )
     
     def get_style_definition(self, style_name: str) -> Dict[str, Any]:

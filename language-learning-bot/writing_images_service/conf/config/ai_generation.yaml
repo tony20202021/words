@@ -177,14 +177,14 @@ ai_generation:
   prompt_engineering:
     # Базовые шаблоны промптов
     base_templates:
-      anime: "An anime-style artwork showing concept: {meaning}, stylized in the form of Chinese character {character}. {hint}"
-      cartoon: "A cartoon picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
-      comics: "A vibrant comics book style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint}"
-      cyberpunk: "A cyberpunk style picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
-      disney: "A Disney animation style illustration of concept: {meaning}, in the form of Chinese character {character}. {hint}"
-      realistic: "A detailed realistic illustration representing concept: {meaning}, maintaining the form of Chinese character {character}. {hint}"
-      techno: "A modern techno style picture of concept: {meaning}, in the form of Chinese character {character}. {hint}"
-      watercolor: "A soft watercolor painting depicting concept: {meaning}, with flowing brushstrokes in the form of Chinese character {character}. {hint}"
+      anime: "An anime-style artwork showing concept: {meaning}, stylized in the form of character {character}. {hint}"
+      cartoon: "A cartoon picture of concept: {meaning}, in the form of character {character}. {hint}"
+      comics: "A vibrant comics book style illustration of concept: {meaning}, in the form of character {character}. {hint}"
+      cyberpunk: "A cyberpunk style picture of concept: {meaning}, in the form of character {character}. {hint}"
+      disney: "A Disney animation style illustration of concept: {meaning}, in the form of character {character}. {hint}"
+      realistic: "A detailed realistic illustration representing concept: {meaning}, maintaining the form of character {character}. {hint}"
+      techno: "A modern techno style picture of concept: {meaning}, in the form of character {character}. {hint}"
+      watercolor: "A soft watercolor painting depicting concept: {meaning}, with flowing brushstrokes in the form of character {character}. {hint}"
       
   # Мониторинг и отладка
   monitoring:
