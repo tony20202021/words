@@ -319,6 +319,42 @@ async def process_toggle_check_date(callback: CallbackQuery, state: FSMContext):
         setting_name="Дата проверки"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_CHECK_DATE)
+async def process_toggle_show_check_date(callback: CallbackQuery, state: FSMContext):
+    """Handle check date toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_check_date", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Дата проверки"
+    )    
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES)
+async def process_toggle_show_writing_images(callback: CallbackQuery, state: FSMContext):
+    """Handle writing images toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_writing_images", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Картинки написания"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_BIG)
+async def process_toggle_show_big(callback: CallbackQuery, state: FSMContext):
+    """Handle big word toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_big", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Крупное написание"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_SHORT_CAPTIONS)
+async def process_toggle_show_short_captions(callback: CallbackQuery, state: FSMContext):
+    """Handle short captions toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_short_captions", 
+        true_text="Короткие", false_text="Длинные",
+        setting_name="Подписи"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG)
 async def process_toggle_show_debug(callback: CallbackQuery, state: FSMContext):
     """Handle debug info toggle."""

@@ -64,6 +64,9 @@ async def show_study_word(
     # Get basic settings for debug info
     basic_settings = await get_user_language_settings(message_or_callback, state)
     show_debug = basic_settings.get("show_debug", False)
+    show_big = basic_settings.get("show_big", False)
+    show_check_date = basic_settings.get("show_check_date", True)
+    show_short_captions = basic_settings.get("show_short_captions", True)
     
     # Проверяем статус администратора
     is_admin = await is_user_admin(message_or_callback, state)
@@ -108,7 +111,9 @@ async def show_study_word(
         score_changed=score_changed,
         show_word=word_shown,
         word_foreign=word_foreign,
-        transcription=transcription
+        transcription=transcription,
+        show_big=show_big,
+        show_check_date=show_check_date
     )
     
     if (current_state == StudyStates.confirming_word_knowledge.state):
@@ -133,7 +138,6 @@ async def show_study_word(
         debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images)
         message_text = debug_info + '\n\n' + message_text
     
-    # ОБНОВЛЕНО: Передаем is_admin и show_writing_images в создание клавиатуры
     keyboard = create_adaptive_study_keyboard(
         word=current_word,
         word_shown=word_shown,
@@ -142,7 +146,8 @@ async def show_study_word(
         current_state=current_state,
         is_admin=is_admin,
         show_writing_images=show_writing_images,
-        current_language=current_language,
+        show_big=show_big,
+        show_short_captions=show_short_captions
     )
 
     # Send or edit message

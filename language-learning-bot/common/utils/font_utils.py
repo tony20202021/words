@@ -290,7 +290,7 @@ class FontManager:
         initial_font_size: int = 80,
         min_font_size: int = 12,
         font_path: Optional[str] = None
-    ) -> Tuple[ImageFont.ImageFont, int, int, int]:
+    ) -> Tuple[ImageFont.ImageFont, int, int, int, int]:
         """
         Automatically fit font size to given dimensions.
         Автоматически подбирает размер шрифта под заданные размеры.
@@ -321,7 +321,7 @@ class FontManager:
                 text_height = bbox[3] - bbox[1]
                 
                 if text_width <= max_width and text_height <= max_height:
-                    return font, current_font_size, text_width, text_height
+                    return font, current_font_size, text_width, text_height, bbox[1]
                 
                 # Reduce font size by 10%
                 current_font_size = int(current_font_size * 0.9)
@@ -334,7 +334,7 @@ class FontManager:
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
             
-            return font, min_font_size, text_width, text_height
+            return font, min_font_size, text_width, text_height, bbox[1]
         
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _fit_font)

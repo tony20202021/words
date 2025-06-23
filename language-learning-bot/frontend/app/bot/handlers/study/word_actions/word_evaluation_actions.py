@@ -13,11 +13,6 @@ from app.utils.word_data_utils import update_word_score
 from app.bot.states.centralized_states import StudyStates
 from app.utils.callback_constants import CallbackData
 from app.bot.handlers.study.study_words import show_study_word
-from app.utils.hint_settings_utils import get_individual_hint_settings
-from app.utils.admin_utils import is_user_admin
-from app.utils.formatting_utils import format_study_word_message, format_used_hints
-from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
-from app.utils.settings_utils import get_show_debug_setting
 
 logger = setup_logger(__name__)
 

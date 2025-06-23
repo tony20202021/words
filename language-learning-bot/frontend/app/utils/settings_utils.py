@@ -21,13 +21,14 @@ DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
     "use_check_date": True,
+    "show_check_date": True,
     "show_debug": False,
-    # Individual hint settings
     "show_hint_meaning": True,
     "show_hint_phoneticassociation": True,
     "show_hint_phoneticsound": True,
     "show_hint_writing": True,
-    # Writing images settings
+    "show_big": False,
+    "show_short_captions": True,
     "show_writing_images": True,
 }
 
@@ -43,14 +44,20 @@ async def get_user_language_settings(message_or_callback, state: FSMContext) -> 
         Dict with user settings for current language
     """
     state_data = await state.get_data()
-    
-    # Check required data
-    db_user_id = state_data.get("db_user_id")
-    current_language = state_data.get("current_language", {})
-    language_id = current_language.get("id") if current_language else None
 
-    result = await get_user_language_settings_without_state(message_or_callback, db_user_id, language_id)
-    return result
+    if 'settings' in state_data:
+        settings = state_data['settings']
+    else:
+        db_user_id = state_data.get("db_user_id")
+        current_language = state_data.get("current_language", {})
+        language_id = current_language.get("id") if current_language else None
+
+        settings = await get_user_language_settings_without_state(message_or_callback, db_user_id, language_id)
+
+        state_data['settings'] = settings
+        await state.update_data(settings=settings)
+        
+    return settings
 
 async def get_user_language_settings_without_state(message_or_callback, db_user_id, language_id) -> Dict[str, Any]:
     # Get bot and state data
@@ -177,6 +184,9 @@ async def display_language_settings(
     skip_marked = settings.get("skip_marked", DEFAULT_SETTINGS["skip_marked"])
     use_check_date = settings.get("use_check_date", DEFAULT_SETTINGS["use_check_date"])
     show_debug = settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
+    show_check_date = settings.get("show_check_date", DEFAULT_SETTINGS["show_check_date"])
+    show_short_captions = settings.get("show_short_captions", DEFAULT_SETTINGS["show_short_captions"])
+    show_big = settings.get("show_big", DEFAULT_SETTINGS["show_big"])
     
     # Extract individual hint settings
     from app.utils.hint_constants import HINT_SETTING_KEYS
@@ -221,6 +231,9 @@ async def display_language_settings(
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
+        show_check_date=show_check_date,
+        show_short_captions=show_short_captions,
+        show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
         current_language=current_language
@@ -232,9 +245,11 @@ async def display_language_settings(
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
+        show_check_date=show_check_date,
+        show_short_captions=show_short_captions,
+        show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
-        current_language=current_language,
         prefix=language_prefix, 
         suffix=suffix
     )

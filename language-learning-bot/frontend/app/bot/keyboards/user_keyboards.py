@@ -20,9 +20,7 @@ from app.utils.callback_constants import (
 )
 from app.utils.hint_constants import (
     HINT_SETTING_KEYS,
-    get_hint_setting_name,
-    WRITING_IMAGE_SETTING_KEYS,
-    get_writing_image_setting_name,
+    get_hint_setting_name
 )
 from app.utils.logger import setup_logger
 
@@ -80,6 +78,9 @@ def create_settings_keyboard(
     skip_marked: bool = False,
     use_check_date: bool = True,
     show_debug: bool = False,
+    show_check_date: bool = True,
+    show_big: bool = False,
+    show_short_captions: bool = True,
     hint_settings: Optional[Dict[str, bool]] = None,
     show_writing_images: bool = False,
     current_language: Optional[dict] = None,
@@ -92,6 +93,9 @@ def create_settings_keyboard(
         skip_marked: Whether to skip marked words
         use_check_date: Whether to use check date
         show_debug: Whether to show debug info
+        show_check_date: Whether to show check date
+        show_big: Whether to show big word
+        show_short_captions: Whether to show short captions
         hint_settings: Individual hint settings dictionary
         show_writing_images: Whether writing images are enabled
         current_language: Current language information (not used for restrictions anymore)
@@ -101,6 +105,13 @@ def create_settings_keyboard(
     """
     builder = InlineKeyboardBuilder()
     
+    # Short captions setting button
+    short_captions_text = "✅ Короткие подписи" if show_short_captions else "❌ Длинные подписи"
+    builder.add(InlineKeyboardButton(
+        text=f"{short_captions_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_SHORT_CAPTIONS
+    ))
+
     # Basic settings buttons
     builder.add(InlineKeyboardButton(
         text="🔢 Изменить начальное слово",
@@ -118,6 +129,12 @@ def create_settings_keyboard(
         text=f"{date_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_CHECK_DATE
     ))
+
+    check_date_text = "✅ Показывать дату" if show_check_date else "❌ Скрывать дату"
+    builder.add(InlineKeyboardButton(
+        text=f"{check_date_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_CHECK_DATE
+    ))
     
     # Individual hint settings buttons
     if hint_settings:
@@ -129,8 +146,19 @@ def create_settings_keyboard(
             callback_data="no_action"
         ))
     
+    # Big word setting button
+    big_word_text = "✅ Показывать крупное написание" if show_big else "❌ Скрывать крупное написание"
+    builder.add(InlineKeyboardButton(
+        text=f"{big_word_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_BIG
+    ))
+
     # Writing images setting button (always show if user has setting enabled)
-    _add_writing_images_button(builder, show_writing_images)
+    writing_images_text = "✅ Показывать картинки" if show_writing_images else "❌ Скрывать картинки"
+    builder.add(InlineKeyboardButton(
+        text=f"{writing_images_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES
+    ))
     
     # Debug setting
     debug_text = "✅ Отладочная информация" if show_debug else "❌ Отладочная информация"
@@ -176,27 +204,6 @@ def _add_individual_hint_buttons(
             callback_data=callback_data
         ))
 
-def _add_writing_images_button(
-    builder: InlineKeyboardBuilder,
-    show_writing_images: bool
-) -> None:
-    """
-    Add writing images setting button to keyboard.
-    UPDATED: Always show the button - no language restrictions.
-    
-    Args:
-        builder: Keyboard builder
-        show_writing_images: Whether writing images are enabled
-    """
-    status_emoji = "✅" if show_writing_images else "❌"
-    setting_name = get_writing_image_setting_name("show_writing_images")
-    
-    if setting_name:
-        button_text = f"   {status_emoji} {setting_name}"
-        builder.add(InlineKeyboardButton(
-            text=button_text,
-            callback_data=CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES
-        ))
 
 def create_language_selection_keyboard(languages: List[Dict]) -> InlineKeyboardMarkup:
     """

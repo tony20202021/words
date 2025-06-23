@@ -15,9 +15,7 @@ from app.utils.callback_constants import CallbackData, format_hint_callback, for
 from app.utils.hint_constants import (
     format_hint_button,
     has_hint,
-    get_enabled_hint_types,
-    is_writing_images_enabled,
-    format_writing_image_button,
+    get_enabled_hint_types
 )
 from app.utils.logger import setup_logger
 
@@ -30,7 +28,8 @@ def create_word_keyboard(
     used_hints: List[str] = None,
     is_admin: bool = False,
     show_writing_images: bool = False,
-    current_language: Optional[dict] = None,
+    show_big: bool = False,
+    show_short_captions: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for word interaction during study process.
@@ -45,8 +44,8 @@ def create_word_keyboard(
         used_hints: List of hints already used by the user
         is_admin: Whether user is admin
         show_writing_images: Whether writing images are enabled in settings
-        current_language: Current language information (not used for restrictions anymore)
-        
+        show_short_captions: Whether to show short captions
+        show_big: Whether to show big word
     Returns:
         InlineKeyboardMarkup: The keyboard markup
     """
@@ -55,52 +54,51 @@ def create_word_keyboard(
     if used_hints is None:
         used_hints = []
     
+    builder_adjust = []
+
     # Main action buttons based on word state
     if word_shown or (len(used_hints) > 0):
         # Word has been shown or hints used - show next word button
         builder.add(InlineKeyboardButton(
-            text="➡️ Следующее слово",
+            text="➡️ Дальше" if show_short_captions else "➡️ Следующее слово",
             callback_data=CallbackData.NEXT_WORD
         ))
         
         builder.add(InlineKeyboardButton(
-            text="❓ Показать слово",
+            text="❓ Показать" if show_short_captions else "❓ Показать слово",
             callback_data=CallbackData.SHOW_WORD
         ))
 
-        # Regular word image button
-        if word_shown and word.get("word_foreign"):
+        if word_shown and word.get("word_foreign") and show_big:
             builder.add(InlineKeyboardButton(
-                text="🔍 Показать крупное написание",
+                text="🔍 Крупно" if show_short_captions else "🔍 Показать крупное написание",
                 callback_data=CallbackData.SHOW_BIG
             ))
         
-        # Writing image button (controlled by user settings only)
         if word_shown and word.get("word_foreign") and show_writing_images:
-            # Check if writing image exists (stub - always False for now)
-            has_writing_image = False  # TODO: Replace with real check when backend is ready
-            
-            button_text = format_writing_image_button(
-                has_image=has_writing_image,
-                is_enabled=show_writing_images
-            )
-            
             builder.add(InlineKeyboardButton(
-                text=button_text,
+                text="🖼️ Картинка" if show_short_captions else "🖼️ Показать картинку написания",
                 callback_data=CallbackData.SHOW_WRITING_IMAGE
             ))
-            
+        if show_short_captions:
+            builder_adjust.extend([2, 2])
+        else:
+            builder_adjust.extend([1, 1, 1, 1])
     else:
         # Word not shown yet - show evaluation buttons
         builder.add(InlineKeyboardButton(
-            text="✅ Знаю, к следующему",
+            text="✅ Знаю" if show_short_captions else "✅ Знаю, к следующему",
             callback_data=CallbackData.WORD_KNOW
         ))
 
         builder.add(InlineKeyboardButton(
-            text="❓ Не знаю / не уверен, показать",
+            text="❓ Не знаю" if show_short_captions else "❓ Не знаю / не уверен, показать",
             callback_data=CallbackData.SHOW_WORD
         ))
+        if show_short_captions:
+            builder_adjust.extend([2])
+        else:
+            builder_adjust.extend([1, 1])
 
     # Get word ID for hint callbacks
     word_id = _extract_word_id(word)
@@ -110,12 +108,16 @@ def create_word_keyboard(
         if hint_settings is not None:
             enabled_hint_types = get_enabled_hint_types(hint_settings)
             if enabled_hint_types:
-                _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types)
-    
+                _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types, show_short_captions)
+            if show_short_captions:
+                builder_adjust.extend([2] * (len(enabled_hint_types) // 2))
+            else:
+                builder_adjust.extend([1] * len(enabled_hint_types))
+
     # Добавляем кнопку редактирования для админов
     if is_admin and word_id:
         builder.add(InlineKeyboardButton(
-            text="✏️ Редактировать слово",
+            text="✏️ Редактировать" if show_short_captions else "✏️ Редактировать слово",
             callback_data=format_admin_edit_from_study_callback(word_id)
         ))
     
@@ -128,8 +130,12 @@ def create_word_keyboard(
         callback_data=CallbackData.TOGGLE_WORD_SKIP
     ))
     
-    # Set layout: one button per row
-    builder.adjust(1)
+    if show_short_captions:
+        builder_adjust.extend([2])
+    else:
+        builder_adjust.extend([1, 1])
+
+    builder.adjust(*builder_adjust)
 
     return builder.as_markup()
 
@@ -157,7 +163,8 @@ def _add_hint_buttons(
     word: dict, 
     word_id: str, 
     used_hints: List[str],
-    enabled_hint_types: List[str]
+    enabled_hint_types: List[str],
+    show_short_captions: bool = True
 ) -> int:
     """
     Add hint buttons for enabled hint types.
@@ -168,7 +175,7 @@ def _add_hint_buttons(
         word_id: Word ID for callbacks
         used_hints: List of already used hints
         enabled_hint_types: List of enabled hint types from settings
-        
+        show_short_captions: Whether to show short captions
     Returns:
         int: Number of hint buttons added
     """
@@ -182,7 +189,7 @@ def _add_hint_buttons(
         is_active = hint_type in used_hints
         
         # Format button text
-        button_text = format_hint_button(hint_type, hint_exists, is_active, is_enabled=True)
+        button_text = format_hint_button(hint_type, hint_exists, is_active, is_enabled=True, show_short_captions=show_short_captions)
         
         # Determine callback action based on hint state
         if hint_exists:
@@ -202,7 +209,7 @@ def _add_hint_buttons(
         ))
         buttons_added += 1
     
-    logger.info(f"Added {buttons_added} hint buttons for enabled types: {enabled_hint_types}")
+    logger.info(f"Added {buttons_added} hint buttons for enabled types: {enabled_hint_types}, show_short_captions={show_short_captions}")
     return buttons_added
 
 def create_adaptive_study_keyboard(
@@ -213,7 +220,8 @@ def create_adaptive_study_keyboard(
     current_state: str = None,
     is_admin: bool = False,
     show_writing_images: bool = False,
-    current_language: Optional[dict] = None,
+    show_big: bool = False,
+    show_short_captions: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Create adaptive keyboard that changes based on current FSM state and word status.
@@ -229,8 +237,8 @@ def create_adaptive_study_keyboard(
         current_state: Current FSM state
         is_admin: Whether user is admin
         show_writing_images: Whether writing images are enabled
-        current_language: Current language information (not used for restrictions anymore)
-        
+        show_big: Whether to show big word
+        show_short_captions: Whether to show short captions
     Returns:
         InlineKeyboardMarkup: Adaptive keyboard
     """
@@ -246,7 +254,7 @@ def create_adaptive_study_keyboard(
     elif current_state == StudyStates.viewing_word_details.state:
         return create_word_details_keyboard(
             word, hint_settings, used_hints, is_admin, 
-            show_writing_images, current_language
+            show_writing_images, show_big, show_short_captions
         )
     elif current_state == StudyStates.confirming_word_knowledge.state:
         return create_word_confirmation_keyboard()
@@ -258,7 +266,7 @@ def create_adaptive_study_keyboard(
         # Default to standard word keyboard
         return create_word_keyboard(
             word, word_shown, hint_settings, used_hints, is_admin,
-            show_writing_images, current_language
+            show_writing_images, show_big, show_short_captions
         )
 
 def create_word_details_keyboard(
@@ -267,7 +275,8 @@ def create_word_details_keyboard(
     used_hints: List[str] = None,
     is_admin: bool = False,
     show_writing_images: bool = False,
-    current_language: Optional[dict] = None,
+    show_big: bool = False,
+    show_short_captions: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard specifically for viewing word details state.
@@ -282,7 +291,8 @@ def create_word_details_keyboard(
         is_admin: Whether user is admin
         show_writing_images: Whether writing images are enabled
         current_language: Current language information (not used for restrictions anymore)
-        
+        show_big: Whether to show big word
+        show_short_captions: Whether to show short captions
     Returns:
         InlineKeyboardMarkup: Word details keyboard
     """
@@ -290,48 +300,50 @@ def create_word_details_keyboard(
     
     if used_hints is None:
         used_hints = []
-    
+
+    builder_adjust = []
+
     # Main navigation button
     builder.add(InlineKeyboardButton(
-        text="➡️ К следующему слову",
+        text="➡️ Дальше" if show_short_captions else "➡️ К следующему слову",
         callback_data=CallbackData.NEXT_WORD
     ))
+    builder_adjust.extend([1])
     
     # Get word ID for hint callbacks
     word_id = _extract_word_id(word)
     
     # Add hint management buttons based on individual settings
+    enabled_hint_types = []
     if word_id and hint_settings is not None:
         enabled_hint_types = get_enabled_hint_types(hint_settings)
         if enabled_hint_types:
-            _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types)
-    
-    # Regular word image button
-    if word.get("word_foreign"):
+            _add_hint_buttons(builder, word, word_id, used_hints, enabled_hint_types, show_short_captions)
+            if show_short_captions:
+                builder_adjust.extend([2] * (len(enabled_hint_types) // 2)) 
+            else:
+                builder_adjust.extend([1] * len(enabled_hint_types))
+
+    if word.get("word_foreign") and show_big:
         builder.add(InlineKeyboardButton(
-            text="🔍 Показать крупное написание",
+            text="🔍 Крупно" if show_short_captions else "🔍 Показать крупное написание",
             callback_data=CallbackData.SHOW_BIG
         ))
     
-    # Writing image button (controlled by user settings only)
     if word.get("word_foreign") and show_writing_images:
-        # Check if writing image exists (stub - always False for now)
-        has_writing_image = False  # TODO: Replace with real check when backend is ready
-        
-        button_text = format_writing_image_button(
-            has_image=has_writing_image,
-            is_enabled=show_writing_images
-        )
-        
         builder.add(InlineKeyboardButton(
-            text=button_text,
+            text="🖼️ Картинка" if show_short_captions else "🖼️ Сгенерировать картинку написания",
             callback_data=CallbackData.SHOW_WRITING_IMAGE
         ))
+    if show_short_captions:
+        builder_adjust.extend([2])
+    else:
+        builder_adjust.extend([1, 1])
     
     # Добавляем кнопку редактирования для админов
     if is_admin and word_id:
         builder.add(InlineKeyboardButton(
-            text="✏️ Редактировать слово",
+            text="✏️ Редактировать" if show_short_captions else "✏️ Редактировать",
             callback_data=format_admin_edit_from_study_callback(word_id)
         ))
     
@@ -343,8 +355,16 @@ def create_word_details_keyboard(
         text=f"⏩ {'Не пропускать' if is_skipped else 'Пропускать'}",
         callback_data=CallbackData.TOGGLE_WORD_SKIP
     ))
+
+    if show_short_captions:
+        builder_adjust.extend([2])
+    else:
+        builder_adjust.extend([1, 1])
     
-    builder.adjust(1)
+    builder.adjust(*builder_adjust)
+
+    logger.info(f"show_short_captions={show_short_captions}, builder_adjust={builder_adjust}")
+
     return builder.as_markup()
 
 def create_word_confirmation_keyboard() -> InlineKeyboardMarkup:

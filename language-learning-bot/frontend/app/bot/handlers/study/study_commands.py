@@ -79,7 +79,6 @@ async def process_study(message_or_callback: Message, state: FSMContext):
     # Load user settings including individual hint settings
     settings = await get_user_language_settings(message_or_callback, state)
     hint_settings = await get_individual_hint_settings(message_or_callback, state)
-    show_debug = settings.get('show_debug', False)
     
     logger.info(f"Loaded settings for user {db_user_id}, language_id {language_id}: {settings}")
     logger.info(f"Loaded hint settings for user {db_user_id}, language_id {language_id}: {hint_settings}")
@@ -97,6 +96,8 @@ async def process_study(message_or_callback: Message, state: FSMContext):
     batch_info["batch_received_count"] = 0
 
     shift = batch_info["batch_start_number"]
+
+    await message.answer("🔄 Загружаем слова...")
 
     (study_words, batch_info) = await load_next_batch(message, batch_info, api_client, db_user_id, language_id, settings, shift)
 

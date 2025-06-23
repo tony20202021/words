@@ -61,37 +61,21 @@ HINT_SETTINGS_NAMES: Dict[str, str] = {
 # Все ключи настроек подсказок
 HINT_SETTING_KEYS = list(HINT_SETTINGS_MAP.values())
 
-# Настройки для картинок написания
-WRITING_IMAGE_SETTINGS_MAP: Dict[str, str] = {
-    "writing_images": "show_writing_images"
-}
-
-# Названия для настроек картинок написания
-WRITING_IMAGE_SETTINGS_NAMES: Dict[str, str] = {
-    "show_writing_images": "Картинки написания"
-}
-
-# Все ключи настроек картинок написания
-WRITING_IMAGE_SETTING_KEYS = list(WRITING_IMAGE_SETTINGS_MAP.values())
-
 # Объединенные настройки (подсказки + картинки написания)
 ALL_SETTINGS_MAP = {
     **HINT_SETTINGS_MAP,
-    **WRITING_IMAGE_SETTINGS_MAP
 }
 
 ALL_SETTINGS_NAMES = {
     **HINT_SETTINGS_NAMES,
-    **WRITING_IMAGE_SETTINGS_NAMES
 }
 
-ALL_SETTING_KEYS = HINT_SETTING_KEYS + WRITING_IMAGE_SETTING_KEYS
+ALL_SETTING_KEYS = HINT_SETTING_KEYS
 
 # Логирование констант при загрузке модуля для отладки
 logger.info(f"Loaded hint types: {list(HINT_TYPE_MAP.keys())}")
 logger.info(f"Loaded hint icons: {HINT_ICONS}")
 logger.info(f"Loaded hint settings: {HINT_SETTING_KEYS}")
-logger.info(f"Loaded writing image settings: {WRITING_IMAGE_SETTING_KEYS}")
 logger.info(f"Loaded all settings: {ALL_SETTING_KEYS}")
 
 def get_hint_key(hint_type: str) -> Optional[str]:
@@ -203,7 +187,7 @@ def get_enabled_hint_types(settings: Dict) -> List[str]:
             enabled_hints.append(hint_type)
     return enabled_hints
 
-def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool = False, is_enabled: bool = True) -> str:
+def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool = False, is_enabled: bool = True, show_short_captions: bool = True) -> str:
     """
     Format button text for a hint type.
     
@@ -212,30 +196,31 @@ def format_hint_button(hint_type: str, has_hint: bool = False, is_active: bool =
         has_hint: Whether hint exists
         is_active: Whether hint is currently active
         is_enabled: Whether hint type is enabled in settings
-        
+        show_short_captions: Whether to show short captions
     Returns:
         str: Formatted button text
     """
     icon = get_hint_icon(hint_type)
     name = get_hint_name(hint_type)
+    short_name = get_hint_short(hint_type)
     
     if not name:
         name = hint_type.capitalize()
     
     # If disabled in settings, show as disabled
     if not is_enabled:
-        return f"🚫 {icon} {name}: Отключено"
+        return f"🚫 {icon} {short_name}: Отключено" if show_short_captions else f"🚫 {icon} {name}: Отключено"
     
     if has_hint:
         if is_active:
             # Подсказка активна (показывается)
-            return f"✓ {icon} {name}: ✏️"
+            return f"✓ {icon} {short_name}: ✏️" if show_short_captions else f"✓ {icon} {name}: ✏️"
         else:
             # Подсказка есть, но не активна
-            return f"{icon} {name}: 👁️"
+            return f"{icon} {short_name}: 👁️" if show_short_captions else f"{icon} {name}: 👁️"
     else:
         # Подсказки нет
-        return f"{icon} {name}: ➕"
+        return f"{icon} {short_name}: ➕" if show_short_captions else f"{icon} {name}: ➕"
 
 def has_hint(word_data: Dict, hint_type: str) -> bool:
     """
@@ -289,51 +274,3 @@ def get_hints_from_word_data(word_data: Dict) -> Dict[str, str]:
             hints[hint_type] = user_word_data[hint_key]
     
     return hints
-
-# Функции для работы с картинками написания
-def is_writing_images_enabled(settings: Dict) -> bool:
-    """
-    Check if writing images are enabled in settings.
-    
-    Args:
-        settings: User settings dictionary
-        
-    Returns:
-        bool: True if writing images are enabled, False otherwise
-    """
-    return settings.get("show_writing_images", True)  # Default to True
-
-def get_writing_image_setting_name(setting_key: str) -> Optional[str]:
-    """
-    Get display name for a writing image setting.
-    
-    Args:
-        setting_key: Setting key string
-        
-    Returns:
-        str: Display name for the setting or None if not found
-    """
-    return WRITING_IMAGE_SETTINGS_NAMES.get(setting_key)
-
-def format_writing_image_button(has_image: bool = False, is_enabled: bool = True) -> str:
-    """
-    Format button text for writing image.
-    
-    Args:
-        has_image: Whether writing image exists
-        is_enabled: Whether writing images are enabled in settings
-        
-    Returns:
-        str: Formatted button text
-    """
-    icon = "🖼️"
-    name = "Картинка написания"
-    
-    if not is_enabled:
-        return f"🚫 {icon} {name}: Отключено"
-    
-    if has_image:
-        return f"{icon} {name}: 👁️"
-    else:
-        return f"{icon} {name}: ➕"
-    

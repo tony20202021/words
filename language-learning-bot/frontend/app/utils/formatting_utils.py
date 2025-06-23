@@ -11,9 +11,7 @@ from typing import Dict, Any, List, Optional
 from app.utils.logger import setup_logger
 from app.utils.hint_constants import (
     HINT_SETTING_KEYS, 
-    get_hint_setting_name,
-    WRITING_IMAGE_SETTING_KEYS,
-    get_writing_image_setting_name,
+    get_hint_setting_name
 )
 
 logger = setup_logger(__name__)
@@ -68,10 +66,12 @@ def format_settings_text(
     start_word, 
     skip_marked, 
     use_check_date, 
+    show_check_date,
     show_debug, 
     hint_settings,
     show_writing_images=False,
-    current_language=None,
+    show_short_captions=True,
+    show_big=False,
     prefix="", 
     suffix=""
 ):
@@ -84,10 +84,12 @@ def format_settings_text(
         start_word: Номер слова для начала обучения
         skip_marked: Пропускать ли помеченные слова
         use_check_date: Учитывать ли дату проверки
+        show_date: Показывать ли дату проверки
         show_debug: Показывать ли отладочную информацию
         hint_settings: Словарь с индивидуальными настройками подсказок
         show_writing_images: Показывать ли картинки написания
-        current_language: Информация о текущем языке
+        show_short_captions: Показывать ли короткие подписи
+        show_big: Показывать ли крупное написание
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -96,16 +98,21 @@ def format_settings_text(
     """
     settings_text = f"{prefix}"
     
-    # Форматируем настройки
-    settings_text += f"Начальное слово: <b>{start_word}</b>\n"
+    short_captions_status = "Показывать ✅" if show_short_captions else "Скрывать ❌"
+    settings_text += f"   • Короткие подписи: <b>{short_captions_status}</b>\n"
     
-    # Статус пропуска помеченных слов
+    settings_text += f"   • Начальное слово: <b>{start_word}</b>\n"
+    
     skip_status = "Пропускать ❌" if skip_marked else "Показывать ✅"
-    settings_text += f"Исключенные слова: <b>{skip_status}</b>\n"
+    settings_text += f"   • Исключенные слова: <b>{skip_status}</b>\n"
     
-    # Статус учета даты проверки
-    date_status = "Учитывать ✅ (показывать слово только после даты проверки)" if use_check_date else "Не учитывать ❌ (показывать слова каждый день)"
-    settings_text += f"Период повторения: <b>{date_status}</b>\n"
+    settings_text += f"🖼️ <b>Настройки даты проверки:</b>\n"
+    
+    date_status = "Учитывать ✅" if use_check_date else "Не учитывать ❌"
+    settings_text += f"   • Период повторения: <b>{date_status}</b>\n"
+    
+    date_status = "показывать ✅" if show_check_date else "скрывать ❌"
+    settings_text += f"   • Дата проверки: <b>{date_status}</b>\n"
     
     # Отображение настроек подсказок
     settings_text += f"💡 <b>Настройки подсказок:</b>\n"
@@ -116,15 +123,13 @@ def format_settings_text(
         status = "Включено ✅" if setting_value else "Отключено ❌"
         settings_text += f"   • {setting_name}: <b>{status}</b>\n"
     
-    # Отображение настроек картинок написания (всегда показываем, если включена настройка)
-    settings_text += f"🖼️ <b>Настройки картинок написания:</b>\n"
+    settings_text += f"🖼️ <b>Настройки написания:</b>\n"
     
-    writing_status = "Включено ✅" if show_writing_images else "Отключено ❌"
-    writing_setting_name = get_writing_image_setting_name("show_writing_images")
-    settings_text += f"   • {writing_setting_name}: <b>{writing_status}</b>\n"
-    
-    if not show_writing_images:
-        settings_text += f"     <i>(Картинки написания для всех языков по желанию пользователя)</i>\n"
+    big_word_status = "Показывать ✅" if show_big else "Скрывать ❌"
+    settings_text += f"   • Крупное написание: <b>{big_word_status}</b>\n"
+
+    show_writing_images = "Показывать ✅" if show_writing_images else "Скрывать ❌"
+    settings_text += f"   • Картинки написания: <b>{show_writing_images}</b>\n"
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
@@ -148,7 +153,9 @@ def format_study_word_message(
     score_changed=False,
     show_word=False,
     word_foreign=None,
-    transcription=None
+    transcription=None,
+    show_big=False,
+    show_check_date=True
 ):
     """
     Форматирует сообщение для отображения слова в процессе изучения.
@@ -167,7 +174,8 @@ def format_study_word_message(
         show_word: Показывать ли само слово и транскрипцию
         word_foreign: Слово на иностранном языке
         transcription: Транскрипция слова
-        
+        show_big: Показывать ли большое слово
+        show_check_date: Показывать ли дату проверки
     Returns:
         str: Отформатированное сообщение
     """
@@ -181,7 +189,7 @@ def format_study_word_message(
         message += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n\n"
     
     # Добавляем информацию о периоде повторения
-    if (score == 1):
+    if (score == 1) and show_check_date:
         if score_changed:
             if check_interval and check_interval > 0:
                 message += f"Следующий интервал: {check_interval} (дней)\n"
@@ -197,14 +205,18 @@ def format_study_word_message(
                 formatted_date = format_date(next_check_date)
                 message += f"Запланированное повторение: {formatted_date} \n\n" 
     
-    message += f"🔍 Перевод:\n<b>{translation}</b>\n"
+    message += f"🔍 Слово на русском:\n<b>{translation}</b>\n"
     
     # UPDATED: Если нужно показать слово, добавляем его с кликабельной ссылкой
     if show_word and word_foreign:
         # Создаем кликабельную ссылку на команду /show_big
-        message += f"\n📝 Слово: [<code>{word_foreign}</code>](/show_big) 🔍\n"
+        if show_big:
+            message += f"\n📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
+        else:
+            message += f"\n📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
         if transcription:
-            message += f"🔊 Транскрипция: <b>[{transcription}]</b>\n"
+            escaped_transcription = transcription.replace('\n', ',')
+            message += f"🔊 Транскрипция:\n<b>[{escaped_transcription}]</b>\n\n"
 
     return message
 
@@ -239,7 +251,7 @@ async def format_used_hints(
     if not used_hints:
         return ""
     
-    result = "\n📌 Подсказки:\n" if include_header else ""
+    result = "📌 Подсказки:\n" if include_header else ""
     
     # Сортируем активные подсказки в соответствии с порядком HINT_ORDER
     sorted_hints = [hint_type for hint_type in HINT_ORDER if hint_type in used_hints]

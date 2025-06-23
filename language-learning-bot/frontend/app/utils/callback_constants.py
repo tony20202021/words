@@ -45,6 +45,9 @@ class CallbackData:
     SETTINGS_START_WORD = "settings_start_word"
     SETTINGS_TOGGLE_SKIP_MARKED = "settings_toggle_skip_marked"
     SETTINGS_TOGGLE_CHECK_DATE = "settings_toggle_check_date"
+    SETTINGS_TOGGLE_SHOW_CHECK_DATE = "settings_toggle_show_check_date"
+    SETTINGS_TOGGLE_SHOW_BIG = "settings_toggle_show_big"
+    SETTINGS_TOGGLE_SHOW_SHORT_CAPTIONS = "settings_toggle_show_short_captions"
     SETTINGS_TOGGLE_SHOW_DEBUG = "settings_toggle_show_debug"
     
     # Индивидуальные настройки подсказок

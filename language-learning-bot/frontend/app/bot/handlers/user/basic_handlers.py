@@ -210,23 +210,6 @@ async def process_retry_start(callback: CallbackQuery, state: FSMContext):
     # Use common handler logic
     await handle_start_command(callback, state, is_callback=True)
 
-@basic_router.callback_query(F.data == "show_settings")
-async def process_show_settings_callback(callback: CallbackQuery, state: FSMContext):
-    """
-    Process callback to show settings.
-    
-    Args:
-        callback: The callback query from Telegram
-        state: The FSM state context
-    """
-    logger.info(f"'show_settings' callback from {callback.from_user.full_name}")
-    
-    await callback.answer("⚙️ Настройки...")
-    await callback.message.answer(
-        "⚙️ Для просмотра настроек используйте команду /settings\n\n"
-        "В настройках вы можете изменить параметры обучения."
-    )
-
 # Export router and utilities
 __all__ = [
     'basic_router',

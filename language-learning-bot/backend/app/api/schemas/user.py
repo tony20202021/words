@@ -59,8 +59,11 @@ class UserLanguageSettingsBase(BaseModel):
     start_word: int = Field(default=1, ge=1, description="Starting word number")
     skip_marked: bool = Field(default=False, description="Skip marked words")
     use_check_date: bool = Field(default=True, description="Use check date for word repetition")
+    show_check_date: bool = Field(default=True, description="Show check date")
     show_debug: bool = Field(default=False, description="Show debug information")
-    
+    show_big: bool = Field(default=False, description="Show big word")
+    show_writing_images: bool = Field(default=True, description="Show writing images")
+    show_short_captions: bool = Field(default=True, description="Show short captions")
     # НОВОЕ: Индивидуальные настройки подсказок
     show_hint_meaning: bool = Field(default=True, description="Show meaning hint buttons")
     show_hint_phoneticassociation: bool = Field(default=True, description="Show phonetic association hint buttons")
@@ -79,14 +82,17 @@ class UserLanguageSettingsUpdate(BaseModel):
     start_word: Optional[int] = Field(None, ge=1, description="Starting word number")
     skip_marked: Optional[bool] = Field(None, description="Skip marked words")
     use_check_date: Optional[bool] = Field(None, description="Use check date for word repetition")
+    show_check_date: Optional[bool] = Field(None, description="Show check date")
     show_debug: Optional[bool] = Field(None, description="Show debug information")
-    
+    show_big: Optional[bool] = Field(None, description="Show big word")
+    show_writing_images: Optional[bool] = Field(None, description="Show writing images")
+
     # НОВОЕ: Индивидуальные настройки подсказок
     show_hint_meaning: Optional[bool] = Field(None, description="Show meaning hint buttons")
     show_hint_phoneticassociation: Optional[bool] = Field(None, description="Show phonetic association hint buttons")
     show_hint_phoneticsound: Optional[bool] = Field(None, description="Show phonetic sound hint buttons")  
     show_hint_writing: Optional[bool] = Field(None, description="Show writing hint buttons")
-
+    show_short_captions: Optional[bool] = Field(None, description="Show short captions")
 
 class UserLanguageSettings(UserLanguageSettingsBase):
     """Schema for user language settings response."""

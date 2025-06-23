@@ -97,7 +97,11 @@ class UserLanguageSettingsRepository:
             "start_word": settings_dict.get("start_word", 1),
             "skip_marked": settings_dict.get("skip_marked", False),
             "use_check_date": settings_dict.get("use_check_date", True),
+            "show_check_date": settings_dict.get("show_check_date", True),
+            "show_big": settings_dict.get("show_big", False),
+            "show_writing_images": settings_dict.get("show_writing_images", True),
             "show_debug": settings_dict.get("show_debug", False),
+            "show_short_captions": settings_dict.get("show_short_captions", True),
             
             # Раздельные настройки подсказок
             "show_hint_phoneticsound": settings_dict.get("show_hint_phoneticsound", True),
