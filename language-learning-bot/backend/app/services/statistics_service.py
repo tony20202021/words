@@ -311,7 +311,8 @@ class StatisticsService:
                         {
                             "$match": {
                                 "$expr": {
-                                    "$eq": [{"$toString": "$_id"}, "$$word_id_str"]
+                                    # "$eq": [{"$toString": "$_id"}, "$$word_id_str"]
+                                    "$eq": [{"$toObjectId": "$$word_id_str"}, "$_id"]
                                 }
                             }
                         },

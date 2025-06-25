@@ -264,7 +264,7 @@ class StatisticsRepository:
                             {
                                 "$match": {
                                     "$expr": {
-                                        "$eq": [{"$toString": "$_id"}, "$$word_id_str"]
+                                        "$eq": [{"$toObjectId": "$$word_id_str"}, "$_id"]
                                     }
                                 }
                             },
@@ -589,12 +589,13 @@ class StatisticsRepository:
             {
                 "$lookup": {
                     "from": "words",
-                    "let": {"wordId": "$word_id"},
+                    "let": {"word_id_str": "$word_id"},
                     "pipeline": [
                         {
                             "$match": {
                                 "$expr": {
-                                    "$eq": [{"$toString": "$_id"}, "$$wordId"]
+                                    # "$eq": [{"$toString": "$_id"}, "$$wordId"]
+                                    "$eq": [{"$toObjectId": "$$word_id_str"}, "$_id"]
                                 }
                             }
                         }
