@@ -159,7 +159,10 @@ class WordRepository:
             logger.info(f"Getting words for language_id={language_id}, skip={skip}, limit={limit}, word_number={word_number}")
             logger.debug(f"Filter criteria: {filters}")
             
-            cursor = self.collection.find(filters).skip(skip).limit(limit).sort("word_number", 1)
+            if limit is None:
+                cursor = self.collection.find(filters).skip(skip).sort("word_number", 1)
+            else:
+                cursor = self.collection.find(filters).skip(skip).limit(limit).sort("word_number", 1)
             
             words = []
             async for word in cursor:

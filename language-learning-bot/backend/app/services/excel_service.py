@@ -1,12 +1,14 @@
 """
-Service for Excel file processing.
+Service for Excel file processing and export.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import io
+import json
 
 import pandas as pd
+from datetime import datetime
 
 from app.services.word_service import WordService
 from app.api.models.word import WordCreate, WordUpdate
@@ -16,7 +18,7 @@ logger = setup_logger(__name__)
 
 
 class ExcelService:
-    """Service for handling Excel file operations."""
+    """Service for handling Excel file operations and data export."""
     
     def __init__(self, word_service: WordService):
         """
@@ -136,3 +138,226 @@ class ExcelService:
             logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
             result["errors"].append(f"File processing error: {str(e)}")
             return result
+    
+    def _clean_text_for_export(self, text: str) -> str:
+        """
+        Clean text for export by removing/replacing problematic characters.
+        
+        Args:
+            text: Text to clean
+            
+        Returns:
+            Cleaned text
+        """
+        if not text or not isinstance(text, str):
+            return str(text) if text is not None else ""
+        
+        # Replace line breaks with spaces
+        cleaned = text.replace('\n', '.').replace('\r', '.')
+        
+        # Replace multiple spaces with single space
+        import re
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        
+        # Strip leading/trailing whitespace
+        return cleaned.strip()
+    
+    def export_words_to_excel(
+        self,
+        words: List[Dict[str, Any]],
+        language_name: str,
+        start_word: Optional[int] = None,
+        end_word: Optional[int] = None
+    ) -> Tuple[io.BytesIO, str]:
+        """
+        Export words to Excel format.
+        
+        Args:
+            words: List of word dictionaries
+            language_name: Name of the language
+            start_word: Optional start word number
+            end_word: Optional end word number
+            
+        Returns:
+            Tuple of (BytesIO buffer, filename)
+        """
+        logger.info(f"Exporting {len(words)} words to Excel for language '{language_name}'")
+        
+        # Prepare export data
+        export_data = []
+        for word in words:
+            word_data = {
+                "№": word.get("word_number", ""),
+                "Слово": self._clean_text_for_export(word.get("word_foreign", "")),
+                "Перевод": self._clean_text_for_export(word.get("translation", "")),
+                "Транскрипция": self._clean_text_for_export(word.get("transcription", ""))
+            }
+            export_data.append(word_data)
+        
+        # Create DataFrame
+        df = pd.DataFrame(export_data)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create ASCII-safe language name for filename
+        language_name_ascii = "".join(c for c in language_name if c.isascii() and (c.isalnum() or c in (' ', '-', '_'))).strip()
+        if not language_name_ascii:
+            language_name_ascii = "language"  # fallback name
+        
+        range_suffix = ""
+        if start_word is not None or end_word is not None:
+            range_suffix = f"_{start_word or 1}-{end_word or 'end'}"
+        
+        filename = f"words_{language_name_ascii}{range_suffix}_{timestamp}.xlsx"
+        
+        # Create Excel file in memory
+        output = io.BytesIO()
+        
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Words')
+            
+            # Auto-adjust column widths
+            worksheet = writer.sheets['Words']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        output.seek(0)
+        logger.info(f"Excel file created: {filename}")
+        return output, filename
+    
+    def export_words_to_csv(
+        self,
+        words: List[Dict[str, Any]],
+        language_name: str,
+        start_word: Optional[int] = None,
+        end_word: Optional[int] = None
+    ) -> Tuple[io.BytesIO, str]:
+        """
+        Export words to CSV format.
+        
+        Args:
+            words: List of word dictionaries
+            language_name: Name of the language
+            start_word: Optional start word number
+            end_word: Optional end word number
+            
+        Returns:
+            Tuple of (BytesIO buffer, filename)
+        """
+        logger.info(f"Exporting {len(words)} words to CSV for language '{language_name}'")
+        
+        # Prepare export data
+        export_data = []
+        for word in words:
+            word_data = {
+                "№": word.get("word_number", ""),
+                "Слово": self._clean_text_for_export(word.get("word_foreign", "")),
+                "Перевод": self._clean_text_for_export(word.get("translation", "")),
+                "Транскрипция": self._clean_text_for_export(word.get("transcription", ""))
+            }
+            export_data.append(word_data)
+        
+        # Create DataFrame
+        df = pd.DataFrame(export_data)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create ASCII-safe language name for filename
+        language_name_ascii = "".join(c for c in language_name if c.isascii() and (c.isalnum() or c in (' ', '-', '_'))).strip()
+        if not language_name_ascii:
+            language_name_ascii = "language"  # fallback name
+        
+        range_suffix = ""
+        if start_word is not None or end_word is not None:
+            range_suffix = f"_{start_word or 1}-{end_word or 'end'}"
+        
+        filename = f"words_{language_name_ascii}{range_suffix}_{timestamp}.csv"
+        
+        # Create CSV file in memory
+        output = io.StringIO()
+        df.to_csv(output, index=False, encoding='utf-8')
+        output.seek(0)
+        
+        # Convert to bytes with BOM for Excel compatibility
+        csv_bytes = io.BytesIO(output.getvalue().encode('utf-8-sig'))
+        
+        logger.info(f"CSV file created: {filename}")
+        return csv_bytes, filename
+    
+    def export_words_to_json(
+        self,
+        words: List[Dict[str, Any]],
+        language_info: Dict[str, str],
+        start_word: Optional[int] = None,
+        end_word: Optional[int] = None
+    ) -> Tuple[io.BytesIO, str]:
+        """
+        Export words to JSON format.
+        
+        Args:
+            words: List of word dictionaries
+            language_info: Dictionary with language information (id, name_ru, name_foreign)
+            start_word: Optional start word number
+            end_word: Optional end word number
+            
+        Returns:
+            Tuple of (BytesIO buffer, filename)
+        """
+        logger.info(f"Exporting {len(words)} words to JSON for language '{language_info.get('name_ru')}'")
+        
+        # Prepare export data
+        export_words = []
+        for word in words:
+            word_data = {
+                "word_number": word.get("word_number", ""),
+                "word_foreign": self._clean_text_for_export(word.get("word_foreign", "")),
+                "translation": self._clean_text_for_export(word.get("translation", "")),
+                "transcription": self._clean_text_for_export(word.get("transcription", ""))
+            }
+            export_words.append(word_data)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create ASCII-safe language name for filename
+        language_name_ascii = "".join(c for c in language_info.get('name_ru', '') if c.isascii() and (c.isalnum() or c in (' ', '-', '_'))).strip()
+        if not language_name_ascii:
+            language_name_ascii = "language"  # fallback name
+        
+        range_suffix = ""
+        if start_word is not None or end_word is not None:
+            range_suffix = f"_{start_word or 1}-{end_word or 'end'}"
+        
+        filename = f"words_{language_name_ascii}{range_suffix}_{timestamp}.json"
+        
+        # Create JSON structure
+        json_data = {
+            "language": {
+                "id": language_info.get("id"),
+                "name_ru": language_info.get("name_ru"),
+                "name_foreign": language_info.get("name_foreign")
+            },
+            "export_info": {
+                "timestamp": timestamp,
+                "total_words": len(export_words),
+                "word_range": {
+                    "start": start_word,
+                    "end": end_word
+                } if start_word or end_word else None
+            },
+            "words": export_words
+        }
+        
+        # Create JSON file in memory
+        output = io.BytesIO(json.dumps(json_data, ensure_ascii=False, indent=2).encode('utf-8'))
+        
+        logger.info(f"JSON file created: {filename}")
+        return output, filename

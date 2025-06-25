@@ -5,7 +5,11 @@ This module contains all the API endpoints for managing languages in the system.
 
 from typing import List, Optional
 import logging
+import io
+import pandas as pd
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Query
+from fastapi.responses import StreamingResponse
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST, HTTP_201_CREATED
 
 from app.api.schemas.language import LanguageCreate, LanguageResponse, LanguageUpdate
@@ -207,6 +211,162 @@ async def get_language_words(
     return words
 
 
+@router.get("/{language_id}/export")
+async def export_words_by_language(
+    language_id: str,
+    format: str = Query("xlsx", regex="^(xlsx|csv|json)$"),
+    start_word: Optional[int] = Query(None, ge=1),
+    end_word: Optional[int] = Query(None, ge=1),
+    language_service: LanguageService = Depends(get_language_service),
+    excel_service: ExcelService = Depends(get_excel_service)
+):
+    """
+    Export words for a specific language in various formats.
+    
+    This endpoint allows administrators to export all words for a language
+    as Excel, CSV, or JSON files. The export includes word number, foreign word,
+    translation, and transcription (if available).
+    
+    Args:
+        language_id: ID of the language to export
+        format: Export format - "xlsx" (default), "csv", or "json"
+        start_word: Optional start word number (inclusive filtering)
+        end_word: Optional end word number (inclusive filtering)
+        language_service: Language service dependency
+        excel_service: Excel service dependency
+        
+    Returns:
+        StreamingResponse: File download with appropriate content-type headers
+        - XLSX: Excel file with auto-sized columns
+        - CSV: UTF-8 encoded CSV with BOM for Excel compatibility  
+        - JSON: Structured JSON with language info and word data
+        
+    File Structure:
+        Excel/CSV columns: № | Слово | Перевод | Транскрипция
+        JSON structure: {language: {...}, export_info: {...}, words: [...]}
+        
+    Raises:
+        HTTPException 404: If language not found or no words in range
+        HTTPException 400: If export generation fails
+    """
+    logger.info(f"Exporting words for language id={language_id}, format={format}, "
+               f"start_word={start_word}, end_word={end_word}")
+    
+    # Check if language exists
+    language = await language_service.get_language(language_id)
+    if not language:
+        logger.warning(f"Language with id={language_id} not found when exporting words")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"Language with ID '{language_id}' not found"
+        )
+    
+    # Get all words for the language
+    all_words = await language_service.get_words_by_language(
+        language_id=language_id,
+        skip=0,
+        limit=None  # Get all words
+    )
+    
+    if not all_words:
+        logger.warning(f"No words found for language '{language.name_ru}'")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"No words found for language '{language.name_ru}'"
+        )
+    
+    # Filter by word number range if specified
+    if start_word is not None or end_word is not None:
+        filtered_words = []
+        for word in all_words:
+            word_num = word.get("word_number", 0)
+            if start_word is not None and word_num < start_word:
+                continue
+            if end_word is not None and word_num > end_word:
+                continue
+            filtered_words.append(word)
+        all_words = filtered_words
+        
+        if not all_words:
+            logger.warning(f"No words found in range {start_word}-{end_word} for language '{language.name_ru}'")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"No words found in specified range for language '{language.name_ru}'"
+            )
+    
+    # Convert words to dict format for ExcelService
+    words_data = []
+    for word in all_words:
+        if hasattr(word, 'dict'):
+            word_dict = word.dict()
+        else:
+            word_dict = dict(word) if hasattr(word, '__iter__') else word
+        words_data.append(word_dict)
+    
+    # Generate file using ExcelService
+    try:
+        if format == "xlsx":
+            output, filename = excel_service.export_words_to_excel(
+                words=words_data,
+                language_name=language.name_ru,
+                start_word=start_word,
+                end_word=end_word
+            )
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            
+        elif format == "csv":
+            output, filename = excel_service.export_words_to_csv(
+                words=words_data,
+                language_name=language.name_ru,
+                start_word=start_word,
+                end_word=end_word
+            )
+            media_type = "text/csv"
+            
+        elif format == "json":
+            language_info = {
+                "id": language_id,
+                "name_ru": language.name_ru,
+                "name_foreign": language.name_foreign
+            }
+            output, filename = excel_service.export_words_to_json(
+                words=words_data,
+                language_info=language_info,
+                start_word=start_word,
+                end_word=end_word
+            )
+            media_type = "application/json"
+        
+        logger.info(f"Successfully exported {len(words_data)} words for language '{language.name_ru}' as {filename}")
+        
+        # Fix filename encoding for Content-Disposition header
+        # Use ASCII-safe filename and add proper UTF-8 encoding
+        try:
+            # Try to encode filename as ASCII for basic compatibility
+            ascii_filename = filename.encode('ascii').decode('ascii')
+            content_disposition = f'attachment; filename="{ascii_filename}"'
+        except UnicodeEncodeError:
+            # If filename contains non-ASCII chars, use ASCII fallback with UTF-8 extension
+            ascii_filename = f"words_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{format}"
+            # Encode the original filename for filename* parameter
+            from urllib.parse import quote
+            utf8_encoded = quote(filename.encode('utf-8'))
+            content_disposition = f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{utf8_encoded}'
+        
+        return StreamingResponse(
+            output,
+            media_type=media_type,
+            headers={"Content-Disposition": content_disposition}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting words: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Error exporting words: {str(e)}"
+        )
+
+
 @router.post("/{language_id}/upload")
 async def upload_words_file(
     language_id: str,
@@ -378,3 +538,4 @@ async def get_language_active_users(
     count = await language_service.get_language_active_users(language_id)
     
     return {"count": count}
+    

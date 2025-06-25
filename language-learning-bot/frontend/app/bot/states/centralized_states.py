@@ -4,6 +4,7 @@ All FSM states are defined here to avoid duplication.
 UPDATED: Added viewing_word_image state for word image display.
 UPDATED: Added word editing and deletion states for admin interface.
 UPDATED: Added viewing_writing_image state for writing image display (hieroglyphic languages).
+UPDATED: Added export states for words export functionality.
 """
 
 from aiogram.fsm.state import State, StatesGroup
@@ -69,6 +70,12 @@ class AdminStates(StatesGroup):
     selecting_column_template = State()         # Выбор шаблона колонок при загрузке
     configuring_upload_settings = State()      # Настройка параметров загрузки файла
     confirming_file_upload = State()           # Подтверждение загрузки файла
+    
+    # Состояния экспорта слов
+    selecting_export_format = State()          # Выбор формата экспорта
+    selecting_export_range = State()           # Выбор диапазона экспорта
+    entering_export_range = State()            # Ввод диапазона экспорта
+    processing_export = State()                # Обработка экспорта
     
     # Состояния создания/редактирования языков
     creating_language_name = State()            # Создание языка (ввод русского названия)

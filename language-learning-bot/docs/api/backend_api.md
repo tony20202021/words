@@ -353,6 +353,51 @@ API использует JSON для всех запросов и ответов
   }
   ```
 
+#### Экспорт слов языка
+
+- **URL**: `/api/languages/{language_id}/export`
+- **Метод**: `GET`
+- **URL-параметры**:
+  - `language_id`: ID языка
+- **Параметры запроса**:
+  - `format` (str, опционально): Формат экспорта - "xlsx" (по умолчанию), "csv", "json"
+  - `start_word` (int, опционально): Начальный номер слова (включительно)
+  - `end_word` (int, опционально): Конечный номер слова (включительно)
+- **Описание**: Экспортирует все слова для указанного языка в выбранном формате
+- **Структура экспорта**:
+  - **Excel/CSV**: Колонки - № | Слово | Перевод | Транскрипция
+  - **JSON**: Структурированный JSON с информацией о языке и словах
+- **Успешный ответ**: Файл для скачивания с заголовками Content-Disposition
+  - **XLSX**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+  - **CSV**: `text/csv` (с UTF-8 BOM для совместимости с Excel)
+  - **JSON**: `application/json`
+- **Пример имени файла**: `words_Английский_1-100_20231215_143022.xlsx`
+- **Ответ при ошибке**:
+  ```json
+  {
+    "success": false,
+    "status": 404,
+    "result": null,
+    "error": "Language with ID '123abc' not found"
+  }
+  ```
+  ```json
+  {
+    "success": false,
+    "status": 404,
+    "result": null,
+    "error": "No words found for language 'Английский'"
+  }
+  ```
+  ```json
+  {
+    "success": false,
+    "status": 400,
+    "result": null,
+    "error": "Error exporting words: [детали ошибки]"
+  }
+  ```
+
 ### 2. Слова (Words)
 
 #### Получение слова по ID

@@ -628,4 +628,103 @@ class APIClient:
         logger.info("Starting migration of user language settings")
         
         return await self._make_request("POST", endpoint)
-    
+
+    # Export methods
+
+    async def export_words_by_language(
+        self,
+        language_id: str,
+        format: str = "xlsx",
+        start_word: Optional[int] = None,
+        end_word: Optional[int] = None,
+        timeout_multiplier: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Export words for a specific language in various formats.
+        
+        Args:
+            language_id: ID of the language to export
+            format: Export format - "xlsx" (default), "csv", or "json"
+            start_word: Optional start word number (inclusive filtering)
+            end_word: Optional end word number (inclusive filtering)
+            timeout_multiplier: Multiplier for the timeout (default: 5)
+                              Export operations can take longer than regular API calls
+            
+        Returns:
+            Dict with status and result fields:
+            {
+                "success": bool,  # True if request was successful
+                "status": int,    # HTTP status code (200, 404, 500, etc.) or 0 if connection failed
+                "result": bytes,  # Binary file data for download/sending
+                "error": str      # Error message if any
+            }
+        """
+        url = f"{self.base_url}{self.api_prefix}/languages/{language_id}/export"
+        
+        response_dict = {
+            "success": False,
+            "status": 0,
+            "result": None,
+            "error": None
+        }
+        
+        # Prepare query parameters
+        params = {"format": format}
+        if start_word is not None:
+            params["start_word"] = start_word
+        if end_word is not None:
+            params["end_word"] = end_word
+        
+        logger.info(f"Exporting words for language_id={language_id}, format={format}, "
+                   f"start_word={start_word}, end_word={end_word}")
+        
+        # Retry logic for export operations
+        for attempt in range(self.retry_count):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url,
+                        params=params,
+                        timeout=self.timeout * timeout_multiplier
+                    ) as response:
+                        response_dict["status"] = response.status
+                        
+                        if response.status >= 400:
+                            # Try to get JSON error if possible
+                            try:
+                                error_data = await response.json()
+                                error_message = error_data.get("error", f"HTTP {response.status}")
+                            except:
+                                error_message = f"HTTP {response.status}: {response.reason}"
+                            
+                            logger.error(f"Export error: {response.status} - {error_message}")
+                            response_dict["error"] = error_message
+                            
+                            # Retry on server errors or rate limits
+                            if response.status == 429 or response.status >= 500:
+                                if attempt < self.retry_count - 1:
+                                    logger.warning(f"Retrying export (attempt {attempt+1}/{self.retry_count})...")
+                                    continue
+                            return response_dict
+                        
+                        # Read binary file data
+                        file_data = await response.read()
+                        response_dict["result"] = file_data
+                        response_dict["success"] = True
+                        
+                        logger.info(f"Successfully exported {len(file_data)} bytes for language_id={language_id}")
+                        return response_dict
+                
+            except aiohttp.ClientError as e:
+                error_message = f"Export request failed: {e}"
+                logger.error(error_message)
+                response_dict["error"] = error_message
+                
+                if attempt < self.retry_count - 1:
+                    logger.warning(f"Retrying export (attempt {attempt+1}/{self.retry_count})...")
+                    continue
+        
+        # If all attempts failed
+        logger.error(f"All {self.retry_count} attempts to export words failed")
+        return response_dict
+        

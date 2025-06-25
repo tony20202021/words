@@ -1,10 +1,10 @@
-# Структура каталогов и файлов проекта (ОБНОВЛЕНО с AI)
+# Структура каталогов и файлов проекта (ОБНОВЛЕНО с AI и экспортом)
 
 ## Корневой каталог
 
 ```
 language-learning-bot/
-├── README.md
+├── README.md                             # 🆕 ОБНОВЛЕН: v1.6.0, функция экспорта
 ├── .gitignore
 ├── requirements.txt
 ├── requirements_cpu.txt                  # Базовые зависимости  
@@ -65,10 +65,10 @@ docs/
 │   └── ai_monitoring.md                  # 🔥 НОВЫЙ: мониторинг AI компонентов
 │
 ├── api/
-│   ├── api_reference.md
-│   ├── backend_api.md
-│   ├── writing_service_api.md             # 🔥 ОБНОВЛЕН: реальные AI API
-│   └── ai_generation_endpoints.md        # 🔥 НОВЫЙ: детальная AI API документация
+│   ├── api_reference.md                  # 🆕 ОБНОВЛЕН: метод export_words_by_language
+│   ├── backend_api.md                    # 🆕 ОБНОВЛЕН: export эндпоинт документация
+│   ├── writing_service_api.md            # 🔥 ОБНОВЛЕН: реальные AI API
+│   └── ai_generation_endpoints.md       # 🔥 НОВЫЙ: детальная AI API документация
 │
 ├── development/
 │   ├── testing_guide.md
@@ -86,31 +86,211 @@ docs/
 │   └── model_management.md               # 🔥 НОВЫЙ: управление AI моделями
 │
 └── functionality/
-    ├── bot_commands.md
-    ├── admin_tools.md
+    ├── bot_commands.md                   # 🆕 ОБНОВЛЕН: команда /export
+    ├── admin_tools.md                    # 🆕 ОБНОВЛЕН: раздел "Экспорт слов"
     ├── learning_system.md                # 🔥 ОБНОВЛЕН: реальная AI интеграция
     └── ai_image_generation.md            # 🔥 ПОЛНОСТЬЮ ОБНОВЛЕН: реальная AI система
 ```
 
-## Общие модули (Common)
+## Backend (REST API)
 
 ```
-common/
-├── __init__.py
-├── utils/
+backend/
+├── app/
 │   ├── __init__.py
-│   ├── font_utils.py                    # 🔥 ОБНОВЛЕН: FontManager для AI рендеринга
-│   └── logger.py                        # 🔥 ОБНОВЛЕН: поддержка AI логирования
+│   ├── main_backend.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   ├── languages.py             # 🆕 ОБНОВЛЕН: добавлен export эндпоинт
+│   │   │   ├── words.py
+│   │   │   ├── users.py
+│   │   │   ├── user_statistics.py
+│   │   │   ├── user_language_settings.py
+│   │   │   └── study.py
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   ├── language.py
+│   │   │   ├── word.py
+│   │   │   ├── user.py
+│   │   │   ├── user_statistics.py
+│   │   │   └── user_language_settings.py
+│   │   └── models/
+│   │       ├── __init__.py
+│   │       ├── language.py
+│   │       ├── word.py
+│   │       ├── user.py
+│   │       ├── user_statistics.py
+│   │       └── user_language_settings.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── language_service.py
+│   │   ├── word_service.py
+│   │   ├── user_service.py
+│   │   ├── user_statistics_service.py
+│   │   ├── user_language_settings_service.py
+│   │   ├── study_service.py
+│   │   └── excel_service.py             # 🆕 ОБНОВЛЕН: добавлены методы экспорта
+│   ├── repositories/
+│   │   ├── __init__.py
+│   │   ├── language_repository.py
+│   │   ├── word_repository.py
+│   │   ├── user_repository.py
+│   │   ├── user_statistics_repository.py
+│   │   └── user_language_settings_repository.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── database.py
+│   │   ├── dependencies.py
+│   │   └── config.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── response_utils.py
+│       └── logger.py
+├── conf/
+│   ├── __init__.py
+│   └── config/
+│       ├── __init__.py
+│       ├── default.yaml
+│       ├── api.yaml
+│       ├── database.yaml
+│       └── logging.yaml
+├── requirements.txt
+├── environment.yml
 └── tests/
     ├── __init__.py
     ├── conftest.py
-    ├── test_utils_logger.py
-    └── test_font_utils.py               # 🔥 ОБНОВЛЕН: тесты FontManager для AI
+    ├── test_api/
+    │   ├── test_routes/
+    │   │   ├── test_languages.py        # 🆕 ОБНОВЛЕН: тесты export эндпоинта
+    │   │   ├── test_words.py
+    │   │   ├── test_users.py
+    │   │   ├── test_user_statistics.py
+    │   │   └── test_study.py
+    │   └── test_schemas/
+    ├── test_services/
+    │   ├── test_language_service.py
+    │   ├── test_word_service.py
+    │   ├── test_user_service.py
+    │   ├── test_user_statistics_service.py
+    │   └── test_excel_service.py        # 🆕 ОБНОВЛЕН: тесты методов экспорта
+    ├── test_repositories/
+    └── test_integration/
 ```
 
+## Фронтенд (Telegram-бот)
 
-
-# Структура каталогов и файлов проекта (ОБНОВЛЕНО с Translation Service + Модульная архитектура)
+```
+frontend/
+├── app/
+│   ├── __init__.py
+│   ├── main_frontend.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── client.py                     # 🆕 ОБНОВЛЕН: метод export_words_by_language
+│   │   └── models/
+│   │       ├── __init__.py
+│   │       ├── language.py
+│   │       ├── user.py
+│   │       ├── word.py
+│   │       └── 🆕 ai_models.py           # 🆕 AI + Translation модели
+│   ├── bot/
+│   │   ├── __init__.py
+│   │   ├── handlers/
+│   │   │   ├── admin/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── admin_handlers.py    # 🆕 ОБНОВЛЕН: включен export_router
+│   │   │   │   ├── admin_basic_handlers.py
+│   │   │   │   ├── admin_language_handlers.py
+│   │   │   │   ├── admin_upload_handlers.py
+│   │   │   │   ├── admin_word_handlers.py
+│   │   │   │   ├── 🆕 admin_export_handlers.py  # 🆕 НОВЫЙ: обработчики экспорта
+│   │   │   │   └── 🆕 admin_ai_handlers.py      # 🆕 AI + Translation администрирование
+│   │   │   ├── user/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── basic_handlers.py
+│   │   │   │   ├── help_handlers.py
+│   │   │   │   ├── hint_handlers.py
+│   │   │   │   ├── settings_handlers.py
+│   │   │   │   ├── stats_handlers.py
+│   │   │   │   └── 🆕 ai_image_handlers.py      # 🆕 AI + Translation для пользователей
+│   │   │   └── study/
+│   │   │       ├── __init__.py
+│   │   │       ├── study_commands.py
+│   │   │       ├── study_words.py
+│   │   │       ├── study_word_actions.py
+│   │   │       ├── study_hint_handlers.py
+│   │   │       └── 🆕 ai_writing_handlers.py    # 🆕 AI + Translation в изучении
+│   │   ├── keyboards/
+│   │   │   ├── __init__.py
+│   │   │   ├── admin_keyboards.py       # 🆕 ОБНОВЛЕН: клавиатуры экспорта
+│   │   │   ├── user_keyboards.py
+│   │   │   ├── study_keyboards.py
+│   │   │   └── settings_keyboards.py
+│   │   ├── states/
+│   │   │   ├── __init__.py
+│   │   │   └── centralized_states.py    # 🆕 ОБНОВЛЕН: состояния экспорта
+│   │   └── middleware/
+│   │       ├── __init__.py
+│   │       ├── admin_middleware.py
+│   │       └── user_registration_middleware.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── admin_utils.py
+│       ├── api_utils.py
+│       ├── big_word_generator.py
+│       ├── callback_constants.py
+│       ├── formatting_utils.py
+│       └── 🆕 ai_utils.py                       # 🆕 AI + Translation утилиты
+├── conf/
+│   ├── __init__.py
+│   └── config/
+│       ├── __init__.py
+│       ├── default.yaml
+│       ├── bot.yaml
+│       ├── api.yaml                      # 🆕 ОБНОВЛЕН: Writing Service + Translation URL
+│       ├── logging.yaml
+│       ├── learning.yaml
+│       └── 🆕 ai.yaml                    # 🆕 AI + Translation настройки frontend
+├── requirements.txt
+├── environment.yml
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_handlers/
+    │   ├── test_admin/
+    │   │   ├── test_admin_basic_handlers.py
+    │   │   ├── test_admin_language_handlers.py
+    │   │   ├── test_admin_upload_handlers.py
+    │   │   ├── test_admin_word_handlers.py
+    │   │   ├── 🆕 test_admin_export_handlers.py # 🆕 Тесты экспорта
+    │   │   └── 🆕 test_admin_ai_handlers.py     # 🆕 Тесты AI администрирования
+    │   ├── test_user/
+    │   │   ├── test_basic_handlers.py
+    │   │   ├── test_help_handlers.py
+    │   │   ├── test_settings_handlers.py
+    │   │   ├── test_stats_handlers.py
+    │   │   └── 🆕 test_ai_image_handlers.py     # 🆕 Тесты AI изображений
+    │   └── test_study/
+    │       ├── test_study_commands.py
+    │       ├── test_study_words.py
+    │       ├── test_study_word_actions.py
+    │       ├── test_study_hint_handlers.py
+    │       └── 🆕 test_ai_writing_handlers.py   # 🆕 Тесты AI в изучении
+    ├── test_keyboards/
+    │   ├── test_admin_keyboards.py       # 🆕 ОБНОВЛЕН: тесты клавиатур экспорта
+    │   ├── test_user_keyboards.py
+    │   └── test_study_keyboards.py
+    ├── test_utils/
+    │   ├── test_admin_utils.py
+    │   ├── test_api_utils.py
+    │   ├── test_formatting_utils.py
+    │   └── 🆕 test_ai_utils.py                  # 🆕 Тесты AI утилит
+    └── test_api/
+        ├── test_client.py               # 🆕 ОБНОВЛЕН: тесты export_words_by_language
+        └── 🆕 test_ai_integration.py    # 🆕 Интеграционные AI + Translation тесты
+```
 
 ## 🔥 Writing Service (Реальный AI микросервис с переводом)
 
@@ -242,74 +422,20 @@ writing_service/
         └── memory_profiling.py
 ```
 
-## Фронтенд (Telegram-бот)
+## Общие модули (Common)
 
 ```
-frontend/
-├── app/
+common/
+├── __init__.py
+├── utils/
 │   ├── __init__.py
-│   ├── main_frontend.py
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── client.py                     # 🆕 ОБНОВЛЕН: Translation Service интеграция
-│   │   └── models/
-│   │       ├── __init__.py
-│   │       ├── language.py
-│   │       ├── user.py
-│   │       ├── word.py
-│   │       └── 🆕 ai_models.py           # 🆕 AI + Translation модели
-│   ├── handlers/
-│   │   ├── admin/
-│   │   │   ├── __init__.py
-│   │   │   ├── admin_basic_handlers.py
-│   │   │   ├── admin_language_handlers.py
-│   │   │   ├── admin_upload_handlers.py
-│   │   │   ├── admin_word_handlers.py
-│   │   │   └── 🆕 admin_ai_handlers.py   # 🆕 AI + Translation администрирование
-│   │   ├── user/
-│   │   │   ├── __init__.py
-│   │   │   ├── basic_handlers.py
-│   │   │   ├── help_handlers.py
-│   │   │   ├── hint_handlers.py
-│   │   │   ├── settings_handlers.py
-│   │   │   ├── stats_handlers.py
-│   │   │   └── 🆕 ai_image_handlers.py   # 🆕 AI + Translation для пользователей
-│   │   └── study/
-│   │       ├── __init__.py
-│   │       ├── study_commands.py
-│   │       ├── study_words.py
-│   │       ├── study_word_actions.py
-│   │       ├── study_hint_handlers.py
-│   │       └── 🆕 ai_writing_handlers.py # 🆕 AI + Translation в изучении
-│   └── utils/
-│       ├── __init__.py
-│       ├── admin_utils.py
-│       ├── api_utils.py
-│       ├── big_word_generator.py
-│       └── 🆕 ai_utils.py                # 🆕 AI + Translation утилиты
-├── conf/
-│   ├── __init__.py
-│   └── config/
-│       ├── __init__.py
-│       ├── default.yaml
-│       ├── bot.yaml
-│       ├── api.yaml                      # 🆕 ОБНОВЛЕН: Writing Service + Translation URL
-│       ├── logging.yaml
-│       ├── learning.yaml
-│       └── 🆕 ai.yaml                    # 🆕 AI + Translation настройки frontend
+│   ├── font_utils.py                    # 🔥 ОБНОВЛЕН: FontManager для AI рендеринга
+│   └── logger.py                        # 🔥 ОБНОВЛЕН: поддержка AI логирования
 └── tests/
-    ├── test_handlers/
-    │   ├── test_admin/
-    │   │   └── 🆕 test_admin_ai_handlers.py  # 🆕 Тесты AI администрирования
-    │   ├── test_user/
-    │   │   └── 🆕 test_ai_image_handlers.py  # 🆕 Тесты AI изображений
-    │   └── test_study/
-    │       └── 🆕 test_ai_writing_handlers.py # 🆕 Тесты AI в изучении
-    ├── test_utils/
-    │   └── 🆕 test_ai_utils.py              # 🆕 Тесты AI утилит
-    └── test_api/
-        ├── test_client.py               # 🆕 ОБНОВЛЕН: Translation Service тесты
-        └── 🆕 test_ai_integration.py    # 🆕 Интеграционные AI + Translation тесты
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_utils_logger.py
+    └── test_font_utils.py               # 🔥 ОБНОВЛЕН: тесты FontManager для AI
 ```
 
 ## Служебные скрипты

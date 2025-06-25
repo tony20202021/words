@@ -2,6 +2,7 @@
 Refactored keyboards for admin interface.
 Now uses centralized callback constants and improved callback generation.
 UPDATED: Added word editing and deletion keyboards.
+UPDATED: Added export words button.
 """
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -90,6 +91,7 @@ def get_edit_language_keyboard(language_id: str) -> InlineKeyboardMarkup:
     """
     Create keyboard for editing a language.
     Now uses centralized callback constants.
+    UPDATED: Added export words button.
     
     Args:
         language_id: ID of the language to edit
@@ -115,6 +117,11 @@ def get_edit_language_keyboard(language_id: str) -> InlineKeyboardMarkup:
     ))
     
     builder.add(InlineKeyboardButton(
+        text="📥 Экспорт слов", 
+        callback_data=f"export_words_{language_id}"
+    ))
+    
+    builder.add(InlineKeyboardButton(
         text="🔍 Найти слово по номеру", 
         callback_data=f"search_word_by_number_{language_id}"
     ))
@@ -127,6 +134,74 @@ def get_edit_language_keyboard(language_id: str) -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(
         text="⬅️ Назад к языкам", 
         callback_data=CallbackData.BACK_TO_LANGUAGES
+    ))
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+
+def get_export_format_keyboard(language_id: str) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for selecting export format.
+    
+    Args:
+        language_id: ID of the language to export
+        
+    Returns:
+        InlineKeyboardMarkup: Export format selection keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="📊 Excel (.xlsx)", 
+        callback_data=f"export_format_{language_id}_xlsx"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="📄 CSV (.csv)", 
+        callback_data=f"export_format_{language_id}_csv"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔧 JSON (.json)", 
+        callback_data=f"export_format_{language_id}_json"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к языку", 
+        callback_data=CallbackData.EDIT_LANGUAGE_TEMPLATE.format(language_id=language_id)
+    ))
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+
+
+def get_export_range_keyboard(language_id: str, format: str) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for selecting export range.
+    
+    Args:
+        language_id: ID of the language to export
+        format: Export format (xlsx, csv, json)
+        
+    Returns:
+        InlineKeyboardMarkup: Export range selection keyboard
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="📋 Все слова", 
+        callback_data=f"export_range_{language_id}_{format}_all"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔢 Указать диапазон", 
+        callback_data=f"export_range_{language_id}_{format}_range"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад к формату", 
+        callback_data=f"export_words_{language_id}"
     ))
     
     builder.adjust(1)  # One button per row
@@ -465,4 +540,4 @@ def get_word_delete_confirmation_keyboard_from_study(word_id: str) -> InlineKeyb
     
     builder.adjust(2, 1)  # Первая строка: 2 кнопки, вторая строка: 1 кнопка
     return builder.as_markup()
-
+    
