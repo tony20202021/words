@@ -69,6 +69,7 @@ class UserLanguageSettingsBase(BaseModel):
     show_hint_phoneticassociation: bool = Field(default=True, description="Show phonetic association hint buttons")
     show_hint_phoneticsound: bool = Field(default=True, description="Show phonetic sound hint buttons")
     show_hint_writing: bool = Field(default=True, description="Show writing hint buttons")
+    receive_messages: bool = Field(default=True, description="Receive messages")
 
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
@@ -93,7 +94,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_hint_phoneticsound: Optional[bool] = Field(None, description="Show phonetic sound hint buttons")  
     show_hint_writing: Optional[bool] = Field(None, description="Show writing hint buttons")
     show_short_captions: Optional[bool] = Field(None, description="Show short captions")
-
+    receive_messages: Optional[bool] = Field(None, description="Receive messages")
+    
 class UserLanguageSettings(UserLanguageSettingsBase):
     """Schema for user language settings response."""
     id: str

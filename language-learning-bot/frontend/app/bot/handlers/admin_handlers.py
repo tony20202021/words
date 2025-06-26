@@ -10,6 +10,7 @@ from app.bot.handlers.admin.admin_language_handlers import language_router
 from app.bot.handlers.admin.admin_word_handlers import word_router
 from app.bot.handlers.admin.admin_upload_handlers import upload_router
 from app.bot.handlers.admin.admin_export_handlers import export_router
+from app.bot.handlers.admin.admin_messaging_handlers import messaging_router
 
 # Создаем общий роутер для администраторов
 admin_router = Router()
@@ -20,6 +21,7 @@ admin_router.include_router(language_router)
 admin_router.include_router(word_router)
 admin_router.include_router(upload_router)
 admin_router.include_router(export_router)
+admin_router.include_router(messaging_router)
 
 def register_handlers(dp: Dispatcher):
     """

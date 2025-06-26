@@ -5,6 +5,7 @@ UPDATED: Added viewing_word_image state for word image display.
 UPDATED: Added word editing and deletion states for admin interface.
 UPDATED: Added viewing_writing_image state for writing image display (hieroglyphic languages).
 UPDATED: Added export states for words export functionality.
+UPDATED: Added messaging states for admin message broadcasting.
 """
 
 from aiogram.fsm.state import State, StatesGroup
@@ -49,6 +50,9 @@ class AdminStates(StatesGroup):
     viewing_users_list = State()                # Просмотр списка пользователей
     viewing_user_details = State()              # Просмотр деталей пользователя
     confirming_admin_rights_change = State()    # Подтверждение изменения прав администратора
+    sending_message_to_all = State()           # Отправка сообщения всем пользователям
+    confirming_message_send = State()          # Подтверждение отправки сообщения
+    processing_message_send = State()          # Процесс отправки сообщения
     
     # Состояния управления языками
     viewing_languages = State()                 # Просмотр списка языков

@@ -30,6 +30,7 @@ DEFAULT_SETTINGS = {
     "show_big": False,
     "show_short_captions": True,
     "show_writing_images": True,
+    "receive_messages": True,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
@@ -196,6 +197,7 @@ async def display_language_settings(
     
     # Extract writing images settings
     show_writing_images = settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
+    receive_messages = settings.get("receive_messages", DEFAULT_SETTINGS["receive_messages"])
     
     # Get language info
     state_data = await state.get_data()
@@ -236,7 +238,7 @@ async def display_language_settings(
         show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
-        current_language=current_language
+        receive_messages=receive_messages
     )
     
     # Format settings text with individual hint settings and writing images
@@ -250,6 +252,7 @@ async def display_language_settings(
         show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
+        receive_messages=receive_messages,
         prefix=language_prefix, 
         suffix=suffix
     )

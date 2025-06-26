@@ -25,6 +25,8 @@ class UserLanguageSettingsBase(BaseModel):
     show_hint_writing: bool = Field(True, description="Whether to show writing hint button")
     show_short_captions: bool = Field(True, description="Whether to show short captions")
 
+    receive_messages: bool = Field(True, description="Whether to receive messages")
+
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
     """Model for creating user language settings."""
     pass
@@ -46,7 +48,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_hint_meaning: Optional[bool] = None
     show_hint_writing: Optional[bool] = None
     show_short_captions: Optional[bool] = None
-
+    receive_messages: Optional[bool] = None
+    
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):
     """Model for user language settings as stored in the database."""
     id: str

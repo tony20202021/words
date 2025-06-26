@@ -72,6 +72,7 @@ def format_settings_text(
     show_writing_images=False,
     show_short_captions=True,
     show_big=False,
+    receive_messages=True,
     prefix="", 
     suffix=""
 ):
@@ -90,6 +91,7 @@ def format_settings_text(
         show_writing_images: Показывать ли картинки написания
         show_short_captions: Показывать ли короткие подписи
         show_big: Показывать ли крупное написание
+        receive_messages: Получать ли сообщения
         prefix: Текст перед настройками
         suffix: Текст после настроек
         
@@ -134,6 +136,10 @@ def format_settings_text(
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
     settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>"
+    
+    # Статус получения сообщений
+    receive_messages_status = "Получать ✅" if receive_messages else "Не получать ❌"
+    settings_text += f"📤 Получать сообщения: <b>{receive_messages_status}</b>"
     
     # Добавляем суффикс
     if suffix:

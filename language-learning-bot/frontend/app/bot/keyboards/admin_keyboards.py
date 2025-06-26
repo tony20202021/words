@@ -38,6 +38,11 @@ def get_admin_keyboard() -> InlineKeyboardMarkup:
     ))
     
     builder.add(InlineKeyboardButton(
+        text="📤 Сообщение всем пользователям", 
+        callback_data=CallbackData.ADMIN_SEND_MESSAGE_TO_ALL
+    ))
+
+    builder.add(InlineKeyboardButton(
         text="⬅️ Выйти из режима администратора", 
         callback_data=CallbackData.BACK_TO_START
     ))

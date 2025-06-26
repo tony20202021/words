@@ -83,7 +83,7 @@ def create_settings_keyboard(
     show_short_captions: bool = True,
     hint_settings: Optional[Dict[str, bool]] = None,
     show_writing_images: bool = False,
-    current_language: Optional[dict] = None,
+    receive_messages: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for user settings with individual hint settings and writing images.
@@ -165,6 +165,13 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{debug_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG
+    ))
+    
+    # Receive messages setting
+    receive_messages_text = "✅ Получать сообщения" if receive_messages else "❌ Не получать сообщения"
+    builder.add(InlineKeyboardButton(
+        text=f"{receive_messages_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_RECEIVE_MESSAGES
     ))
     
     # Set layout: one button per row

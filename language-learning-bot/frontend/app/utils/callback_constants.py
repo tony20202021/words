@@ -5,6 +5,7 @@ UPDATED: Added word image display callbacks.
 UPDATED: Added word editing and deletion callbacks.
 UPDATED: Added admin edit from study callbacks.
 UPDATED: Added writing image callbacks for hieroglyphic languages.
+UPDATED: Added messaging callbacks for admin message broadcasting.
 """
 
 import re
@@ -56,6 +57,8 @@ class CallbackData:
     SETTINGS_TOGGLE_HINT_PHONETICSOUND = "settings_toggle_hint_phoneticsound"
     SETTINGS_TOGGLE_HINT_WRITING = "settings_toggle_hint_writing"
     
+    SETTINGS_TOGGLE_RECEIVE_MESSAGES = "settings_toggle_receive_messages"
+    
     # НОВОЕ: Настройка картинок написания
     SETTINGS_TOGGLE_WRITING_IMAGES = "settings_toggle_writing_images"
     
@@ -67,6 +70,11 @@ class CallbackData:
     ADMIN_USERS = "admin_users"
     ADMIN_STATS = "admin_stats"
     ADMIN_STATS_CALLBACK = "admin_stats_callback"
+    ADMIN_SEND_MESSAGE_TO_ALL = "admin_send_message_to_all"
+    
+    # НОВОЕ: Messaging callbacks
+    CONFIRM_MESSAGING = "confirm_messaging"
+    CANCEL_MESSAGING = "cancel_messaging"
     
     # Admin language management
     CREATE_LANGUAGE = "create_language"
@@ -520,3 +528,4 @@ def get_setting_from_callback(callback_data: str) -> Optional[str]:
         Setting key string or None if not found
     """
     return ALL_SETTINGS_CALLBACKS_REVERSE.get(callback_data)
+    
