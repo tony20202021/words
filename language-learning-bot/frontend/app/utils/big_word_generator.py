@@ -128,34 +128,27 @@ class BigWordGenerator:
                 logger.info(f"Auto-fitted transcription font size: {actual_transcription_font_size}")
                 logger.info(f"Transcription dimensions: {trans_width}x{trans_height}px")
             
-            # Динамический расчет отступов в зависимости от размеров шрифтов
-            gap_between_elements = max(actual_word_font_size * 0.2, actual_transcription_font_size * 0.3)
-            gap_between_elements = int(gap_between_elements)
-            
-            # Общая высота контента (слово + отступ + транскрипция)
-            if transcription:
-                total_content_height = word_height - word_begin_y + gap_between_elements + trans_height - trans_begin_y
-            else:
-                total_content_height = word_height - word_begin_y
-            
-            # Позиция слова: горизонтально и вертикально по центру
+            free_space_all = (self.height - word_height - trans_height)
+            free_space_top = free_space_all * 0.4            
+            free_space_middle = free_space_all * 0.4
+
+            # Позиция слова: горизонтально
             word_x = (self.width - word_width) // 2
-            content_start_y = (self.height - total_content_height) // 2
-            word_y = content_start_y - word_begin_y
+            word_y = free_space_top - word_begin_y
             
             logger.info(f"Final font sizes: word={actual_word_font_size}, transcription={actual_transcription_font_size}")
-            logger.info(f"Content heights: word={word_height} (word_begin_y={word_begin_y}), transcription={trans_height} (trans_begin_y={trans_begin_y}), gap={gap_between_elements}")
-            logger.info(f"Total content height: {total_content_height}, content_start_y: {content_start_y}")
+            logger.info(f"Content heights: word={word_height} (word_begin_y={word_begin_y}), transcription={trans_height} (trans_begin_y={trans_begin_y})")
+            logger.info(f"free_space_all: {free_space_all}, free_space_top: {free_space_top}, free_space_middle: {free_space_middle}")
             logger.info(f"Final word position: x={word_x}, y={word_y}")
             
             # Рисуем слово
             draw.text((word_x, word_y), word, font=word_font, fill=self.text_color)
-            
+
             # Рисуем транскрипцию если есть
             if transcription and trans_font:
                 # Позиция транскрипции: под словом с динамическим отступом
                 trans_x = (self.width - trans_width) // 2
-                trans_y = content_start_y + word_height + gap_between_elements - trans_begin_y
+                trans_y = free_space_top + word_height + free_space_middle - trans_begin_y
                 
                 logger.info(f"Final transcription position: x={trans_x}, y={trans_y}")
                 
@@ -165,7 +158,7 @@ class BigWordGenerator:
                     font=trans_font, 
                     fill=self.transcription_color
                 )
-            
+
             # Сохраняем в BytesIO
             image_buffer = io.BytesIO()
             image.save(image_buffer, format='PNG', quality=95, optimize=True)
