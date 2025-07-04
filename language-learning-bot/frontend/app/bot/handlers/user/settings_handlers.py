@@ -225,6 +225,28 @@ async def process_settings_start_word(callback: CallbackQuery, state: FSMContext
     
     await callback.answer()
 
+@settings_router.message(Command("cancel"), SettingsStates.waiting_start_word, flags={"priority": 100})   # высокий приоритет
+async def cmd_cancel_start_word(message: Message, state: FSMContext):
+    """
+    Handle the /cancel command to abort start word setting.
+    """
+    logger.info(f"Cancel start word command received from {message.from_user.full_name}")
+    
+    await message.answer(
+        "✅ Ввод отменен\n\n"
+    )
+    
+    # Return to settings view
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Show updated settings
+    await display_language_settings(
+        message_or_callback=message,
+        state=state,
+        prefix="⚙️ <b>Настройки обучения</b>\n\n",
+        is_callback=False
+    )
+
 @settings_router.message(SettingsStates.waiting_start_word)
 async def process_start_word_input(message: Message, state: FSMContext):
     """
@@ -273,7 +295,6 @@ async def process_start_word_input(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-# НОВОЕ: Общая функция для обновления настроек
 async def _update_setting(message_or_callback, state: FSMContext, setting_key: str, new_value) -> bool:
     """
     Update a single setting value.

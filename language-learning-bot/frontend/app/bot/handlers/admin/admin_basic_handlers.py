@@ -15,7 +15,8 @@ from app.bot.handlers.admin.admin_language_handlers import handle_language_manag
 from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import AdminStates
 from app.utils.admin_utils import is_user_admin
-
+from app.bot.handlers.user.basic_handlers import handle_start_command
+    
 # Создаем роутер для базовых обработчиков администратора
 admin_router = Router()
 
@@ -89,7 +90,6 @@ async def cmd_admin(message: Message, state: FSMContext):
     await handle_admin_mode(message, state)
 
 @admin_router.callback_query(AdminStates.main_menu, F.data == CallbackData.BACK_TO_ADMIN)
-@admin_router.callback_query(F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin(callback: CallbackQuery, state: FSMContext):
     """
     Handle the 'back_to_admin' callback which returns to admin mode.
@@ -137,9 +137,6 @@ async def process_back_to_main(callback: CallbackQuery, state: FSMContext):
     
     # Сообщение о выходе из режима администратора
     await callback.message.answer("✅ Вы вышли из режима администратора")
-    
-    # Импортируем функцию для обработки команды start
-    from app.bot.handlers.user.basic_handlers import handle_start_command
     
     # Вызываем общую функцию, передавая данные из callback
     await handle_start_command(
@@ -221,7 +218,6 @@ async def handle_stats(message_or_callback, state: FSMContext, is_callback=False
     
     # Получаем всех пользователей для подсчета
     users_response = await api_client.get_users_count()
-    print(users_response)
     
     if users_response["success"] and "count" in users_response.get("result", {}):
         total_users = users_response["result"]["count"]

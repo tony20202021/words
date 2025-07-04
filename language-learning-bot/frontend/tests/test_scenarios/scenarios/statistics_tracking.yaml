@@ -10,7 +10,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -28,7 +28,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -37,43 +37,48 @@ steps:
     name: stats
     asserts:
       - type: message_contains
+        position: -3
+        text: "Получаем прогресс по языку Английский..."
+      - type: message_contains
+        position: -2
+        text: "Получаем прогресс по языку Французский..."
+      - type: message_contains
         text: "Статистика по изучению языков"
       - type: message_contains
-        text: "Доступные языки без статистики"
+        text: "Общая статистика"
       - type: message_contains
-        text: "Английский (English) - 1000 слов"
+        text: "Английский (English) — 1000 слов"
 
   # Изучаем несколько слов
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов языка"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
+        text: "Начинаем изучение языка: Английский"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:studying"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Отмечаем слово как известное
   - type: callback
-    data: "word_know"
+    data: "CallbackData.WORD_KNOW"
     asserts:
       - type: message_contains
         text: "Отлично!"
-      - type: message_contains
-        text: "Оценка обновлена на 1"
-      - type: message_contains
-        text: "Новый интервал: 1 (дней)" 
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:confirming_word_knowledge"]
       - type: keyboard_contains
         button_text: "К следующему слову"
       - type: keyboard_contains
@@ -82,49 +87,51 @@ steps:
         count: 2
 
   - type: callback
-    data: "confirm_next_word"
+    data: "CallbackData.CONFIRM_NEXT_WORD"
     asserts:
       - type: message_contains
-        position: -2
-        text: "Переходим к следующему слову"
+        position: -1
+        text: "Слово номер: <b>11</b>"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
-      - type: keyboard_contains
-        button_text: "Ассоциация для"
+        data: ["_state", "StudyStates:studying"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Отмечаем второе слово как неизвестное
   - type: callback
-    data: "word_dont_know"
+    data: "CallbackData.WORD_DONT_KNOW"
     asserts:
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер: <b>11</b>"
       - type: message_contains
-        text: "Оценка слова: 0"
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
-      - type: keyboard_contains
-        button_text: "Ассоциация для"
+        data: ["_state", "StudyStates:viewing_word_details"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 8
 
   # Проверяем обновленную статистику
   - type: command
     name: stats
     asserts:
       - type: message_contains
+        position: -3
+        text: "Получаем прогресс по языку Английский..."
+      - type: message_contains
+        position: -2
+        text: "Получаем прогресс по языку Французский..."
+      - type: message_contains
         text: "Статистика по изучению языков"
       - type: message_contains
-        text: "Английский (English):"
+        text: "Английский (English)"
       - type: message_contains
-        text: "Изучено слов: 1" # TODO испраивть мок - количество должно обновляться
+        text: "Изучено: <b>2</b>"
       - type: message_contains
-        text: "Известно слов: 1"
+        text: "Известно: <b>1</b>"
         

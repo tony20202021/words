@@ -179,6 +179,7 @@ def setup_skip_words_api_mock(api_client: AsyncMock):
                 "status": 200,
                 "result": [
                     {
+                        "_id": "word123",
                         "id": "word123",
                         "language_id": "eng",
                         "word_foreign": "house",
@@ -188,6 +189,7 @@ def setup_skip_words_api_mock(api_client: AsyncMock):
                         "user_word_data": {"is_skipped": words_state["word123"]["is_skipped"]}
                     },
                     {
+                        "_id": "word124",
                         "id": "word124",
                         "language_id": "eng",
                         "word_foreign": "car",
@@ -204,6 +206,7 @@ def setup_skip_words_api_mock(api_client: AsyncMock):
             result = []
             words = [
                 {
+                    "_id": "word123",
                     "id": "word123",
                     "language_id": "eng",
                     "word_foreign": "house",
@@ -213,10 +216,11 @@ def setup_skip_words_api_mock(api_client: AsyncMock):
                     "user_word_data": {"is_skipped": words_state["word123"]["is_skipped"]}
                 },
                 {
+                    "_id": "word124",
                     "id": "word124",
                     "language_id": "eng",
                     "word_foreign": "car",
-                    "translation": "машина",
+                    "translation": "машина",    
                     "transcription": "kɑr",
                     "word_number": 11,
                     "user_word_data": {"is_skipped": words_state["word124"]["is_skipped"]}

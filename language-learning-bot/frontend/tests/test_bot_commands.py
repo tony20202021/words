@@ -9,11 +9,31 @@ import importlib
 import sys
 from types import ModuleType
 import ast
+from unittest.mock import MagicMock
+
+class MockContextManager:
+    """Мок контекстного менеджера для Hydra initialize"""
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+# Создаем мок объект конфигурации
+mock_config = MagicMock()
+mock_config.logging.level = "INFO"
+mock_config.logging.format = None
+mock_config.logging.log_dir = "logs"
 
 # Патчим Hydra перед импортом модулей
 with pytest.MonkeyPatch().context() as mp:
-    mp.setattr('hydra.initialize', lambda **kwargs: None)
-    mp.setattr('hydra.compose', lambda **kwargs: None)
+    # Правильный патч - возвращаем контекстный менеджер
+    mp.setattr('hydra.initialize', lambda **kwargs: MockContextManager())
+    mp.setattr('hydra.compose', lambda **kwargs: mock_config)
+    
+    # Также патчим config_holder, чтобы избежать проблем
+    import app.utils.config_holder
+    mp.setattr(app.utils.config_holder, 'cfg', mock_config)
     
     # Импортируем списки команд и модулей
     from app.bot.bot import BOT_COMMANDS

@@ -47,32 +47,13 @@ class TestHintHandlers:
         """Test the /hint command handler."""
         message, state, api_client = setup_mocks
         
-        # Импортируем модуль, где определена тестируемая функция
-        import app.bot.handlers.user.hint_handlers as hint_handlers_module
-        
         # Патчим все зависимости с помощью patch.object
-        with patch.object(hint_handlers_module, 'get_api_client_from_bot', return_value=api_client), \
-             patch.object(hint_handlers_module, 'logger'):
+        with patch('app.bot.handlers.user.hint_handlers.process_hint', AsyncMock()) as mock_process_hint:
             
             # Вызываем тестируемую функцию
+            import app.bot.handlers.user.hint_handlers as hint_handlers_module
             await hint_handlers_module.cmd_hint(message, state)
             
-            # Проверяем, что данные состояния были сохранены
-            current_data = await state.get_data()
-            state.set_state.assert_called_once_with(None)
-            state.update_data.assert_called_once()
+            mock_process_hint.assert_called_once()
             
-            # Проверяем, что API клиент был вызван для получения данных пользователя
-            api_client.get_user_by_telegram_id.assert_called_once_with(message.from_user.id)
-            
-            # Проверяем, что бот отправил ответное сообщение
-            message.answer.assert_called_once()
-            
-            # Проверяем, что сообщение содержит информацию о подсказках
-            answer_text = message.answer.call_args.args[0]
-            assert "Подсказки помогают вам запоминать слова" in answer_text
-            assert "Фонетическое разложение" in answer_text
-            assert "Ассоциации" in answer_text
-            assert "Значение слова" in answer_text
-            assert "Подсказка по написанию" in answer_text
             

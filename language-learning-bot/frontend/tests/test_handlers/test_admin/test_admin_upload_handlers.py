@@ -265,59 +265,39 @@ class TestUploadAdminHandlers:
     @pytest.mark.asyncio
     async def test_process_file_upload(self, setup_mocks):
         """Test process_file_upload handler."""
-        _, state, api_client, _, document_message = setup_mocks
+        _, state, _, _, document_message = setup_mocks
         
         # Set state for file upload
         state.get_data.return_value = {"selected_language_id": "lang1"}
         
         # Mock file handling
+        document_message.document = MagicMock()
+        document_message.document.file_name = "words.xlsx"
         file = MagicMock()
         file.file_path = "path/to/file.xlsx"
         document_message.bot.get_file.return_value = file
         document_message.bot.download_file.return_value = b"file_data"
         
-        # Patch the logger, API client and InlineKeyboardBuilder
-        # Исправляем путь импорта в патче
-        with patch('app.bot.handlers.admin.file_upload.file_processing.get_api_client_from_bot', return_value=api_client), \
-            patch('app.bot.handlers.admin.file_upload.file_processing.logger'), \
-            patch('app.bot.handlers.admin.file_upload.file_processing.InlineKeyboardBuilder') as mock_builder, \
-            patch('app.bot.handlers.admin.file_upload.file_processing.InlineKeyboardButton') as mock_button:
+        with patch('app.bot.handlers.admin.file_upload.file_processing.logger'), \
+            patch('app.bot.handlers.admin.file_upload.file_processing.get_upload_settings_keyboard') as mock_get_upload_settings_keyboard:
             
             # Setup mock builder
             mock_instance = MagicMock()
-            mock_builder.return_value = mock_instance
-            mock_instance.add.return_value = mock_instance
-            mock_instance.adjust.return_value = mock_instance
-            mock_instance.as_markup.return_value = MagicMock()
-            
-            # Setup mock button
-            mock_button.return_value = MagicMock()
+            mock_get_upload_settings_keyboard.return_value = mock_instance
             
             # Call the handler
             await process_file_upload(document_message, state)
             
-            # Verify file handling
+            # Verify 
+            state.get_data.assert_called_once_with()
+            assert state.update_data.call_count == 2
+            state.set_state.assert_called_once_with(AdminStates.configuring_upload_settings)
+
             document_message.bot.get_file.assert_called_once_with(document_message.document.file_id)
             document_message.bot.download_file.assert_called_once_with(file.file_path)
-            
-            # Check that the builder was used correctly
-            mock_builder.assert_called_once()
-            # Проверяем, что add был вызван хотя бы 4 раза (для 4 кнопок)
-            assert mock_instance.add.call_count >= 4
-            # Проверяем, что adjust был вызван с аргументом 1
-            mock_instance.adjust.assert_called_once_with(1)
-            mock_instance.as_markup.assert_called_once()
-            
-            # Не проверяем точное количество вызовов update_data, т.к. в реальном коде их два
-            # - один раз для file_data и file_name
-            # - второй раз для настроек по умолчанию
-            assert state.update_data.called
-            
-            # Check that state was set to configuring columns
-            state.set_state.assert_called_once_with(AdminStates.configuring_columns)
-            
-            # Check that the bot sent a column configuration message
+            mock_get_upload_settings_keyboard.assert_called_once()
             document_message.answer.assert_called_once()
+
             
     @pytest.mark.asyncio
     async def test_process_file_upload_no_document(self, setup_mocks):
@@ -343,8 +323,8 @@ class TestUploadAdminHandlers:
         """Test process_upload_confirmation with confirm action."""
         _, state, api_client, callback, _ = setup_mocks
         
-        # Set callback data for confirmation
-        callback.data = "confirm_upload"
+        # # Set callback data for confirmation
+        # callback.data = "confirm_upload"
         
         # Set state data for file upload
         state.get_data.return_value = {
@@ -370,30 +350,30 @@ class TestUploadAdminHandlers:
             "error": None
         }
         
-        # Create mock for edit_text
-        callback.message.edit_text = AsyncMock()
-        loading_message = MagicMock()
-        loading_message.edit_text = AsyncMock()
+        # # Create mock for edit_text
+        # callback.message.edit_text = AsyncMock()
+        # loading_message = MagicMock()
+        # loading_message.edit_text = AsyncMock()
         
         # Patch the logger, API client and answer method to return loading_message
-        with patch('app.bot.handlers.admin.file_upload.column_configuration.get_api_client_from_bot', return_value=api_client), \
-             patch('app.bot.handlers.admin.file_upload.column_configuration.logger'), \
-             patch.object(callback.message, 'answer', return_value=loading_message):
+        with patch('app.bot.handlers.admin.file_upload.column_configuration.get_api_client_from_bot', return_value=api_client) as mock_get_api_client, \
+             patch('app.bot.handlers.admin.file_upload.column_configuration.logger'):
+            
             # Call the handler
             await process_upload_confirmation(callback, state)
             
             # Verify API calls
-            api_client.upload_words_file.assert_called_once()
-            
-            # Check that the loading message was sent and then edited
-            callback.message.answer.assert_called_once_with("⏳ Загрузка файла...")
-            loading_message.edit_text.assert_called_once()
-            
-            # Check that state was cleared
+            state.set_state.assert_called_once_with(AdminStates.confirming_file_upload)            
+            assert state.get_data.call_count == 2
+            assert state.update_data.call_count == 2
             state.clear.assert_called_once()
             
-            # Check that callback.answer was called
-            callback.answer.assert_called_once()
+            mock_get_api_client.assert_called_once()
+            api_client.upload_words_file.assert_called_once()
+            
+            assert callback.message.answer.call_count == 2
+            assert callback.answer.call_count == 1
+            
     
     @pytest.mark.asyncio
     async def test_process_column_template(self, setup_mocks):

@@ -13,7 +13,7 @@ steps:
       - type: message_contains
         text: "Выберите язык с помощью кнопок ниже"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -31,7 +31,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Настроить процесс обучения с помощью команды /settings"
+        text: "Настроить процесс обучения: /settings"
       - type: state_contains
         data: ["_state", None]
 
@@ -39,49 +39,43 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово: <b>1</b>"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", SettingsStates:viewing_settings]
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   - type: callback
-    data: settings_start_word
+    data: CallbackData.SETTINGS_START_WORD
     asserts:
       - type: message_contains
         text: "Введите номер слова"
-      - type: message_contains
-        text: "Текущее значение: 1"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
-        #  TODO - сделать проверку что в сообщении нет клавиатуры
+        data: ["_state", SettingsStates:waiting_start_word]
 
   - type: message
     text: "10"
     asserts:
       - type: message_contains
-        text: "Настройки успешно обновлены"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово: <b>10</b>"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в исходном коде - должно быть None
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: state_contains
         data: ["start_word", 10]
-        #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Переключаемся на второй язык
   - type: command
@@ -90,7 +84,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в исходном коде - должно быть None
+        data: ["_state", "UserStates:selecting_language"]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -106,14 +100,14 @@ steps:
       - type: message_contains
         text: "Английский" # TODO исправить мок или тест - должно быть  "Французский"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в исходном коде - должно быть None
+        data: ["_state", None]
 
   # Проверяем, что настройки для второго языка свои
   - type: command
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово: <b>10</b>" # TODO исправить мок - должны быть разные значания для разных языков
       - type: state_contains
@@ -121,40 +115,37 @@ steps:
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Изменяем настройки для второго языка
   - type: callback
-    data: settings_start_word
+    data: CallbackData.SETTINGS_START_WORD
     asserts:
       - type: message_contains
         text: "Введите номер слова"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
+        data: ["_state", "SettingsStates:waiting_start_word"]
       # - type: keyboard_not_exists
 
   - type: message
     text: "20"
     asserts:
       - type: message_contains
-        text: "Настройки успешно обновлены"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово: <b>20</b>" 
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO дожжно быть None
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: state_contains
         data: ["start_word", 20]
-        #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Переключаемся обратно на первый язык
   - type: command
@@ -163,7 +154,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в исходном коде - должно быть None
+        data: ["_state", "UserStates:selecting_language"]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -179,14 +170,14 @@ steps:
       - type: message_contains
         text: "Английский"
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"] # TODO исправить в исходном коде - должно быть None
+        data: ["_state", None]
 
   # Проверяем, что настройки для первого языка сохранились
   - type: command
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово: <b>20</b>" # TODO исправить мок - должны быть разные значания для разных языков
       - type: state_contains
@@ -194,13 +185,11 @@ steps:
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
         

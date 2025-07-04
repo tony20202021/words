@@ -18,7 +18,7 @@ from app.bot.handlers.study.study_words import show_study_word
 from app.utils.callback_constants import CallbackParser
 
 # Импортируем централизованные состояния
-from app.bot.states.centralized_states import StudyStates, HintStates
+from app.bot.states.centralized_states import StudyStates
 
 # Создаем вложенный роутер для обработчиков переключения подсказок
 toggle_router = Router()
@@ -43,6 +43,9 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     
     # Parse callback data using the new parser
     parsed = CallbackParser.parse_hint_action(callback.data)
+
+    print(f"parsed: {parsed}")
+    
     if not parsed:
         logger.error(f"Could not parse callback_data: {callback.data}")
         await callback.answer("Ошибка формата данных")
@@ -60,6 +63,7 @@ async def process_hint_toggle(callback: CallbackQuery, state: FSMContext):
     )
     
     if not is_valid:
+        logger.error(f"not is_valid")
         return
     
     # Get current word and user ID

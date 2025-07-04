@@ -6,6 +6,7 @@ import inspect
 import traceback
 from typing import List
 from unittest.mock import MagicMock
+from aiogram import Router
 
 from .handlers_utils import (
     _import_module,
@@ -37,9 +38,9 @@ async def load_handlers_from_routers(context, module_paths: List[str], routers: 
             # Ищем роутеры в модуле (напрямую в модуле, а не только в register_handlers)
             for name, obj in inspect.getmembers(module):
                 # Ищем роутеры в модуле
-                if hasattr(obj, 'sub_routers') and obj not in routers:
+                if isinstance(obj, Router) and hasattr(obj, 'sub_routers') and (obj not in routers):
                     routers.append(obj)
-                    print(f"\tНайден Router в модуле: {name} = {obj}")
+                    print(f"\tНайден Router в модуле {module}: {name} = {obj}")
                     
                     # Рекурсивно добавим все подроутеры
                     collect_sub_routers(obj, routers)

@@ -12,6 +12,7 @@ from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
 from app.bot.states.centralized_states import AdminStates
 from app.utils.callback_constants import CallbackData
+from app.bot.keyboards.admin_keyboards import get_upload_settings_keyboard
 
 logger = setup_logger(__name__)
 
@@ -22,14 +23,6 @@ file_router = Router()
 # реализовать как отдельную функцию clien API
 # и добавить  вызов этой функции (очистить статистику всех пользователей по выбранному языку) - в админ/управление языком
 # сделать нужные изменения в client API, backend
-
-
-# TODO сейчас на длинных файлах - выдается сообщение об ожидании
-# и потом ошибка, в логах фронтенда - сообщение о тайм-ауте
-# сделать чтобы фронтенд не зависал в ответе
-# отправить сообщение "ожидайте результата"
-# ждать окончания загрузки на бэкенд
-# после окончания - отправить новое сообщение, что все завершено
 
 # Константы для настроек колонок по умолчанию
 DEFAULT_COLUMN_NUMBER = 0
@@ -131,9 +124,6 @@ async def process_file_upload(message: Message, state: FSMContext):
         )
         return
     
-    # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(message.bot)
-    
     # Получаем данные состояния
     user_data = await state.get_data()
     language_id = user_data.get('selected_language_id')
@@ -166,45 +156,17 @@ async def process_file_upload(message: Message, state: FSMContext):
         column_translation=DEFAULT_COLUMN_TRANSLATION
     )
     
-    # ✅ НОВОЕ: Устанавливаем состояние настроек загрузки
+    # Устанавливаем состояние настроек загрузки
     await state.set_state(AdminStates.configuring_upload_settings)
     
-    # Получаем обновленные данные состояния
-    user_data = await state.get_data()
-    
     # Создаем клавиатуру с настройками загрузки файла
-    builder = InlineKeyboardBuilder()
-    
-    # Кнопки для настройки файла
-    builder.add(InlineKeyboardButton(
-        text='📝 Файл содержит заголовки: поменять на "Да"', 
-        callback_data=CallbackData.TOGGLE_HEADERS
-    ))
-    builder.add(InlineKeyboardButton(
-        text='🗑️ Очистить существующие слова: поменять на "Да"', 
-        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
-    ))
-    
-    # Добавляем информацию о текущих настройках колонок в кнопку
-    column_info = f"(сейчас: {DEFAULT_COLUMN_NUMBER}, {DEFAULT_COLUMN_WORD}, {DEFAULT_COLUMN_TRANSCRIPTION}, {DEFAULT_COLUMN_TRANSLATION})"
-    builder.add(InlineKeyboardButton(
-        text=f"🔧 Настроить колонки {column_info}", 
-        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
-    ))
-    
-    # Добавляем кнопку подтверждения загрузки
-    builder.add(InlineKeyboardButton(
-        text="✅ Подтвердить и загрузить", 
-        callback_data=CallbackData.CONFIRM_UPLOAD
-    ))
-    
-    builder.add(InlineKeyboardButton(
-        text="⬅️ Отмена", 
-        callback_data=CallbackData.BACK_TO_ADMIN
-    ))
-    
-    # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)
-    builder.adjust(1)
+    builder = get_upload_settings_keyboard(
+        language_id,
+        column_number=DEFAULT_COLUMN_NUMBER,
+        column_word=DEFAULT_COLUMN_WORD,
+        column_transcription=DEFAULT_COLUMN_TRANSCRIPTION,
+        column_translation=DEFAULT_COLUMN_TRANSLATION
+    )
     
     # Формируем строку с текущими настройками колонок
     column_settings = (
@@ -222,10 +184,10 @@ async def process_file_upload(message: Message, state: FSMContext):
         '✅ Очистить существующие слова: "Нет"\n\n'
         f"{column_settings}\n"
         "Настройте параметры или нажмите 'Подтвердить и загрузить' для продолжения.",
-        reply_markup=builder.as_markup()
+        reply_markup=builder
     )
 
-# ✅ НОВОЕ: Обработчик для состояния настроек загрузки с подтверждением
+# Обработчик для состояния настроек загрузки с подтверждением
 @file_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.CONFIRM_UPLOAD)
 async def process_upload_confirmation_from_settings(callback: CallbackQuery, state: FSMContext):
     """

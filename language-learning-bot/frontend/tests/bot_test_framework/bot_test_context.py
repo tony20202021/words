@@ -67,13 +67,19 @@ class BotTestContext:
             return self.state_data
             
         async def mock_set_state(state):
-            print(type(state))
-            state_str = str(state) if state else None
+            print(f"type(state) = {type(state)}, state = {state}")
+            if state is not None:
+                print(f"state.state = {state.state}")
+            state_str = str(state.state) if state else None
             print(f"Установка состояния: {state_str}")
             self.state_data['_state'] = state_str
             # Сохраняем историю состояний после каждого изменения
             self.state_history.append(self.state_data.copy())
-            
+        
+        async def mock_get_state():
+            print(f"Получение состояния: {self.state_data['_state']}")
+            return self.state_data['_state']
+        
         async def mock_clear():
             print("Очистка состояния")
             self.state_data.clear()
@@ -84,6 +90,7 @@ class BotTestContext:
         self.state.get_data = AsyncMock(side_effect=mock_get_data)
         self.state.update_data = AsyncMock(side_effect=mock_update_data)
         self.state.set_state = AsyncMock(side_effect=mock_set_state)
+        self.state.get_state = AsyncMock(side_effect=mock_get_state)
         self.state.clear = AsyncMock(side_effect=mock_clear)
         
         # Моки для API

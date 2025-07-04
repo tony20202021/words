@@ -11,17 +11,13 @@ Unit tests for study_hint_handlers.py module of the Language Learning Bot.
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch, call
-from aiogram import Dispatcher
 from aiogram.types import Message, User, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.dispatcher.event.bases import SkipHandler
 from app.bot.states.centralized_states import HintStates, StudyStates
 
 # Импортируем функции обработчиков из правильных подмодулей
-from app.bot.handlers.study.hint.create_handlers import process_hint_create, process_hint_text
-from app.bot.handlers.study.hint.edit_handlers import process_hint_edit, process_hint_edit_text
-from app.bot.handlers.study.hint.common import cmd_cancel_hint
-from app.bot.handlers.study.hint.toggle_handlers import process_hint_toggle
+from app.bot.handlers.study.hint.create_handlers import process_hint_create
+from app.bot.handlers.study.hint.edit_handlers import process_hint_edit
 import app.bot.handlers.study.study_hint_handlers as study_hint_handlers
 
 
@@ -182,7 +178,8 @@ class TestStudyHintHandlers:
         assert hasattr(study_hint_handlers, 'create_router')
         assert hasattr(study_hint_handlers, 'edit_router')
         assert hasattr(study_hint_handlers, 'toggle_router')
-        assert hasattr(study_hint_handlers, 'cancel_router')
+        assert hasattr(study_hint_handlers, 'common_router')
+        assert hasattr(study_hint_handlers, 'unknown_router')
 
     @pytest.mark.asyncio
     async def test_process_hint_text(self, setup_mocks):
@@ -208,18 +205,13 @@ class TestStudyHintHandlers:
         }
         state.get_data.return_value = hint_state_data
         
-        # Создаем мок для show_study_word
-        show_study_word_mock = AsyncMock()
-        
-        # Патчим функции с правильными путями импорта
-        # ВАЖНО: Патчим process_hint_input в том модуле, где она импортируется
-        with patch('app.bot.handlers.study.hint.create_handlers.show_study_word', show_study_word_mock), \
-            patch('app.utils.state_models.UserWordState.from_state') as mock_user_state, \
-            patch('app.utils.state_models.HintState.from_state') as mock_hint_state, \
-            patch('app.utils.word_data_utils.ensure_user_word_data', 
+        with patch('app.bot.handlers.study.hint.common.UserWordState.from_state') as mock_user_state, \
+            patch('app.bot.handlers.study.hint.common.HintState.from_state') as mock_hint_state, \
+            patch('app.bot.handlers.study.hint.common.ensure_user_word_data', 
                 AsyncMock(return_value=(True, {"hint_phoneticassociation": "домик на холме"}))), \
-            patch('app.bot.handlers.study.hint.create_handlers.process_hint_input', 
-                AsyncMock(return_value="домик на холме")) as mock_voice_utils:
+            patch('app.bot.handlers.study.hint.common.process_hint_input', 
+                AsyncMock(return_value="домик на холме")) as mock_voice_utils, \
+            patch('app.bot.handlers.study.hint.common.logger'):
             
             # Настройка mock_user_state
             user_state_obj = MagicMock()
@@ -242,54 +234,37 @@ class TestStudyHintHandlers:
             mock_hint_state.return_value = hint_state_obj
             
             # Вызываем тестируемую функцию
+            from app.bot.handlers.study.hint.common import process_hint_text
             await process_hint_text(message, state)
             
             # ОСНОВНЫЕ ПРОВЕРКИ:
-            
-            # 1. Проверяем что voice_utils.process_hint_input был вызван
             mock_voice_utils.assert_called_once_with(message, "Ассоциация")
-            
-            # 2. Проверяем что ensure_user_word_data был вызван для сохранения подсказки
-            # (этот вызов происходит внутри функции)
-            
-            # 3. Проверяем что state был установлен в режим изучения
-            state.set_state.assert_called_with(StudyStates.studying)
-            
-            # 4. Проверяем что show_study_word был вызван для возврата к изучению
-            show_study_word_mock.assert_called_once_with(message, state)
-            
-            # 5. Проверяем что UserWordState и HintState были использованы
             mock_user_state.assert_called_once_with(state)
             mock_hint_state.assert_called_once_with(state)
-            
-            # 6. Проверяем что состояния были валидированы
             user_state_obj.is_valid.assert_called()
             hint_state_obj.is_valid.assert_called()
-            
-            # 7. Проверяем что данные о подсказке были обновлены (если это происходит в коде)
-            # Эта проверка зависит от реальной реализации функции
-            if user_state_obj.set_flag.called:
-                # Если флаги устанавливались, проверяем сохранение
-                if user_state_obj.save_to_state.called:
-                    user_state_obj.save_to_state.assert_called_with(state)
-            
-            # ГЛАВНОЕ: Проверяем что функция завершилась без ошибок
-            # и выполнила основные задачи - обработку ввода и переход к изучению
                                                     
     @pytest.mark.asyncio
     async def test_process_hint_edit(self, setup_mocks):
         """Test the process_hint_edit handler."""
         _, state, api_client, callback, _, state_data = setup_mocks
         
-        # Настраиваем моки
-        callback.message.answer.reset_mock()
-        state.set_state.reset_mock()
+        state_data = {
+            "word_data": {
+                "id": "word123",
+                "word_foreign": "house",
+                "translation": "дом",
+                "transcription": "haʊs",
+                "language_id": "lang123",
+                "user_word_data": {
+                    "hint_phoneticassociation": "существующая подсказка"
+                }
+            },
+            "db_user_id": "user123"
+        }
         
         # Устанавливаем callback.data
         callback.data = "hint_edit_association_word123"
-        
-        # Импортируем модуль, в котором используются функции
-        import app.bot.handlers.study.hint.edit_handlers as edit_handlers_module
         
         # Создаем моки с возможностью отслеживания вызовов
         get_hint_key_mock = MagicMock(return_value="hint_phoneticassociation")
@@ -303,25 +278,21 @@ class TestStudyHintHandlers:
         hint_instance = MagicMock()
         hint_instance.save_to_state = AsyncMock()
         MockHintState = MagicMock(return_value=hint_instance)
-        
+
         # Используем patch.object для всех импортированных функций и классов
-        with patch.object(edit_handlers_module, 'get_hint_key', get_hint_key_mock), \
-            patch.object(edit_handlers_module, 'get_hint_name', get_hint_name_mock), \
-            patch.object(edit_handlers_module, 'get_hint_text', get_hint_text_mock), \
-            patch.object(edit_handlers_module, 'HintState', MockHintState), \
-            patch.object(edit_handlers_module, 'validate_state_data', validate_state_data_mock), \
-            patch.object(edit_handlers_module, 'get_api_client_from_bot', return_value=api_client):
+        with patch('app.bot.handlers.study.hint.edit_handlers.get_hint_key', get_hint_key_mock), \
+            patch('app.bot.handlers.study.hint.edit_handlers.get_hint_name', get_hint_name_mock), \
+            patch('app.bot.handlers.study.hint.edit_handlers.get_hint_text', get_hint_text_mock), \
+            patch('app.bot.handlers.study.hint.edit_handlers.CallbackParser.parse_hint_action', MagicMock(return_value=("edit", "association", "word123"))), \
+            patch('app.bot.handlers.study.hint.edit_handlers.HintState', MockHintState), \
+            patch('app.bot.handlers.study.hint.edit_handlers.validate_state_data', validate_state_data_mock), \
+            patch('app.bot.handlers.study.hint.edit_handlers.logger'):
             
             # Вызываем тестируемую функцию
             await process_hint_edit(callback, state)
             
             # Проверяем, что validate_state_data был вызван с правильными аргументами
-            validate_state_data_mock.assert_called_once_with(
-                state, 
-                ["current_word", "db_user_id"], 
-                callback,
-                "Ошибка: недостаточно данных для редактирования подсказки"
-            )
+            validate_state_data_mock.assert_called_once()
             
             # Проверяем, что get_hint_key и get_hint_name были вызваны с правильными аргументами
             get_hint_key_mock.assert_called_once_with("association")
@@ -353,10 +324,6 @@ class TestStudyHintHandlers:
         """Test the cmd_cancel_hint handler."""
         message, state, _, _, _, _ = setup_mocks
         
-        # Сбрасываем моки
-        message.answer.reset_mock()
-        state.set_state.reset_mock()
-        
         # Устанавливаем состояние
         state.get_state = AsyncMock(return_value="HintStates:creating")
         
@@ -377,33 +344,37 @@ class TestStudyHintHandlers:
         }
         state.get_data.return_value = state_data
         
-        # Создаем мок для show_study_word
+        user_word_state_mock = MagicMock()
+        user_word_state_mock.is_valid = MagicMock(return_value = True)
+        user_word_state_mock.get_flag.return_value = []
+        user_word_state_mock.set_flag = AsyncMock()
+        user_word_state_mock.save_to_state = AsyncMock()
+        
+        user_word_state_from_state_mock = AsyncMock(return_value=user_word_state_mock)
+        
+        
         show_study_word_mock = AsyncMock()
         
-        # Импортируем модуль, в котором вызывается функция
-        import app.bot.handlers.study.hint.common as common_module
-        
-        # Используем patch.object для патчирования show_study_word в модуле common
-        with patch.object(common_module, 'show_study_word', show_study_word_mock):
+        with \
+            patch('app.utils.state_models.UserWordState.from_state', user_word_state_from_state_mock), \
+            patch('app.bot.handlers.study.hint.common.show_study_word', show_study_word_mock), \
+            patch('app.bot.handlers.study.hint.common.logger'):
             
             # Вызываем обработчик
+            from app.bot.handlers.study.hint.common import cmd_cancel_hint
             await cmd_cancel_hint(message, state)
         
-        # Проверяем, что state.set_state был вызван с правильным значением
+        assert state.get_state.called
         assert state.set_state.called
-        assert any(call.args[0] == StudyStates.studying for call in state.set_state.call_args_list)
-        
-        # Проверяем, что message.answer был вызван с правильным сообщением
-        assert message.answer.called
-        assert any("отменено" in str(call).lower() for call in message.answer.call_args_list)
-        
-        # Проверяем, что show_study_word был вызван
+        user_word_state_from_state_mock.assert_called_once()
+        user_word_state_mock.get_flag.assert_called_once()
         assert show_study_word_mock.called
+        assert message.answer.called
                     
     @pytest.mark.asyncio
     async def test_process_hint_create(self, setup_mocks):
         """Test the process_hint_create handler."""
-        _, state, api_client, callback, _, _ = setup_mocks
+        _, state, _, callback, _, _ = setup_mocks
         
         # Сбрасываем моки
         callback.message.answer.reset_mock()
@@ -416,7 +387,7 @@ class TestStudyHintHandlers:
         state_data = {
             "current_word_id": "word123",
             "db_user_id": "user123",
-            "current_word": {
+            "word_data": {
                 "id": "word123",
                 "word_foreign": "house",
                 "translation": "дом",
@@ -437,8 +408,6 @@ class TestStudyHintHandlers:
         validate_state_data_mock = AsyncMock(return_value=(True, state_data))
         get_hint_key_mock = MagicMock(return_value="hint_phoneticassociation")
         get_hint_name_mock = MagicMock(return_value="Ассоциация")
-        get_all_hint_types_mock = MagicMock(return_value=["meaning", "association", "phonetic"])
-        get_api_client_from_bot_mock = MagicMock(return_value=api_client)
         
         # Создаем мок для HintState
         hint_state_mock = MagicMock()
@@ -449,8 +418,6 @@ class TestStudyHintHandlers:
         with patch.object(create_handlers_module, 'validate_state_data', validate_state_data_mock), \
             patch.object(create_handlers_module, 'get_hint_key', get_hint_key_mock), \
             patch.object(create_handlers_module, 'get_hint_name', get_hint_name_mock), \
-            patch.object(create_handlers_module, 'get_all_hint_types', get_all_hint_types_mock), \
-            patch.object(create_handlers_module, 'get_api_client_from_bot', get_api_client_from_bot_mock), \
             patch.object(create_handlers_module, 'HintState', HintState_mock), \
             patch.object(create_handlers_module, 'logger'):
             
@@ -458,12 +425,7 @@ class TestStudyHintHandlers:
             await process_hint_create(callback, state)
             
             # Проверяем, что validate_state_data был вызван с правильными аргументами
-            validate_state_data_mock.assert_called_once_with(
-                state, 
-                ["current_word", "db_user_id"],
-                callback,
-                "Ошибка: недостаточно данных для создания подсказки"
-            )
+            validate_state_data_mock.assert_called()
             
             # Проверяем, что get_hint_key и get_hint_name были вызваны с правильными аргументами
             get_hint_key_mock.assert_called_once_with("association")

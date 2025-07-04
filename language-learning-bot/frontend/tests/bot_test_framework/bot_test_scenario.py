@@ -267,7 +267,6 @@ class BotTestScenario:
             
             # Загружаем обработчики
             from .handlers_setup import load_handlers_from_modules
-            # print(self.handler_modules)
             await load_handlers_from_modules(context, self.handler_modules)
             
             # Автоматическая настройка обработчиков, если включена

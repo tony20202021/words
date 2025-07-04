@@ -11,7 +11,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 # Import callback constants and utilities
 from app.utils.callback_constants import CallbackData, format_admin_callback
 
-
 def get_admin_keyboard() -> InlineKeyboardMarkup:
     """
     Create keyboard for admin menu.
@@ -431,8 +430,6 @@ def get_user_detail_keyboard(user_id: str) -> InlineKeyboardMarkup:
     builder.adjust(1)  # One button per row
     return builder.as_markup()
 
-# Добавить в конец файла frontend/app/bot/keyboards/admin_keyboards.py
-
 def get_word_actions_keyboard_from_study(word_id: str, language_id: str) -> InlineKeyboardMarkup:
     """
     Create keyboard with word action buttons when coming from study mode.
@@ -546,3 +543,51 @@ def get_word_delete_confirmation_keyboard_from_study(word_id: str) -> InlineKeyb
     builder.adjust(2, 1)  # Первая строка: 2 кнопки, вторая строка: 1 кнопка
     return builder.as_markup()
     
+def get_upload_settings_keyboard(
+    language_id: str,
+    column_number: int,
+    column_word: int,
+    column_transcription: int,
+    column_translation: int
+) -> InlineKeyboardMarkup:
+    """
+    Create keyboard for uploading settings.
+    
+    Returns:
+        InlineKeyboardMarkup: Upload settings keyboard
+    """
+    # Создаем клавиатуру с настройками загрузки файла
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопки для настройки файла
+    builder.add(InlineKeyboardButton(
+        text='📝 Файл содержит заголовки: поменять на "Да"', 
+        callback_data=CallbackData.TOGGLE_HEADERS
+    ))
+    builder.add(InlineKeyboardButton(
+        text='🗑️ Очистить существующие слова: поменять на "Да"', 
+        callback_data=CallbackData.TOGGLE_CLEAR_EXISTING
+    ))
+    
+    # Добавляем информацию о текущих настройках колонок в кнопку
+    column_info = f"(сейчас: {column_number}, {column_word}, {column_transcription}, {column_translation})"
+    builder.add(InlineKeyboardButton(
+        text=f"🔧 Настроить колонки {column_info}", 
+        callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
+    ))
+    
+    # Добавляем кнопку подтверждения загрузки
+    builder.add(InlineKeyboardButton(
+        text="✅ Подтвердить и загрузить", 
+        callback_data=CallbackData.CONFIRM_UPLOAD
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Отмена", 
+        callback_data=CallbackData.BACK_TO_ADMIN
+    ))
+    
+    # Настраиваем ширину строки клавиатуры (по 1 кнопке в ряд)
+    builder.adjust(1)
+
+    return builder.as_markup()

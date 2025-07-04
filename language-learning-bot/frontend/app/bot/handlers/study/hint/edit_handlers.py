@@ -56,6 +56,7 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
     )
     
     if not is_valid:
+        logger.error(f"not is_valid")
         return
     
     # Get current word and user ID
@@ -132,11 +133,6 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.answer(message_text, parse_mode="HTML")
     await callback.answer(f"Редактирование подсказки «{hint_name}»")
-
-@edit_router.message(Command("cancel"), flags={"priority": 50})
-async def cmd_cancel_universal(message: Message, state: FSMContext):
-    logger.info(f"Hint editing cancelled by {message.from_user.full_name}")
-
 
 @edit_router.message(HintStates.editing)
 async def process_hint_edit_text(message: Message, state: FSMContext):

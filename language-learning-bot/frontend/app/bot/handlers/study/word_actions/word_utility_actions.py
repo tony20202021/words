@@ -29,7 +29,7 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
         state: FSM context
     """
     logger.info(f"'toggle_word_skip' action from {callback.from_user.full_name}")
-    
+
     # Get current word state
     user_word_state = await UserWordState.from_state(state)
     
@@ -51,6 +51,7 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
     # Update word data using centralized utility
     try:
         update_data = {"is_skipped": new_skip_status}
+
         success, result = await ensure_user_word_data(
             bot=callback.bot,
             user_id=user_word_state.user_id,
@@ -59,7 +60,7 @@ async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
             word=current_word,
             message_obj=callback
         )
-        
+
         if success:
             # Update local word data
             if "user_word_data" not in current_word:

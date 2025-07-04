@@ -334,8 +334,21 @@ def _find_callback_handlers_from_decorators(module, callback_handlers: Dict[str,
                     callback_handlers[callback_data] = obj
                     print(f"Найден обработчик callback (из декоратора ==): {name} для callback {callback_data}")
             
+            # 1.5 Ищем декораторы типа 
+            # @evaluation_router.callback_query(F.data == CallbackData.WORD_KNOW) # 2 слова разделенные точкой, заканчивается скобкой
+            # @evaluation_router.callback_query(F.data == CallbackData.WORD_KNOW, StudyStates.studying) # 2 слова разделенные точкой, заканчивается запятой, дальше неважно
+            callback_pattern = r'@\w+\.callback_query\([^)]*F\.data\s*==\s*([^,\)]*\.[^,\)]+)(?:\s*,\s*([^)]+))?\)'
+            
+            # Ищем все совпадения паттерна перед определением функции
+            matches = re.findall(callback_pattern, func_source)
+            
+            if matches:
+                for (callback_data, _) in matches:
+                    callback_handlers[callback_data] = obj
+                    print(f"Найден обработчик callback (из декоратора == *.*): {name} для callback {callback_data}")
+            
             # 2. Ищем декораторы типа @router.callback_query(F.data.startswith("lang_select_"))
-            startswith_pattern = r'@\w+\.callback_query\(.*?[F|f]\.data\.startswith\((?:"|\')([^"\']+)(?:"|\')\)\)'
+            startswith_pattern = r'@\w+\.callback_query\(.*?[F|f]\.data\.startswith\((?:"|\')([^"\']+)(?:"|\')\)'
             
             # Ищем все совпадения паттерна startswith
             matches = re.findall(startswith_pattern, func_source)

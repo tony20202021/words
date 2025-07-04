@@ -33,7 +33,7 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
     """
     logger.info("Processing upload confirmation from column configuration")
     
-    # ✅ НОВОЕ: Устанавливаем состояние подтверждения загрузки файла
+    # Устанавливаем состояние подтверждения загрузки файла
     await state.set_state(AdminStates.confirming_file_upload)
     
     # Получаем данные состояния
@@ -93,7 +93,7 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
             error_msg = upload_response.get("error", "Неизвестная ошибка")
             await loading_message.edit_text(f"❌ Ошибка при загрузке файла: {error_msg}")
             logger.error(f"Failed to upload file. Error: {error_msg}")
-            # ✅ НОВОЕ: Возвращаемся к настройкам загрузки при ошибке
+            # Возвращаемся к настройкам загрузки при ошибке
             await state.set_state(AdminStates.configuring_upload_settings)
             return
         
@@ -114,7 +114,7 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
         if result.get('errors') and len(result.get('errors', [])) > 0:
             logger.warning(f"Errors during file upload: {result.get('errors')}")
         
-        # ✅ НОВОЕ: Очищаем состояние и возвращаемся в главное меню админа
+        # Очищаем состояние и возвращаемся в главное меню админа
         await state.clear()
         
         # Показываем кнопку возврата в админ-панель
@@ -134,12 +134,12 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
         await loading_message.edit_text(
             f"❌ Ошибка при загрузке файла: {str(e)}"
         )
-        # ✅ НОВОЕ: Возвращаемся к настройкам загрузки при исключении
+        # Возвращаемся к настройкам загрузки при исключении
         await state.set_state(AdminStates.configuring_upload_settings)
     
     await callback.answer()
 
-# ✅ НОВОЕ: Обработчик отмены из конфигурации колонок
+# Обработчик отмены из конфигурации колонок
 @column_router.callback_query(AdminStates.configuring_columns, F.data == CallbackData.BACK_TO_SETTINGS)
 async def process_back_to_settings_from_columns(callback: CallbackQuery, state: FSMContext):
     """

@@ -200,7 +200,7 @@ async def process_edit_language_name(message: Message, state: FSMContext):
             await state.clear()
             return
         
-        # ✅ НОВОЕ: Устанавливаем состояние просмотра деталей языка
+        # Устанавливаем состояние просмотра деталей языка
         await state.set_state(AdminStates.viewing_language_details)
         
         # Сразу переходим к экрану редактирования языка

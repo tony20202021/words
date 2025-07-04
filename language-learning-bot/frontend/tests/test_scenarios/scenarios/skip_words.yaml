@@ -10,7 +10,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -28,7 +28,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -37,75 +37,75 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>" # TODO исправить мок - сначала должно быть "показывать""
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", SettingsStates:viewing_settings]
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   - type: callback
-    data: settings_toggle_skip_marked
+    data: CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения" # TODO долдно быть "Настройки успешно обновлены"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
-      # - type: state_contains
-      #   data: ["skip_marked", true] # TODO 'skip_marked': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140545132086704'>
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", SettingsStates:viewing_settings]
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Начинаем изучение
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов языка"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
+        text: "Начинаем изучение языка"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер: <b>10</b>"
+      - type: message_contains
+        position: -1
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Помечаем слово для пропуска
   - type: callback
-    data: "toggle_word_skip"
+    data: CallbackData.TOGGLE_WORD_SKIP
     asserts:
       - type: message_contains
         text: "Статус: это слово помечено для пропуска"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
@@ -115,6 +115,7 @@ steps:
     name: start
     asserts:
       - type: message_contains
+        position: -4
         text: "Здравствуйте"
       # - type: state_contains
       #   data: ["_state", None] # TODO Очистка состояния
@@ -124,38 +125,27 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Вы еще не выбрали язык для изучения"
-      - type: message_contains
-        position: -2
-        text: "Сейчас я помогу вам выбрать язык"
-      - type: message_contains
         position: -1
-        text: "Доступные языки для изучения"
-      - type: state_contains
-        data: ["_state", None]
-      - type: keyboard_contains
-        button_text: "Английский"
-      - type: keyboard_contains
-        button_text: "Французский"
-      - type: keyboard_button_count
-        count: 2
+        text: "Сначала выберите язык для изучения с помощью команды /language"
 
   - type: callback
     data: "lang_select_eng"
     asserts:
       - type: message_contains
-        text: "Вы выбрали язык"
+        position: -2
+        text: "Получен прогресс по языку Английский"
       - type: message_contains
-        text: "Английский"
+        text: "Вы выбрали язык: <b>Английский (English)</b>"
+      - type: message_contains
+        text: "Ваша статистика по этому языку"
       - type: message_contains
         text: "Ваши настройки для этого языка"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -163,18 +153,21 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов языка"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
+        text: "Начинаем изучение языка"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер"
       # TODO Здесь должна быть проверка, что текущее слово - не то, которое мы пометили
       # Это требует настройки мока API клиента
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7

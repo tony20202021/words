@@ -53,7 +53,12 @@ class CallbackHandler:
             args, kwargs = call
             self.context.sent_messages.append((args[0] if args else "", kwargs))
             print(f"  Ответ #{i}: {args[0] if args else ''}")
-        
+
+        for i, call in enumerate(callback.message.edit_text.call_args_list):
+            args, kwargs = call
+            self.context.sent_messages.append((args[0] if args else "", kwargs))
+            print(f"  edit_text #{i}: {args[0] if args else ''}")
+
         # Обратите внимание, что здесь больше не нужно сохранять историю состояний
         # это делается автоматически в методах state.update_data и state.set_state
         print(f"Текущее состояние после callback: {self.context.state_data}")

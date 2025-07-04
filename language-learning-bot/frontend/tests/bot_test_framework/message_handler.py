@@ -59,6 +59,11 @@ class MessageHandler:
             self.context.sent_messages.append((args[0] if args else "", kwargs))
             print(f"  Ответ #{i}: {args[0] if args else ''}")
         
+        for i, call in enumerate(message.edit_text.call_args_list):
+            args, kwargs = call
+            self.context.sent_messages.append((args[0] if args else "", kwargs))
+            print(f"  edit_text #{i}: {args[0] if args else ''}")
+        
         # Обратите внимание, что здесь больше не нужно сохранять историю состояний
         # это делается автоматически в методах state.update_data и state.set_state
         print(f"Текущее состояние после сообщения: {self.context.state_data}")
@@ -208,12 +213,12 @@ class MessageHandler:
             for filter_obj in handler_obj.filters:
                 # Для фильтра состояния проверяем соответствие текущему состоянию
                 if hasattr(filter_obj, 'state'):
-                    filter_state = str(filter_obj.state)
+                    filter_state = filter_obj.state
                     if filter_state == current_state:
                         print(f"Совпадение состояния: {current_state}")
                         return True
                     else:
-                        print(f"Несовпадение состояния: {filter_state} != {current_state}")
+                        print(f"Несовпадение состояния: {filter_state}, type: {type(filter_state)} != {current_state}, type: {type(current_state)}")
                         return False
                         
                 # Если это фильтр команды, проверяем соответствие
@@ -234,11 +239,11 @@ class MessageHandler:
                     # print(filter_state)
                     # print(type(current_state))
                     # print(current_state)
-                    if str(callback) == current_state:
+                    if callback.state == current_state:
                         print(f"Совпадение состояния: {current_state}")
                         return True
                     else:
-                        print(f"Несовпадение состояния: {str(callback)} != {current_state}")
+                        print(f"Несовпадение состояния: {str(callback)}, type: {type(callback)}, {callback.state} != {current_state}, type: {type(current_state)}")
                         return False
 
         # Если у обработчика нет фильтров, то его можно использовать 

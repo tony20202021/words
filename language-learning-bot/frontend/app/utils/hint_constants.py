@@ -248,29 +248,3 @@ def has_hint(word_data: Dict, hint_type: str) -> bool:
         return True
     
     return False
-
-def get_hints_from_word_data(word_data: Dict) -> Dict[str, str]:
-    """
-    Extract hints from word data.
-    
-    Args:
-        word_data: Word data dictionary
-        
-    Returns:
-        Dict[str, str]: Dictionary with hint types and values
-    """
-    hints = {}
-    
-    # Check main word data and user_word_data
-    for hint_type, (hint_key, _) in HINT_TYPE_MAP.items():
-        # Check in main word data
-        if hint_key in word_data and word_data[hint_key]:
-            hints[hint_type] = word_data[hint_key]
-            continue
-            
-        # Check in user_word_data
-        user_word_data = word_data.get("user_word_data", {})
-        if user_word_data and hint_key in user_word_data and user_word_data[hint_key]:
-            hints[hint_type] = user_word_data[hint_key]
-    
-    return hints

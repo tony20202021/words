@@ -12,7 +12,7 @@ steps:
       - type: message_contains
         text: "Выберите язык с помощью кнопок ниже"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -31,7 +31,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
       - type: state_contains
@@ -42,22 +42,29 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
+        text: "Начинаем изучение языка"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Язык"
+      - type: message_contains
+        position: -1
+        text: "Слово номер"
+      - type: message_contains
+        position: -1
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
       - type: keyboard_contains
-        button_text: "✅ Я знаю это слово"
+        button_text: "✅ Знаю"
       - type: keyboard_contains
         button_text: "❓ Не знаю"
-      - type: keyboard_contains
-        button_text: "Ассоциация для"
       - type: keyboard_button_count
         count: 7
 

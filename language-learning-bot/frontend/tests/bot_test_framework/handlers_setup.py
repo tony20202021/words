@@ -31,10 +31,12 @@ def setup_default_handlers(context: Any, handler_modules: Optional[List[str]] = 
         handler_modules: Список путей к модулям с обработчиками
     """
     print("Настраиваем обработчики из указанных модулей")
+    print(f"setup_default_handlers.handler_modules = {handler_modules}")
     
     # Если модули не указаны, пытаемся загрузить из main.py
     if not handler_modules:
         handler_modules = _get_handler_modules_from_main()
+        print(f"setup_default_handlers.handler_modules = {handler_modules}")
     
     # Убедимся, что директория проекта в sys.path
     project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -48,10 +50,12 @@ def setup_default_handlers(context: Any, handler_modules: Optional[List[str]] = 
     
     # Загружаем модули и собираем обработчики
     for module_path in handler_modules:
+        print(f"setup_default_handlers.module_path = {module_path}")
         try:
             # Пробуем импортировать модуль
             module = _import_module(module_path)
             if not module:
+                print(f"setup_default_handlers.module = {module}")
                 continue
             
             # Также проверяем декораторы в исходном коде
@@ -156,7 +160,7 @@ async def load_handlers_from_modules(context, module_paths: List[str]) -> None:
     print(f"Сохранено {len(routers)} роутеров для поиска обработчиков")
     
     # Отладочный вывод информации о роутерах и их обработчиках
-    print_router_structure(context)
+    # print_router_structure(context)
     print_handlers_structure(context)
     print_api_structure(context)
     print_handler_summary(context.command_handlers, context.callback_handlers, context.api_client)

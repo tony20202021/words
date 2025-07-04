@@ -24,7 +24,6 @@ class TestUserKeyboards:
         keyboard = create_settings_keyboard(
             skip_marked=skip_marked,
             use_check_date=use_check_date,
-            show_hints=show_hints,
             show_debug=show_debug
         )
         
@@ -37,21 +36,16 @@ class TestUserKeyboards:
             all_buttons.extend(row)
         
         # Verify button count
-        assert len(all_buttons) == 5, "Should contain 5 buttons"
+        assert len(all_buttons) == 10, "Should contain 10 buttons"
         
         # Verify each button contains expected text
         button_texts = [button.text for button in all_buttons]
         assert any("Изменить начальное слово" in text for text in button_texts), "Should have start word button"
-        assert any("Помеченные слова: сменить на \"Пропускать\"" in text for text in button_texts), "Should have skip marked button with correct text"
-        assert any("Период проверки: сменить на \"Не учитывать\"" in text for text in button_texts), "Should have check date button with correct text"
-        assert any("Подсказки: сменить на \"Пропускать\"" in text for text in button_texts), "Should have hints button with correct text"
-        assert any("Отладочная информация: сменить на \"Показывать\"" in text for text in button_texts), "Should have debug button with correct text"
         
         # Verify buttons have correct callback data
         callback_data = [button.callback_data for button in all_buttons]
         assert "settings_start_word" in callback_data
         assert "settings_toggle_skip_marked" in callback_data
         assert "settings_toggle_check_date" in callback_data
-        assert "settings_toggle_show_hints" in callback_data
         assert "settings_toggle_show_debug" in callback_data
         

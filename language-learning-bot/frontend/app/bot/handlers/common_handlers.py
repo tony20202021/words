@@ -3,10 +3,7 @@ Common handlers for meta-states and system-wide error handling.
 These handlers manage system states like API errors, connection issues, and unknown commands.
 """
 
-import logging
-from typing import Dict, Any
-
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.filters import Command, StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext

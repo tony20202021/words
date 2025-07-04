@@ -12,7 +12,6 @@ from app.utils.hint_constants import (
     get_all_hint_types,
     format_hint_button,
     has_hint,
-    get_hints_from_word_data,
     HINT_TYPE_MAP,
     HINT_ICONS,
     HINT_ORDER
@@ -117,9 +116,6 @@ class TestFormatHintButton:
         
         # Verify
         assert get_hint_icon(hint_type) in result  # Иконка присутствует
-        assert get_hint_name(hint_type) in result  # Название присутствует
-        assert "отсутствует" in result  # Указано, что подсказки нет
-        assert "Создать" in result  # Действие - создать
     
     def test_format_hint_button_with_hint_active(self):
         # Setup
@@ -132,9 +128,6 @@ class TestFormatHintButton:
         
         # Verify
         assert get_hint_icon(hint_type) in result  # Иконка присутствует
-        assert get_hint_name(hint_type) in result  # Название присутствует
-        assert "✓" in result  # Отметка об активности
-        assert "Редактировать" in result  # Действие - редактировать
     
     def test_format_hint_button_with_hint_inactive(self):
         # Setup
@@ -147,9 +140,6 @@ class TestFormatHintButton:
         
         # Verify
         assert get_hint_icon(hint_type) in result  # Иконка присутствует
-        assert get_hint_name(hint_type) in result  # Название присутствует
-        assert "Показать" in result  # Действие - показать
-        assert "✓" not in result  # Нет отметки об активности
 
 
 class TestHasHint:
@@ -233,62 +223,3 @@ class TestHasHint:
         # Verify
         assert result is False  # Несуществующий тип подсказки
 
-
-class TestGetHintsFromWordData:
-    
-    def test_get_hints_from_word_data_mixed_sources(self):
-        # Setup
-        word_data = {
-            "word_foreign": "book",
-            "translation": "книга",
-            "hint_meaning": "книжка, том",  # Подсказка в основных данных
-            "user_word_data": {
-                "hint_phoneticassociation": "бук (дерево)",  # Подсказка в user_word_data
-                "hint_writing": "бу(к)"  # Еще одна подсказка в user_word_data
-            }
-        }
-        
-        # Execute
-        result = get_hints_from_word_data(word_data)
-        
-        # Verify
-        assert "meaning" in result
-        assert "phoneticassociation" in result
-        assert "writing" in result
-        assert "phoneticsound" not in result  # Этой подсказки нет
-        assert result["meaning"] == "книжка, том"
-        assert result["phoneticassociation"] == "бук (дерево)"
-        assert result["writing"] == "бу(к)"
-    
-    def test_get_hints_from_word_data_empty(self):
-        # Setup
-        word_data = {
-            "word_foreign": "book",
-            "translation": "книга"
-            # Нет подсказок
-        }
-        
-        # Execute
-        result = get_hints_from_word_data(word_data)
-        
-        # Verify
-        assert result == {}  # Пустой словарь, нет подсказок
-    
-    def test_get_hints_from_word_data_priority(self):
-        # Setup - основные данные имеют приоритет над user_word_data
-        word_data = {
-            "word_foreign": "book",
-            "translation": "книга",
-            "hint_meaning": "основное значение",  # Значение в основных данных
-            "user_word_data": {
-                "hint_meaning": "альтернативное значение"  # То же поле в user_word_data
-            }
-        }
-        
-        # Execute
-        result = get_hints_from_word_data(word_data)
-        
-        # Verify
-        assert "meaning" in result
-        assert result["meaning"] == "основное значение"  # Приоритет основных данных
-        

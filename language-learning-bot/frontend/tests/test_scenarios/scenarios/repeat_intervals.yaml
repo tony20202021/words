@@ -10,7 +10,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", 'UserStates:selecting_language']
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -32,54 +32,40 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочная информация: <b>Показывать ✅</b>" # TODO исправить мок - долджно быть в начале "пропускать"
+        text: "Отладочные данные: <b>Показывать ✅</b>"
       - type: state_contains
-        data: ["_state", None]
-      # TODO исправить мок
-      # - type: state_contains
-      #   data: ["show_debug", true]
-      # сейчас показывается как
-        # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140172775259104'>
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Включаем отладочный режим для просмотра интервалов
   - type: callback
-    data: "settings_toggle_show_debug"
+    data: "CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG"
     asserts:
       - type: message_contains
-        text: "Отладочная информация: <b>Показывать ✅</b>"  # TODO исправить мок - после нажатия - состояние долджно меняться
+        text: "Отладочные данные: <b>Показывать ✅</b>"  # TODO исправить мок - после нажатия - состояние долджно меняться
       - type: state_contains
-        data: ["_state", None]
-      # - type: state_contains
-      #   data: ["show_debug", true]
-      # TODO исправить мок
-      # сейчас показывается как
-        # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140172775259104'>
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
-        button_text: "Подсказки"
-      - type: keyboard_contains
-        button_text: "Отладочная информация" # TODO исправить мок - после нажатия - кнопка долджна меняться
+        button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Начинаем изучение
   - type: command
@@ -87,27 +73,23 @@ steps:
     asserts:
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:studying"]
       - type: keyboard_contains
-        button_text: "Ассоциация для"
+        button_text: "Знаю"
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Отмечаем слово как известное в первый раз
   - type: callback
-    data: "word_know"
+    data: "CallbackData.WORD_KNOW"
     asserts:
       - type: message_contains
         text: "Отлично!"
-      - type: message_contains
-        text: "Оценка обновлена на 1"
-      - type: message_contains
-        text: "Новый интервал: 1 (дней)" 
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:confirming_word_knowledge"]
       - type: keyboard_contains
         button_text: "К следующему слову"
       - type: keyboard_contains
@@ -116,34 +98,33 @@ steps:
         count: 2
 
   - type: callback
-    data: "confirm_next_word"
+    data: "CallbackData.CONFIRM_NEXT_WORD"
     asserts:
       - type: message_contains
-        position: -2
-        text: "Переходим к следующему слову"
+        position: -1
+        text: "Язык"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер"
+      - type: message_contains
+        position: -1
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:studying"]
       - type: keyboard_contains
-        button_text: "Ассоциация для"
+        button_text: "Знаю"
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Отмечаем слово как известное во второй раз
   - type: callback
-    data: "word_know"
+    data: "CallbackData.WORD_KNOW"
     asserts:
       - type: message_contains
         text: "Отлично!"
-      - type: message_contains
-        text: "Оценка обновлена на 1"
-      - type: message_contains
-        text: "Новый интервал: 2 (дней)"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", "StudyStates:confirming_word_knowledge"]
       - type: keyboard_contains
         button_text: "К следующему слову"
       - type: keyboard_contains
@@ -152,13 +133,22 @@ steps:
         count: 2
 
   - type: callback
-    data: "confirm_next_word"
+    data: "CallbackData.CONFIRM_NEXT_WORD"
     asserts:
       - type: message_contains
         position: -2
-        text: "Переходим к следующему слову"
+        text: "batch_requested_count=100"
+      - type: message_contains
+        position: -2
+        text: "batch_received_count=2"
       - type: message_contains
         position: -1
-        text: "Вы изучили все доступные слова"
+        text: "Язык"
+      - type: message_contains
+        position: -1
+        text: "Слово номер"
+      - type: message_contains
+        position: -1
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", "<State 'StudyStates:studying'>"]
+        data: ["_state", "StudyStates:studying"]

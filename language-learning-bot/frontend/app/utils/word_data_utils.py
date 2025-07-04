@@ -133,12 +133,14 @@ async def update_word_score(
         logger.error(f"get_user_word_data: not success")
         logger.error(f"word_data_response: {word_data_response}")
         return False, None
+
     logger.info(f"word_data_response: {word_data_response}")
 
     if (word_data_response["result"] is None):
         word_data = {}
     else:
         word_data = word_data_response["result"]
+        
     logger.info(f"word_data: {word_data}")
 
     # Проверим, включена ли отладочная информация

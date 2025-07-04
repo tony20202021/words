@@ -82,6 +82,7 @@ def setup_api_mock_for_common_scenarios(api_client: AsyncMock):
         "status": 200,
         "result": [
             {
+                "_id": "word123",
                 "id": "word123",
                 "language_id": "eng",
                 "word_foreign": "house",
@@ -91,6 +92,7 @@ def setup_api_mock_for_common_scenarios(api_client: AsyncMock):
             },
             {
                 "id": "word124",
+                "_id": "word124",
                 "language_id": "eng",
                 "word_foreign": "car",
                 "translation": "машина",

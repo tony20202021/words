@@ -64,6 +64,11 @@ class CommandHandler:
                 self.context.sent_messages.append((args[0] if args else "", kwargs))
                 print(f"  Ответ #{i}: {args[0] if args else ''}")
             
+            for i, call in enumerate(message.edit_text.call_args_list):
+                args, kwargs = call
+                self.context.sent_messages.append((args[0] if args else "", kwargs))
+                print(f"  edit_text #{i}: {args[0] if args else ''}")
+            
             # Обратите внимание, что здесь больше не нужно сохранять историю состояний
             # это делается автоматически в методах state.update_data и state.set_state
             print(f"Текущее состояние: {self.context.state_data}")
@@ -87,6 +92,10 @@ class CommandHandler:
                         
                         # Сохраняем ответы от бота
                         for call in message.answer.call_args_list:
+                            args, kwargs = call
+                            self.context.sent_messages.append((args[0] if args else "", kwargs))
+
+                        for call in message.edit_text.call_args_list:
                             args, kwargs = call
                             self.context.sent_messages.append((args[0] if args else "", kwargs))
                         

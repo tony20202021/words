@@ -7,20 +7,8 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        position: -2
-        text: "Вы еще не выбрали язык для изучения"
-      - type: message_contains
-        position: -2
-        text: "Сейчас я помогу вам выбрать язык"
-      - type: message_contains
         position: -1
-        text: "Доступные языки для изучения"
-      - type: state_contains
-        data: ["_state", None]
-      - type: keyboard_contains
-        button_text: "Английский (English)"
-      - type: keyboard_button_count
-        count: 2
+        text: "Сначала выберите язык для изучения с помощью команды /language"
 
   # Шаг 3: Имитируем выбор языка через callback
   - type: callback
@@ -31,11 +19,11 @@ steps:
       - type: message_contains
         text: "Ваши настройки для этого языка"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
-        text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
+        text: "Период повторения: <b>Учитывать ✅</b>"
       - type: message_contains
-        text: "Настроить процесс обучения с помощью команды /settings"
+        text: "Настроить процесс обучения: /settings"
       - type: state_contains
         data: ["_state", None]
       - type: state_contains
@@ -46,45 +34,43 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
-        text: "Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>"
+        text: "Период повторения: <b>Учитывать ✅</b>"
       - type: state_contains
-        data: ["_state", None]
-      # - type: state_contains
-      #   data: ["skip_marked", true] # TODO исправить мок 'skip_marked': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140180442943056'>
-      # - type: state_contains
-      #   data: ["use_check_date", false] # 'use_check_date': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140630788853040'>
+        data: ["_state", SettingsStates:viewing_settings]
       - type: keyboard_contains
-        button_text: "⏩ Помеченные слова: сменить на \"Показывать\""
+        button_text: "❌ Исключенные слова"
       - type: keyboard_contains
-        button_text: "📅 Период проверки: сменить на \"Не учитывать\""
+        button_text: "✅ Учитывать дату"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Шаг 5: Переключаем настройку пропуска помеченных слов
   - type: callback
-    data: settings_toggle_skip_marked
+    data: CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       # - type: state_contains
       #   data: ["skip_marked", true] # TODO исправить мок 'skip_marked': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140180442943056'>
       # - type: state_contains
         # data: ["use_check_date", false] # 'use_check_date': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='140630788853040'>
       - type: keyboard_contains
-        button_text: "⏩ Помеченные слова: сменить на \"Показывать\""
+        button_text: "❌ Исключенные слова"
   
   # Шаг 6: Переключаем настройку учета даты проверки
   - type: callback
-    data: settings_toggle_check_date
+    data: CallbackData.SETTINGS_TOGGLE_CHECK_DATE
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
+      - type: message_contains
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       # - type: message_contains
       #   text: "Период повторения: <b>Не учитывать ❌</b>" # TODO сейчас показывается Период повторения: <b>Учитывать ✅ (показывать слово только после даты проверки)</b>
       # - type: state_contains

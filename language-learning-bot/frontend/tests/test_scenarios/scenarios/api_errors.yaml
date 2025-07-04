@@ -12,17 +12,15 @@ steps:
       - type: message_contains
         text: "API client not found in bot or dispatcher"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
 
   # Тест 2: Ошибка при получении слов для изучения
   - type: command
     name: study
     asserts:
       - type: message_contains
-        text: "Ошибка"
-      - type: message_contains
-        text: "API client not found in bot or dispatcher"
+        text: "Ошибка подключения к серверу. Попробуйте позже."
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
 
   

@@ -226,65 +226,6 @@ def format_study_word_message(
 
     return message
 
-from typing import List, Dict, Any, Optional
-from aiogram.client.bot import Bot
-
-from app.utils.hint_constants import HINT_ORDER, get_hint_key, get_hint_short
-from app.utils.word_data_utils import get_hint_text
-
-async def format_used_hints(
-    bot: Bot,
-    user_id: str,
-    word_id: str,
-    current_word: Dict[str, Any],
-    used_hints: List[str],
-    include_header: bool = True
-) -> str:
-    """
-    Форматирует текст для активных подсказок в соответствии с порядком HINT_ORDER.
-    
-    Args:
-        bot: Экземпляр бота Telegram для работы с API
-        user_id: ID пользователя
-        word_id: ID слова
-        current_word: Данные текущего слова
-        used_hints: Список подсказок
-        include_header: Добавлять ли заголовок "Активные подсказки"
-        
-    Returns:
-        str: Отформатированный текст с активными подсказками
-    """
-    if not used_hints:
-        return ""
-    
-    result = "📌 Подсказки:\n" if include_header else ""
-    
-    # Сортируем активные подсказки в соответствии с порядком HINT_ORDER
-    sorted_hints = [hint_type for hint_type in HINT_ORDER if hint_type in used_hints]
-    
-    # Добавляем оставшиеся активные подсказки, если они не включены в HINT_ORDER
-    for hint_type in used_hints:
-        if hint_type not in sorted_hints:
-            sorted_hints.append(hint_type)
-    
-    # Теперь перебираем отсортированный список активных подсказок
-    for active_hint_type in sorted_hints:
-        active_hint_key = get_hint_key(active_hint_type)
-        active_hint_short = get_hint_short(active_hint_type)        
-        
-        active_hint_text = await get_hint_text(
-            bot, 
-            user_id, 
-            word_id, 
-            active_hint_key, 
-            current_word
-        )
-        
-        if active_hint_text:
-            result += f"<b>{active_hint_short}:</b>\t{active_hint_text}\n"
-    
-    return result
-
 
 def format_date_friendly(date_str: str) -> str:
     """

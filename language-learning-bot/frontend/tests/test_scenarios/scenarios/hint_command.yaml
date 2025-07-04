@@ -8,17 +8,15 @@ steps:
     name: hint
     asserts:
       - type: message_contains
-        text: "Подсказки помогают вам запоминать слова"
+        text: "Система подсказок"
       - type: message_contains
-        text: "Фонетическое разложение на слоги"
+        text: "Подсказки помогают вам лучше запоминать иностранные слова"
       - type: message_contains
-        text: "Ассоциации"
+        text: "Типы подсказок"
       - type: message_contains
-        text: "Значение слова на русском"
+        text: "Как использовать подсказки"
       - type: message_contains
-        text: "Подсказка по написанию"
-      - type: message_contains
-        text: "использование подсказки автоматически устанавливает оценку 0"
+        text: "Настройка подсказок"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", 'UserStates:viewing_hint_info']
         

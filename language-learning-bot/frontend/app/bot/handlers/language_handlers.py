@@ -333,7 +333,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         settings=settings,
     )
 
-    # ИСПРАВЛЕНО: Очищаем состояние выбора языка после успешного выбора
+    # Очищаем состояние выбора языка после успешного выбора
     await state.set_state(None)
 
     # Форматируем текст настроек

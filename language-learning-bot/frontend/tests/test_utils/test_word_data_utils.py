@@ -155,7 +155,13 @@ class TestUpdateWordScore:
         
         bot.return_value = api_client
         
-        with patch('app.utils.word_data_utils.get_api_client_from_bot', return_value=api_client):
+        with patch('app.utils.word_data_utils.get_api_client_from_bot', return_value=api_client), \
+            patch('app.utils.word_data_utils.get_user_language_settings_without_state', AsyncMock(return_value={
+                "start_word": 1,
+                "skip_marked": False,
+                "use_check_date": True,
+                "show_hints": True
+            })):
             with patch('app.utils.word_data_utils.ensure_user_word_data') as mock_ensure:
                 mock_ensure.return_value = (True, {
                     "word_id": "word123",
@@ -202,7 +208,13 @@ class TestUpdateWordScore:
         
         bot.return_value = api_client
         
-        with patch('app.utils.word_data_utils.get_api_client_from_bot', return_value=api_client):
+        with patch('app.utils.word_data_utils.get_api_client_from_bot', return_value=api_client), \
+            patch('app.utils.word_data_utils.get_user_language_settings_without_state', AsyncMock(return_value={
+                "start_word": 1,
+                "skip_marked": False,
+                "use_check_date": True,
+                "show_hints": True
+            })):
             with patch('app.utils.word_data_utils.ensure_user_word_data') as mock_ensure:
                 mock_ensure.return_value = (True, {
                     "word_id": "word123",

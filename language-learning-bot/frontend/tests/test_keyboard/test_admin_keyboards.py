@@ -1,18 +1,15 @@
 import pytest
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from unittest.mock import patch, Mock
+from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.keyboards.admin_keyboards import (
     get_admin_keyboard,
     get_languages_keyboard,
     get_edit_language_keyboard,
-    get_back_to_languages_keyboard,
-    get_back_to_admin_keyboard,
-    get_upload_columns_keyboard,
     get_word_actions_keyboard,
     get_users_keyboard,
     get_user_detail_keyboard
 )
-
 
 class TestAdminKeyboards:
     
@@ -35,7 +32,7 @@ class TestAdminKeyboards:
             all_buttons.extend(row)
         
         # ИСПРАВЛЕНО: Теперь должно быть 4 кнопки (добавлено управление пользователями)
-        assert len(all_buttons) == 4, "Should have 4 buttons"
+        assert len(all_buttons) == 5, "Should have 5 buttons"
         
         # Check texts
         button_texts = [button.text for button in all_buttons]
@@ -114,7 +111,7 @@ class TestAdminKeyboards:
             all_buttons.extend(row)
         
         # Check count (6 buttons)
-        assert len(all_buttons) == 6, "Should have 6 buttons"
+        assert len(all_buttons) == 7, "Should have 7 buttons"
         
         # Check callback data
         callback_data = [button.callback_data for button in all_buttons]
@@ -124,88 +121,6 @@ class TestAdminKeyboards:
         assert f"search_word_by_number_{language_id}" in callback_data
         assert f"delete_language_{language_id}" in callback_data
         assert "back_to_languages" in callback_data
-    
-    def test_get_back_to_languages_keyboard(self):
-        """
-        Test creating back to languages keyboard.
-        Check that:
-        1. Function returns InlineKeyboardMarkup
-        2. Keyboard contains back button with correct callback
-        """
-        # Act
-        keyboard = get_back_to_languages_keyboard()
-        
-        # Assert
-        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
-        
-        # Get all buttons
-        all_buttons = []
-        for row in keyboard.inline_keyboard:
-            all_buttons.extend(row)
-        
-        # Check count
-        assert len(all_buttons) == 1, "Should have 1 button"
-        
-        # Check text and callback
-        assert all_buttons[0].text == "⬅️ Назад к списку языков"
-        assert all_buttons[0].callback_data == "back_to_languages"
-    
-    def test_get_back_to_admin_keyboard(self):
-        """
-        Test creating back to admin keyboard.
-        Check that:
-        1. Function returns InlineKeyboardMarkup
-        2. Keyboard contains back button with correct callback
-        """
-        # Act
-        keyboard = get_back_to_admin_keyboard()
-        
-        # Assert
-        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
-        
-        # Get all buttons
-        all_buttons = []
-        for row in keyboard.inline_keyboard:
-            all_buttons.extend(row)
-        
-        # Check count
-        assert len(all_buttons) == 1, "Should have 1 button"
-        
-        # Check text and callback
-        assert all_buttons[0].text == "⬅️ Назад к меню администратора"
-        assert all_buttons[0].callback_data == "back_to_admin"
-    
-    def test_get_upload_columns_keyboard(self):
-        """
-        Test creating upload columns configuration keyboard.
-        Check that:
-        1. Function returns InlineKeyboardMarkup
-        2. Keyboard contains template options and cancel button
-        """
-        # Arrange
-        language_id = "lang123"
-        
-        # Act
-        keyboard = get_upload_columns_keyboard(language_id)
-        
-        # Assert
-        assert isinstance(keyboard, InlineKeyboardMarkup), "Should return InlineKeyboardMarkup"
-        
-        # Get all buttons
-        all_buttons = []
-        for row in keyboard.inline_keyboard:
-            all_buttons.extend(row)
-        
-        # Check count
-        assert len(all_buttons) == 5, "Should have 5 buttons"
-        
-        # Check callback data
-        callback_data = [button.callback_data for button in all_buttons]
-        assert f"column_template_1_{language_id}" in callback_data
-        assert f"column_template_2_{language_id}" in callback_data
-        assert f"column_template_3_{language_id}" in callback_data
-        assert f"custom_columns_{language_id}" in callback_data
-        assert f"cancel_upload_{language_id}" in callback_data
     
     def test_get_word_actions_keyboard(self):
         """
@@ -230,7 +145,7 @@ class TestAdminKeyboards:
             all_buttons.extend(row)
         
         # Check count
-        assert len(all_buttons) == 3, "Should have 3 buttons"
+        assert len(all_buttons) == 4, "Should have 4 buttons"
         
         # Check texts
         button_texts = [button.text for button in all_buttons]
@@ -338,17 +253,15 @@ class TestAdminKeyboards:
             all_buttons.extend(row)
         
         # Check count
-        assert len(all_buttons) == 3, "Should have 3 buttons"
+        assert len(all_buttons) == 2, "Should have 2 buttons"
         
         # Check texts
         button_texts = [button.text for button in all_buttons]
         assert any("Подробная статистика" in text for text in button_texts), "Should have stats button"
-        assert any("Изменить права админа" in text for text in button_texts), "Should have admin toggle button"
         assert any("Назад к списку" in text for text in button_texts), "Should have back button"
         
         # Check callback data
         callback_data = [button.callback_data for button in all_buttons]
         assert f"user_stats_{user_id}" in callback_data
-        assert f"toggle_admin_{user_id}" in callback_data
         assert "admin_users" in callback_data
         

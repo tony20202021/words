@@ -12,7 +12,7 @@ steps:
       - type: message_contains
         text: "Выберите язык с помощью кнопок ниже"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -30,7 +30,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -38,34 +38,36 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов языка"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
+        text: "Начинаем изучение языка"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово номер"
+      - type: message_contains
+        position: -1
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
 
   # Пометим слово как известное
   - type: callback
-    data: "word_know"
+    data: CallbackData.WORD_KNOW
     asserts:
       - type: message_contains
         text: "Отлично!"
       - type: message_contains
         text: "Вы знаете это слово"
-      - type: message_contains
-        text: "Оценка обновлена на 1"
-      - type: message_contains
-        text: "Новый интервал: 1 (дней)" 
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:confirming_word_knowledge]
       - type: keyboard_contains
         button_text: "К следующему слову"
       - type: keyboard_contains
@@ -74,18 +76,16 @@ steps:
         count: 2
 
   - type: callback
-    data: "confirm_next_word"
+    data: CallbackData.CONFIRM_NEXT_WORD
     asserts:
       - type: message_contains
-        position: -2
-        text: "Переходим к следующему слову"
+        position: -1
+        text: "Слово номер"
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
-      - type: keyboard_contains
-        button_text: "Ассоциация для"
+        data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
         count: 7
@@ -95,11 +95,19 @@ steps:
     name: start
     asserts:
       - type: message_contains
+        position: -4
         text: "Здравствуйте"
       - type: message_contains
-        text: "Добро пожаловать"
+        position: -3
+        text: "Получаем прогресс по языку Английский..."
       - type: message_contains
-        text: "/stats - Показать статистику"
+        position: -2
+        text: "Получаем прогресс по языку Французский..."
+      - type: message_contains
+        position: -1
+        text: "Ваш прогресс по языкам"
+      - type: message_contains
+        text: "Используйте кнопки ниже для навигации"
       # - type: state_contains
       #   data: ["_state", None] # TODO Очистка состояния
 
@@ -112,9 +120,9 @@ steps:
       - type: message_contains
         text: "Английский"
       - type: message_contains
-        text: "Изучено слов: 1"
+        text: "Изучено: <b>1</b>"
       - type: message_contains
-        text: "Известно слов: 1"
+        text: "Известно: <b>1</b>"
 
   - type: callback
     data: "lang_select_eng"
@@ -126,11 +134,11 @@ steps:
       - type: message_contains
         text: "Ваши настройки для этого языка"
       - type: message_contains
-        text: "Слова, помеченные как пропущенные: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Начать изучение с помощью команды /study"
+        text: "Начать изучение: /study"
       - type: state_contains
         data: ["_state", None]
 
@@ -139,9 +147,9 @@ steps:
     asserts:
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Слово на русском"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
+        data: ["_state", StudyStates:studying]
 
   # TODO
         # Проверяем, что первое слово не показывается (мы его уже изучили)

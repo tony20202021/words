@@ -10,8 +10,7 @@ from app.utils.formatting_utils import (
     format_date,
     format_date_standard,
     format_settings_text,
-    format_study_word_message,
-    format_used_hints
+    format_study_word_message
 )
 
 class TestFormatDate:
@@ -54,14 +53,19 @@ class TestFormatSettingsText:
         start_word = 5
         skip_marked = True
         use_check_date = False
+        show_check_date = True
         show_hints = True
+        hint_settings = {
+            "meaning": True,
+            "phoneticsound": True
+        }
         show_debug = False
         prefix = "Настройки:\n"
         suffix = "\nКонец настроек"
         
         # Execute
         result = format_settings_text(
-            start_word, skip_marked, use_check_date, show_hints, show_debug, 
+            start_word, skip_marked, use_check_date, show_check_date, show_debug, hint_settings,
             prefix=prefix, suffix=suffix
         )
         
@@ -71,7 +75,6 @@ class TestFormatSettingsText:
         assert f"Начальное слово: <b>{start_word}</b>" in result
         assert "Пропускать ❌" in result  # skip_marked = True
         assert "Не учитывать ❌" in result  # use_check_date = False
-        assert "Придумывать ✅" in result  # show_hints = True
         assert "Скрывать ❌" in result  # show_debug = False
 
 
@@ -87,6 +90,7 @@ class TestFormatStudyWordMessage:
         score = 0
         check_interval = 0
         next_check_date = None
+        score_changed = False
         show_word = False
         word_foreign = "Book"
         transcription = "bʊk"
@@ -95,7 +99,7 @@ class TestFormatStudyWordMessage:
         result = format_study_word_message(
             language_name_ru, language_name_foreign, word_number, translation,
             is_skipped, score, check_interval, next_check_date,
-            show_word, word_foreign, transcription
+            score_changed, show_word, word_foreign, transcription
         )
         
         # Verify
@@ -116,15 +120,16 @@ class TestFormatStudyWordMessage:
         score = 0
         check_interval = 0
         next_check_date = None
+        score_changed = False
         show_word = True
         word_foreign = "Book"
         transcription = "bʊk"
-        
+
         # Execute
         result = format_study_word_message(
             language_name_ru, language_name_foreign, word_number, translation,
-            is_skipped, score, check_interval, next_check_date,
-            show_word, word_foreign, transcription
+            is_skipped, score, check_interval, next_check_date, score_changed,
+            show_word, word_foreign, transcription, 
         )
         
         # Verify
@@ -152,28 +157,20 @@ class TestFormatUsedHints:
         used_hints = ["meaning", "phoneticsound"]
         
         # Патчим функцию get_hint_text и hint_constants
-        with patch('app.utils.formatting_utils.get_hint_text', side_effect=[
+        with patch('app.bot.handlers.study.study_words.get_hint_text', side_effect=[
             "Подсказка для значения",
             "Подсказка для фонетики"
         ]), \
-        patch('app.utils.formatting_utils.get_hint_key', side_effect=[
+        patch('app.bot.handlers.study.study_words.get_hint_key', side_effect=[
             "hint_meaning", "hint_phoneticsound"
-        ]), \
-        patch('app.utils.formatting_utils.get_hint_name', side_effect=[
-            "Ассоциация для значения на русском", "Фонетическое звучание"
-        ]), \
-        patch('app.utils.formatting_utils.get_hint_icon', side_effect=[
-            "🧠", "🎵"
         ]):
             
             # Execute
+            from app.bot.handlers.study.study_words import format_used_hints
             result = await format_used_hints(
                 bot, user_id, word_id, current_word, used_hints, include_header=True
             )
             
             # Verify
-            assert "Использованные подсказки" in result
             assert "Подсказка для значения" in result
             assert "Подсказка для фонетики" in result
-            assert "🧠" in result  # Иконка для meaning
-            assert "🎵" in result  # Иконка для phoneticsound

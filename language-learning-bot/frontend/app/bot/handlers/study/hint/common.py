@@ -41,16 +41,12 @@ async def cmd_cancel_hint(message: Message, state: FSMContext):
         action_cancelled = "создание подсказки"
     elif current_state == HintStates.editing.state:
         action_cancelled = "редактирование подсказки"
-    elif current_state == HintStates.viewing.state:
-        action_cancelled = "просмотр подсказки"
-    elif current_state == HintStates.confirming_deletion.state:
-        action_cancelled = "удаление подсказки"
     else:
         action_cancelled = "действие с подсказкой"
     
     # Get user word state to determine correct return state
     user_word_state = await UserWordState.from_state(state)
-    
+
     if user_word_state.is_valid():
         word_shown = user_word_state.get_flag("word_shown", False)
         

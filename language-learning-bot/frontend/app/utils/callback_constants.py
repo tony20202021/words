@@ -40,7 +40,6 @@ class CallbackData:
     HINT_CREATE_TEMPLATE = "hint_create_{hint_type}_{word_id}"
     HINT_EDIT_TEMPLATE = "hint_edit_{hint_type}_{word_id}"
     HINT_TOGGLE_TEMPLATE = "hint_toggle_{hint_type}_{word_id}"
-    HINT_VIEW_TEMPLATE = "hint_view_{hint_type}_{word_id}"
     
     # Settings actions
     SETTINGS_START_WORD = "settings_start_word"

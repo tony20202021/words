@@ -8,20 +8,24 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        position: -2
-        text: "Вы еще не выбрали язык для изучения"
-      - type: state_contains
-        data: ["_state", None]
+        position: -1
+        text: "Сначала выберите язык для изучения с помощью команды /language"
 
   # Шаг 2: Выбираем язык с помощью команды /language
   - type: command
     name: language
     asserts:
       - type: message_contains
+        position: -3
+        text: "Получен прогресс по языку Английский"
+      - type: message_contains
         position: -2
+        text: "Получен прогресс по языку Французский"
+      - type: message_contains
+        position: -1
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", UserStates:selecting_language]
 
   # Шаг 3: Имитируем выбор языка через callback
   # Вместо state_update используем прямой вызов колбэка
@@ -42,45 +46,49 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
         text: "Начальное слово"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", SettingsStates:viewing_settings]
 
   # Шаг 5: Нажимаем на кнопку для изменения начального слова
   - type: callback
-    data: settings_start_word
+    data: CallbackData.SETTINGS_START_WORD
     asserts:
       - type: message_contains
         text: "Введите номер слова"
       - type: state_contains
-        data: ["_state", <State 'SettingsStates:waiting_start_word'>]
+        data: ["_state", SettingsStates:waiting_start_word]
 
   # Шаг 6: Вводим новое начальное слово
   - type: message
     text: "10"
     asserts:
       - type: message_contains
-        text: "Настройки успешно обновлены"
+        text: "Обновленные настройки обучения"
       - type: message_contains
-        text: "Начальное слово"
+        text: "Начальное слово" # TODO: обновить мок: <b><MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='139771956128896'></b>
       - type: state_contains
-        data: ["_state", "<State 'SettingsStates:waiting_start_word'>"]
-      - type: state_contains
-        data: ["start_word", 10]
+        data: ["_state", SettingsStates:viewing_settings]
 
   # Шаг 7: Запускаем изучение и проверяем сообщение
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Начальное слово"
+        text: "Начинаем изучение языка"
+      - type: message_contains
+        position: -1
+        text: "Слово номер: <b>10</b>"
       - type: state_contains
-        data: ["_state", "<State 'StudyStates:studying'>"]
+        data: ["_state", StudyStates:studying]
       # - type: state_contains
       #   data: ["start_word", 10]

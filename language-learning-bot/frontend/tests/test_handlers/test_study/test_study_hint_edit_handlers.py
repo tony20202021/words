@@ -174,68 +174,20 @@ class TestStudyHintHandlers:
     async def test_process_hint_edit_text(self, setup_mocks):
         """Test the process_hint_edit_text handler for editing a hint."""
         message, state, api_client, _, _, state_data = setup_mocks
-        
-        # Сбрасываем моки
-        state.set_state.reset_mock()
-        message.answer.reset_mock()
-        
-        # Устанавливаем текст сообщения
-        message.text = "новая подсказка для слова"
-        # Добавляем атрибут voice со значением None
-        message.voice = None
-        
-        # Устанавливаем state_data для редактирования подсказки
-        hint_state_data = {
-            "hint_key": "hint_phoneticassociation",
-            "hint_name": "Ассоциация",
-            "hint_word_id": "word123",
-            "current_hint_text": "существующая подсказка",
-            "db_user_id": "user123",
-            "current_word": state_data["current_word"]
-        }
-        state.get_data.return_value = hint_state_data
-        
-        # Создаем мок для show_study_word
-        show_study_word_mock = AsyncMock()
+
+        mock_user_word_state = MagicMock()
+        mock_hint_state = MagicMock()
+        mock_hint_text = "новая подсказка для слова"
         
         # Патчим необходимые функции
-        with patch('app.bot.handlers.study.hint.edit_handlers.show_study_word', show_study_word_mock), \
-            patch('app.utils.state_models.UserWordState.from_state') as mock_user_state, \
-            patch('app.utils.state_models.HintState.from_state') as mock_hint_state, \
-            patch('app.utils.word_data_utils.ensure_user_word_data', 
-                AsyncMock(return_value=(True, {"hint_phoneticassociation": "новая подсказка для слова"}))):
-            
-            # Настройка mock_user_state
-            user_state_obj = MagicMock()
-            user_state_obj.is_valid.return_value = True
-            user_state_obj.user_id = "user123"
-            user_state_obj.word_id = "word123"
-            user_state_obj.word_data = state_data["current_word"]
-            user_state_obj.get_flag = MagicMock(return_value=[])
-            user_state_obj.set_flag = MagicMock()
-            user_state_obj.save_to_state = AsyncMock()
-            mock_user_state.return_value = user_state_obj
-            
-            # Настройка mock_hint_state
-            hint_state_obj = MagicMock()
-            hint_state_obj.is_valid.return_value = True
-            hint_state_obj.hint_key = "hint_phoneticassociation"
-            hint_state_obj.hint_name = "Ассоциация"
-            hint_state_obj.hint_word_id = "word123"
-            hint_state_obj.current_hint_text = "существующая подсказка"
-            hint_state_obj.get_hint_type = MagicMock(return_value="association")
-            mock_hint_state.return_value = hint_state_obj
+        with patch('app.bot.handlers.study.hint.edit_handlers.process_hint_text', AsyncMock(return_value=(mock_user_word_state, mock_hint_state, mock_hint_text))) as process_hint_text_mock, \
+            patch('app.bot.handlers.study.hint.edit_handlers.return_after_hint', AsyncMock()) as return_after_hint_mock, \
+            patch('app.bot.handlers.study.hint.edit_handlers.logger'):
             
             # Вызываем тестируемую функцию
             await process_hint_edit_text(message, state)
             
-            # Проверяем, что сообщение об успехе было отправлено
-            assert message.answer.called
-            assert any("успешно" in str(call).lower() for call in message.answer.call_args_list)
-            
-            # Проверяем, что state был установлен в режим изучения
-            assert state.set_state.called
-            assert any(call.args[0] == StudyStates.studying for call in state.set_state.call_args_list)
-            
-            # Проверяем, что show_study_word был вызван
-            assert show_study_word_mock.called
+            assert process_hint_text_mock.called
+            assert return_after_hint_mock.called
+            message.answer.assert_called_once()
+

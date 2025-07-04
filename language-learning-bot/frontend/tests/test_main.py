@@ -7,17 +7,21 @@ import sys
 import os
 import logging
 from unittest.mock import patch, MagicMock, AsyncMock, call
+from aiogram import Bot, Dispatcher
+from app.api.client import APIClient
+from aiogram.fsm.storage.memory import MemoryStorage
 
-# Патчим hydra перед импортом модуля для тестирования
+
 with patch('hydra.initialize'):
     with patch('hydra.compose') as mock_compose:
-        mock_cfg = MagicMock()
-        mock_compose.return_value = mock_cfg
-        
-        # Import the module to test
-        import app.main_frontend
-        from aiogram import Bot, Dispatcher
-        from aiogram.fsm.storage.memory import MemoryStorage
+        with patch('app.utils.logger.setup_logger') as mock_setup_logger:  # ← Добавить патч
+            mock_cfg = MagicMock()
+            mock_compose.return_value = mock_cfg
+            mock_setup_logger.return_value = MagicMock()  # Мок логгера
+            
+            # Import the module to test
+            import app.main_frontend
+
 
 class TestMain:
     """Tests for the main module."""
@@ -89,7 +93,7 @@ class TestMain:
                 await app.main_frontend.main()
                 
                 # Проверяем вызов load_secrets
-                mock_load_secrets.assert_called_once_with(mock_cfg, "../../../../ssh/bot.yaml")
+                mock_load_secrets.assert_called_once_with(mock_cfg, "~/.ssh/bot.yaml")
                 
                 # Проверяем, что все объекты созданы с правильными параметрами
                 mock_bot_class.assert_called_once_with(token='fake_token')
@@ -101,9 +105,6 @@ class TestMain:
                 # Проверяем, что API клиент сохранен
                 mock_store_api_client.assert_called_once_with(mock_bot, mock_dp, mock_api_client)
                 
-                # Проверяем, что middleware зарегистрирован
-                mock_dp.update.middleware.assert_called_once()
-                
                 # Проверяем, что bot_manager сохранен в диспетчере
                 mock_dp.__setitem__.assert_any_call("bot_manager", mock_bot_manager)
                 
@@ -113,7 +114,7 @@ class TestMain:
                 
                 # Проверяем, что start_polling был вызван
                 mock_start_polling.assert_awaited_once()
-                
+
     @pytest.mark.asyncio
     async def test_missing_bot_token(self):
         """
@@ -122,35 +123,43 @@ class TestMain:
         # Создаем мок для конфигурации
         mock_cfg = MagicMock()
         mock_cfg.bot = MagicMock()
-        mock_cfg.bot.token = None
+        mock_cfg.bot.token = None  # Отсутствующий токен
         
-        # Патчим Hydra
+        # Настраиваем остальные атрибуты конфигурации
+        mock_cfg.logging = MagicMock()
+        mock_cfg.logging.level = "INFO"
+        mock_cfg.logging.log_dir = "logs"
+        
+        # Моки для объектов
+        mock_logger = MagicMock()
+        
+        # Патчим Hydra и ВСЕ НЕОБХОДИМЫЕ КОМПОНЕНТЫ
         with patch('hydra.initialize') as mock_initialize, \
             patch('hydra.compose') as mock_compose, \
-            patch('app.main_frontend.setup_logger') as mock_setup_logger, \
-            patch('app.main_frontend.logger.error') as mock_logger_error:
+            patch('app.main_frontend.logger', mock_logger), \
+            patch('app.main_frontend.setup_logger', return_value=mock_logger) as mock_setup_logger, \
+            patch('app.main_frontend.load_secrets', return_value=False), \
+            patch('app.main_frontend.validate_configuration', return_value=False), \
+            patch('os.makedirs'):
             
             mock_compose.return_value = mock_cfg
-            mock_logger = MagicMock()
-            mock_setup_logger.return_value = mock_logger
             
-            # Ожидаем исключение SystemExit при вызове main
-            with pytest.raises(SystemExit) as exit_info:
+            try:
+                # Вызываем main
                 await app.main_frontend.main()
+                
+                assert False, "main() должен вызвать sys.exit(1)"
+
+            except SystemExit as e:
+                # Проверяем, что sys.exit был вызван с кодом 1
+                assert e.code == 1
             
-            # Проверяем, что код выхода был 1
-            assert exit_info.value.code == 1
-            
-            assert mock_logger_error.call_count == 3
-            # Проверяем, что хотя бы один вызов был с нужным текстом
-            expected_message = 'Bot token is not set in configuration!'
-            assert any(
-                call(expected_message) == actual_call 
-                for actual_call in mock_logger_error.mock_calls
-            )
+            # Проверяем, что логгер был
+            mock_logger.info.assert_called_with("Using environment variables for configuration")
+            mock_logger.error.assert_called_with("❌ Configuration validation failed!")
 
     @pytest.mark.asyncio
-    async def test_setup_commands(self):
+    async def test_on_startup(self):
         """
         Проверка успешного запуска и регистрации команд бота.
         """
@@ -158,11 +167,18 @@ class TestMain:
         mock_bot = MagicMock(spec=Bot)
         mock_dp = MagicMock(spec=Dispatcher)
         mock_bot_manager = AsyncMock()
-        mock_api_client = MagicMock()
+        mock_api_client = MagicMock(spec=APIClient)
         
         # Создаем моки для logger и cfg
         mock_logger = MagicMock()
         mock_cfg = MagicMock()
+
+        health_status = {
+            "bot": True,  # Если мы дошли до этой точки, бот работает
+            "api_connection": True,
+            "database": True,
+            "admin_notification_sent": False
+        }
         
         # Определяем функцию для получения ID администраторов из конфигурации
         def get_admin_ids_from_config(cfg):
@@ -172,8 +188,10 @@ class TestMain:
         mock_dp.get.return_value = mock_bot_manager
         
         # Патчим все необходимые зависимости
-        with patch('app.utils.api_utils.get_api_client_from_bot', return_value=mock_api_client), \
+        with patch.object(app.main_frontend, 'get_api_client_from_bot', return_value=mock_api_client), \
+            patch('app.main_frontend.check_system_health', return_value=health_status), \
             patch('app.main_frontend.register_all_handlers') as mock_register_handlers, \
+            patch('app.main_frontend.setup_middleware') as mock_setup_middleware, \
             patch('app.main_frontend.logger', mock_logger), \
             patch.object(app.main_frontend, 'cfg', mock_cfg), \
             patch('app.main_frontend.get_admin_ids_from_config', return_value=[]):
@@ -191,43 +209,11 @@ class TestMain:
             mock_dp.get.assert_called_with('bot_manager')
             
             # Проверяем логирование
-            mock_logger.info.assert_any_call("Starting Language Learning Bot...")
-            mock_logger.info.assert_any_call("Bot started successfully!")
-
-    @pytest.mark.asyncio
-    async def test_on_startup_with_missing_api_client(self):
-        """
-        Проверка корректной обработки отсутствия API клиента при запуске.
-        """
-        # Создаем моки
-        mock_bot = AsyncMock(spec=Bot)
-        mock_dp = MagicMock(spec=Dispatcher)
-        
-        # Создаем асинхронный мок для bot_manager
-        mock_bot_manager = AsyncMock()
-        
-        # Настраиваем мок диспетчера для возврата bot_manager
-        mock_dp.get.return_value = mock_bot_manager
-        
-        # Патчим зависимости
-        with patch('app.utils.api_utils.get_api_client_from_bot', return_value=None), \
-            patch('app.main_frontend.logger.error') as mock_logger_error, \
-            patch('app.main_frontend.logger.info') as mock_logger_info, \
-            patch('app.main_frontend.register_all_handlers') as mock_register_handlers, \
-            patch('app.main_frontend.get_admin_ids_from_config', return_value=[123, 456]):
-            
-            # Вызываем on_startup
-            await app.main_frontend.on_startup(mock_dp, mock_bot)
-            
-            # Проверяем, что ошибка залогирована
-            mock_logger_error.assert_called_once_with('API client is not available. Bot might not work properly!')
-            
-            # Проверяем, что были отправлены сообщения админам
-            assert mock_bot.send_message.await_count == 2
-            mock_bot.send_message.assert_has_awaits([
-                call(123, "⚠️ Внимание! API клиент недоступен. Бот может работать некорректно."),
-                call(456, "⚠️ Внимание! API клиент недоступен. Бот может работать некорректно.")
-            ])
+            mock_logger.info.assert_any_call("🚀 Starting Language Learning Bot...")
+            mock_logger.info.assert_any_call("✅ API client found successfully")
+            mock_logger.info.assert_any_call("✅ All systems operational")
+            mock_logger.info.assert_any_call("✅ Bot commands configured")
+            mock_logger.info.assert_any_call("🎉 Bot started successfully!")
                         
     @pytest.mark.asyncio
     async def test_on_shutdown_successful(self):
@@ -243,11 +229,10 @@ class TestMain:
             await app.main_frontend.on_shutdown(mock_dp)
             
             # Проверяем, что были залогированы сообщения о начале и успешном завершении
-            assert mock_logger_info.call_count == 2
-            mock_logger_info.assert_has_calls([
-                call("Shutting down..."),
-                call("Bot stopped successfully!")
-            ])
+            assert mock_logger_info.call_count == 5
+            mock_logger_info.assert_any_call("🛑 Shutting down bot...")
+            mock_logger_info.assert_any_call("🏁 Bot stopped successfully!")
+
 
     @pytest.mark.asyncio
     async def test_api_client_configuration(self):

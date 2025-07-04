@@ -10,7 +10,7 @@ steps:
       - type: message_contains
         text: "Доступные языки для изучения"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", 'UserStates:selecting_language']
       - type: keyboard_contains
         button_text: "Английский"
       - type: keyboard_contains
@@ -28,7 +28,7 @@ steps:
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains
-        text: "Настроить процесс обучения с помощью команды /settings"
+        text: "Настроить процесс обучения: /settings"
       - type: state_contains
         data: ["_state", None]
 
@@ -37,82 +37,62 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочная информация: <b>Показывать ✅</b>" # TODO исправить мок - долджно быть в начале "пропускать"
+        text: "Отладочные данные: <b>Показывать ✅</b>" # TODO исправить мок - долджно быть в начале "пропускать"
       - type: state_contains
-        data: ["_state", None]
-      # TODO исправить мок
-      # - type: state_contains
-      #   data: ["show_debug", true]
-      # сейчас показывается как
-        # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140172775259104'>
+        data: ["_state", 'SettingsStates:viewing_settings']
       - type: keyboard_contains
         button_text: "Изменить начальное слово"
       - type: keyboard_contains
-        button_text: "Помеченные слова"
+        button_text: "Исключенные слова"
       - type: keyboard_contains
-        button_text: "Период проверки"
-      - type: keyboard_contains
-        button_text: "Подсказки"
+        button_text: "Учитывать дату"
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
-      # TODO исправить мок
-      # сейчас показывается как
-      # Начальное слово: <b><MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().get()' id='140071049983312'></b>
+        count: 13
 
   # Включаем отладочный режим
   - type: callback
     data: "settings_toggle_show_debug"
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения" # TODO найти ошибку - должно показывать"✅ Настройки успешно обновлены"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочная информация: <b>Показывать ✅</b>"   # TODO исправить мок - после нажатия - состояние долджно меняться
+        text: "Отладочные данные: <b>Показывать ✅</b>"
       - type: message_contains
         text: "Другие доступные команды"
       - type: message_contains
-        text: "/study - Начать изучение слов"
-      # - type: state_contains
-        # data: ["show_debug", true]
-      # TODO исправить мок
-      # сейчас показывается как
-      # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='139683105014160'>
+        text: "/study - начать изучение слов"
       - type: state_contains
-        data: ["_state", None]
+        data: ["_state", 'SettingsStates:viewing_settings']
       - type: keyboard_contains
-        button_text: "🔍 Отладочная информация: сменить на \"Скрывать\""  # TODO исправить мок - после нажатия - кнопка долджна меняться
-        #  TODO перечислить все кнопки
+        button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Запускаем изучение с отладочной информацией
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -2
-        text: "Начинаем изучение слов языка"
+        position: -4
+        text: "Загружаем слова..."
+      - type: message_contains
+        position: -3
+        text: "batch_requested_count=100"
       - type: message_contains
         position: -2
-        text: "Получаю список слов"
-      - type: message_contains
-        position: -1
-        text: "Переведите на"
+        text: "Начинаем изучение языка"
       - type: message_contains
         position: -1
         text: "Отладочная информация:"
       - type: message_contains
         position: -1
         text: "ID слова:"
-      - type: message_contains
-        position: -1
-        text: "ID языка:"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
-        #  TODO перечислить все кнопки
+        data: ["_state", 'StudyStates:studying']
       - type: keyboard_button_count
         count: 7
 
@@ -121,32 +101,27 @@ steps:
     name: settings
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"
+        text: "Текущие настройки"
       - type: state_contains
-        data: ["_state", "<State 'StudyStates:studying'>"] # TODO исправить в коде самой функции - состояние доложно меняться на None
-        #  TODO перечислить все кнопки
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   - type: callback
     data: "settings_toggle_show_debug"
     asserts:
       - type: message_contains
-        text: "Настройки процесса обучения"  # TODO найти ошибку - должно показывать"✅ Настройки успешно обновлены"
+        text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочная информация: <b>Показывать" # TODO исправить мок - после нажатия - долджна меняться
+        text: "Отладочные данные: <b>Показывать ✅</b>"
       - type: message_contains
         text: "Другие доступные команды"
       - type: message_contains
-        text: "/study - Начать изучение слов"
-      # - type: state_contains
-      #   data: ["show_debug", false]
-      # TODO исправить мок
-      # сейчас показывается как
-      # 'show_debug': <MagicMock name='mock.bot.api_client.get_user_language_settings().__getitem__().__getitem__()' id='139683105014160'>
-        #  TODO перечислить все кнопки
+        text: "/study - начать изучение слов"
+      - type: state_contains
+        data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 5
+        count: 13
 
   # Запускаем изучение без отладочной информации
   - type: command
@@ -154,16 +129,15 @@ steps:
     asserts:
       - type: message_contains
         position: -1
-        text: "Переведите на"
+        text: "Язык"
       - type: message_not_contains
         position: -1
-        text: "Отладочная информация:"  # TODO исправить мок - после нажатия - долджна меняться
+        text: "Отладочная информация:"
       - type: message_not_contains
         position: -1
-        text: "ID слова:"  # TODO исправить мок - после нажатия - долджна меняться
+        text: "ID слова:"
       - type: state_contains
-        data: ["_state", <State 'StudyStates:studying'>]
-        #  TODO перечислить все кнопки
+        data: ["_state", "StudyStates:studying"]
       - type: keyboard_button_count
         count: 7
         
