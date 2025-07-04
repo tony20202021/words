@@ -86,5 +86,6 @@ class UserProgress(BaseModel):
     words_studied: int = Field(0, description="Number of words studied")
     words_known: int = Field(0, description="Number of words known")
     words_skipped: int = Field(0, description="Number of words skipped")
+    words_for_today: int = Field(0, description="Number of words for today")
     progress_percentage: float = Field(0.0, description="Percentage of progress")
     last_study_date: Optional[datetime] = Field(None, description="Last study date")

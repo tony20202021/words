@@ -101,7 +101,8 @@ async def get_user_progress_data(message, state, db_user_id: str, languages: Lis
             
             if success and progress_data and progress_data.get("words_studied", 0) > 0:
                 # Add total words info to progress data
-                progress_data["total_words"] = language.get("total_words", 0)
+                if "total_words" not in progress_data:
+                    progress_data["total_words"] = language.get("total_words", 0)
                 languages_with_progress.append(progress_data)
                 languages_progress[language_id] = progress_data
             else:

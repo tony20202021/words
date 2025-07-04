@@ -310,6 +310,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         progress = languages_progress.get(language_id)
     else:
         api_response = await api_client.get_user_progress(user["id"], language_id)
+
         if not api_response['success'] and api_response['status'] == 404:
             # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
             # Используем пустые значения прогресса
@@ -318,6 +319,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
                 "words_known": 0,
                 "words_skipped": 0,
                 "total_words": 0,
+                "words_for_today": 0,
                 "progress_percentage": 0
             }
         else:
@@ -363,6 +365,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"- Изучено слов: {progress.get('words_studied', 0)}\n"
         f"- Известно слов: {progress.get('words_known', 0)}\n"
         f"- Пропущено слов: {progress.get('words_skipped', 0)}\n"
+        f"- Слов на сегодня: {progress.get('words_for_today', 0)}\n"
         f"- Всего слов: {progress.get('total_words', 0)}\n\n"
         f"Прогресс: {progress.get('progress_percentage', 0):.1f}%\n\n"
         f"{settings_text}\n\n"

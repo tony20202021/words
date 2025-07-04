@@ -250,6 +250,8 @@ class StatisticsRepository:
             "language_id": language_id
         }
         
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
         if validate_words:
             # С валидацией существования слов
             pipeline = [
@@ -287,6 +289,9 @@ class StatisticsRepository:
                         },
                         "words_skipped": {
                             "$sum": {"$cond": [{"$eq": ["$is_skipped", True]}, 1, 0]}
+                        },
+                        "words_for_today": {                        
+                            "$sum": {"$cond": [{"$lte": ["$next_check_date", today]}, 1, 0]}
                         }
                     }
                 }
@@ -316,13 +321,15 @@ class StatisticsRepository:
             return {
                 "words_studied": result[0]["words_studied"],
                 "words_known": result[0]["words_known"], 
-                "words_skipped": result[0]["words_skipped"]
+                "words_skipped": result[0]["words_skipped"],
+                "words_for_today": result[0]["words_for_today"]
             }
         else:
             return {
                 "words_studied": 0,
                 "words_known": 0,
-                "words_skipped": 0
+                "words_skipped": 0,
+                "words_for_today": 0
             }
 
     async def get_by_user_and_word(
@@ -701,8 +708,9 @@ class StatisticsRepository:
                 words_studied=stats_counts["words_studied"],
                 words_known=stats_counts["words_known"],
                 words_skipped=stats_counts["words_skipped"],
+                words_for_today=stats_counts["words_for_today"],
                 progress_percentage=round(progress_percentage, 2),
-                last_study_date=last_study_date
+                last_study_date=last_study_date,
             )
             
         except Exception as e:
@@ -717,8 +725,9 @@ class StatisticsRepository:
                 words_studied=0,
                 words_known=0,
                 words_skipped=0,
+                words_for_today=0,
                 progress_percentage=0.0,
-                last_study_date=None
+                last_study_date=None,
             )
 
     async def get_data_integrity_report(self) -> Dict[str, Any]:
