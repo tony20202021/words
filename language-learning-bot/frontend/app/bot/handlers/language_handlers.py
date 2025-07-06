@@ -358,17 +358,22 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     )
     keyboard = create_language_selected_keyboard()
 
+    progress_studied_total = 100 * (progress.get('words_studied', 0) / progress.get('total_words', 0)) if progress.get('total_words', 0) > 0 else 0
+    progress_known_studied = 100 * (progress.get('words_known', 0) / progress.get('words_studied', 0)) if progress.get('words_studied', 0) > 0 else 0
+
     # Показываем информацию о выбранном языке и статистику
     await callback.message.answer(
         f"✅ Вы выбрали язык: <b>{language['name_ru']} ({language['name_foreign']})</b>\n\n"
+        f"{settings_text}\n\n"
         f"📊 Ваша статистика по этому языку:\n"
         f"- Изучено слов: {progress.get('words_studied', 0)}\n"
-        f"- Известно слов: {progress.get('words_known', 0)}\n"
         f"- Пропущено слов: {progress.get('words_skipped', 0)}\n"
+        f"- Известно слов: {progress.get('words_known', 0)}\n"
+        f"- Неизвестно слов: {progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)}\n"
         f"- Слов на сегодня: {progress.get('words_for_today', 0)}\n"
-        f"- Всего слов: {progress.get('total_words', 0)}\n\n"
-        f"Прогресс: {progress.get('progress_percentage', 0):.1f}%\n\n"
-        f"{settings_text}\n\n"
+        f"- Всего слов: {progress.get('total_words', 0)}\n"
+        f"Прогресс изучено/всего: {progress_studied_total:.1f}%\n"
+        f"Прогресс известно/изучено: {progress_known_studied:.1f}%\n\n"
         f"Теперь вы можете:\n"
         f"- Начать изучение: /study\n"
         f"- Настроить процесс обучения: /settings\n",
