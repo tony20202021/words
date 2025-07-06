@@ -5,28 +5,22 @@
 
 
 ---
-Выровнять крупное написание
----
-В статистике показывать количество слово на сегодня
----
-
----
 ### 2. статусы
 - с любого экрана - разрешить перезапуск /start
 
 ---
-
 ### Добавить middleware для автоматического восстановления
 Enhanced Auto-Recovery Middleware for Language Learning Bot.
 Automatically handles state transitions and error recovery.
 Middleware for automatic error recovery and state management.
     Handles meta-states and provides seamless user experience.
+
 ---
 ### Система метрик и аналитики
 Enhanced Metrics & Analytics System for Language Learning Bot.
 Provides detailed learning analytics and performance tracking.
----
 
+---
 ### 4. 🎬 **Создать обучающее видео для пользователей**
 
 **Описание:** Пользователям нужна наглядная инструкция по использованию бота. Видео можно отправлять при первом запуске или по команде.

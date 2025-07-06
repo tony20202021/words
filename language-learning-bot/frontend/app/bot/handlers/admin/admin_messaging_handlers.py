@@ -114,16 +114,24 @@ async def process_admin_send_message_to_all_message(message: Message, state: FSM
             if not language_id:
                 continue
                 
-            settings_response = await api_client.get_user_language_settings(user_db_id, language_id)
+            progress_response = await api_client.get_user_progress(user_db_id, language_id)
             
-            if settings_response["success"] and settings_response["result"]:
-                settings = settings_response["result"]
-                if settings.get("receive_messages", True):  # По умолчанию True
-                    has_notifications_enabled = True
-                    active_languages[user.get("telegram_id")].append(language.get("name"))
+            if progress_response["success"] and progress_response["result"]:
+                progress = progress_response["result"]
+                words_studied = progress.get('words_studied', 0)
+                
+                # Показываем только языки, где есть статистика (изучено > 0 слов)
+                if words_studied > 0:
+                    settings_response = await api_client.get_user_language_settings(user_db_id, language_id)
+                    
+                    if settings_response["success"] and settings_response["result"]:
+                        settings = settings_response["result"]
+                        if settings.get("receive_messages", True):  # По умолчанию True
+                            has_notifications_enabled = True
+                            active_languages[user.get("telegram_id")].append(language.get("name_ru"))
                 
         # Если не было найдено ни одного языка, считаем что уведомления включены
-        if not languages:
+        if not active_languages.get(user.get("telegram_id"), []):
             has_notifications_enabled = True
         
         if has_notifications_enabled:
@@ -150,8 +158,21 @@ async def process_admin_send_message_to_all_message(message: Message, state: FSM
         ]
     ])
 
+    print(eligible_users)
+    print(active_languages)
     # Показываем подтверждение
-    users_list = '\n'.join([f"{user.get('username')} ({user.get('telegram_id')})" for user in eligible_users])
+    users_list = ''
+    for user in eligible_users:
+        lang_list = ''
+        for lang in active_languages.get(user.get('telegram_id'), []):
+            if lang is not None and lang != '':
+                lang_list += f"\t{lang}\n"
+        if lang_list != '':
+            lang_list = 'Активные языки:\n' + lang_list
+        else:
+            lang_list = '\tНет активных языков\n'
+        users_list += f"{user.get('username')} ({user.get('telegram_id')}: {user.get('first_name')} {user.get('last_name')}):\n{lang_list}"
+
     confirmation_text = (
         f"📋 <b>Подтверждение рассылки</b>\n\n"
         f"<b>Текст сообщения:</b>\n"
@@ -256,17 +277,25 @@ async def send_messages_to_users(message: Message, message_text: str, eligible_u
     for i, user in enumerate(eligible_users):
         try:
             user_telegram_id = user.get("telegram_id")
-            user_name = user.get("first_name", "Пользователь")
+            user_name = str(user.get("first_name", "Пользователь"))
+            user_full_name = str(user.get("first_name", "")) + " " + str(user.get("last_name", "")) + " " + str(user.get("username", ""))
             active_languages_text = "\n".join(active_languages.get(user_telegram_id, []))
             
             if user_telegram_id:
-                await message.bot.send_message(user_telegram_id, message_text + f"\n\n🔍 <b>Активные языки:</b>\n{active_languages_text}")
+                await message.bot.send_message(user_telegram_id, f"<b>Добрый день, {user_name}!</b>\n\nИнформационная рассылка...", parse_mode="HTML")
+                await message.bot.send_message(user_telegram_id, message_text, parse_mode="HTML")
+                if active_languages_text != '':
+                    await message.bot.send_message(user_telegram_id, f"<b>Ваши активные языки:</b>\n{active_languages_text}", parse_mode="HTML")
+                    await message.bot.send_message(user_telegram_id, f"Отключить рассылку можно в настройках активных языков", parse_mode="HTML")
+                else:
+                    await message.bot.send_message(user_telegram_id, f"<b>Ваши активные языки:</b>\n(Нет активных языков)", parse_mode="HTML")
+
                 sent_count += 1
-                logger.info(f"Message sent to {user_name} ({user_telegram_id})")
+                logger.info(f"Message sent to {user_full_name} ({user_telegram_id})")
             else:
                 error_count += 1
-                failed_users.append(f"{user_name} (нет Telegram ID)")
-                logger.warning(f"No Telegram ID for user {user_name}")
+                failed_users.append(f"{user_full_name} (нет Telegram ID)")
+                logger.warning(f"No Telegram ID for user {user_full_name}")
 
         except Exception as e:
             error_count += 1
