@@ -34,6 +34,7 @@ import app.bot.handlers.language_handlers as language_handlers
 import app.bot.handlers.study_handlers as study_handlers
 import app.bot.handlers.user_handlers as user_handlers
 import app.bot.handlers.common_handlers as common_handlers
+import app.bot.handlers.unknown_handlers as unknown_handlers
 
 from app.bot.middleware.auth_middleware import AuthMiddleware, StateValidationMiddleware
 from app.utils.logger import setup_logger
@@ -90,11 +91,12 @@ logger = setup_logger(
 )
 
 HANDLER_MODULES = [
-    common_handlers,    # ВАЖНО: Обработчики meta-состояний должны быть первыми
+    common_handlers,
     admin_handlers,
     study_handlers,
     user_handlers,
     language_handlers,
+    unknown_handlers,    # ВАЖНО: Обработчики unknown-состояний должны быть последними
 ] 
 
 HANDLER_REGISTRATION_MAP = {
@@ -103,6 +105,7 @@ HANDLER_REGISTRATION_MAP = {
     user_handlers: 'register_user_handlers',
     language_handlers: 'register_language_handlers',
     study_handlers: 'register_study_handlers',
+    unknown_handlers: 'register_unknown_handlers',
 }
 
 def register_all_handlers(dispatcher: Dispatcher) -> None:

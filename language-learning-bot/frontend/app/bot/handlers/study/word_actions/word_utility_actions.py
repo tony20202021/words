@@ -12,17 +12,18 @@ from app.utils.state_models import UserWordState
 from app.bot.handlers.study.study_words import show_study_word
 from app.utils.callback_constants import CallbackData
 from app.utils.word_data_utils import ensure_user_word_data
+from app.bot.states.centralized_states import StudyStates
 
 logger = setup_logger(__name__)
 
 # Создаем роутер для утилитарных действий
 utility_router = Router()
 
-@utility_router.callback_query(F.data == CallbackData.TOGGLE_WORD_SKIP)
+@utility_router.callback_query(F.data == CallbackData.TOGGLE_WORD_SKIP, StudyStates.studying)
+@utility_router.callback_query(F.data == CallbackData.TOGGLE_WORD_SKIP, StudyStates.viewing_word_details)
 async def process_toggle_word_skip(callback: CallbackQuery, state: FSMContext):
     """
     Process toggle word skip status.
-    FIXED: Uses centralized utilities for data updates.
     
     Args:
         callback: The callback query

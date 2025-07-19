@@ -21,11 +21,10 @@ logger = setup_logger(__name__)
 # Создаем роутер для навигационных действий
 navigation_router = Router()
 
-@navigation_router.callback_query(F.data == CallbackData.NEXT_WORD)
+@navigation_router.callback_query(F.data == CallbackData.NEXT_WORD, StudyStates.viewing_word_details)
 async def process_next_word(callback: CallbackQuery, state: FSMContext):
     """
     Process 'Next word' action.
-    FIXED: Improved batch loading logic and error handling.
     
     Args:
         callback: The callback query

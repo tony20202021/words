@@ -7,6 +7,7 @@ from aiogram import Router
 from aiogram.filters import Command, StateFilter
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram import F
 
 # Import centralized states
 from app.bot.states.centralized_states import CommonStates
