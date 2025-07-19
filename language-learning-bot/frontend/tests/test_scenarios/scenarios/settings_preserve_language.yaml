@@ -33,10 +33,13 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык: <b>Английский (English)</b>"
       - type: message_contains
+        position: -3
         text: "Ваши настройки для этого языка"
       - type: message_contains
+        position: -3
         text: "Начальное слово"
       - type: state_contains
         data: ["_state", None]

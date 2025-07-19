@@ -24,8 +24,10 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
         text: "Теперь вы можете"
@@ -54,7 +56,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   - type: callback
     data: CallbackData.SETTINGS_START_WORD

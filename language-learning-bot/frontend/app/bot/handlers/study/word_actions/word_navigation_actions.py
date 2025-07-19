@@ -7,6 +7,7 @@ Handlers for word navigation actions during the study process.
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
+from datetime import datetime
 
 from app.utils.api_utils import get_api_client_from_bot
 from app.utils.logger import setup_logger
@@ -39,6 +40,27 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Неверное состояние изучения")
         return
     
+    state_data = await state.get_data()
+    settings = state_data.get("settings", {})
+    last_action_date_time = state_data.get("last_action_date_time", None)
+    logger.info(f"last_action_date_time: {last_action_date_time}")
+
+    if last_action_date_time is not None:
+        last_action_date_time = datetime.fromisoformat(last_action_date_time)
+
+        delta_days = (datetime.now() - last_action_date_time).days
+        delta_hours = (datetime.now() - last_action_date_time).seconds // 3600
+
+        reset_session_days = settings.get("reset_session_days", 1)
+        reset_session_hours = settings.get("reset_session_hours", 6)
+
+        if (delta_days >= reset_session_days) and (delta_hours >= reset_session_hours):
+            await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /start и повторить слова с начала.")
+
+    last_action_date_time = datetime.now().isoformat()
+    await state.update_data(last_action_date_time=last_action_date_time)
+    logger.info(f"new last_action_date_time: {last_action_date_time}")
+
     # Try to advance to next word
     if user_word_state.advance_to_next_word():
         # Successfully moved to next word

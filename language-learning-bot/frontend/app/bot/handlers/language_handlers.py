@@ -347,6 +347,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         show_check_date=settings.get("show_check_date", True),
         show_big=settings.get("show_big", False),
         show_writing_images=settings.get("show_writing_images", False),
+        show_short_captions=settings.get("show_short_captions", True),
         hint_settings={
             "show_hint_phoneticsound": settings.get("show_hint_phoneticsound", True),
             "show_hint_phoneticassociation": settings.get("show_hint_phoneticassociation", True),
@@ -354,7 +355,10 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
             "show_hint_writing": settings.get("show_hint_writing", True),
         },
         show_debug=settings.get("show_debug", True),
-        prefix=settings_prefix
+        receive_messages=settings.get("receive_messages", True),
+        reset_session_days=settings.get("reset_session_days", 1),
+        reset_session_hours=settings.get("reset_session_hours", 6),
+        prefix=settings_prefix,
     )
     keyboard = create_language_selected_keyboard()
 
@@ -363,8 +367,14 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
 
     # Показываем информацию о выбранном языке и статистику
     await callback.message.answer(
-        f"✅ Вы выбрали язык: <b>{language['name_ru']} ({language['name_foreign']})</b>\n\n"
-        f"{settings_text}\n\n"
+        f"✅ Вы выбрали язык: <b>{language['name_ru']} ({language['name_foreign']})</b>\n\n",
+        parse_mode="HTML",
+    )    
+    await callback.message.answer(
+        f"{settings_text}\n\n",
+        parse_mode="HTML",
+    )    
+    await callback.message.answer(
         f"📊 Ваша статистика по этому языку:\n"
         f"- Изучено слов: {progress.get('words_studied', 0)}\n"
         f"- Пропущено слов: {progress.get('words_skipped', 0)}\n"
@@ -373,7 +383,10 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"- Слов на сегодня: {progress.get('words_for_today', 0)}\n"
         f"- Всего слов: {progress.get('total_words', 0)}\n"
         f"Прогресс изучено/всего: {progress_studied_total:.1f}%\n"
-        f"Прогресс известно/изучено: {progress_known_studied:.1f}%\n\n"
+        f"Прогресс известно/изучено: {progress_known_studied:.1f}%\n\n",
+        parse_mode="HTML",
+    )    
+    await callback.message.answer(
         f"Теперь вы можете:\n"
         f"- Начать изучение: /study\n"
         f"- Настроить процесс обучения: /settings\n",

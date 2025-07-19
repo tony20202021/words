@@ -198,7 +198,6 @@ async def process_writing_images_setting_toggle(callback: CallbackQuery, state: 
         await callback.answer("❌ Ошибка изменения настройки картинок написания")
 
 
-# ОБНОВЛЕНО: Улучшенные обработчики основных настроек с общими утилитами
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_START_WORD)
 async def process_settings_start_word(callback: CallbackQuery, state: FSMContext):
     """
@@ -321,7 +320,6 @@ async def _update_setting(message_or_callback, state: FSMContext, setting_key: s
         logger.error(f"Error updating setting {setting_key}: {e}")
         return False
 
-# ОБНОВЛЕНО: Упрощенные обработчики toggle с общей функцией
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SKIP_MARKED)
 async def process_toggle_skip_marked(callback: CallbackQuery, state: FSMContext):
     """Handle skip marked words toggle."""
@@ -494,6 +492,198 @@ async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, 
         )
     else:
         await callback.answer("❌ Ошибка изменения настроек")
+
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RESET_SESSION_DAYS)
+async def process_settings_reset_session_days(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle reset session days setting change.
+    """
+    logger.info(f"Reset session days setting from {callback.from_user.full_name}")
+    
+    # Validate language selection
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
+        return
+    
+    await state.set_state(SettingsStates.waiting_reset_session_days)
+    
+    await callback.message.answer(
+        "🔢 <b>Изменение периода сброса сессии (дни)</b>\n\n"
+        "Введите количество дней, через которое хотите сбросить сессию.\n\n"
+        "Например: <code>1</code> - сбросить сессию через 1 день\n"
+        "Например: <code>100</code> - сбросить сессию через 100 дней\n\n"
+        "Или отправьте /cancel для отмены.",
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+
+@settings_router.message(Command("cancel"), SettingsStates.waiting_reset_session_days, flags={"priority": 100})   # высокий приоритет
+async def cmd_cancel_reset_session_days(message: Message, state: FSMContext):
+    """
+    Handle the /cancel command to abort reset session days setting.
+    """
+    logger.info(f"Cancel reset session days command received from {message.from_user.full_name}")
+    
+    await message.answer(
+        "✅ Ввод отменен\n\n"
+    )
+    
+    # Return to settings view
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Show updated settings
+    await display_language_settings(
+        message_or_callback=message,
+        state=state,
+        prefix="⚙️ <b>Настройки обучения</b>\n\n",
+        is_callback=False
+    )
+
+@settings_router.message(SettingsStates.waiting_reset_session_days)
+async def process_reset_session_days_input(message: Message, state: FSMContext):
+    """
+    Process reset session days input from user.
+    """
+    try:
+        reset_session_days = int(message.text.strip())
+        
+        # Validate input range
+        if reset_session_days < 1:
+            await message.answer("❌ Количество дней должно быть больше 0. Попробуйте еще раз.")
+            return
+        
+        if reset_session_days > 50000:  # Increased reasonable limit
+            await message.answer("❌ Количество дней слишком большое. Максимум: 50000. Попробуйте еще раз.")
+            return
+        
+        # Get and update settings
+        success = await _update_setting(message, state, "reset_session_days", reset_session_days)
+        
+        if success:
+            await message.answer(
+                f"✅ Период сброса сессии (дни) изменен на: <b>{reset_session_days}</b>\n\n"
+                "Теперь сессия будет сбрасываться через это количество дней.",
+                parse_mode="HTML"
+            )
+            
+            # Return to settings view
+            await state.set_state(SettingsStates.viewing_settings)
+            
+            # Show updated settings
+            await display_language_settings(
+                message_or_callback=message,
+                state=state,
+                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
+                is_callback=False
+            )
+        else:
+            await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
+            
+    except ValueError:
+        await message.answer(
+            "❌ Введите корректное количество дней (число).\n\n"
+            "Например: <code>1</code> или <code>100</code>",
+            parse_mode="HTML"
+        )
+
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RESET_SESSION_HOURS)
+async def process_settings_reset_session_hours(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle reset session hours setting change.
+    """
+    logger.info(f"Reset session hours setting from {callback.from_user.full_name}")
+    
+    # Validate language selection
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
+        return
+    
+    await state.set_state(SettingsStates.waiting_reset_session_hours)
+    
+    await callback.message.answer(
+        "🔢 <b>Изменение периода сброса сессии (часы)</b>\n\n"
+        "Введите количество часов, через которое хотите сбросить сессию.\n\n"
+        "Например: <code>1</code> - сбросить сессию через 1 час\n"
+        "Например: <code>100</code> - сбросить сессию через 100 часов\n\n"
+        "Или отправьте /cancel для отмены.",
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+
+@settings_router.message(Command("cancel"), SettingsStates.waiting_reset_session_hours, flags={"priority": 100})   # высокий приоритет
+async def cmd_cancel_reset_session_hours(message: Message, state: FSMContext):
+    """
+    Handle the /cancel command to abort reset session hours setting.
+    """
+    logger.info(f"Cancel reset session hours command received from {message.from_user.full_name}")
+    
+    await message.answer(
+        "✅ Ввод отменен\n\n"
+    )
+    
+    # Return to settings view
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Show updated settings
+    await display_language_settings(
+        message_or_callback=message,
+        state=state,
+        prefix="⚙️ <b>Настройки обучения</b>\n\n",
+        is_callback=False
+    )
+
+@settings_router.message(SettingsStates.waiting_reset_session_hours)
+async def process_reset_session_hours_input(message: Message, state: FSMContext):
+    """
+    Process reset session days input from user.
+    """
+    try:
+        reset_session_hours = int(message.text.strip())
+        
+        # Validate input range
+        if reset_session_hours < 1:
+            await message.answer("❌ Количество часов должно быть больше 0. Попробуйте еще раз.")
+            return
+        
+        if reset_session_hours > 50000:  # Increased reasonable limit
+            await message.answer("❌ Количество часов слишком большое. Максимум: 50000. Попробуйте еще раз.")
+            return
+        
+        # Get and update settings
+        success = await _update_setting(message, state, "reset_session_hours", reset_session_hours)
+        
+        if success:
+            await message.answer(
+                f"✅ Период сброса сессии (часы) изменен на: <b>{reset_session_hours}</b>\n\n"
+                "Теперь сессия будет сбрасываться через это количество часов.",
+                parse_mode="HTML"
+            )
+            
+            # Return to settings view
+            await state.set_state(SettingsStates.viewing_settings)
+            
+            # Show updated settings
+            await display_language_settings(
+                message_or_callback=message,
+                state=state,
+                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
+                is_callback=False
+            )
+        else:
+            await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
+            
+    except ValueError:
+        await message.answer(
+            "❌ Введите корректное количество часов (число).\n\n"
+            "Например: <code>1</code> или <code>100</code>",
+            parse_mode="HTML"
+        )
+
+
 
 # Export router
 __all__ = ['settings_router']

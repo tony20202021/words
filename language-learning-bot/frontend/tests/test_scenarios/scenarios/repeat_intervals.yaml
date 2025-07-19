@@ -22,8 +22,10 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: state_contains
         data: ["_state", None]
@@ -34,7 +36,7 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочные данные: <b>Показывать ✅</b>"
+        text: "Отладочные данные: <b>Скрывать ❌</b>"
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_contains
@@ -46,7 +48,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Включаем отладочный режим для просмотра интервалов
   - type: callback
@@ -65,7 +67,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Начинаем изучение
   - type: command

@@ -15,14 +15,19 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык: <b>Английский (English)</b>"
       - type: message_contains
+        position: -3
         text: "Ваши настройки для этого языка"
       - type: message_contains
+        position: -3
         text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
+        position: -3
         text: "Период повторения: <b>Учитывать ✅</b>"
       - type: message_contains
+        position: -1
         text: "Настроить процесс обучения: /settings"
       - type: state_contains
         data: ["_state", None]
@@ -46,7 +51,7 @@ steps:
       - type: keyboard_contains
         button_text: "✅ Учитывать дату"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Шаг 5: Переключаем настройку пропуска помеченных слов
   - type: callback

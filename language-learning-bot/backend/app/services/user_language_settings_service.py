@@ -11,8 +11,7 @@ from app.db.repositories.language_repository import LanguageRepository
 from app.api.schemas.user_language_settings import (
     UserLanguageSettingsCreate,
     UserLanguageSettingsUpdate,
-    UserLanguageSettingsInDB,
-    UserLanguageSettings
+    UserLanguageSettingsInDB
 )
 from app.utils.logger import setup_logger
 

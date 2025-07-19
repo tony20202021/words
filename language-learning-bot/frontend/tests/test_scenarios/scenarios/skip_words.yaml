@@ -22,8 +22,10 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
         text: "Теперь вы можете"
@@ -51,7 +53,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   - type: callback
     data: CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
@@ -71,7 +73,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Начинаем изучение
   - type: command
@@ -132,16 +134,17 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
-        position: -2
-        text: "Получен прогресс по языку Английский"
-      - type: message_contains
+        position: -4
         text: "Вы выбрали язык: <b>Английский (English)</b>"
       - type: message_contains
-        text: "Ваша статистика по этому языку"
-      - type: message_contains
+        position: -3
         text: "Ваши настройки для этого языка"
       - type: message_contains
+        position: -3
         text: "Исключенные слова: <b>Пропускать ❌</b>"
+      - type: message_contains
+        position: -2
+        text: "Ваша статистика по этому языку"
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains

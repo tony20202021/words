@@ -200,7 +200,7 @@ class TestLanguageHandlers:
             assert state.update_data.call_count <= 3
             
             # Проверяем, что бот отправил сообщение об успехе
-            assert callback.message.answer.call_count == 2
+            assert callback.message.answer.call_count == 5
             
             # Проверяем, что callback.answer был вызван
             callback.answer.assert_called_once()
@@ -378,15 +378,12 @@ class TestLanguageHandlers:
             assert state.update_data.call_count == 3
             
             # Проверяем, что было отправлено сообщение с информацией о языке и прогрессе
-            assert callback.message.answer.call_count == 2
+            assert callback.message.answer.call_count == 5
             
             sent_message = callback.message.answer.call_args.args[0]
-            assert "Вы выбрали язык: <b>Английский (English)</b>" in sent_message
-            assert "Изучено слов: 100" in sent_message
-            assert "Известно слов: 80" in sent_message
-            assert "Пропущено слов: 10" in sent_message
-            assert "Всего слов: 1000" in sent_message
-            assert "Прогресс: 8.0%" in sent_message
+            assert "Теперь вы можете" in sent_message
+            assert "Начать изучение" in sent_message
+            assert "Настроить процесс обучения" in sent_message
             
             # Проверяем, что callback.answer был вызван для скрытия уведомления
             callback.answer.assert_called_once()

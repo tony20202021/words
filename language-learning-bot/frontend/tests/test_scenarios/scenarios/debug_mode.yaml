@@ -22,8 +22,10 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
         text: "Теперь вы можете"
@@ -39,7 +41,7 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочные данные: <b>Показывать ✅</b>" # TODO исправить мок - долджно быть в начале "пропускать"
+        text: "Отладочные данные: <b>Показывать ✅</b>"
       - type: state_contains
         data: ["_state", 'SettingsStates:viewing_settings']
       - type: keyboard_contains
@@ -51,7 +53,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Включаем отладочный режим
   - type: callback
@@ -70,7 +72,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Запускаем изучение с отладочной информацией
   - type: command
@@ -105,7 +107,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   - type: callback
     data: "settings_toggle_show_debug"
@@ -121,7 +123,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 13
+        count: 15
 
   # Запускаем изучение без отладочной информации
   - type: command

@@ -57,6 +57,12 @@ def setup_parser():
         nargs=argparse.REMAINDER,
         help="Additional arguments to pass to pytest",
     )
+    parser.add_argument(
+        "--exitfirst",
+        "--x",
+        action="store_true",
+        help="Exit pytest immediately on first error",
+    )
     return parser
 
 

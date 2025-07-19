@@ -21,10 +21,13 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
+        position: -3
         text: "Ваши настройки для этого языка"
       - type: state_contains
         data: ["_state", None]

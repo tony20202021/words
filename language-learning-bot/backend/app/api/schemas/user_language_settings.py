@@ -26,6 +26,8 @@ class UserLanguageSettingsBase(BaseModel):
     show_short_captions: bool = Field(True, description="Whether to show short captions")
 
     receive_messages: bool = Field(True, description="Whether to receive messages")
+    reset_session_days: int = Field(1, description="Number of days to reset session")
+    reset_session_hours: int = Field(6, description="Number of hours to reset session")
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
     """Model for creating user language settings."""
@@ -49,6 +51,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_hint_writing: Optional[bool] = None
     show_short_captions: Optional[bool] = None
     receive_messages: Optional[bool] = None
+    reset_session_days: Optional[int] = None
+    reset_session_hours: Optional[int] = None
     
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):
     """Model for user language settings as stored in the database."""

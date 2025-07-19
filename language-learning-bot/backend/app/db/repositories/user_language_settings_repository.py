@@ -109,6 +109,8 @@ class UserLanguageSettingsRepository:
             "show_hint_meaning": settings_dict.get("show_hint_meaning", True),
             "show_hint_writing": settings_dict.get("show_hint_writing", True),
             "receive_messages": settings_dict.get("receive_messages", True),
+            "reset_session_days": settings_dict.get("reset_session_days", 1),
+            "reset_session_hours": settings_dict.get("reset_session_hours", 6),
             
             "created_at": now,
             "updated_at": now

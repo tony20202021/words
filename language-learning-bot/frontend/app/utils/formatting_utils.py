@@ -73,13 +73,13 @@ def format_settings_text(
     show_short_captions=True,
     show_big=False,
     receive_messages=True,
+    reset_session_days=1,
+    reset_session_hours=6,
     prefix="", 
     suffix=""
 ):
     """
     Форматирует текст настроек обучения.
-    ОБНОВЛЕНО: Добавлена поддержка настроек картинок написания.
-    ОБНОВЛЕНО: Убраны ограничения по иероглифическим языкам.
     
     Args:
         start_word: Номер слова для начала обучения
@@ -135,12 +135,17 @@ def format_settings_text(
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
-    settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>"
+    settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>\n"
     
     # Статус получения сообщений
     receive_messages_status = "Получать ✅" if receive_messages else "Не получать ❌"
-    settings_text += f"📤 Получать сообщения: <b>{receive_messages_status}</b>"
+    settings_text += f"📤 Получать сообщения: <b>{receive_messages_status}</b>\n"
     
+    # Статус сброса сессии
+    settings_text += f"🔄 <b>Сброс сессии:</b>\n"
+    settings_text += f"   • дни: <b>{reset_session_days}</b>\n"
+    settings_text += f"   • часы: <b>{reset_session_hours}</b>\n"
+
     # Добавляем суффикс
     if suffix:
         settings_text += suffix

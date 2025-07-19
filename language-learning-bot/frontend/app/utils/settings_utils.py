@@ -31,6 +31,8 @@ DEFAULT_SETTINGS = {
     "show_short_captions": True,
     "show_writing_images": True,
     "receive_messages": True,
+    "reset_session_days": 1,
+    "reset_session_hours": 6,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
@@ -195,9 +197,10 @@ async def display_language_settings(
     for hint_key in HINT_SETTING_KEYS:
         hint_settings[hint_key] = settings.get(hint_key, DEFAULT_SETTINGS[hint_key])
     
-    # Extract writing images settings
     show_writing_images = settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
     receive_messages = settings.get("receive_messages", DEFAULT_SETTINGS["receive_messages"])
+    reset_session_days = settings.get("reset_session_days", DEFAULT_SETTINGS["reset_session_days"])
+    reset_session_hours = settings.get("reset_session_hours", DEFAULT_SETTINGS["reset_session_hours"])
     
     # Get language info
     state_data = await state.get_data()
@@ -230,6 +233,7 @@ async def display_language_settings(
     
     # Create keyboard with individual hint settings and writing images
     keyboard = create_settings_keyboard(
+        start_word=start_word, 
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
@@ -238,7 +242,9 @@ async def display_language_settings(
         show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
-        receive_messages=receive_messages
+        receive_messages=receive_messages,
+        reset_session_days=reset_session_days,
+        reset_session_hours=reset_session_hours
     )
     
     # Format settings text with individual hint settings and writing images
@@ -253,8 +259,10 @@ async def display_language_settings(
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
         receive_messages=receive_messages,
+        reset_session_days=reset_session_days,
+        reset_session_hours=reset_session_hours,
         prefix=language_prefix, 
-        suffix=suffix
+        suffix=suffix,
     )
     
     # Send message with settings

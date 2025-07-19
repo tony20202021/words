@@ -57,6 +57,8 @@ class CallbackData:
     SETTINGS_TOGGLE_HINT_WRITING = "settings_toggle_hint_writing"
     
     SETTINGS_TOGGLE_RECEIVE_MESSAGES = "settings_toggle_receive_messages"
+    SETTINGS_TOGGLE_RESET_SESSION_DAYS = "settings_toggle_reset_session_days"
+    SETTINGS_TOGGLE_RESET_SESSION_HOURS = "settings_toggle_reset_session_hours"
     
     # НОВОЕ: Настройка картинок написания
     SETTINGS_TOGGLE_WRITING_IMAGES = "settings_toggle_writing_images"

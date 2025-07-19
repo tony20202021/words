@@ -24,8 +24,10 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
         text: "Теперь вы можете"
@@ -128,12 +130,16 @@ steps:
     data: "lang_select_eng"
     asserts:
       - type: message_contains
+        position: -4
         text: "Вы выбрали язык"
       - type: message_contains
+        position: -4
         text: "Английский"
       - type: message_contains
+        position: -3
         text: "Ваши настройки для этого языка"
       - type: message_contains
+        position: -3
         text: "Исключенные слова: <b>Пропускать ❌</b>"
       - type: message_contains
         text: "Теперь вы можете"

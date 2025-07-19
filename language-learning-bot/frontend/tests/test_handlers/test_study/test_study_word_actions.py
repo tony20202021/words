@@ -93,6 +93,13 @@ class TestStudyWordActions:
         callback.answer = AsyncMock()
         
         state = MagicMock(spec=FSMContext)
+        state.get_data = AsyncMock(return_value={
+            "settings": {
+                "reset_session_days": 1,
+                "reset_session_hours": 6
+            },
+            "last_action_date_time": "2025-05-20T12:00:00"
+        })
         
         # Создаем пользовательский state
         user_word_state_mock = MagicMock()

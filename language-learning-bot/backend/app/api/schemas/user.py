@@ -70,6 +70,8 @@ class UserLanguageSettingsBase(BaseModel):
     show_hint_phoneticsound: bool = Field(default=True, description="Show phonetic sound hint buttons")
     show_hint_writing: bool = Field(default=True, description="Show writing hint buttons")
     receive_messages: bool = Field(default=True, description="Receive messages")
+    reset_session_days: int = Field(default=1, description="Number of days to reset session")
+    reset_session_hours: int = Field(default=6, description="Number of hours to reset session")
 
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
@@ -95,7 +97,9 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_hint_writing: Optional[bool] = Field(None, description="Show writing hint buttons")
     show_short_captions: Optional[bool] = Field(None, description="Show short captions")
     receive_messages: Optional[bool] = Field(None, description="Receive messages")
-    
+    reset_session_days: Optional[int] = Field(None, description="Number of days to reset session")
+    reset_session_hours: Optional[int] = Field(None, description="Number of hours to reset session")
+
 class UserLanguageSettings(UserLanguageSettingsBase):
     """Schema for user language settings response."""
     id: str

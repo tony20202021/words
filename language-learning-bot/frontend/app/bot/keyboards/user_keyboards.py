@@ -75,6 +75,7 @@ def create_welcome_keyboard(has_error: bool = False):
     return builder.as_markup()
 
 def create_settings_keyboard(
+    start_word: int = 1,
     skip_marked: bool = False,
     use_check_date: bool = True,
     show_debug: bool = False,
@@ -84,12 +85,15 @@ def create_settings_keyboard(
     hint_settings: Optional[Dict[str, bool]] = None,
     show_writing_images: bool = False,
     receive_messages: bool = True,
+    reset_session_days: int = 1,
+    reset_session_hours: int = 6,
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for user settings with individual hint settings and writing images.
     UPDATED: Removed hieroglyphic language restrictions - writing images shown based on user setting only.
     
     Args:
+        start_word: Starting word number
         skip_marked: Whether to skip marked words
         use_check_date: Whether to use check date
         show_debug: Whether to show debug info
@@ -114,7 +118,7 @@ def create_settings_keyboard(
 
     # Basic settings buttons
     builder.add(InlineKeyboardButton(
-        text="🔢 Изменить начальное слово",
+        text=f"🔢 Изменить начальное слово: {start_word}",
         callback_data=CallbackData.SETTINGS_START_WORD
     ))
     
@@ -172,6 +176,19 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{receive_messages_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_RECEIVE_MESSAGES
+    ))
+    
+    # Reset session setting
+    reset_session_days_text = f"🔢 Сброс сессии (дни): {reset_session_days}"
+    builder.add(InlineKeyboardButton(
+        text=f"{reset_session_days_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_RESET_SESSION_DAYS
+    ))
+
+    reset_session_hours_text = f"🔢 Сброс сессии (часы): {reset_session_hours}"
+    builder.add(InlineKeyboardButton(
+        text=f"{reset_session_hours_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_RESET_SESSION_HOURS
     ))
     
     # Set layout: one button per row
