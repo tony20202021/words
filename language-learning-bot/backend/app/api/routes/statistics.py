@@ -412,14 +412,12 @@ async def get_words_for_review(
     return words
 
 
-# ===== НОВЫЕ АДМИНИСТРАТИВНЫЕ ЭНДПОИНТЫ =====
-
 @router.get("/admin/statistics/integrity", response_model=Dict[str, Any])
 async def get_statistics_integrity_report(
     statistics_service: StatisticsService = Depends(get_statistics_service)
 ):
     """
-    НОВЫЙ АДМИНИСТРАТИВНЫЙ ЭНДПОИНТ: Получить отчет о целостности данных статистики.
+    Получить отчет о целостности данных статистики.
     Показывает количество и процент мертвых ссылок.
     
     Returns:
@@ -477,7 +475,7 @@ async def get_statistics_health(
     statistics_service: StatisticsService = Depends(get_statistics_service)
 ):
     """
-    НОВЫЙ АДМИНИСТРАТИВНЫЙ ЭНДПОИНТ: Комплексная проверка здоровья системы статистики.
+    Комплексная проверка здоровья системы статистики.
     
     Returns:
         Комплексный отчет о состоянии статистики

@@ -204,6 +204,7 @@ async def cmd_status(message: Message, state: FSMContext):
     """
     current_state = await state.get_state()
     state_data = await state.get_data()
+    db_user_id = state_data.get('db_user_id', None)
     
     # Test API connection
     api_client = get_api_client_from_bot(message.bot)
@@ -217,8 +218,8 @@ async def cmd_status(message: Message, state: FSMContext):
     status_text = (
         f"📊 **Статус системы:**\n\n"
         f"🔗 API соединение: {api_status}\n"
-        f"🎯 Текущее состояние: {current_state or 'Нет'}\n"
-        f"👤 Пользователь в БД: {'✅' if state_data.get('db_user_id') else '❌'}\n"
+        f"🎯 Текущее состояние: {current_state or 'None'}\n"
+        f"👤 Пользователь в БД: {db_user_id if db_user_id else '❌'}\n"
         f"🌐 Выбранный язык: {state_data.get('current_language', {}).get('name_ru', 'Не выбран')}\n\n"
         f"Используйте /help для получения списка команд."
     )

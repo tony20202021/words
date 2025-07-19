@@ -147,10 +147,10 @@ def create_application() -> FastAPI:
     app.include_router(users.router, prefix=api_prefix)
     app.include_router(words.router, prefix=api_prefix)
     app.include_router(statistics.router, prefix=api_prefix)
-    app.include_router(user_language_settings_router, prefix="/api")
+    app.include_router(user_language_settings_router, prefix=api_prefix)
 
     # Add health check endpoint
-    @app.get("/health", tags=["health"])
+    @app.get(f"{api_prefix}/health", tags=["health"])
     async def health_check():
         """Health check endpoint that always returns 200 OK."""
         return {
