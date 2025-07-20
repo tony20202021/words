@@ -36,7 +36,7 @@ class TestUserKeyboards:
             all_buttons.extend(row)
         
         # Verify button count
-        assert len(all_buttons) == 12, "Should contain 12 buttons"
+        assert len(all_buttons) == 13, "Should contain 13 buttons"
         
         # Verify each button contains expected text
         button_texts = [button.text for button in all_buttons]

@@ -280,9 +280,6 @@ def create_word_details_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard specifically for viewing word details state.
-    UPDATED: Uses individual hint settings and includes word image button.
-    UPDATED: Added admin edit button for administrators.
-    UPDATED: Added writing image button - controlled by user settings only.
     
     Args:
         word: Word data

@@ -53,7 +53,6 @@ class UserLanguage(BaseModel):
     progress_percentage: float = 0.0
 
 
-# НОВОЕ: Схемы для настроек языка пользователя
 class UserLanguageSettingsBase(BaseModel):
     """Base schema for user language settings."""
     start_word: int = Field(default=1, ge=1, description="Starting word number")
@@ -64,7 +63,6 @@ class UserLanguageSettingsBase(BaseModel):
     show_big: bool = Field(default=False, description="Show big word")
     show_writing_images: bool = Field(default=True, description="Show writing images")
     show_short_captions: bool = Field(default=True, description="Show short captions")
-    # НОВОЕ: Индивидуальные настройки подсказок
     show_hint_meaning: bool = Field(default=True, description="Show meaning hint buttons")
     show_hint_phoneticassociation: bool = Field(default=True, description="Show phonetic association hint buttons")
     show_hint_phoneticsound: bool = Field(default=True, description="Show phonetic sound hint buttons")
@@ -72,6 +70,7 @@ class UserLanguageSettingsBase(BaseModel):
     receive_messages: bool = Field(default=True, description="Receive messages")
     reset_session_days: int = Field(default=1, description="Number of days to reset session")
     reset_session_hours: int = Field(default=6, description="Number of hours to reset session")
+    unknown_limit_new_words: int = Field(default=10, description="Number of unknown words to learn per day")
 
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
@@ -90,7 +89,6 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_big: Optional[bool] = Field(None, description="Show big word")
     show_writing_images: Optional[bool] = Field(None, description="Show writing images")
 
-    # НОВОЕ: Индивидуальные настройки подсказок
     show_hint_meaning: Optional[bool] = Field(None, description="Show meaning hint buttons")
     show_hint_phoneticassociation: Optional[bool] = Field(None, description="Show phonetic association hint buttons")
     show_hint_phoneticsound: Optional[bool] = Field(None, description="Show phonetic sound hint buttons")  
@@ -99,6 +97,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     receive_messages: Optional[bool] = Field(None, description="Receive messages")
     reset_session_days: Optional[int] = Field(None, description="Number of days to reset session")
     reset_session_hours: Optional[int] = Field(None, description="Number of hours to reset session")
+    unknown_limit_new_words: Optional[int] = Field(None, description="Number of unknown words to learn per day")
 
 class UserLanguageSettings(UserLanguageSettingsBase):
     """Schema for user language settings response."""
@@ -114,7 +113,7 @@ class UserLanguageSettingsInDB(UserLanguageSettings):
     pass
 
 
-# НОВОЕ: Схемы для миграции настроек
+# Схемы для миграции настроек
 class LegacySettingsUpdate(BaseModel):
     """Schema for updating legacy settings during migration."""
     show_hints: bool = Field(description="Legacy show hints setting")
@@ -128,7 +127,6 @@ class SettingsMigrationResponse(BaseModel):
     message: str
 
 
-# НОВОЕ: Схемы для статистики настроек
 class HintSettingsStats(BaseModel):
     """Schema for hint settings statistics."""
     total_users: int
@@ -159,7 +157,7 @@ class UserSettingsSummary(BaseModel):
     least_used_hint_types: List[str]
 
 
-# НОВОЕ: Схемы для валидации настроек
+# Схемы для валидации настроек
 class SettingsValidationError(BaseModel):
     """Schema for settings validation error."""
     field: str
@@ -176,7 +174,7 @@ class SettingsValidationResponse(BaseModel):
     corrected_settings: Optional[Dict[str, Any]] = None
 
 
-# НОВОЕ: Схемы для экспорта/импорта настроек
+# Схемы для экспорта/импорта настроек
 class UserSettingsExport(BaseModel):
     """Schema for exporting user settings."""
     user_id: str

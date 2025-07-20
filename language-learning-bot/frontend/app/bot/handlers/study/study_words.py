@@ -98,6 +98,11 @@ async def show_study_word(
     
     current_state = await state.get_state()
     score_changed = (current_state == StudyStates.confirming_word_knowledge.state)
+    progress = state_data.get("progress", {})
+
+    words_studied = progress.get('words_studied', 0)
+    words_for_today = progress.get('words_for_today', 0)
+    session_processed = user_word_state.get_session_info().get('total_words_processed', 0)
 
     # Format the main message
     message_text = format_study_word_message(
@@ -114,7 +119,10 @@ async def show_study_word(
         word_foreign=word_foreign,
         transcription=transcription,
         show_big=show_big,
-        show_check_date=show_check_date
+        show_check_date=show_check_date,
+        words_studied=words_studied,
+        words_for_today=words_for_today,
+        session_processed=session_processed,
     )
     
     if (current_state == StudyStates.confirming_word_knowledge.state):
@@ -319,8 +327,6 @@ async def _get_debug_info(
 ) -> str:
     """
     Get debug information for display.
-    UPDATED: Uses centralized debug utilities, includes hint settings.
-    UPDATED: Added admin status and writing images setting to debug info.
     
     Args:
         state: FSM state context

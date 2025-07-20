@@ -75,6 +75,7 @@ def format_settings_text(
     receive_messages=True,
     reset_session_days=1,
     reset_session_hours=6,
+    unknown_limit_new_words=10,
     prefix="", 
     suffix=""
 ):
@@ -146,6 +147,9 @@ def format_settings_text(
     settings_text += f"   • дни: <b>{reset_session_days}</b>\n"
     settings_text += f"   • часы: <b>{reset_session_hours}</b>\n"
 
+    # Статус лимита новых слов
+    settings_text += f"🔄 Лимит неизвестных слов: <b>{unknown_limit_new_words}</b>\n"
+
     # Добавляем суффикс
     if suffix:
         settings_text += suffix
@@ -166,11 +170,13 @@ def format_study_word_message(
     word_foreign=None,
     transcription=None,
     show_big=False,
-    show_check_date=True
+    show_check_date=True,
+    words_studied=0,
+    words_for_today=0,
+    session_processed=0,
 ):
     """
     Форматирует сообщение для отображения слова в процессе изучения.
-    UPDATED: Added clickable link for word enlargement when word is shown.
     
     Args:
         language_name_ru: Название языка на русском
@@ -187,15 +193,26 @@ def format_study_word_message(
         transcription: Транскрипция слова
         show_big: Показывать ли большое слово
         show_check_date: Показывать ли дату проверки
+        words_studied: Количество слов, изученных в сессии
+        words_for_today: Количество слов на текущую сессию
+        session_processed: Количество слов, обработанных в сессии
     Returns:
         str: Отформатированное сообщение
     """
-    message = (
-        f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
-        f"Слово номер: <b>{word_number}</b>\n\n" 
-    )
+    message = f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
+    message += f"Слово номер: <b>{word_number}</b>\n" 
     
-    # Добавляем информацию о статусе пропуска - исправлено условие
+    if word_number == words_studied:
+        message += f"(завершающее из изученых: {words_studied})\n\n"
+    elif word_number > words_studied:
+        message += f"(новое слово, изучается первый раз)\n\n"
+    else:
+        if show_word:
+            message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n\n"
+        else:
+            message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n\n"
+    
+    # Добавляем информацию о статусе пропуска
     if is_skipped:
         message += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n\n"
     

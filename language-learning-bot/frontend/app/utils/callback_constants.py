@@ -17,7 +17,6 @@ class CallbackData:
     
     # User word actions
     WORD_KNOW = "word_know"
-    WORD_DONT_KNOW = "word_dont_know"
     SHOW_WORD = "show_word"
     NEXT_WORD = "next_word"
     CONFIRM_NEXT_WORD = "confirm_next_word"
@@ -59,8 +58,9 @@ class CallbackData:
     SETTINGS_TOGGLE_RECEIVE_MESSAGES = "settings_toggle_receive_messages"
     SETTINGS_TOGGLE_RESET_SESSION_DAYS = "settings_toggle_reset_session_days"
     SETTINGS_TOGGLE_RESET_SESSION_HOURS = "settings_toggle_reset_session_hours"
+    SETTINGS_TOGGLE_UNKNOWN_LIMIT_NEW_WORDS = "settings_toggle_unknown_limit_new_words"
     
-    # НОВОЕ: Настройка картинок написания
+    # Настройка картинок написания
     SETTINGS_TOGGLE_WRITING_IMAGES = "settings_toggle_writing_images"
     
     # Language selection
@@ -73,7 +73,7 @@ class CallbackData:
     ADMIN_STATS_CALLBACK = "admin_stats_callback"
     ADMIN_SEND_MESSAGE_TO_ALL = "admin_send_message_to_all"
     
-    # НОВОЕ: Messaging callbacks
+    # Messaging callbacks
     CONFIRM_MESSAGING = "confirm_messaging"
     CANCEL_MESSAGING = "cancel_messaging"
     

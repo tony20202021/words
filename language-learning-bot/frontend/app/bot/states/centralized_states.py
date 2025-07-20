@@ -26,7 +26,8 @@ class SettingsStates(StatesGroup):
     confirming_changes = State()            # Подтверждение изменения настроек
     waiting_reset_session_days = State()    # Ожидание ввода количества дней для сброса сессии
     waiting_reset_session_hours = State()   # Ожидание ввода количества часов для сброса сессии
-
+    waiting_unknown_limit_new_words = State() # Ожидание ввода лимита неизвестных слов
+    
 class StudyStates(StatesGroup):
     """States for the word learning process."""
     studying = State()                      # Основной процесс изучения слов

@@ -1,9 +1,5 @@
 """
 Settings handlers for Language Learning Bot.
-UPDATED: Support for individual hint settings management.
-UPDATED: Added writing images settings toggle.
-UPDATED: Removed hieroglyphic language restrictions - writing images controlled by user settings only.
-FIXED: Removed code duplication, improved architecture, separated concerns.
 """
 
 from aiogram import Router, F
@@ -103,7 +99,6 @@ async def process_settings(message_or_callback: Message, state: FSMContext):
         state=state,
         prefix="",
         suffix=suffix,
-        is_callback=False
     )
 
 @settings_router.callback_query(lambda c: is_hint_setting_callback(c.data))
@@ -151,7 +146,6 @@ async def process_hint_setting_toggle(callback: CallbackQuery, state: FSMContext
             state=state,
             prefix=f"✅ Настройка «{setting_name}» {status_text}!\n\n",
             suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
-            is_callback=True
         )
     else:
         await callback.answer("❌ Ошибка изменения настройки")
@@ -192,7 +186,6 @@ async def process_writing_images_setting_toggle(callback: CallbackQuery, state: 
             state=state,
             prefix=f"✅ Настройка «Картинки написания» {status_text}!\n\n",
             suffix="\n\n💡 Нажмите на кнопку, чтобы изменить настройку.",
-            is_callback=True
         )
     else:
         await callback.answer("❌ Ошибка изменения настройки картинок написания")
@@ -243,7 +236,6 @@ async def cmd_cancel_start_word(message: Message, state: FSMContext):
         message_or_callback=message,
         state=state,
         prefix="⚙️ <b>Настройки обучения</b>\n\n",
-        is_callback=False
     )
 
 @settings_router.message(SettingsStates.waiting_start_word)
@@ -282,7 +274,6 @@ async def process_start_word_input(message: Message, state: FSMContext):
                 message_or_callback=message,
                 state=state,
                 prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
-                is_callback=False
             )
         else:
             await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
@@ -438,7 +429,6 @@ async def _handle_boolean_toggle(
                 message_or_callback=callback,
                 state=state,
                 prefix="⚙️ <b>Настройки обучения</b>\n\n",
-                is_callback=True
             )
         else:
             await callback.answer("❌ Ошибка изменения настройки")
@@ -488,7 +478,6 @@ async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, 
             message_or_callback=callback,
             state=state,
             prefix="⚙️ <b>Настройки обучения</b>\n\n",
-            is_callback=True
         )
     else:
         await callback.answer("❌ Ошибка изменения настроек")
@@ -538,7 +527,6 @@ async def cmd_cancel_reset_session_days(message: Message, state: FSMContext):
         message_or_callback=message,
         state=state,
         prefix="⚙️ <b>Настройки обучения</b>\n\n",
-        is_callback=False
     )
 
 @settings_router.message(SettingsStates.waiting_reset_session_days)
@@ -576,7 +564,6 @@ async def process_reset_session_days_input(message: Message, state: FSMContext):
                 message_or_callback=message,
                 state=state,
                 prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
-                is_callback=False
             )
         else:
             await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
@@ -633,7 +620,6 @@ async def cmd_cancel_reset_session_hours(message: Message, state: FSMContext):
         message_or_callback=message,
         state=state,
         prefix="⚙️ <b>Настройки обучения</b>\n\n",
-        is_callback=False
     )
 
 @settings_router.message(SettingsStates.waiting_reset_session_hours)
@@ -671,7 +657,6 @@ async def process_reset_session_hours_input(message: Message, state: FSMContext)
                 message_or_callback=message,
                 state=state,
                 prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
-                is_callback=False
             )
         else:
             await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
@@ -683,6 +668,98 @@ async def process_reset_session_hours_input(message: Message, state: FSMContext)
             parse_mode="HTML"
         )
 
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_UNKNOWN_LIMIT_NEW_WORDS)
+async def process_settings_unknown_limit_new_words(callback: CallbackQuery, state: FSMContext):
+    """
+    Handle unknown limit new words setting change.
+    """
+    logger.info(f"Unknown limit new words setting from {callback.from_user.full_name}")
+    
+    # Validate language selection
+    current_language = await validate_language_selected(state, callback)
+    if not current_language:
+        return
+    
+    await state.set_state(SettingsStates.waiting_unknown_limit_new_words)
+    
+    await callback.message.answer(
+        "🔢 <b>Изменение лимита неизвестных слов</b>\n\n"
+        "Введите количество новых слов, которые хотите изучать в день.\n\n"
+        "Например: <code>1</code> - оставлять не более 1 неизвестного слова\n"
+        "Например: <code>100</code> - оставлять не более 100 неизвестных слов\n\n"
+        "Или отправьте /cancel для отмены.",
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+
+@settings_router.message(Command("cancel"), SettingsStates.waiting_unknown_limit_new_words, flags={"priority": 100})   # высокий приоритет
+async def cmd_cancel_unknown_limit_new_words(message: Message, state: FSMContext):
+    """
+    Handle the /cancel command to abort unknown limit new words setting.
+    """
+    logger.info(f"Cancel unknown limit new words command received from {message.from_user.full_name}")
+    
+    await message.answer(
+        "✅ Ввод отменен\n\n"
+    )
+    
+    # Return to settings view
+    await state.set_state(SettingsStates.viewing_settings)
+    
+    # Show updated settings
+    await display_language_settings(
+        message_or_callback=message,
+        state=state,
+        prefix="⚙️ <b>Настройки обучения</b>\n\n",
+    )
+
+@settings_router.message(SettingsStates.waiting_unknown_limit_new_words)
+async def process_unknown_limit_new_words_input(message: Message, state: FSMContext):
+    """
+    Process unknown limit new words input from user.
+    """
+    try:
+        unknown_limit_new_words = int(message.text.strip())
+        
+        # Validate input range
+        if unknown_limit_new_words < 1:
+            await message.answer("❌ Лимит неизвестных слов должно быть больше 0. Попробуйте еще раз.")
+            return
+        
+        if unknown_limit_new_words > 50000:  # Increased reasonable limit
+            await message.answer("❌ Лимит неизвестных слов слишком большой. Максимум: 50000. Попробуйте еще раз.")
+            return
+        
+        # Get and update settings
+        success = await _update_setting(message, state, "unknown_limit_new_words", unknown_limit_new_words)
+        
+        if success:
+            await message.answer(
+                f"✅ Лимит неизвестных слов изменен на: <b>{unknown_limit_new_words}</b>\n\n"
+                "Теперь вы будете оставлять не более этого количества неизвестных слов.",
+                parse_mode="HTML"
+            )
+            
+            # Return to settings view
+            await state.set_state(SettingsStates.viewing_settings)
+            
+            # Show updated settings
+            await display_language_settings(
+                message_or_callback=message,
+                state=state,
+                prefix="⚙️ <b>Обновленные настройки обучения</b>\n\n",
+            )
+        else:
+            await message.answer("❌ Ошибка сохранения настройки. Попробуйте позже.")
+            
+    except ValueError:
+        await message.answer(
+            "❌ Введите корректное количество неизвестных слов (число).\n\n"
+            "Например: <code>1</code> или <code>100</code>",
+            parse_mode="HTML"
+        )
 
 
 # Export router

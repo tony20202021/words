@@ -1,9 +1,6 @@
 """
 Handlers for word display actions during the study process.
 Обработчики для отображения слов в процессе изучения.
-UPDATED: Added writing image support.
-UPDATED: Removed hieroglyphic language restrictions - controlled by user settings only.
-UPDATED: Replaced local generator with real service client.
 """
 
 import io
@@ -82,6 +79,7 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     # Mark word as processed and set flags
     user_word_state.set_current_word(current_word)
     user_word_state.set_flag("word_shown", True)
+    user_word_state.mark_word_as_processed()
     
     # Save state and transition
     await user_word_state.save_to_state(state)

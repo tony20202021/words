@@ -16,7 +16,6 @@ from app.utils.formatting_utils import format_settings_text
 
 logger = setup_logger(__name__)
 
-# UPDATED: Default settings now include individual hint settings and writing images
 DEFAULT_SETTINGS = {
     "start_word": 1,
     "skip_marked": True,
@@ -33,6 +32,7 @@ DEFAULT_SETTINGS = {
     "receive_messages": True,
     "reset_session_days": 1,
     "reset_session_hours": 6,
+    "unknown_limit_new_words": 10,
 }
 
 async def get_user_language_settings(message_or_callback, state: FSMContext) -> Dict[str, Any]:
@@ -166,11 +166,9 @@ async def display_language_settings(
     state: FSMContext, 
     prefix: str = "", 
     suffix: str = "", 
-    is_callback: bool = False
 ):
     """
     Display user's language settings with individual hint settings and writing images.
-    UPDATED: Uses individual hint settings and writing images display.
     
     Args:
         message_or_callback: Message or CallbackQuery object
@@ -201,7 +199,8 @@ async def display_language_settings(
     receive_messages = settings.get("receive_messages", DEFAULT_SETTINGS["receive_messages"])
     reset_session_days = settings.get("reset_session_days", DEFAULT_SETTINGS["reset_session_days"])
     reset_session_hours = settings.get("reset_session_hours", DEFAULT_SETTINGS["reset_session_hours"])
-    
+    unknown_limit_new_words = settings.get("unknown_limit_new_words", DEFAULT_SETTINGS["unknown_limit_new_words"])
+
     # Get language info
     state_data = await state.get_data()
     current_language = state_data.get("current_language", {})
@@ -244,7 +243,8 @@ async def display_language_settings(
         show_writing_images=show_writing_images,
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
-        reset_session_hours=reset_session_hours
+        reset_session_hours=reset_session_hours,
+        unknown_limit_new_words=unknown_limit_new_words,
     )
     
     # Format settings text with individual hint settings and writing images
@@ -261,6 +261,7 @@ async def display_language_settings(
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
         reset_session_hours=reset_session_hours,
+        unknown_limit_new_words=unknown_limit_new_words,
         prefix=language_prefix, 
         suffix=suffix,
     )

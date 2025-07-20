@@ -40,25 +40,101 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         return
     
     state_data = await state.get_data()
+
     settings = state_data.get("settings", {})
+
+    # перезапуск сессии
     last_action_date_time = state_data.get("last_action_date_time", None)
     logger.info(f"last_action_date_time: {last_action_date_time}")
 
     if last_action_date_time is not None:
         last_action_date_time = datetime.fromisoformat(last_action_date_time)
 
-        delta_days = (datetime.now() - last_action_date_time).days
+        delta_days = (datetime.now().date() - last_action_date_time.date()).days
         delta_hours = (datetime.now() - last_action_date_time).seconds // 3600
 
         reset_session_days = settings.get("reset_session_days", 1)
         reset_session_hours = settings.get("reset_session_hours", 6)
 
+        logger.info(f"delta_days: {delta_days}, delta_hours: {delta_hours}")
+        logger.info(f"reset_session_days: {reset_session_days}, reset_session_hours: {reset_session_hours}")
+
         if (delta_days >= reset_session_days) and (delta_hours >= reset_session_hours):
-            await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /start и повторить слова с начала.")
+            await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /study и повторить слова с начала.")
 
     last_action_date_time = datetime.now().isoformat()
     await state.update_data(last_action_date_time=last_action_date_time)
     logger.info(f"new last_action_date_time: {last_action_date_time}")
+
+    # переход к новым словам
+    progress = state_data.get("progress", {})
+
+    words_studied = progress.get('words_studied', 0)
+    logger.info(f"words_studied: {words_studied}")
+
+    current_word_number = user_word_state.word_data.get('word_number', None)
+    logger.info(f"current_word_number: {current_word_number}")
+    
+    if (current_word_number is not None) and (current_word_number >= words_studied):
+        # Получаем клиент API с помощью утилиты
+        api_client = get_api_client_from_bot(callback.bot)
+        
+        # Получение данных состояния
+        state_data = await state.get_data()
+        db_user_id = state_data.get("db_user_id", None)
+        logger.info(f"db_user_id: {db_user_id}")
+        
+        current_language = state_data.get("current_language", {})
+        language_id = current_language.get("id")
+        logger.info(f"language_id: {language_id}")
+
+        api_response = await api_client.get_user_progress(db_user_id, language_id)
+
+        if not api_response['success'] and api_response['status'] == 404:
+            # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
+            # Используем пустые значения прогресса
+            progress = {
+                "words_studied": 0,
+                "words_known": 0,
+                "words_skipped": 0,
+                "total_words": 0,
+                "words_for_today": 0,
+                "progress_percentage": 0
+            }
+        else:
+            progress = api_response['result']
+
+        await state.update_data(
+            progress=progress,
+        )
+
+        unknown_count = progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)
+        unknown_limit_new_words = settings.get("unknown_limit_new_words", 10)
+        logger.info(f"unknown_count: {unknown_count}, unknown_limit_new_words: {unknown_limit_new_words}")
+
+        if (unknown_count >= unknown_limit_new_words):
+            await callback.message.answer(
+                f"Осталось неизвестных слов: {unknown_count}\n" +
+                f"Лимит неизвестных слов: {unknown_limit_new_words}\n\n" +
+                "Перед изучением новых слов - рекомендуется перезапустить сессию командой /study и повторить слова с начала."
+            )
+        else:
+            if (unknown_count == 0):
+                await callback.message.answer(
+                    f"Поздравляем!\n" +
+                    f"Вы выучили все пройденные слова: {progress.get('words_studied', 0)} (пропущенных: {progress.get('words_skipped', 0)})\n" +
+                    "Так держать! Продолжайте в том же духе!"
+                )
+            else:
+                await callback.message.answer(
+                    f"Вы переходите к новому слову\n" +
+                    f"Текущая статистика:\n" +
+                    f"* Изучено: {progress.get('words_studied', 0)}\n" +
+                    f"* Известных: {progress.get('words_known', 0)}\n" +
+                    f"* Неизвестных: {unknown_count}\n" +
+                    f"* Пропущенных: {progress.get('words_skipped', 0)}\n" +
+                    f"Лимит неизвестных слов: {unknown_limit_new_words}\n"
+                )
 
     # Try to advance to next word
     if user_word_state.advance_to_next_word():

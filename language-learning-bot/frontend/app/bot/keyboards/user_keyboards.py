@@ -1,9 +1,5 @@
 """
 User keyboards for Language Learning Bot.
-UPDATED: Support for individual hint settings in user interface.
-UPDATED: Added writing images settings.
-UPDATED: Removed hieroglyphic language restrictions - writing images are controlled by user settings only.
-FIXED: Proper separation of keyboard creation from handlers.
 """
 
 from typing import Dict, List, Optional
@@ -87,6 +83,7 @@ def create_settings_keyboard(
     receive_messages: bool = True,
     reset_session_days: int = 1,
     reset_session_hours: int = 6,
+    unknown_limit_new_words: int = 10,
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for user settings with individual hint settings and writing images.
@@ -189,6 +186,13 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{reset_session_hours_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_RESET_SESSION_HOURS
+    ))
+    
+    # Unknown limit new words setting
+    unknown_limit_new_words_text = f"🔢 Лимит неизвестных слов: {unknown_limit_new_words}"
+    builder.add(InlineKeyboardButton(
+        text=f"{unknown_limit_new_words_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_UNKNOWN_LIMIT_NEW_WORDS
     ))
     
     # Set layout: one button per row

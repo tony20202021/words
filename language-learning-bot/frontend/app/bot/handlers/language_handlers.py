@@ -327,6 +327,10 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
 
         await callback.message.answer(f"Получен прогресс по языку {language.get('name_ru')}")
 
+    await state.update_data(
+        progress=progress,
+    )
+
     # Загружаем настройки пользователя для выбранного языка
     settings = await get_user_language_settings(callback, state)
     
@@ -358,6 +362,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         receive_messages=settings.get("receive_messages", True),
         reset_session_days=settings.get("reset_session_days", 1),
         reset_session_hours=settings.get("reset_session_hours", 6),
+        unknown_limit_new_words=settings.get("unknown_limit_new_words", 10),
         prefix=settings_prefix,
     )
     keyboard = create_language_selected_keyboard()
@@ -380,7 +385,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"- Пропущено слов: {progress.get('words_skipped', 0)}\n"
         f"- Известно слов: {progress.get('words_known', 0)}\n"
         f"- Неизвестно слов: {progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)}\n"
-        f"- Слов на сегодня: {progress.get('words_for_today', 0)}\n"
+        f"- Слов на текущую сессию: {progress.get('words_for_today', 0)}\n"
         f"- Всего слов: {progress.get('total_words', 0)}\n"
         f"Прогресс изучено/всего: {progress_studied_total:.1f}%\n"
         f"Прогресс известно/изучено: {progress_known_studied:.1f}%\n\n",

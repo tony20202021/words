@@ -31,7 +31,6 @@ class UserWordState:
         study_words=None,
         study_settings=None,
         flags=None,
-        # НОВОЕ: Поля для работы с партиями
         batch_info={},
         session_info={},
     ):
@@ -60,7 +59,7 @@ class UserWordState:
         self.study_settings = study_settings or {}
         self.flags = flags or {}
 
-        # НОВОЕ: Счетчики для партий
+        # Счетчики для партий
         self.batch_info = batch_info
         self.session_info = session_info
         
@@ -160,7 +159,6 @@ class UserWordState:
     def advance_to_next_word(self) -> bool:
         """
         Перейти к следующему слову в текущей партии.
-        ОБНОВЛЕНО: Не увеличивает общий счетчик обработанных слов - это делается отдельно.
         
         Returns:
             bool: True если успешно перешли к следующему слову, иначе False
@@ -225,6 +223,8 @@ class UserWordState:
         Отметить текущее слово как обработанное.
         Увеличивает счетчик обработанных слов в сессии.
         """
+        logger.info(f"UserWordState.mark_word_as_processed: word_processed={self.get_flag('word_processed', False)}")
+
         if not self.get_flag('word_processed', False):
             self.session_info['total_words_processed'] += 1
             self.set_flag('word_processed', True)
@@ -336,15 +336,6 @@ class UserWordState:
         """
         if flag_name in self.flags:
             del self.flags[flag_name]
-
-    def clear_word_flags(self):
-        """Clear all word-specific flags."""
-        word_flags = [
-            'word_shown', 'used_hints', 'active_hints', 
-            'pending_word_know', 'pending_next_word', 'word_processed'
-        ]
-        for flag in word_flags:
-            self.remove_flag(flag)
 
     def get_used_hints(self) -> List[str]:
         """
