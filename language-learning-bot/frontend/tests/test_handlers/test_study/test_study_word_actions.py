@@ -98,25 +98,41 @@ class TestStudyWordActions:
                 "reset_session_days": 1,
                 "reset_session_hours": 6
             },
-            "last_action_date_time": "2025-05-20T12:00:00"
+            "last_action_date_time": "2025-05-20T12:00:00",
+            "progress": {
+                "words_studied": 10,
+                "words_known": 5,
+                "words_skipped": 3,
+                "total_words": 18,
+            }
         })
         
         # Создаем пользовательский state
+        word_data_mock = MagicMock()
+        word_data_mock.get = MagicMock(return_value=10)
         user_word_state_mock = MagicMock()
         user_word_state_mock.is_valid.return_value = True
         user_word_state_mock.advance_to_next_word = MagicMock(return_value=True)
         user_word_state_mock.save_to_state = AsyncMock()
+        user_word_state_mock.word_data = word_data_mock
         user_word_state_from_state_mock = AsyncMock(return_value=user_word_state_mock)
         
         # Моки для других функций
         show_study_word_mock = AsyncMock()
-        
+
+        _update_progress_mock = AsyncMock(return_value={
+            "words_studied": 10,
+            "words_known": 5,
+            "words_skipped": 3,
+        })
+
         # Патчим зависимости
         import app.bot.handlers.study.word_actions.word_navigation_actions as word_navigation_actions_module
         from app.bot.states.centralized_states import StudyStates
 
         with patch('app.utils.state_models.UserWordState.from_state', user_word_state_from_state_mock), \
             patch('app.bot.handlers.study.word_actions.word_navigation_actions.show_study_word', show_study_word_mock), \
+            patch('app.bot.handlers.study.word_actions.word_navigation_actions._update_progress', _update_progress_mock), \
             patch('app.bot.handlers.study.word_actions.word_navigation_actions.logger'):
             
             # Вызываем тестируемую функцию

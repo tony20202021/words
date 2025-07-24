@@ -310,11 +310,21 @@ def setup_statistics_api_mock(api_client: AsyncMock):
             },
             "error": None
         }
+
+    # Переопределение метода для получения настроек
+    async def get_user_language_settings(user_id, language_id):
+        return {
+            "success": True,
+            "status": 200,
+            "result": {"start_word": 1, "skip_marked": False, "use_check_date": True, "show_hints": True, "show_debug": False, "reset_session_days": 1, "reset_session_hours": 6},
+            "error": None
+        }
     
     # Применяем кастомные методы
     api_client.update_user_word_data.side_effect = dynamic_update_word_data
     api_client.get_user_progress.side_effect = dynamic_get_user_progress
-
+    api_client.get_user_language_settings.side_effect = get_user_language_settings
+    
 # Существующие тесты
 @pytest.mark.asyncio
 async def test_start_help_settings_scenario():

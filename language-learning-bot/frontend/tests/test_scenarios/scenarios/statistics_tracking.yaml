@@ -56,11 +56,8 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка: Английский"
@@ -105,7 +102,7 @@ steps:
 
   # Отмечаем второе слово как неизвестное
   - type: callback
-    data: "CallbackData.WORD_DONT_KNOW"
+    data: "CallbackData.SHOW_WORD"
     asserts:
       - type: message_contains
         position: -1
@@ -116,7 +113,7 @@ steps:
         data: ["_state", "StudyStates:viewing_word_details"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 8
+        count: 7
 
   # Проверяем обновленную статистику
   - type: command

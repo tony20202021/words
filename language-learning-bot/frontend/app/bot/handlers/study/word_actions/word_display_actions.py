@@ -47,12 +47,14 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     
     if not user_word_state.is_valid() or not user_word_state.has_more_words():
         await callback.answer("❌ Нет активного слова для показа")
+        logger.error(f"Invalid user_word_state: {user_word_state}")
         return
     
     # Get current word
     current_word = user_word_state.get_current_word()
     if not current_word:
         await callback.answer("❌ Ошибка получения текущего слова")
+        logger.error(f"No current word: {current_word}")
         return
     
     # Update word score using centralized utility
@@ -67,6 +69,7 @@ async def process_show_word(callback: CallbackQuery, state: FSMContext):
     
     if not success:
         await callback.answer("❌ Ошибка обновления оценки слова")
+        logger.error(f"Error updating word score: {result}")
         return
 
     # Update local word data

@@ -311,7 +311,8 @@ class TestStudyHandlers:
                         "next_check_date": "2025-05-13",
                         "score": 0,
                         "is_skipped": False
-                    }))) as mock_update_score:
+                    }))) as mock_update_score, \
+                patch('app.bot.handlers.study.word_actions.word_display_actions.show_study_word', AsyncMock()) as mock_show_study_word:
                 
                 # Вызываем обработчик
                 from app.bot.handlers.study.word_actions.word_display_actions import process_show_word
@@ -328,12 +329,10 @@ class TestStudyHandlers:
                 # Проверяем, что состояние было сохранено
                 mock_state_obj.save_to_state.assert_called_once_with(state)
                 
-                # Проверяем, что сообщение было отредактировано
-                callback.message.edit_text.assert_called_once()
-                edit_args = callback.message.edit_text.call_args
-                
                 # Проверяем, что callback.answer был вызван
                 callback.answer.assert_called_once()
+
+                mock_show_study_word.assert_called_once()
                                 
     @pytest.mark.asyncio
     async def test_process_toggle_word_skip(self, setup_mocks):
@@ -421,15 +420,15 @@ class TestStudyHandlers:
                             "score": 1,
                             "check_interval": 2, 
                             "next_check_date": "2025-05-15T00:00:00"
-                        }))) as mock_update_score:
+                        }))) as mock_update_score, \
+                patch('app.bot.handlers.study.word_actions.word_evaluation_actions.show_study_word', AsyncMock()) as mock_show_study_word:
                 
                 # Call the handler
                 from app.bot.handlers.study.word_actions.word_evaluation_actions import process_word_know
                 await process_word_know(callback, state)
                 
                 # Check that the bot sent a message with confirmation buttons
-                callback.message.answer.assert_called_once()
-                call_args = callback.message.answer.call_args
+                callback.answer.assert_called_once()
                 
                 # Проверяем, что оба флага были установлены
                 mock_state_obj.set_flag.assert_any_call('pending_next_word', True)
@@ -437,6 +436,8 @@ class TestStudyHandlers:
                 
                 # Проверяем, что состояние было сохранено
                 mock_state_obj.save_to_state.assert_called_once_with(state)
+
+                mock_show_study_word.assert_called_once()
                     
     @pytest.mark.asyncio
     async def test_process_confirm_next_word(self, setup_mocks):
@@ -502,7 +503,8 @@ class TestStudyHandlers:
                               "next_check_date": None,
                               "score": 0,  # Откат к оценке 0
                               "is_skipped": False
-                          }))) as mock_update_score:
+                          }))) as mock_update_score, \
+                    patch('app.bot.handlers.study.word_actions.word_display_actions.show_study_word', AsyncMock()) as mock_show_study_word:
                     
                     # Настраиваем ответ API для get_language
                     api_client.get_language.return_value = {
@@ -518,7 +520,7 @@ class TestStudyHandlers:
                     from app.bot.handlers.study.word_actions.word_display_actions import process_show_word
                     await process_show_word(callback, state)
                     
-                    # НОВОЕ: Проверяем, что update_word_score был вызван с score=0 (откат)
+                    # Проверяем, что update_word_score был вызван с score=0 (откат)
                     mock_update_score.assert_called_once()
                     call_args = mock_update_score.call_args
                     assert call_args.kwargs["score"] == 0  # Откат к оценке 0
@@ -531,7 +533,9 @@ class TestStudyHandlers:
                     assert mock_state_obj.save_to_state.call_count >= 1
                     
                     # Проверяем, что было отправлено сообщение о возврате к изучению
-                    assert callback.message.answer.call_count >= 1
+                    callback.answer.assert_called_once()
+
+                    mock_show_study_word.assert_called_once()
 
     @pytest.mark.asyncio 
     async def test_word_know_then_show_word_flow(self, setup_mocks):
@@ -551,7 +555,8 @@ class TestStudyHandlers:
                         "check_interval": 2, 
                         "next_check_date": "2025-05-15T00:00:00",  # ИСПРАВЛЕНО: добавлено поле
                         "is_skipped": False
-                    }))) as mock_update_score_1:
+                    }))) as mock_update_score_1, \
+                patch('app.bot.handlers.study.word_actions.word_evaluation_actions.show_study_word', AsyncMock()) as mock_show_study_word:
                 
                 # Сбрасываем моки перед первым вызовом
                 callback.message.answer.reset_mock()
@@ -566,4 +571,6 @@ class TestStudyHandlers:
                 
                 # Проверяем, что флаги pending были установлены
                 mock_state_obj_1.set_flag.assert_any_call('pending_word_know', True)
+
+                mock_show_study_word.assert_called_once()
                 

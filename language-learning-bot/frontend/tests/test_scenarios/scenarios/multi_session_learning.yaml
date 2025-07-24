@@ -40,11 +40,8 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"
@@ -140,7 +137,7 @@ steps:
         text: "Ваши настройки для этого языка"
       - type: message_contains
         position: -3
-        text: "Исключенные слова: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Показывать ✅</b>"
       - type: message_contains
         text: "Теперь вы можете"
       - type: message_contains

@@ -21,6 +21,42 @@ logger = setup_logger(__name__)
 # Создаем роутер для навигационных действий
 navigation_router = Router()
 
+async def _update_progress(callback: CallbackQuery, state: FSMContext):
+    # Получаем клиент API с помощью утилиты
+    api_client = get_api_client_from_bot(callback.bot)
+    
+    # Получение данных состояния
+    state_data = await state.get_data()
+    db_user_id = state_data.get("db_user_id", None)
+    logger.info(f"db_user_id: {db_user_id}")
+    
+    current_language = state_data.get("current_language", {})
+    language_id = current_language.get("id")
+    logger.info(f"language_id: {language_id}")
+
+    api_response = await api_client.get_user_progress(db_user_id, language_id)
+
+    if not api_response['success'] and api_response['status'] == 404:
+        # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
+        # Используем пустые значения прогресса
+        progress = {
+            "words_studied": 0,
+            "words_known": 0,
+            "words_skipped": 0,
+            "total_words": 0,
+            "words_for_today": 0,
+            "progress_percentage": 0
+        }
+    else:
+        progress = api_response['result']
+
+    await state.update_data(
+        progress=progress,
+    )
+
+    return progress
+
+
 @navigation_router.callback_query(F.data == CallbackData.NEXT_WORD, StudyStates.viewing_word_details)
 async def process_next_word(callback: CallbackQuery, state: FSMContext):
     """
@@ -37,6 +73,7 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     
     if not user_word_state.is_valid():
         await callback.answer("❌ Неверное состояние изучения")
+        logger.error(f"Invalid user_word_state: {user_word_state}")
         return
     
     state_data = await state.get_data()
@@ -46,6 +83,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     # перезапуск сессии
     last_action_date_time = state_data.get("last_action_date_time", None)
     logger.info(f"last_action_date_time: {last_action_date_time}")
+
+    progress = None
 
     if last_action_date_time is not None:
         last_action_date_time = datetime.fromisoformat(last_action_date_time)
@@ -61,13 +100,15 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
 
         if (delta_days >= reset_session_days) and (delta_hours >= reset_session_hours):
             await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /study и повторить слова с начала.")
+            progress = await _update_progress(callback, state)
 
     last_action_date_time = datetime.now().isoformat()
     await state.update_data(last_action_date_time=last_action_date_time)
     logger.info(f"new last_action_date_time: {last_action_date_time}")
 
     # переход к новым словам
-    progress = state_data.get("progress", {})
+    if progress is None:
+        progress = state_data.get("progress", {})
 
     words_studied = progress.get('words_studied', 0)
     logger.info(f"words_studied: {words_studied}")
@@ -76,38 +117,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     logger.info(f"current_word_number: {current_word_number}")
     
     if (current_word_number is not None) and (current_word_number >= words_studied):
-        # Получаем клиент API с помощью утилиты
-        api_client = get_api_client_from_bot(callback.bot)
+        progress = await _update_progress(callback, state)
         
-        # Получение данных состояния
-        state_data = await state.get_data()
-        db_user_id = state_data.get("db_user_id", None)
-        logger.info(f"db_user_id: {db_user_id}")
-        
-        current_language = state_data.get("current_language", {})
-        language_id = current_language.get("id")
-        logger.info(f"language_id: {language_id}")
-
-        api_response = await api_client.get_user_progress(db_user_id, language_id)
-
-        if not api_response['success'] and api_response['status'] == 404:
-            # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
-            # Используем пустые значения прогресса
-            progress = {
-                "words_studied": 0,
-                "words_known": 0,
-                "words_skipped": 0,
-                "total_words": 0,
-                "words_for_today": 0,
-                "progress_percentage": 0
-            }
-        else:
-            progress = api_response['result']
-
-        await state.update_data(
-            progress=progress,
-        )
-
         unknown_count = progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)
         unknown_limit_new_words = settings.get("unknown_limit_new_words", 10)
         logger.info(f"unknown_count: {unknown_count}, unknown_limit_new_words: {unknown_limit_new_words}")

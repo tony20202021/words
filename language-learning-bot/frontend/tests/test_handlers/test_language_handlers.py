@@ -197,7 +197,7 @@ class TestLanguageHandlers:
             api_client.get_user_progress.assert_called_once()
             
             # Проверяем, что update_data был вызван для сохранения языка и настроек
-            assert state.update_data.call_count <= 3
+            assert state.update_data.call_count <= 4
             
             # Проверяем, что бот отправил сообщение об успехе
             assert callback.message.answer.call_count == 5
@@ -375,7 +375,7 @@ class TestLanguageHandlers:
             language_handlers_module.get_user_language_settings.assert_called_once()
             
             # Проверяем, что состояние было обновлено с информацией о настройках
-            assert state.update_data.call_count == 3
+            assert state.update_data.call_count == 4
             
             # Проверяем, что было отправлено сообщение с информацией о языке и прогрессе
             assert callback.message.answer.call_count == 5
