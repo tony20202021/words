@@ -4,7 +4,7 @@ This module contains all the API endpoints for managing user statistics in the s
 """
 
 from typing import List, Optional, Dict, Any
-import logging
+import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 
@@ -13,7 +13,10 @@ from app.api.models.statistics import (
     UserStatisticsUpdate, 
     UserStatistics, 
     UserStatisticsInDB,
-    UserProgress
+    UserProgress,
+    UserMonthlyStats,
+    UserDailyStatsInDB,
+    UserDailyStatsUpdate
 )
 from app.services.statistics_service import StatisticsService
 from app.services.user_service import UserService
@@ -39,7 +42,7 @@ async def get_user_statistics(
 ):
     """
     Get statistics for a specific user with optional language filter.
-    ОБНОВЛЕНО: добавлен параметр validate_words для фильтрации по существующим словам.
+    добавлен параметр validate_words для фильтрации по существующим словам.
     
     Args:
         user_id: ID of the user
@@ -89,8 +92,7 @@ async def count_user_statistics(
     user_service: UserService = Depends(get_user_service)
 ):
     """
-    НОВЫЙ ЭНДПОИНТ: Подсчет статистики пользователя без получения записей.
-    Намного быстрее чем получение всех записей для подсчета.
+    Подсчет статистики пользователя без получения записей.
     
     Args:
         user_id: ID of the user
@@ -333,7 +335,7 @@ async def get_user_progress(
 ):
     """
     Get user progress for a specific language.
-    УЛЬТРА-ОПТИМИЗИРОВАНО: теперь использует исправленный service метод с эффективным подсчетом.
+    теперь использует исправленный service метод с эффективным подсчетом.
     
     Args:
         user_id: ID of the user
@@ -358,7 +360,6 @@ async def get_user_progress(
             detail=f"User with ID {user_id} not found"
         )
     
-    # Get progress - теперь использует ультра-оптимизированную логику
     progress = await statistics_service.get_user_progress(user_id, language_id)
     return progress
 
@@ -527,3 +528,120 @@ def _get_health_recommendations(integrity_report: Dict[str, Any]) -> List[str]:
         recommendations.append("Statistics integrity is excellent.")
     
     return recommendations
+
+
+@router.put("/{user_id}/languages/{language_id}/daily-stats/{date}", response_model=UserDailyStatsInDB)
+async def update_daily_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    stats_update: UserDailyStatsUpdate,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Update daily statistics for a specific user, language, and date.
+    """
+    logger.info(f"Updating daily statistics for user_id={user_id}, language_id={language_id}, date={date}, stats_update={stats_update}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    updated_stats = await statistics_service.update_daily_statistics(
+        user_id, language_id, parsed_date, stats_update
+    )
+    
+    if not updated_stats:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Failed to update daily statistics"
+        )
+    
+    return updated_stats
+
+
+@router.get("/{user_id}/languages/{language_id}/daily-stats/{date}", response_model=Optional[UserDailyStatsInDB])
+async def get_daily_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get daily statistics for a specific user, language, and date.
+    """
+    logger.info(f"Getting daily statistics for user_id={user_id}, language_id={language_id}, date={date}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    daily_stats = await statistics_service.get_daily_statistics(user_id, language_id, parsed_date)
+    return daily_stats
+
+
+@router.get("/{user_id}/languages/{language_id}/monthly-stats/{date}", response_model=UserMonthlyStats)
+async def get_monthly_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get monthly statistics aggregation for a specific user and language.
+    """
+    logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
+               f"date={date}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    monthly_stats = await statistics_service.get_monthly_statistics(
+        user_id, language_id, parsed_date
+    )
+    
+    return monthly_stats
+

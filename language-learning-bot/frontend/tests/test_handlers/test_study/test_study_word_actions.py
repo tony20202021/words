@@ -133,6 +133,10 @@ class TestStudyWordActions:
         with patch('app.utils.state_models.UserWordState.from_state', user_word_state_from_state_mock), \
             patch('app.bot.handlers.study.word_actions.word_navigation_actions.show_study_word', show_study_word_mock), \
             patch('app.bot.handlers.study.word_actions.word_navigation_actions._update_progress', _update_progress_mock), \
+            patch('app.bot.handlers.study.word_actions.word_navigation_actions._update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock, \
+            patch('app.bot.handlers.study.word_actions.word_navigation_actions.show_today_statistics', AsyncMock()) as _show_today_statistics_mock, \
+            patch('app.bot.handlers.study.word_actions.word_navigation_actions.show_monthly_statistics', AsyncMock()) as _show_monthly_statistics_mock, \
+            patch('app.bot.handlers.study.word_actions.word_navigation_actions._handle_batch_completion', AsyncMock()) as _handle_batch_completion_mock, \
             patch('app.bot.handlers.study.word_actions.word_navigation_actions.logger'):
             
             # Вызываем тестируемую функцию
@@ -141,9 +145,14 @@ class TestStudyWordActions:
             user_word_state_mock.advance_to_next_word.assert_called_once()
             user_word_state_mock.save_to_state.assert_called_once_with(state)
             state.set_state.assert_called_once_with(StudyStates.studying)
+            _update_progress_mock.assert_called_once()
+            _update_daily_statistics_mock.assert_called_once()
+            _show_today_statistics_mock.assert_called_once()
+            _show_monthly_statistics_mock.assert_not_called()
+            _handle_batch_completion_mock.assert_not_called()
             show_study_word_mock.assert_called_once_with(callback, state, user_word_state_mock, need_new_message=True)
             callback.answer.assert_called_once()
-                    
+
     @pytest.mark.asyncio
     async def test_process_toggle_word_skip(self):
         """Test process_toggle_word_skip function."""

@@ -89,3 +89,75 @@ class UserProgress(BaseModel):
     words_for_today: int = Field(0, description="Number of words for today")
     progress_percentage: float = Field(0.0, description="Percentage of progress")
     last_study_date: Optional[datetime] = Field(None, description="Last study date")
+    word_numbers_for_today: List[int] = Field(default_factory=list, description="Word numbers for today review")
+    word_numbers_unknown: List[int] = Field(default_factory=list, description="Unknown word numbers (score=0, not skipped)")
+
+# class UserDailyStats(BaseModel):
+#     """Model for user daily stats."""
+#     user_id: str = Field(..., description="User ID")
+#     language_id: str = Field(..., description="Language ID")
+#     date: datetime = Field(..., description="Date")
+#     words_studied: int = Field(0, description="Number of words studied")
+#     words_known: int = Field(0, description="Number of words known")
+#     words_skipped: int = Field(0, description="Number of words skipped")
+#     words_for_today: int = Field(0, description="Number of words for today")
+
+# class UserMonthlyStats(BaseModel):
+#     """Model for user monthly stats."""
+#     user_id: str = Field(..., description="User ID")
+#     language_id: str = Field(..., description="Language ID")
+#     stats: List[UserDailyStats] = Field(..., description="List of daily stats")
+
+
+# В app/api/models/statistics.py - добавить эти модели:
+
+class UserDailyStatsBase(BaseModel):
+    """Base model for user daily statistics."""
+    user_id: str = Field(..., description="User ID")
+    language_id: str = Field(..., description="Language ID")
+    date: datetime = Field(..., description="Date of statistics")
+    words_studied: int = Field(0, description="Number of words studied")
+    words_known: int = Field(0, description="Number of words known")
+    words_skipped: int = Field(0, description="Number of words skipped")
+    words_for_today: int = Field(0, description="Number of words for today")
+
+class UserDailyStatsCreate(UserDailyStatsBase):
+    """Create model for user daily statistics."""
+    pass
+
+class UserDailyStatsUpdate(BaseModel):
+    """Update model for user daily statistics."""
+    words_studied: Optional[int] = Field(None, description="Number of words studied")
+    words_known: int = Field(0, description="Number of words known")
+    words_skipped: int = Field(0, description="Number of words skipped")
+    words_for_today: int = Field(0, description="Number of words for today")
+
+class UserDailyStatsInDB(UserDailyStatsBase):
+    """Database model for user daily statistics."""
+    id: str = Field(..., description="Unique identifier")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "5f9b3b3b9c9d440000b3b3b3",
+                "user_id": "5f9b3b3b9c9d440000b3b3b3",
+                "language_id": "5f9b3b3b9c9d440000b3b3b3",
+                "date": "2023-04-15T00:00:00",
+                "words_studied": 10,
+                "words_known": 3,
+                "words_skipped": 7,
+                "words_for_today": 10,
+                "created_at": "2023-04-15T12:00:00",
+                "updated_at": "2023-04-15T12:00:00"
+            }
+        }
+
+class UserMonthlyStats(BaseModel):
+    """Model for user monthly stats aggregation."""
+    user_id: str = Field(..., description="User ID")
+    language_id: str = Field(..., description="Language ID")
+    date: datetime = Field(..., description="Date of statistics")
+    daily_stats: List[UserDailyStatsInDB] = Field(..., description="List of daily stats for the month")

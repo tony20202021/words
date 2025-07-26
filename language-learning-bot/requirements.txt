@@ -58,3 +58,6 @@ imageio-ffmpeg>=0.4.8
 
 watchdog
 pillow
+
+matplotlib>=3.7.0
+numpy>=1.24.0

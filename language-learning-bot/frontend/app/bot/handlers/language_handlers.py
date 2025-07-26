@@ -14,6 +14,7 @@ from app.utils.settings_utils import get_user_language_settings
 from app.utils.formatting_utils import format_settings_text
 from app.bot.states.centralized_states import UserStates
 from app.bot.keyboards.user_keyboards import create_language_selected_keyboard
+from app.bot.handlers.study.word_actions.word_navigation_actions import _update_daily_statistics
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -330,6 +331,9 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
     await state.update_data(
         progress=progress,
     )
+
+    # обновляем дневную статистику
+    await _update_daily_statistics(callback, state)
 
     # Загружаем настройки пользователя для выбранного языка
     settings = await get_user_language_settings(callback, state)

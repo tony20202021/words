@@ -74,14 +74,6 @@ async def get_statistics_repository(db = Depends(get_db_session)) -> StatisticsR
     return StatisticsRepository(db)
 
 
-# Service dependencies
-
-"""
-Обновление зависимости для LanguageService в dependencies.py
-"""
-
-# Это содержимое нужно добавить/обновить в файле app/core/dependencies.py
-
 async def get_language_service(
     language_repository: LanguageRepository = Depends(get_language_repository),
     word_repository: WordRepository = Depends(get_word_repository),
@@ -166,8 +158,6 @@ async def get_excel_service(
         ExcelService instance
     """
     return ExcelService(word_service)
-
-# Для добавления в файл app/core/dependencies.py
 
 async def get_user_language_settings_repository(db = Depends(get_db_session)) -> UserLanguageSettingsRepository:
     """

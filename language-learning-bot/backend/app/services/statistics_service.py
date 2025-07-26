@@ -2,9 +2,8 @@
 Service for statistics operations.
 """
 
-import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+import datetime
 from bson.objectid import ObjectId
 
 from app.db.repositories.statistics_repository import StatisticsRepository
@@ -14,7 +13,10 @@ from app.api.models.statistics import (
     UserStatisticsUpdate, 
     UserStatistics, 
     UserStatisticsInDB,
-    UserProgress
+    UserProgress,
+    UserDailyStatsUpdate,
+    UserDailyStatsInDB,
+    UserMonthlyStats
 )
 from app.utils.logger import setup_logger
 
@@ -45,7 +47,6 @@ class StatisticsService:
     ) -> List[UserStatisticsInDB]:
         """
         Get statistics for a specific user with optional language filter.
-        ОБНОВЛЕНО: добавлена поддержка валидации слов.
         
         Args:
             user_id: ID of the user
@@ -215,7 +216,7 @@ class StatisticsService:
     ) -> UserProgress:
         """
         Get user progress for a specific language.
-        УЛЬТРА-ОПТИМИЗИРОВАНО: теперь использует исправленный repository метод с эффективными подсчетами.
+        теперь использует исправленный repository метод с эффективными подсчетами.
         
         Args:
             user_id: ID of the user
@@ -362,7 +363,7 @@ class StatisticsService:
         
         # В противном случае, применяем фильтрацию
         filtered_words = []
-        now = datetime.now()
+        now = datetime.datetime.now()
         
         # Apply filters
         for word in words:
@@ -395,7 +396,7 @@ class StatisticsService:
 
     async def get_data_integrity_report(self) -> Dict[str, Any]:
         """
-        НОВЫЙ МЕТОД: Получить отчет о целостности данных статистики.
+        Получить отчет о целостности данных статистики.
         
         Returns:
             Отчет с информацией о мертвых ссылках в статистике
@@ -406,7 +407,7 @@ class StatisticsService:
 
     async def cleanup_orphaned_statistics(self, dry_run: bool = True) -> Dict[str, Any]:
         """
-        НОВЫЙ МЕТОД: Очистка статистики с мертвыми ссылками.
+        Очистка статистики с мертвыми ссылками.
         
         Args:
             dry_run: Если True, только подсчитывает, не удаляет
@@ -480,3 +481,75 @@ class StatisticsService:
                     "success": True
                 }
             
+
+    async def update_daily_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date,
+        stats_update: UserDailyStatsUpdate
+    ) -> Optional[UserDailyStatsInDB]:
+        """
+        Update daily statistics for a specific user, language, and date.
+        Uses upsert to create if not exists.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            stats_update: Statistics data to update
+            
+        Returns:
+            Updated daily statistics
+        """
+        logger.info(f"Updating daily statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}, updates={stats_update.dict()}")
+        
+        return await self.repository.create_or_update_daily_stats(
+            user_id, language_id, date, stats_update
+        )
+
+
+    async def get_daily_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Optional[UserDailyStatsInDB]:
+        """
+        Get daily statistics for a specific user, language, and date.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            
+        Returns:
+            Daily statistics or None if not found
+        """
+        logger.info(f"Getting daily statistics for user_id={user_id}, language_id={language_id}, date={date}")
+        
+        return await self.repository.get_daily_stats(user_id, language_id, date)
+
+
+    async def get_monthly_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> UserMonthlyStats:
+        """
+        Get monthly statistics aggregation for a user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            
+        Returns:
+            Monthly statistics aggregation
+        """
+        logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}")
+        
+        return await self.repository.get_monthly_stats(user_id, language_id, date)

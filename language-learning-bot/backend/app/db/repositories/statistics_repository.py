@@ -14,7 +14,10 @@ from app.api.models.statistics import (
     UserStatisticsUpdate, 
     UserStatistics, 
     UserStatisticsInDB,
-    UserProgress
+    UserProgress,
+    UserMonthlyStats,
+    UserDailyStatsInDB,
+    UserDailyStatsUpdate
 )
 from app.utils.logger import setup_logger
 
@@ -33,6 +36,7 @@ class StatisticsRepository:
         """
         self.db = db
         self.collection = db.user_statistics
+        self.daily_stats_collection = db.user_daily_statistics
     
     async def create(self, user_id: str, statistics: UserStatisticsCreate) -> UserStatisticsInDB:
         """
@@ -237,13 +241,13 @@ class StatisticsRepository:
         user_id: str,
         language_id: str,
         validate_words: bool = True
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Any]:
         """
-        НОВЫЙ МЕТОД: Подсчет всех метрик одним запросом - МАКСИМАЛЬНО эффективно.
-        Заменяет множественные вызовы count_documents().
+        Подсчет всех метрик + списки номеров слов одним запросом.
+        все данные получаются одним aggregation pipeline.
         
         Returns:
-            Dict с ключами: words_studied, words_known, words_skipped
+            Dict с ключами: counts + lists
         """
         match_stage = {
             "user_id": user_id,
@@ -253,11 +257,11 @@ class StatisticsRepository:
         today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
         if validate_words:
-            # С валидацией существования слов
+            # С валидацией существования слов + получение word_number
             pipeline = [
                 {"$match": match_stage},
                 
-                # JOIN для проверки существования слов
+                # JOIN для проверки существования слов + получение word_number
                 {
                     "$lookup": {
                         "from": "words",
@@ -270,36 +274,19 @@ class StatisticsRepository:
                                     }
                                 }
                             },
-                            {"$project": {"_id": 1}}  # Минимальная проекция
+                            {"$project": {"word_number": 1}}  # 🆕 Получаем word_number
                         ],
-                        "as": "word_exists"
+                        "as": "word_info"
                     }
                 },
                 
                 # Только существующие слова
-                {"$match": {"word_exists": {"$ne": []}}},
+                {"$match": {"word_info": {"$ne": []}}},
                 
-                # ❗ Подсчет всех метрик ОДНИМ запросом
-                {
-                    "$group": {
-                        "_id": None,
-                        "words_studied": {"$sum": 1},  # Общее количество
-                        "words_known": {
-                            "$sum": {"$cond": [{"$eq": ["$score", 1]}, 1, 0]}
-                        },
-                        "words_skipped": {
-                            "$sum": {"$cond": [{"$eq": ["$is_skipped", True]}, 1, 0]}
-                        },
-                        "words_for_today": {                        
-                            "$sum": {"$cond": [{"$lte": ["$next_check_date", today]}, 1, 0]}
-                        }
-                    }
-                }
-            ]
-        else:
-            # Без валидации - еще быстрее
-            pipeline = [
-                {"$match": match_stage},
+                # Извлекаем word_number из массива
+                {"$addFields": {"word_number": {"$arrayElemAt": ["$word_info.word_number", 0]}}},
+                
+                # 🆕 подсчет + группировка списков в одном $group
                 {
                     "$group": {
                         "_id": None,
@@ -309,10 +296,49 @@ class StatisticsRepository:
                         },
                         "words_skipped": {
                             "$sum": {"$cond": [{"$eq": ["$is_skipped", True]}, 1, 0]}
+                        },
+                        "words_for_today": {                        
+                            "$sum": {"$cond": [{"$lte": ["$next_check_date", today]}, 1, 0]}
+                        },
+                        
+                        # 🆕 списки номеров слов
+                        "word_numbers_for_today": {
+                            "$push": {
+                                "$cond": [
+                                    {"$lte": ["$next_check_date", today]},
+                                    "$word_number",
+                                    "$$REMOVE"  # Исключаем из списка если условие не выполнено
+                                ]
+                            }
+                        },
+                        "word_numbers_unknown": {
+                            "$push": {
+                                "$cond": [
+                                    # score = 0 И НЕ пропущено
+                                    {"$and": [
+                                        {"$eq": ["$score", 0]},
+                                        {"$ne": ["$is_skipped", True]}
+                                    ]},
+                                    "$word_number",
+                                    "$$REMOVE"
+                                ]
+                            }
                         }
+                    }
+                },
+                
+                # 🆕 Сортируем списки номеров слов
+                {
+                    "$addFields": {
+                        "word_numbers_for_today": {"$sortArray": {"input": "$word_numbers_for_today", "sortBy": 1}},
+                        "word_numbers_unknown": {"$sortArray": {"input": "$word_numbers_unknown", "sortBy": 1}}
                     }
                 }
             ]
+        else:
+            # Упрощенная версия без валидации - НО БЕЗ word_number
+            # (нужен отдельный запрос для получения word_number без валидации)
+            raise NotImplementedError("Without validation, word_number is not available in statistics")
         
         cursor = self.collection.aggregate(pipeline)
         result = await cursor.to_list(length=1)
@@ -322,15 +348,20 @@ class StatisticsRepository:
                 "words_studied": result[0]["words_studied"],
                 "words_known": result[0]["words_known"], 
                 "words_skipped": result[0]["words_skipped"],
-                "words_for_today": result[0]["words_for_today"]
+                "words_for_today": result[0]["words_for_today"],
+                "word_numbers_for_today": result[0]["word_numbers_for_today"],
+                "word_numbers_unknown": result[0]["word_numbers_unknown"]
             }
         else:
             return {
                 "words_studied": 0,
                 "words_known": 0,
                 "words_skipped": 0,
-                "words_for_today": 0
+                "words_for_today": 0,
+                "word_numbers_for_today": [],
+                "word_numbers_unknown": []
             }
+
 
     async def get_by_user_and_word(
         self, 
@@ -658,7 +689,7 @@ class StatisticsRepository:
     async def get_user_progress(self, user_id: str, language_id: str) -> UserProgress:
         """
         Get user progress for a specific language.
-        УЛЬТРА-ОПТИМИЗИРОВАНО: использует минимальное количество запросов и эффективные aggregation pipelines.
+        использует минимальное количество запросов и эффективные aggregation pipelines.
         
         Args:
             user_id: ID of the user
@@ -679,7 +710,7 @@ class StatisticsRepository:
                 raise ValueError(f"Language with ID {language_id} not found")
             
             # 2. Получаем все метрики статистики одним оптимизированным запросом
-            stats_counts = await self.count_user_statistics_by_conditions(
+            stats_data  = await self.count_user_statistics_by_conditions(
                 user_id=user_id,
                 language_id=language_id,
                 validate_words=True  # С валидацией существующих слов
@@ -696,7 +727,7 @@ class StatisticsRepository:
             
             # 4. Вычисляем прогресс
             progress_percentage = (
-                stats_counts["words_known"] / total_words * 100
+                stats_data["words_known"] / total_words * 100
             ) if total_words > 0 else 0
             
             return UserProgress(
@@ -705,12 +736,14 @@ class StatisticsRepository:
                 language_name_ru=language.get("name_ru", ""),
                 language_name_foreign=language.get("name_foreign", ""),
                 total_words=total_words,
-                words_studied=stats_counts["words_studied"],
-                words_known=stats_counts["words_known"],
-                words_skipped=stats_counts["words_skipped"],
-                words_for_today=stats_counts["words_for_today"],
+                words_studied=stats_data["words_studied"],
+                words_known=stats_data["words_known"],
+                words_skipped=stats_data["words_skipped"],
+                words_for_today=stats_data["words_for_today"],
                 progress_percentage=round(progress_percentage, 2),
                 last_study_date=last_study_date,
+                word_numbers_for_today=stats_data["word_numbers_for_today"],
+                word_numbers_unknown=stats_data["word_numbers_unknown"]
             )
             
         except Exception as e:
@@ -728,11 +761,13 @@ class StatisticsRepository:
                 words_for_today=0,
                 progress_percentage=0.0,
                 last_study_date=None,
+                word_numbers_for_today=[],
+                word_numbers_unknown=[]
             )
 
     async def get_data_integrity_report(self) -> Dict[str, Any]:
         """
-        НОВЫЙ МЕТОД: Отчет о целостности данных - какой процент статистики имеет мертвые ссылки.
+        Отчет о целостности данных - какой процент статистики имеет мертвые ссылки.
         """
         # Общее количество записей статистики
         total_stats = await self.collection.count_documents({})
@@ -774,3 +809,121 @@ class StatisticsRepository:
             "orphaned_percentage": round(orphaned_percentage, 2)
         }
     
+
+    async def create_or_update_daily_stats(
+        self, 
+        user_id: str, 
+        language_id: str, 
+        date: datetime.date,
+        stats_update: UserDailyStatsUpdate
+    ) -> UserDailyStatsInDB:
+        """
+        Create or update daily statistics for a user.
+        """
+        date_datetime = datetime.combine(date, datetime.min.time())
+        
+        # ✅ Сначала пытаемся найти существующую запись
+        existing_stats = await self.daily_stats_collection.find_one({
+            "user_id": user_id,
+            "language_id": language_id,
+            "date": date_datetime
+        })
+        
+        if existing_stats:
+            # ✅ Запись существует - просто обновляем
+            update_data = {k: v for k, v in stats_update.dict().items() if v is not None}
+            update_data["updated_at"] = datetime.utcnow()
+            
+            await self.daily_stats_collection.update_one(
+                {"_id": existing_stats["_id"]},
+                {"$set": update_data}
+            )
+            
+            # Получаем обновленную запись
+            updated_stats = await self.daily_stats_collection.find_one({"_id": existing_stats["_id"]})
+            updated_stats["id"] = str(updated_stats.pop("_id"))
+            return UserDailyStatsInDB(**updated_stats)
+        
+        else:
+            # ✅ Записи нет - создаем новую
+            new_stats = {
+                "user_id": user_id,
+                "language_id": language_id,
+                "date": date_datetime,
+                "words_studied": 0,
+                "words_known": 0,
+                "words_skipped": 0,
+                "words_for_today": 0,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            # Применяем переданные обновления
+            update_data = {k: v for k, v in stats_update.dict().items() if v is not None}
+            new_stats.update(update_data)
+            
+            result = await self.daily_stats_collection.insert_one(new_stats)
+            
+            # Получаем созданную запись
+            created_stats = await self.daily_stats_collection.find_one({"_id": result.inserted_id})
+            created_stats["id"] = str(created_stats.pop("_id"))
+            return UserDailyStatsInDB(**created_stats)
+            
+
+    async def get_daily_stats(
+        self, 
+        user_id: str, 
+        language_id: str, 
+        date: datetime.date
+    ) -> Optional[UserDailyStatsInDB]:
+        """
+        Get daily statistics for a specific user, language, and date.
+        """
+        date_datetime = datetime.combine(date, datetime.min.time())
+        
+        stats = await self.daily_stats_collection.find_one({
+            "user_id": user_id,
+            "language_id": language_id,
+            "date": date_datetime
+        })
+        
+        if stats:
+            stats["id"] = str(stats.pop("_id"))
+            return UserDailyStatsInDB(**stats)
+        else:        
+            return None
+
+
+    async def get_monthly_stats(
+        self, 
+        user_id: str, 
+        language_id: str, 
+        date: datetime.date
+    ) -> UserMonthlyStats:
+        """
+        Get monthly statistics aggregation for a user and language.
+        """
+        # ✅ Преобразуем date в datetime для MongoDB
+        date_datetime = datetime.combine(date, datetime.min.time())
+        start_date = date_datetime - timedelta(days=31)
+
+        # Get all daily stats for the month
+        cursor = self.daily_stats_collection.find({
+            "user_id": user_id,
+            "language_id": language_id,
+            "date": {"$gt": start_date, "$lte": date_datetime}
+        }).sort("date", 1)
+        
+        daily_stats = []
+        
+        async for stats in cursor:
+            stats["id"] = str(stats.pop("_id"))
+            one_day_stat = UserDailyStatsInDB(**stats)
+            daily_stats.append(one_day_stat)
+        
+        return UserMonthlyStats(
+            user_id=user_id,
+            language_id=language_id,
+            date=date_datetime,
+            daily_stats=daily_stats
+        )

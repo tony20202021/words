@@ -183,7 +183,8 @@ class TestLanguageHandlers:
                       "skip_marked": False,
                       "use_check_date": True,
                       "show_hints": True
-                   })):
+                   })), \
+            patch('app.bot.handlers.language_handlers._update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
              
             # Сбросим счетчик вызовов update_data перед тестом
             state.update_data.reset_mock()
@@ -204,6 +205,8 @@ class TestLanguageHandlers:
             
             # Проверяем, что callback.answer был вызван
             callback.answer.assert_called_once()
+
+            _update_daily_statistics_mock.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_language_selection_error(self, setup_mocks):
@@ -362,8 +365,9 @@ class TestLanguageHandlers:
                             "show_hints": True
                         })), \
             patch.object(language_handlers_module, 'format_settings_text', 
-                        return_value="Formatted settings text"):
-            
+                        return_value="Formatted settings text"), \
+            patch('app.bot.handlers.language_handlers._update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
+
             # Вызываем тестируемую функцию
             await language_handlers_module.process_language_selection(callback, state)
             
@@ -384,6 +388,8 @@ class TestLanguageHandlers:
             assert "Теперь вы можете" in sent_message
             assert "Начать изучение" in sent_message
             assert "Настроить процесс обучения" in sent_message
+
+            _update_daily_statistics_mock.assert_called_once()
             
             # Проверяем, что callback.answer был вызван для скрытия уведомления
             callback.answer.assert_called_once()

@@ -5,8 +5,8 @@ not directly with the database.
 """
 
 import logging
-import os
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, Optional, Any
+from datetime import datetime
 
 import aiohttp
 from dotenv import load_dotenv
@@ -728,3 +728,79 @@ class APIClient:
         logger.error(f"All {self.retry_count} attempts to export words failed")
         return response_dict
         
+        
+    async def get_daily_statistics(
+        self, 
+        user_id: str, 
+        language_id: str, 
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get daily statistics for a specific user, language, and date.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            
+        Returns:
+            API response with daily statistics in result field
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-stats/{date.isoformat()}"
+        
+        logger.info(f"Getting daily statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}")
+        
+        return await self._make_request("GET", endpoint)
+
+
+    async def update_daily_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date,
+        stats_update: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Update daily statistics for a specific user, language, and date.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            stats_update: Statistics data to update
+            
+        Returns:
+            API response with updated daily statistics
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-stats/{date.isoformat()}"
+        
+        logger.info(f"Updating daily statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}, updates={stats_update}")
+        
+        return await self._make_request("PUT", endpoint, data=stats_update)        
+
+
+    async def get_monthly_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get monthly statistics aggregation for a user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            
+        Returns:
+            API response with monthly statistics
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/monthly-stats/{date.isoformat()}"
+        
+        logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}")
+        
+        return await self._make_request("GET", endpoint)

@@ -1,7 +1,6 @@
 """
 Handlers for word navigation actions during the study process.
 Обработчики для навигации между словами в процессе изучения.
-ОБНОВЛЕНО: Добавлена автоматическая загрузка следующих партий слов.
 """
 
 from aiogram import Router, F
@@ -15,46 +14,12 @@ from app.utils.state_models import UserWordState
 from app.bot.handlers.study.study_words import show_study_word, load_next_batch
 from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import StudyStates
+from app.utils.statistics_utils import _update_progress, _update_daily_statistics, show_today_statistics, show_monthly_statistics
 
 logger = setup_logger(__name__)
 
 # Создаем роутер для навигационных действий
 navigation_router = Router()
-
-async def _update_progress(callback: CallbackQuery, state: FSMContext):
-    # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(callback.bot)
-    
-    # Получение данных состояния
-    state_data = await state.get_data()
-    db_user_id = state_data.get("db_user_id", None)
-    logger.info(f"db_user_id: {db_user_id}")
-    
-    current_language = state_data.get("current_language", {})
-    language_id = current_language.get("id")
-    logger.info(f"language_id: {language_id}")
-
-    api_response = await api_client.get_user_progress(db_user_id, language_id)
-
-    if not api_response['success'] and api_response['status'] == 404:
-        # Если получаем 404, это значит, что прогресс еще не создан для этого пользователя и языка
-        # Используем пустые значения прогресса
-        progress = {
-            "words_studied": 0,
-            "words_known": 0,
-            "words_skipped": 0,
-            "total_words": 0,
-            "words_for_today": 0,
-            "progress_percentage": 0
-        }
-    else:
-        progress = api_response['result']
-
-    await state.update_data(
-        progress=progress,
-    )
-
-    return progress
 
 
 @navigation_router.callback_query(F.data == CallbackData.NEXT_WORD, StudyStates.viewing_word_details)
@@ -84,7 +49,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     last_action_date_time = state_data.get("last_action_date_time", None)
     logger.info(f"last_action_date_time: {last_action_date_time}")
 
-    progress = None
+    progress = state_data.get("progress", {})
+    progress_updated = False
 
     if last_action_date_time is not None:
         last_action_date_time = datetime.fromisoformat(last_action_date_time)
@@ -99,17 +65,27 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         logger.info(f"reset_session_days: {reset_session_days}, reset_session_hours: {reset_session_hours}")
 
         if (delta_days >= reset_session_days) and (delta_hours >= reset_session_hours):
-            await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /study и повторить слова с начала.")
             progress = await _update_progress(callback, state)
+            progress_updated = True
+
+            # обновляем дневную статистику
+            await _update_daily_statistics(callback, state)
+
+            await show_today_statistics(callback, state)
+
+            await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /study и повторить слова с начала.")
 
     last_action_date_time = datetime.now().isoformat()
     await state.update_data(last_action_date_time=last_action_date_time)
     logger.info(f"new last_action_date_time: {last_action_date_time}")
 
-    # переход к новым словам
-    if progress is None:
-        progress = state_data.get("progress", {})
+    # показываем месячную статистику
+    settings = state_data.get("settings", {})
+    show_debug = settings.get("show_debug", False)
+    if show_debug:
+        await show_monthly_statistics(callback, state)
 
+    # переход к новым словам
     words_studied = progress.get('words_studied', 0)
     logger.info(f"words_studied: {words_studied}")
 
@@ -117,8 +93,15 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     logger.info(f"current_word_number: {current_word_number}")
     
     if (current_word_number is not None) and (current_word_number >= words_studied):
-        progress = await _update_progress(callback, state)
-        
+        if not progress_updated:
+            progress = await _update_progress(callback, state)
+            progress_updated = True
+
+            # обновляем дневную статистику
+            await _update_daily_statistics(callback, state)
+
+            await show_today_statistics(callback, state)
+
         unknown_count = progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)
         unknown_limit_new_words = settings.get("unknown_limit_new_words", 10)
         logger.info(f"unknown_count: {unknown_count}, unknown_limit_new_words: {unknown_limit_new_words}")
