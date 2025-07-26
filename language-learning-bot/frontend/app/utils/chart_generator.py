@@ -91,7 +91,7 @@ class ProgressChartGenerator:
         Returns:
             BytesIO с PNG изображением
         """
-        fig, (ax1) = plt.subplots(1, 1, figsize=(12, 10))
+        fig, (ax1) = plt.subplots(1, 1, figsize=(6, 5))
         
         # Определяем диапазон для гистограммы
         max_word = max(
@@ -100,7 +100,7 @@ class ProgressChartGenerator:
         )
         
         # bins для гистограммы
-        bin_count = 20
+        bin_count = min(20, max_word)
         bins = np.linspace(0, max_word, bin_count + 1)
         
         # 1. Гистограмма слов для повторения сегодня
@@ -147,7 +147,7 @@ class ProgressChartGenerator:
         Returns:
             BytesIO с PNG изображением
         """
-        fig, (ax2) = plt.subplots(1, 1, figsize=(12, 10))
+        fig, (ax2) = plt.subplots(1, 1, figsize=(6, 5))
         
         # Определяем диапазон для гистограммы
         max_word = max(
@@ -156,7 +156,7 @@ class ProgressChartGenerator:
         )
         
         # bins для гистограммы
-        bin_count = 20
+        bin_count = min(20, max_word)
         bins = np.linspace(0, max_word, bin_count + 1)
         
         # Гистограмма неизвестных слов
@@ -195,8 +195,8 @@ class ProgressChartGenerator:
         """
         Создает график по датам
         """
-        dates = [datetime.datetime.fromisoformat(s["date"]).date().isoformat() for s in daily_stats]
-        counts = [s[field_name] for s in daily_stats]
+        dates = [datetime.datetime.fromisoformat(s["date"]).date().isoformat() for s in daily_stats if s[field_name] is not None]
+        counts = [s[field_name] for s in daily_stats if s[field_name] is not None]
         
         fig, (ax2) = plt.subplots(1, 1, figsize=(6, 5))
         

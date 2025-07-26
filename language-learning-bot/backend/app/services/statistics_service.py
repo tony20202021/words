@@ -487,7 +487,8 @@ class StatisticsService:
         user_id: str,
         language_id: str,
         date: datetime.date,
-        stats_update: UserDailyStatsUpdate
+        stats_update: UserDailyStatsUpdate,
+        type: str = "daily"
     ) -> Optional[UserDailyStatsInDB]:
         """
         Update daily statistics for a specific user, language, and date.
@@ -506,7 +507,7 @@ class StatisticsService:
                    f"date={date}, updates={stats_update.dict()}")
         
         return await self.repository.create_or_update_daily_stats(
-            user_id, language_id, date, stats_update
+            user_id, language_id, date, stats_update, type
         )
 
 
@@ -514,7 +515,8 @@ class StatisticsService:
         self,
         user_id: str,
         language_id: str,
-        date: datetime.date
+        date: datetime.date,
+        type: str = "daily"
     ) -> Optional[UserDailyStatsInDB]:
         """
         Get daily statistics for a specific user, language, and date.
@@ -529,14 +531,15 @@ class StatisticsService:
         """
         logger.info(f"Getting daily statistics for user_id={user_id}, language_id={language_id}, date={date}")
         
-        return await self.repository.get_daily_stats(user_id, language_id, date)
+        return await self.repository.get_daily_stats(user_id, language_id, date, type)
 
 
     async def get_monthly_statistics(
         self,
         user_id: str,
         language_id: str,
-        date: datetime.date
+        date: datetime.date,
+        type: str = "daily"
     ) -> UserMonthlyStats:
         """
         Get monthly statistics aggregation for a user and language.
@@ -550,6 +553,6 @@ class StatisticsService:
             Monthly statistics aggregation
         """
         logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
-                   f"date={date}")
+                   f"date={date}, type={type}")
         
-        return await self.repository.get_monthly_stats(user_id, language_id, date)
+        return await self.repository.get_monthly_stats(user_id, language_id, date, type)

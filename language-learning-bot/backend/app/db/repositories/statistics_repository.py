@@ -815,7 +815,8 @@ class StatisticsRepository:
         user_id: str, 
         language_id: str, 
         date: datetime.date,
-        stats_update: UserDailyStatsUpdate
+        stats_update: UserDailyStatsUpdate,
+        type: str = "daily"
     ) -> UserDailyStatsInDB:
         """
         Create or update daily statistics for a user.
@@ -826,7 +827,8 @@ class StatisticsRepository:
         existing_stats = await self.daily_stats_collection.find_one({
             "user_id": user_id,
             "language_id": language_id,
-            "date": date_datetime
+            "date": date_datetime,
+            "type": type
         })
         
         if existing_stats:
@@ -855,7 +857,8 @@ class StatisticsRepository:
                 "words_skipped": 0,
                 "words_for_today": 0,
                 "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.utcnow(),
+                "type": type
             }
             
             # Применяем переданные обновления
@@ -874,7 +877,8 @@ class StatisticsRepository:
         self, 
         user_id: str, 
         language_id: str, 
-        date: datetime.date
+        date: datetime.date,
+        type: str = "daily"
     ) -> Optional[UserDailyStatsInDB]:
         """
         Get daily statistics for a specific user, language, and date.
@@ -884,7 +888,8 @@ class StatisticsRepository:
         stats = await self.daily_stats_collection.find_one({
             "user_id": user_id,
             "language_id": language_id,
-            "date": date_datetime
+            "date": date_datetime,
+            "type": type
         })
         
         if stats:
@@ -898,7 +903,8 @@ class StatisticsRepository:
         self, 
         user_id: str, 
         language_id: str, 
-        date: datetime.date
+        date: datetime.date,
+        type: str = "daily"
     ) -> UserMonthlyStats:
         """
         Get monthly statistics aggregation for a user and language.
@@ -911,7 +917,8 @@ class StatisticsRepository:
         cursor = self.daily_stats_collection.find({
             "user_id": user_id,
             "language_id": language_id,
-            "date": {"$gt": start_date, "$lte": date_datetime}
+            "date": {"$gt": start_date, "$lte": date_datetime},
+            "type": type
         }).sort("date", 1)
         
         daily_stats = []

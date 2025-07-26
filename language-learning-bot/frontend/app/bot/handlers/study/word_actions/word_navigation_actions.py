@@ -14,7 +14,7 @@ from app.utils.state_models import UserWordState
 from app.bot.handlers.study.study_words import show_study_word, load_next_batch
 from app.utils.callback_constants import CallbackData
 from app.bot.states.centralized_states import StudyStates
-from app.utils.statistics_utils import _update_progress, _update_daily_statistics, show_today_statistics, show_monthly_statistics
+from app.utils.statistics_utils import load_progress, update_daily_statistics, show_today_statistics, show_monthly_statistics, update_daily_first_finish_statistics
 
 logger = setup_logger(__name__)
 
@@ -65,11 +65,11 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
         logger.info(f"reset_session_days: {reset_session_days}, reset_session_hours: {reset_session_hours}")
 
         if (delta_days >= reset_session_days) and (delta_hours >= reset_session_hours):
-            progress = await _update_progress(callback, state)
+            progress = await load_progress(callback, state)
             progress_updated = True
 
             # обновляем дневную статистику
-            await _update_daily_statistics(callback, state)
+            await update_daily_statistics(callback, state)
 
             await show_today_statistics(callback, state)
 
@@ -94,11 +94,12 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     
     if (current_word_number is not None) and (current_word_number >= words_studied):
         if not progress_updated:
-            progress = await _update_progress(callback, state)
+            progress = await load_progress(callback, state)
             progress_updated = True
 
-            # обновляем дневную статистику
-            await _update_daily_statistics(callback, state)
+            await update_daily_statistics(callback, state)
+
+            await update_daily_first_finish_statistics(callback, state)
 
             await show_today_statistics(callback, state)
 

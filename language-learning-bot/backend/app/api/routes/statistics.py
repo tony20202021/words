@@ -562,7 +562,7 @@ async def update_daily_statistics(
         )
     
     updated_stats = await statistics_service.update_daily_statistics(
-        user_id, language_id, parsed_date, stats_update
+        user_id, language_id, parsed_date, stats_update, type="daily"
     )
     
     if not updated_stats:
@@ -604,7 +604,7 @@ async def get_daily_statistics(
             detail=f"User with ID {user_id} not found"
         )
     
-    daily_stats = await statistics_service.get_daily_statistics(user_id, language_id, parsed_date)
+    daily_stats = await statistics_service.get_daily_statistics(user_id, language_id, parsed_date, type="daily")
     return daily_stats
 
 
@@ -640,8 +640,124 @@ async def get_monthly_statistics(
         )
     
     monthly_stats = await statistics_service.get_monthly_statistics(
-        user_id, language_id, parsed_date
+        user_id, language_id, parsed_date, type="daily"
     )
     
     return monthly_stats
+
+
+@router.put("/{user_id}/languages/{language_id}/daily-first-finish-stats/{date}", response_model=UserDailyStatsInDB)
+async def update_daily_first_finish_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    stats_update: UserDailyStatsUpdate,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Update first finish statistics for a specific user, language, and date.
+    """
+    logger.info(f"Updating first finish statistics for user_id={user_id}, language_id={language_id}, date={date}, stats_update={stats_update}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    updated_stats = await statistics_service.update_daily_statistics(
+        user_id, language_id, parsed_date, stats_update, type="first_finish"
+    )
+    
+    if not updated_stats:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Failed to update first finish statistics"
+        )
+    
+    return updated_stats
+
+
+@router.get("/{user_id}/languages/{language_id}/daily-first-finish-stats/{date}", response_model=Optional[UserDailyStatsInDB])
+async def get_daily_first_finish_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get first finish statistics for a specific user, language, and date.
+    """
+    logger.info(f"Getting first finish statistics for user_id={user_id}, language_id={language_id}, date={date}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    first_finish_stats = await statistics_service.get_daily_statistics(user_id, language_id, parsed_date, type="first_finish")
+    return first_finish_stats
+
+
+@router.get("/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date}", response_model=UserMonthlyStats)
+async def get_monthly_first_finish_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get monthly first finish statistics aggregation for a specific user and language.
+    """
+    logger.info(f"Getting monthly first finish statistics for user_id={user_id}, language_id={language_id}, "
+               f"date={date}")
+
+    try:
+        parsed_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    # Check if user exists
+    user = await user_service.get_user(user_id)
+    if not user:
+        logger.warning(f"User with id={user_id} not found")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    monthly_first_finish_stats = await statistics_service.get_monthly_statistics(
+        user_id, language_id, parsed_date, type="first_finish"
+    )
+    
+    return monthly_first_finish_stats
 

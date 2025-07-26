@@ -184,7 +184,7 @@ class TestLanguageHandlers:
                       "use_check_date": True,
                       "show_hints": True
                    })), \
-            patch('app.bot.handlers.language_handlers._update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
+            patch('app.bot.handlers.language_handlers.update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
              
             # Сбросим счетчик вызовов update_data перед тестом
             state.update_data.reset_mock()
@@ -366,7 +366,7 @@ class TestLanguageHandlers:
                         })), \
             patch.object(language_handlers_module, 'format_settings_text', 
                         return_value="Formatted settings text"), \
-            patch('app.bot.handlers.language_handlers._update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
+            patch('app.bot.handlers.language_handlers.update_daily_statistics', AsyncMock()) as _update_daily_statistics_mock:
 
             # Вызываем тестируемую функцию
             await language_handlers_module.process_language_selection(callback, state)

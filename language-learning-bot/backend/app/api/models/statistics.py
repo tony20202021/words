@@ -137,6 +137,7 @@ class UserDailyStatsInDB(UserDailyStatsBase):
     id: str = Field(..., description="Unique identifier")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    type: str = Field(..., description="Type of statistics")
 
     class Config:
         from_attributes = True
@@ -151,7 +152,8 @@ class UserDailyStatsInDB(UserDailyStatsBase):
                 "words_skipped": 7,
                 "words_for_today": 10,
                 "created_at": "2023-04-15T12:00:00",
-                "updated_at": "2023-04-15T12:00:00"
+                "updated_at": "2023-04-15T12:00:00",
+                "type": "daily"
             }
         }
 

@@ -13,7 +13,7 @@ from app.utils.chart_generator import ProgressChartGenerator
 
 logger = setup_logger(__name__)
 
-async def _update_progress(callback: CallbackQuery, state: FSMContext):
+async def load_progress(callback: CallbackQuery, state: FSMContext):
     # Получаем клиент API с помощью утилиты
     api_client = get_api_client_from_bot(callback.bot)
     
@@ -50,7 +50,6 @@ async def _update_progress(callback: CallbackQuery, state: FSMContext):
 
     return progress
 
-
 async def _send_today_charts(callback: CallbackQuery, progress: Dict):
     """
     Отправляет реальные графики прогресса в виде изображений.
@@ -76,7 +75,7 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
             
             await callback.message.answer_photo(
                 histogram_file,
-                caption="📈 **Анализ слов по номерам**"
+                caption="Слова для повторения сегодня"
             )
                 
         if word_numbers_unknown:
@@ -91,7 +90,7 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
             
             await callback.message.answer_photo(
                 histogram_file,
-                caption="📈 **Анализ слов по номерам**"
+                caption="Неизвестные слова"
             )
                 
         logger.info(f"Successfully sent progress charts to user {callback.from_user.username}")
@@ -113,9 +112,6 @@ async def show_today_statistics(callback: CallbackQuery, state: FSMContext):
     state_data = await state.get_data()
     progress = state_data.get("progress", {})
 
-    word_numbers_for_today = progress.get("word_numbers_for_today", [])
-    word_numbers_unknown = progress.get("word_numbers_unknown", [])
-    
     # Основная статистика (текст)
     words_studied = progress.get('words_studied', 0)
     words_known = progress.get('words_known', 0)
@@ -146,7 +142,7 @@ async def show_today_statistics(callback: CallbackQuery, state: FSMContext):
     await _send_today_charts(callback, progress)
 
 
-async def _update_daily_statistics(callback: CallbackQuery, state: FSMContext):
+async def update_daily_statistics(callback: CallbackQuery, state: FSMContext):
     logger.info(f"Updating daily statistics for user {callback.from_user.full_name}")
     
     # Получаем клиент API с помощью утилиты
@@ -181,14 +177,48 @@ async def _update_daily_statistics(callback: CallbackQuery, state: FSMContext):
             return
 
 
-async def _send_monthly_charts(callback: CallbackQuery, daily_stats: List[Dict]):
+async def update_daily_first_finish_statistics(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"update_daily_first_finish_statistics from {callback.from_user.full_name}")
+
+    api_client = get_api_client_from_bot(callback.bot)
+
+    state_data = await state.get_data()
+    db_user_id = state_data.get("db_user_id", None)
+    logger.info(f"db_user_id: {db_user_id}")
+
+    current_language = state_data.get("current_language", {})
+    language_id = current_language.get("id")
+    logger.info(f"language_id: {language_id}")
+
+    last_action_date_time = state_data.get("last_action_date_time", None)
+    if last_action_date_time is None:
+        last_action_date_time = datetime.now().isoformat()
+    last_action_date = datetime.fromisoformat(last_action_date_time).date()
+    logger.info(f"last_action_date: {last_action_date}")
+
+    progress = state_data.get("progress", {})
+    logger.info(f"progress: {progress}")
+
+    api_response = await api_client.get_daily_first_finish_statistics(db_user_id, language_id, last_action_date)
+
+    if (not api_response['success']) or (api_response['status'] == 404) or (api_response['result'] == None):
+        logger.info(f"No first finish statistics found for user {db_user_id} and language {language_id} for date {last_action_date}. Creating new first finish statistics.")
+        
+        api_response = await api_client.update_daily_first_finish_statistics(db_user_id, language_id, last_action_date, progress)
+        if not api_response['success']:
+            logger.error(f"Error updating daily first finish statistics for user {db_user_id} and language {language_id}: {api_response['error']}")
+            return
+
+
+async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dict], first_finish_stats: List[Dict]):
     logger.info(f"Sending monthly charts for user {callback.from_user.full_name}")
-    logger.info(f"daily_stats: {daily_stats}")
+    logger.info(f"all_days_stats: {all_days_stats}")
+    logger.info(f"first_finish_stats: {first_finish_stats}")
 
     try:
         generator = ProgressChartGenerator()
         
-        if not daily_stats:
+        if not all_days_stats:
             await callback.message.answer(
                 "Нет статистики по датам"
             )
@@ -196,7 +226,7 @@ async def _send_monthly_charts(callback: CallbackQuery, daily_stats: List[Dict])
             return
         else:
             histogram_chart = generator.create_counts_plot(
-                daily_stats, 
+                all_days_stats, 
                 "words_studied",
                 title="Всего изучено"
             )
@@ -211,7 +241,22 @@ async def _send_monthly_charts(callback: CallbackQuery, daily_stats: List[Dict])
             )
                 
             histogram_chart = generator.create_counts_plot(
-                daily_stats,
+                all_days_stats, 
+                "words_new",
+                title="Новые слова"
+            )
+            histogram_file = BufferedInputFile(
+                histogram_chart.getvalue(),
+                filename="words_histogram.png"
+            )
+            
+            await callback.message.answer_photo(
+                histogram_file,
+                caption="Новые слова"
+            )
+                
+            histogram_chart = generator.create_counts_plot(
+                all_days_stats,
                 "words_known",
                 title="Известные слова"
             )
@@ -226,9 +271,9 @@ async def _send_monthly_charts(callback: CallbackQuery, daily_stats: List[Dict])
             )
                 
             histogram_chart = generator.create_counts_plot(
-                daily_stats,
+                all_days_stats,
                 "words_unknown",
-                title="Неизвестные слова"
+                title="Неизвестные слова (до первого завершения)"
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -237,11 +282,26 @@ async def _send_monthly_charts(callback: CallbackQuery, daily_stats: List[Dict])
             
             await callback.message.answer_photo(
                 histogram_file,
-                caption="Неизвестные слова"
+                caption="Неизвестные слова (до первого завершения)"
             )
                 
             histogram_chart = generator.create_counts_plot(
-                daily_stats, 
+                first_finish_stats,
+                "words_unknown",
+                title="Неизвестные слова (после первого завершения)"
+            )
+            histogram_file = BufferedInputFile(
+                histogram_chart.getvalue(),
+                filename="words_histogram.png"
+            )
+            
+            await callback.message.answer_photo(
+                histogram_file,
+                caption="Неизвестные слова (после первого завершения)"
+            )
+                
+            histogram_chart = generator.create_counts_plot(
+                all_days_stats, 
                 "words_for_today",
                 title="Слова для ежедневного повторения"
             )
@@ -284,18 +344,37 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
     logger.info(f"last_action_date: {last_action_date} for monthly statistics")
 
     api_response = await api_client.get_monthly_statistics(db_user_id, language_id, last_action_date)
-
     if (not api_response['success']) or (api_response['status'] == 404) or (api_response['result'] == None):
-        logger.error(f"No progress data found for user {db_user_id} and language {language_id} for date {last_action_date}. Creating new daily statistics.")
+        logger.error(f"No progress data found for user {db_user_id} and language {language_id} for date {last_action_date}.")
         return
-    
     monthly_statistics = api_response['result']
     logger.info(f"monthly_statistics: {monthly_statistics}")
 
-    daily_stats = []
-    for s in monthly_statistics["daily_stats"]:
-        s["words_unknown"] = s["words_studied"] - s["words_known"] - s["words_skipped"]
-        daily_stats.append(s)
+    all_days_stats = []
+    words_studied_previous = None
+    for one_day_stats in monthly_statistics["daily_stats"]:
+        one_day_stats["words_unknown"] = one_day_stats["words_studied"] - one_day_stats["words_known"] - one_day_stats["words_skipped"]
+        
+        if words_studied_previous is None:
+            words_studied_previous = one_day_stats["words_studied"]
+            one_day_stats["words_new"] = None
+        else:
+            one_day_stats["words_new"] = one_day_stats["words_studied"] - words_studied_previous
+            words_studied_previous = one_day_stats["words_studied"]
+        
+        all_days_stats.append(one_day_stats)
 
-    await _send_monthly_charts(callback, daily_stats)
+    api_response = await api_client.get_monthly_first_finish_statistics(db_user_id, language_id, last_action_date)
+    if (not api_response['success']) or (api_response['status'] == 404) or (api_response['result'] == None):
+        logger.error(f"No first finish statistics found for user {db_user_id} and language {language_id} for date {last_action_date}.")
+        return
+    first_finish_statistics = api_response['result']
+    logger.info(f"first_finish_statistics: {first_finish_statistics}")
+
+    first_finish_stats = []
+    for one_day_stats in first_finish_statistics["daily_stats"]:
+        one_day_stats["words_unknown"] = one_day_stats["words_studied"] - one_day_stats["words_known"] - one_day_stats["words_skipped"]
+        first_finish_stats.append(one_day_stats)
+
+    await _send_monthly_charts(callback, all_days_stats, first_finish_stats)
 

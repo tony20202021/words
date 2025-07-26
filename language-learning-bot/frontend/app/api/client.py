@@ -804,3 +804,43 @@ class APIClient:
                    f"date={date}")
         
         return await self._make_request("GET", endpoint)
+
+
+    async def get_daily_first_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get first finish statistics for a specific user and language.
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
+        return await self._make_request("GET", endpoint)
+
+
+    async def update_daily_first_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date,
+        stats_update: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Update first finish statistics for a specific user and language.
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
+        return await self._make_request("PUT", endpoint, data=stats_update)
+
+    async def get_monthly_first_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get first finish statistics for a specific user and language.
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date.isoformat()}"
+        return await self._make_request("GET", endpoint)
+
