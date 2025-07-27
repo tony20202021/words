@@ -15,6 +15,7 @@ from app.utils.formatting_utils import format_settings_text
 from app.bot.states.centralized_states import UserStates
 from app.bot.keyboards.user_keyboards import create_language_selected_keyboard
 from app.bot.handlers.study.word_actions.word_navigation_actions import update_daily_statistics
+from app.utils.statistics_utils import show_monthly_statistics, show_today_statistics
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -363,6 +364,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
             "show_hint_writing": settings.get("show_hint_writing", True),
         },
         show_debug=settings.get("show_debug", True),
+        show_charts=settings.get("show_charts", False),
         receive_messages=settings.get("receive_messages", True),
         reset_session_days=settings.get("reset_session_days", 1),
         reset_session_hours=settings.get("reset_session_hours", 6),
@@ -395,6 +397,12 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         f"Прогресс известно/изучено: {progress_known_studied:.1f}%\n\n",
         parse_mode="HTML",
     )    
+
+    show_charts = settings.get("show_charts", False)
+    if show_charts:
+        await show_monthly_statistics(callback, state)
+        await show_today_statistics(callback, state)
+
     await callback.message.answer(
         f"Теперь вы можете:\n"
         f"- Начать изучение: /study\n"

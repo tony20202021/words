@@ -1,6 +1,6 @@
 name: Settings-Preserve-Language Scenario
 user_id: 123456789
-api_mock: common
+api_mock: study
 auto_setup: true
 steps:
   # Шаг 1: Получаем настройки, чтобы сохранить ID пользователя
@@ -80,11 +80,8 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"

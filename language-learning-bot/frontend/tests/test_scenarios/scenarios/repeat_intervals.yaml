@@ -48,7 +48,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Включаем отладочный режим для просмотра интервалов
   - type: callback
@@ -67,7 +67,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Начинаем изучение
   - type: command

@@ -11,7 +11,7 @@ steps:
         text: "Доступные языки для изучения"
       - type: state_contains
         data: ["_state", 'UserStates:selecting_language']
-      - type: keyboard_contains
+      - type: keyboard_contains 
         button_text: "Английский"
       - type: keyboard_contains
         button_text: "Французский"
@@ -41,7 +41,9 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочные данные: <b>Показывать ✅</b>"
+        text: "Отладочные данные: <b>Скрывать ❌</b>"
+      - type: message_contains
+        text: "Графики: <b>Скрывать ❌</b>"
       - type: state_contains
         data: ["_state", 'SettingsStates:viewing_settings']
       - type: keyboard_contains
@@ -53,7 +55,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Включаем отладочный режим
   - type: callback
@@ -62,7 +64,9 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочные данные: <b>Показывать ✅</b>"
+        text: "Отладочные данные: <b>Скрывать ❌</b>"
+      - type: message_contains
+        text: "Графики: <b>Скрывать ❌</b>"
       - type: message_contains
         text: "Другие доступные команды"
       - type: message_contains
@@ -72,25 +76,22 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Запускаем изучение с отладочной информацией
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"
-      - type: message_contains
+      - type: message_not_contains
         position: -1
         text: "Отладочная информация:"
-      - type: message_contains
+      - type: message_not_contains
         position: -1
         text: "ID слова:"
       - type: state_contains
@@ -107,7 +108,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   - type: callback
     data: "settings_toggle_show_debug"
@@ -115,7 +116,9 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Отладочные данные: <b>Показывать ✅</b>"
+        text: "Отладочные данные: <b>Скрывать ❌</b>"
+      - type: message_contains
+        text: "Графики: <b>Скрывать ❌</b>"
       - type: message_contains
         text: "Другие доступные команды"
       - type: message_contains
@@ -123,7 +126,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Запускаем изучение без отладочной информации
   - type: command

@@ -15,6 +15,7 @@ class UserLanguageSettingsBase(BaseModel):
     use_check_date: bool = Field(True, description="Whether to use check date for spaced repetition")
     show_check_date: bool = Field(True, description="Whether to show check date")
     show_debug: bool = Field(False, description="Whether to show debug information")
+    show_charts: bool = Field(False, description="Whether to show chart")    
     show_big: bool = Field(False, description="Whether to show big word")
     show_writing_images: bool = Field(True, description="Whether to show writing images")
 
@@ -43,6 +44,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     use_check_date: Optional[bool] = None
     show_check_date: Optional[bool] = None
     show_debug: Optional[bool] = None
+    show_charts: Optional[bool] = None
     show_big: Optional[bool] = None
     show_writing_images: Optional[bool] = None
     

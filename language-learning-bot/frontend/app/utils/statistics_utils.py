@@ -66,7 +66,8 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
         if word_numbers_for_today:
             histogram_chart = generator.create_words_for_today_histogram(
                 word_numbers_for_today, 
-                words_studied
+                words_studied,
+                x_axis_limits="one_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -81,7 +82,8 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
         if word_numbers_unknown:
             histogram_chart = generator.create_unknown_words_histogram(
                 word_numbers_unknown, 
-                words_studied
+                words_studied,
+                x_axis_limits="one_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -228,7 +230,9 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             histogram_chart = generator.create_counts_plot(
                 all_days_stats, 
                 "words_studied",
-                title="Всего изучено"
+                title="Всего изучено",
+                title_value="last",
+                y_axis_limits="zero_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -243,7 +247,9 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             histogram_chart = generator.create_counts_plot(
                 all_days_stats, 
                 "words_new",
-                title="Новые слова"
+                title="Новые слова",
+                title_value="max",
+                y_axis_limits="min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -258,7 +264,9 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             histogram_chart = generator.create_counts_plot(
                 all_days_stats,
                 "words_known",
-                title="Известные слова"
+                title="Известные слова",
+                title_value="last",
+                y_axis_limits="zero_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -273,7 +281,9 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             histogram_chart = generator.create_counts_plot(
                 all_days_stats,
                 "words_unknown",
-                title="Неизвестные слова (до первого завершения)"
+                title="Неизвестные слова \n (до первого завершения)",
+                title_value="max",
+                y_axis_limits="min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -282,13 +292,15 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             
             await callback.message.answer_photo(
                 histogram_file,
-                caption="Неизвестные слова (до первого завершения)"
+                caption="Неизвестные слова \n (до первого завершения)"
             )
                 
             histogram_chart = generator.create_counts_plot(
                 first_finish_stats,
                 "words_unknown",
-                title="Неизвестные слова (после первого завершения)"
+                title="Неизвестные слова \n (после первого завершения)",
+                title_value="max",
+                y_axis_limits="min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -297,13 +309,15 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             
             await callback.message.answer_photo(
                 histogram_file,
-                caption="Неизвестные слова (после первого завершения)"
+                caption="Неизвестные слова \n (после первого завершения)"
             )
                 
             histogram_chart = generator.create_counts_plot(
                 all_days_stats, 
                 "words_for_today",
-                title="Слова для ежедневного повторения"
+                title="Слова для ежедневного повторения",
+                title_value="max",
+                y_axis_limits="min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -340,6 +354,8 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
     logger.info(f"language_id: {language_id}")
 
     last_action_date_time = state_data.get("last_action_date_time", None)
+    if last_action_date_time is None:
+        last_action_date_time = datetime.now().isoformat()
     last_action_date = datetime.fromisoformat(last_action_date_time).date()
     logger.info(f"last_action_date: {last_action_date} for monthly statistics")
 

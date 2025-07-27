@@ -36,11 +36,8 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"

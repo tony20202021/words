@@ -48,6 +48,7 @@ class CallbackData:
     SETTINGS_TOGGLE_SHOW_BIG = "settings_toggle_show_big"
     SETTINGS_TOGGLE_SHOW_SHORT_CAPTIONS = "settings_toggle_show_short_captions"
     SETTINGS_TOGGLE_SHOW_DEBUG = "settings_toggle_show_debug"
+    SETTINGS_TOGGLE_SHOW_CHARTS = "settings_toggle_show_charts"
     
     # Индивидуальные настройки подсказок
     SETTINGS_TOGGLE_HINT_MEANING = "settings_toggle_hint_meaning"

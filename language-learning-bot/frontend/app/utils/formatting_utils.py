@@ -68,6 +68,7 @@ def format_settings_text(
     use_check_date, 
     show_check_date,
     show_debug, 
+    show_charts,
     hint_settings,
     show_writing_images=False,
     show_short_captions=True,
@@ -88,6 +89,7 @@ def format_settings_text(
         use_check_date: Учитывать ли дату проверки
         show_date: Показывать ли дату проверки
         show_debug: Показывать ли отладочную информацию
+        show_charts: Показывать ли графики
         hint_settings: Словарь с индивидуальными настройками подсказок
         show_writing_images: Показывать ли картинки написания
         show_short_captions: Показывать ли короткие подписи
@@ -137,6 +139,10 @@ def format_settings_text(
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
     settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>\n"
+    
+    # Статус отображения графиков
+    charts_status = "Показывать ✅" if show_charts else "Скрывать ❌"
+    settings_text += f"📊 Графики: <b>{charts_status}</b>\n"
     
     # Статус получения сообщений
     receive_messages_status = "Получать ✅" if receive_messages else "Не получать ❌"

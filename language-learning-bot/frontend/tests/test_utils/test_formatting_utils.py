@@ -55,6 +55,7 @@ class TestFormatSettingsText:
         use_check_date = False
         show_check_date = True
         show_hints = True
+        show_charts = True
         hint_settings = {
             "meaning": True,
             "phoneticsound": True
@@ -65,7 +66,8 @@ class TestFormatSettingsText:
         
         # Execute
         result = format_settings_text(
-            start_word, skip_marked, use_check_date, show_check_date, show_debug, hint_settings,
+            start_word, skip_marked, use_check_date, show_check_date, 
+            show_debug, show_charts, hint_settings,
             prefix=prefix, suffix=suffix
         )
         

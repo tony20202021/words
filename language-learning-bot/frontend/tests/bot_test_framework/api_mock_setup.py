@@ -257,6 +257,24 @@ def setup_api_mock_for_study_testing(api_client: AsyncMock):
     
     # Применяем динамический мок
     api_client.update_user_word_data.side_effect = dynamic_update_word_data
+
+    # Словарь для хранения настроек по языкам
+    language_settings = {
+        "eng": {"start_word": 1, "skip_marked": False, "use_check_date": True, "show_hints": True, "show_debug": False, "show_charts": False},
+        "fra": {"start_word": 1, "skip_marked": False, "use_check_date": True, "show_hints": True, "show_debug": False, "show_charts": False}
+    }
+    
+    # Переопределение метода для получения настроек
+    async def get_user_language_settings(user_id, language_id):
+        return {
+            "success": True,
+            "status": 200,
+            "result": language_settings.get(language_id, {"start_word": 1, "skip_marked": False, "use_check_date": True, "show_hints": True, "show_debug": False, "show_charts": False}),
+            "error": None
+        }
+    
+    # Применяем кастомные методы
+    api_client.get_user_language_settings.side_effect = get_user_language_settings
     
     print("API клиент настроен для тестирования изучения слов")
 

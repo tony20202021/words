@@ -79,8 +79,11 @@ class ProgressChartGenerator:
         return buffer
 
     @staticmethod 
-    def create_words_for_today_histogram(word_numbers_for_today: List[int], 
-                                       words_studied: int) -> BytesIO:
+    def create_words_for_today_histogram(
+        word_numbers_for_today: List[int], 
+        words_studied: int,
+        x_axis_limits: str = "one_max"
+    ) -> BytesIO:
         """
         Создает гистограмму слов для повторения сегодня
         
@@ -106,21 +109,21 @@ class ProgressChartGenerator:
         # 1. Гистограмма слов для повторения сегодня
         if word_numbers_for_today:
             ax1.hist(word_numbers_for_today, bins=bins, color='#2196F3', alpha=0.7, edgecolor='black')
-            ax1.set_title(f'Слова для повторения сегодня ({len(word_numbers_for_today)} слов)', 
-                         fontsize=14, fontweight='bold')
+            ax1.set_title(f'Слова для повторения сегодня \n ({len(word_numbers_for_today)} слов)', 
+                         fontsize=20, fontweight='bold')
         else:
             ax1.text(0.5, 0.5, 'Нет слов для повторения сегодня!', 
                     transform=ax1.transAxes, ha='center', va='center',
                     fontsize=14, fontweight='bold', color='#4CAF50')
             ax1.set_title('Слова для повторения сегодня', fontsize=14, fontweight='bold')
         
+        if x_axis_limits == "one_max":
+            ax1.set_xlim(1, max_word)
+            
         ax1.set_xlabel('Номер слова')
         ax1.set_ylabel('Количество слов')
         ax1.yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Только целые значения
         ax1.grid(True, alpha=0.3)
-        
-        # Общий заголовок
-        fig.suptitle('Анализ слов по номерам', fontsize=16, fontweight='bold')
         
         # Компактное расположение
         plt.tight_layout()
@@ -135,8 +138,11 @@ class ProgressChartGenerator:
         return buffer
 
     @staticmethod 
-    def create_unknown_words_histogram(word_numbers_unknown: List[int],
-                                       words_studied: int) -> BytesIO:
+    def create_unknown_words_histogram(
+        word_numbers_unknown: List[int],
+        words_studied: int,
+        x_axis_limits: str = "one_max"
+    ) -> BytesIO:
         """
         Создает гистограмму слов для повторения сегодня и неизвестных слов.
         
@@ -162,22 +168,22 @@ class ProgressChartGenerator:
         # Гистограмма неизвестных слов
         if word_numbers_unknown:
             ax2.hist(word_numbers_unknown, bins=bins, color='#FF5722', alpha=0.7, edgecolor='black')
-            ax2.set_title(f'Неизвестные слова ({len(word_numbers_unknown)} слов)', 
-                         fontsize=14, fontweight='bold')
+            ax2.set_title(f'Неизвестные слова \n ({len(word_numbers_unknown)} слов)', 
+                         fontsize=20, fontweight='bold')
         else:
             ax2.text(0.5, 0.5, 'Все изученные слова выучены!', 
                     transform=ax2.transAxes, ha='center', va='center',
                     fontsize=14, fontweight='bold', color='#4CAF50')
             ax2.set_title('Неизвестные слова', fontsize=14, fontweight='bold')
         
+        if x_axis_limits == "one_max":
+            ax2.set_xlim(1, max_word)
+            
         ax2.set_xlabel('Номер слова')
         ax2.set_ylabel('Количество слов')
         ax2.yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Только целые значения
         ax2.grid(True, alpha=0.3)
 
-        # Общий заголовок
-        fig.suptitle('Анализ слов по номерам', fontsize=16, fontweight='bold')
-        
         # Компактное расположение
         plt.tight_layout()
         
@@ -191,7 +197,13 @@ class ProgressChartGenerator:
         return buffer
 
     @staticmethod
-    def create_counts_plot(daily_stats: List[Dict], field_name: str, title: str) -> BytesIO:
+    def create_counts_plot(
+        daily_stats: List[Dict], 
+        field_name: str, 
+        title: str, 
+        title_value: str,
+        y_axis_limits: str = "min_max"
+    ) -> BytesIO:
         """
         Создает график по датам
         """
@@ -201,14 +213,21 @@ class ProgressChartGenerator:
         fig, (ax2) = plt.subplots(1, 1, figsize=(6, 5))
         
         ax2.plot(dates, counts, color='#FF5722', alpha=0.7, linewidth=2, marker='o', markersize=5)
-        ax2.set_title(f'{title}\n({len(counts)} записей)', fontsize=20, fontweight='bold')
+        if title_value == "last":
+            ax2.set_title(f'{title}\n{len(counts)} записей \n last={counts[-1] if len(counts) > 0 else "None"}', fontsize=20, fontweight='bold')
+        elif title_value == "max":
+            ax2.set_title(f'{title}\n{len(counts)} записей \n max={max(counts) if len(counts) > 0 else "None"}', fontsize=20, fontweight='bold')
         
         ax2.set_xlabel('Дата')
         ax2.set_ylabel('Количество слов')
         ax2.yaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both'))
         
-        y_min, y_max = ax2.get_ylim()
-        ax2.set_ylim(int(y_min), int(y_max) + 1)
+        if y_axis_limits == "min_max":
+            y_min, y_max = ax2.get_ylim()
+            ax2.set_ylim(int(y_min), int(y_max) + 1)
+        elif y_axis_limits == "zero_max":
+            ax2.set_ylim(0, int(max(counts)) + 1)
+            
         ax2.grid(True, alpha=0.3)
 
         # Компактное расположение

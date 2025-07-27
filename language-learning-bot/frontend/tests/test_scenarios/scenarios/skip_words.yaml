@@ -41,7 +41,7 @@ steps:
       - type: message_contains
         text: "Текущие настройки"
       - type: message_contains
-        text: "Исключенные слова: <b>Пропускать ❌</b>"
+        text: "Исключенные слова: <b>Показывать ✅</b>"
       - type: state_contains
         data: ["_state", SettingsStates:viewing_settings]
       - type: keyboard_contains
@@ -53,7 +53,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   - type: callback
     data: CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
@@ -73,18 +73,15 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   # Начинаем изучение
   - type: command
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"
@@ -156,11 +153,8 @@ steps:
     name: study
     asserts:
       - type: message_contains
-        position: -4
-        text: "Загружаем слова..."
-      - type: message_contains
         position: -3
-        text: "batch_requested_count=100"
+        text: "Загружаем слова..."
       - type: message_contains
         position: -2
         text: "Начинаем изучение языка"

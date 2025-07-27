@@ -374,6 +374,15 @@ async def process_toggle_show_debug(callback: CallbackQuery, state: FSMContext):
         setting_name="Отладочная информация"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_CHARTS)
+async def process_toggle_show_charts(callback: CallbackQuery, state: FSMContext):
+    """Handle charts toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_charts", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Графики"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RECEIVE_MESSAGES)
 async def process_toggle_receive_messages(callback: CallbackQuery, state: FSMContext):
     """Handle receive messages toggle."""
@@ -383,7 +392,7 @@ async def process_toggle_receive_messages(callback: CallbackQuery, state: FSMCon
         setting_name="Получать сообщения"
     )
 
-# НОВОЕ: Общая функция для обработки boolean toggle
+# Общая функция для обработки boolean toggle
 async def _handle_boolean_toggle(
     callback: CallbackQuery, 
     state: FSMContext, 

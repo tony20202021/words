@@ -1,6 +1,6 @@
 name: Boundary Values Test
 user_id: 123456789
-api_mock: common
+api_mock: study
 auto_setup: true
 steps:
   # Подготовка: выбираем язык
@@ -56,7 +56,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 16
+        count: 17
 
   - type: callback
     data: CallbackData.SETTINGS_START_WORD

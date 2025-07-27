@@ -22,6 +22,7 @@ DEFAULT_SETTINGS = {
     "use_check_date": True,
     "show_check_date": True,
     "show_debug": False,
+    "show_charts": False,
     "show_hint_meaning": True,
     "show_hint_phoneticassociation": True,
     "show_hint_phoneticsound": True,
@@ -185,6 +186,7 @@ async def display_language_settings(
     skip_marked = settings.get("skip_marked", DEFAULT_SETTINGS["skip_marked"])
     use_check_date = settings.get("use_check_date", DEFAULT_SETTINGS["use_check_date"])
     show_debug = settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
+    show_charts = settings.get("show_charts", DEFAULT_SETTINGS["show_charts"])
     show_check_date = settings.get("show_check_date", DEFAULT_SETTINGS["show_check_date"])
     show_short_captions = settings.get("show_short_captions", DEFAULT_SETTINGS["show_short_captions"])
     show_big = settings.get("show_big", DEFAULT_SETTINGS["show_big"])
@@ -236,6 +238,7 @@ async def display_language_settings(
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
+        show_charts=show_charts,
         show_check_date=show_check_date,
         show_short_captions=show_short_captions,
         show_big=show_big,
@@ -253,6 +256,7 @@ async def display_language_settings(
         skip_marked=skip_marked, 
         use_check_date=use_check_date, 
         show_debug=show_debug,
+        show_charts=show_charts,
         show_check_date=show_check_date,
         show_short_captions=show_short_captions,
         show_big=show_big,

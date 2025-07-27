@@ -60,6 +60,7 @@ class UserLanguageSettingsBase(BaseModel):
     use_check_date: bool = Field(default=True, description="Use check date for word repetition")
     show_check_date: bool = Field(default=True, description="Show check date")
     show_debug: bool = Field(default=False, description="Show debug information")
+    show_charts: bool = Field(default=False, description="Show charts")
     show_big: bool = Field(default=False, description="Show big word")
     show_writing_images: bool = Field(default=True, description="Show writing images")
     show_short_captions: bool = Field(default=True, description="Show short captions")
@@ -86,6 +87,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     use_check_date: Optional[bool] = Field(None, description="Use check date for word repetition")
     show_check_date: Optional[bool] = Field(None, description="Show check date")
     show_debug: Optional[bool] = Field(None, description="Show debug information")
+    show_charts: Optional[bool] = Field(None, description="Show charts")
     show_big: Optional[bool] = Field(None, description="Show big word")
     show_writing_images: Optional[bool] = Field(None, description="Show writing images")
 

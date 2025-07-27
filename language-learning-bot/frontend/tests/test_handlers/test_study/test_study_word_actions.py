@@ -148,10 +148,10 @@ class TestStudyWordActions:
             state.set_state.assert_called_once_with(StudyStates.studying)
             load_progress_mock.assert_called_once()
             _update_daily_statistics_mock.assert_called_once()
-            _show_today_statistics_mock.assert_called_once()
+            _show_today_statistics_mock.assert_not_called()
             _show_monthly_statistics_mock.assert_not_called()
             _handle_batch_completion_mock.assert_not_called()
-            _update_daily_first_finish_statistics_mock.assert_called_once()
+            _update_daily_first_finish_statistics_mock.assert_not_called()
             show_study_word_mock.assert_called_once_with(callback, state, user_word_state_mock, need_new_message=True)
             callback.answer.assert_called_once()
 

@@ -101,6 +101,7 @@ class UserLanguageSettingsRepository:
             "show_big": settings_dict.get("show_big", False),
             "show_writing_images": settings_dict.get("show_writing_images", True),
             "show_debug": settings_dict.get("show_debug", False),
+            "show_charts": settings_dict.get("show_charts", False),
             "show_short_captions": settings_dict.get("show_short_captions", True),
             
             # Раздельные настройки подсказок

@@ -44,6 +44,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     state_data = await state.get_data()
 
     settings = state_data.get("settings", {})
+    show_debug = settings.get("show_debug", False)
+    show_charts = settings.get("show_charts", False)
 
     # перезапуск сессии
     last_action_date_time = state_data.get("last_action_date_time", None)
@@ -71,7 +73,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
             # обновляем дневную статистику
             await update_daily_statistics(callback, state)
 
-            await show_today_statistics(callback, state)
+            if show_charts:
+                await show_today_statistics(callback, state)
 
             await callback.message.answer(f"Предыдущее изучение было {delta_days} (дней) назад. Рекомендуется перезапустить сессию командой /study и повторить слова с начала.")
 
@@ -80,10 +83,9 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
     logger.info(f"new last_action_date_time: {last_action_date_time}")
 
     # показываем месячную статистику
-    settings = state_data.get("settings", {})
-    show_debug = settings.get("show_debug", False)
     if show_debug:
         await show_monthly_statistics(callback, state)
+        await show_today_statistics(callback, state)
 
     # переход к новым словам
     words_studied = progress.get('words_studied', 0)
@@ -101,7 +103,8 @@ async def process_next_word(callback: CallbackQuery, state: FSMContext):
 
             await update_daily_first_finish_statistics(callback, state)
 
-            await show_today_statistics(callback, state)
+            if show_charts:
+                await show_today_statistics(callback, state)
 
         unknown_count = progress.get('words_studied', 0) - progress.get('words_known', 0) - progress.get('words_skipped', 0)
         unknown_limit_new_words = settings.get("unknown_limit_new_words", 10)

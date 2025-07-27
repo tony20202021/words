@@ -75,6 +75,7 @@ def create_settings_keyboard(
     skip_marked: bool = False,
     use_check_date: bool = True,
     show_debug: bool = False,
+    show_charts: bool = False,
     show_check_date: bool = True,
     show_big: bool = False,
     show_short_captions: bool = True,
@@ -94,6 +95,7 @@ def create_settings_keyboard(
         skip_marked: Whether to skip marked words
         use_check_date: Whether to use check date
         show_debug: Whether to show debug info
+        show_charts: Whether to show charts
         show_check_date: Whether to show check date
         show_big: Whether to show big word
         show_short_captions: Whether to show short captions
@@ -166,6 +168,13 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{debug_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_DEBUG
+    ))
+    
+    # Charts setting
+    charts_text = "✅ Показывать графики" if show_charts else "❌ Скрывать графики"
+    builder.add(InlineKeyboardButton(
+        text=f"{charts_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_CHARTS
     ))
     
     # Receive messages setting
