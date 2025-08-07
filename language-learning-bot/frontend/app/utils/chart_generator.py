@@ -219,9 +219,11 @@ class ProgressChartGenerator:
             ax2.set_title(f'{title}\n{len(counts)} записей \n max={max(counts) if len(counts) > 0 else "None"}', fontsize=20, fontweight='bold')
         
         ax2.set_xlabel('Дата')
-        ax2.set_ylabel('Количество слов')
-        ax2.yaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both'))
+        ax2.set_xticklabels(dates, rotation=45, ha='right')
+        ax2.set_xticks(range(0, len(dates), len(dates) // 10))
         
+        ax2.set_ylabel('Количество слов')
+        ax2.yaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both'))        
         if y_axis_limits == "min_max":
             y_min, y_max = ax2.get_ylim()
             ax2.set_ylim(int(y_min), int(y_max) + 1)

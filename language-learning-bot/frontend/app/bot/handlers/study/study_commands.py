@@ -1,7 +1,5 @@
 """
 Study command handlers for Language Learning Bot.
-Handles the /study command and study initialization.
-UPDATED: Support for individual hint settings.
 """
 
 from aiogram import Router, F
