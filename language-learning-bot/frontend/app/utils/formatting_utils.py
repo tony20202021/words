@@ -209,10 +209,11 @@ def format_study_word_message(
     message += f"Слово номер: <b>{word_number}</b>\n" 
     
     if word_number == words_studied:
-        message += f"(завершающее из изученых: {words_studied})\n\n"
+        message += f"(завершающее из изученых: {words_studied})\n"
     elif word_number > words_studied:
-        message += f"(новое слово, изучается первый раз)\n\n"
-    else:
+        message += f"(новое слово, изучается первый раз)\n"
+
+    if word_number <= words_studied:
         if show_word:
             message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n\n"
         else:

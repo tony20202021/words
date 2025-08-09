@@ -29,6 +29,8 @@ class UserStatisticsCreate(BaseModel):
     hint_meaning: Optional[str] = Field(None, description="Meaning hint")
     hint_writing: Optional[str] = Field(None, description="Writing hint")
     score: int = Field(0, description="Score (0 or 1)")
+    next_check_date: Optional[datetime] = Field(None, description="Next check date")
+    check_interval: int = Field(0, description="Check interval in days")
     is_skipped: bool = Field(False, description="Is word skipped")
 
 class UserStatisticsUpdate(BaseModel):

@@ -38,7 +38,6 @@ async def show_study_word(
 ):
     """
     Display current study word with appropriate keyboard.
-    UPDATED: Added writing images support in keyboard creation.
     
     Args:
         message_or_callback: Message or CallbackQuery object

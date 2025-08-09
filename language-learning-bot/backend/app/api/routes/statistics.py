@@ -137,7 +137,6 @@ async def get_user_word_data(
 ):
     """
     Get user data for a specific word.
-    ПРОВЕРЕНО: метод уже использует get_with_word_info с JOIN, корректен.
     """
     statistics = await statistics_service.get_user_word_statistics(user_id, word_id)
     

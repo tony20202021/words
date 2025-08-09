@@ -44,11 +44,11 @@ async def ensure_user_word_data(
     
     # Try to get existing word data
     word_data_response = await api_client.get_user_word_data(user_id, word_id)
-    # print(word_data_response)
+    logger.info(f"word_data_response={word_data_response}")
     
     if word_data_response["success"] and word_data_response["result"]:
         # Update existing data
-        logger.info(f"Updating existing word data for user={user_id}, word={word_id}")
+        logger.info(f"Updating existing word data for user={user_id}, word={word_id}, update_data={update_data}")
         update_response = await api_client.update_user_word_data(user_id, word_id, update_data)
         logger.info(f"update_response={update_response}")
         # word_data_response = await api_client.get_user_word_data(user_id, word_id)
@@ -80,7 +80,7 @@ async def ensure_user_word_data(
             return False, None
         
         # Create new data
-        logger.info(f"Creating new word data for user={user_id}, word={word_id}, language={language_id}")
+        logger.info(f"Creating new word data for user={user_id}, word={word_id}, language={language_id}, update_data={update_data}")
         create_data = {
             "word_id": word_id,
             "language_id": language_id,
@@ -92,8 +92,9 @@ async def ensure_user_word_data(
         
         if message_obj and not create_response["success"]:
             await handle_api_error(create_response, message_obj, "Error creating word data")
+            logger.error(f"Error creating word data: {create_response}")
             return False, None
-            
+
         return create_response["success"], create_response.get("result")
 
 async def update_word_score(
@@ -162,26 +163,36 @@ async def update_word_score(
         current_score = word_data.get("score", 0)
         current_interval = word_data.get("check_interval", 0)
         current_check_date_str = word_data.get("next_check_date")
+
+        logger.info(f"current_score={current_score}, current_interval={current_interval}, current_check_date_str={current_check_date_str}")
         
         # Initialize with default values for new records
         should_update_interval = True
         
         # Check if we need to update interval based on current date and check date
-        if current_check_date_str and current_score == 1:
+        if current_score == 1:
             try:
-                # Parse the date string into a datetime object
-                current_check_date = datetime.fromisoformat(current_check_date_str.replace('Z', '+00:00'))
+                if current_check_date_str:
+                    # Parse the date string into a datetime object
+                    current_check_date = datetime.fromisoformat(current_check_date_str.replace('Z', '+00:00'))
                 
-                # Calculate days difference between now and check date
-                delta_days = (datetime.now() - current_check_date).days
+                    # Calculate days difference between now and check date
+                    delta_days = (datetime.now() - current_check_date).days
+
+                    # Only update interval if we're on or past the check date
+                    should_update_interval = delta_days >= 0
+                else:
+                    current_check_date = datetime.now()
+                    delta_days = 0
+                    should_update_interval = True
                 
-                # Only update interval if we're on or past the check date
-                should_update_interval = delta_days >= 0
             except (ValueError, TypeError):
                 # If there's any issue parsing the date, default to updating
                 logger.warning(f"Error parsing check date: {current_check_date_str}")
                 should_update_interval = True
-        
+
+        logger.info(f"should_update_interval={should_update_interval}")
+
         # Update interval if needed
         if should_update_interval or current_score == 0:
             # Calculate new interval (double previous, max 32 days)
