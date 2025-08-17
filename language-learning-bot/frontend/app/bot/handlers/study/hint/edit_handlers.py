@@ -103,13 +103,17 @@ async def process_hint_edit(callback: CallbackQuery, state: FSMContext):
     word_foreign = current_word.get("word_foreign")
     transcription = current_word.get("transcription", "")
     translation = current_word.get("translation", "")
+    radicals = current_word.get("radicals", "")
+    references = current_word.get("references", "")
     
     # Prepare edit message
     message_text = (
         f"📝 <b>Редактирование подсказки</b>\n\n"
         f"Слово: <code>{word_foreign}</code>\n"
         f"Транскрипция: <b>[{transcription}]</b>\n"
-        f"Перевод: <b>{translation}</b>\n\n"
+        f"Перевод: <b>{translation}</b>\n"
+        f"Радикалы: <b>{radicals}</b>\n"
+        f"Ссылки: <b>{references}</b>\n\n"
     )
     
     if current_hint_text:

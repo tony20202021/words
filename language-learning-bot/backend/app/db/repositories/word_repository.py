@@ -113,6 +113,8 @@ class WordRepository:
                         "transcription": 1,
                         "word_number": 1,
                         "sound_file_path": 1,
+                        "radicals": 1,
+                        "references": 1,
                         "created_at": 1,
                         "updated_at": 1,
                         "language_name_ru": "$language.name_ru",
@@ -344,6 +346,8 @@ class WordRepository:
                     "translation": 1,
                     "transcription": 1,
                     "word_number": 1,
+                    "radicals": 1,
+                    "references": 1,
                     "score": "$statistics.score",
                     "check_interval": "$statistics.check_interval",
                     "next_check_date": "$statistics.next_check_date",
@@ -442,6 +446,8 @@ class WordRepository:
                     "transcription": 1,
                     "word_number": 1,
                     "sound_file_path": 1,
+                    "radicals": 1,
+                    "references": 1,
                     "created_at": 1,
                     "updated_at": 1
                 }

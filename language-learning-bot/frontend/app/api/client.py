@@ -204,6 +204,8 @@ class APIClient:
                 - column_word: Column index for foreign words
                 - column_translation: Column index for translations
                 - column_transcription: Column index for transcriptions
+                - column_radicals: Column index for radicals
+                - column_references: Column index for references
                 - column_number: Column index for word numbers
                 - start_row: Index of the first row to process (0 if no headers, 1 if headers)
                 - clear_existing: Whether to clear existing words before importing (bool)

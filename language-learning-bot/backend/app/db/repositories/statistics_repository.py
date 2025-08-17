@@ -442,7 +442,9 @@ class StatisticsRepository:
                     "word_foreign": "$word.word_foreign",
                     "translation": "$word.translation",
                     "transcription": "$word.transcription",
-                    "word_number": "$word.word_number"
+                    "word_number": "$word.word_number",
+                    "radicals": "$word.radicals",
+                    "references": "$word.references"
                 }
             }
         ]
@@ -664,7 +666,9 @@ class StatisticsRepository:
                     "word_foreign": "$word.word_foreign",
                     "translation": "$word.translation",
                     "transcription": "$word.transcription",
-                    "word_number": "$word.word_number"
+                    "word_number": "$word.word_number",
+                    "radicals": "$word.radicals",
+                    "references": "$word.references"
                 }
             },
             

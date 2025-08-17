@@ -375,6 +375,8 @@ async def upload_words_file(
     column_word: int = Form(0),
     column_translation: int = Form(1),
     column_transcription: int = Form(2),
+    column_radicals: int = Form(3),
+    column_references: int = Form(4),
     column_number: Optional[int] = Form(None),
     start_row: int = Form(1),
     clear_existing: bool = Form(False),
@@ -391,6 +393,8 @@ async def upload_words_file(
         column_word: Column index for foreign words (0-based)
         column_translation: Column index for translations (0-based)
         column_transcription: Column index for transcriptions (0-based)
+        column_radicals: Column index for radicals (0-based)
+        column_references: Column index for references (0-based)
         column_number: Optional column index for word numbers (0-based)
         start_row: Row index to start processing from (0 if no headers, 1 if headers)
         clear_existing: Whether to clear existing words before importing
@@ -443,6 +447,8 @@ async def upload_words_file(
             column_word=column_word,
             column_translation=column_translation,
             column_transcription=column_transcription,
+            column_radicals=column_radicals,
+            column_references=column_references,
             column_number=column_number,
             start_row=start_row  # Already 0-based (0 if no headers, 1 if headers)
         )

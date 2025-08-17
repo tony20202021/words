@@ -188,7 +188,9 @@ async def process_edit_word(callback: CallbackQuery, state: FSMContext):
         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
         f"Слово: <code>{word.get('word_foreign', 'N/A')}</code>\n"
         f"Транскрипция: <code>{word.get('transcription', 'N/A')}</code>\n"
-        f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n\n"
+        f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n"
+        f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
+        f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -488,7 +490,9 @@ async def show_word_fields_edit_screen(message: Message, word_id: str):
         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
         f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
-        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
+        f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
+        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -621,6 +625,8 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
         f"Слово: <code>{word.get('word_foreign', 'N/A')}</code>\n"
         f"Транскрипция: <code>{word.get('transcription', 'N/A')}</code>\n"
         f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n"
+        f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
+        f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
         f"ID: <code>{word_id}</code>"
         f"{user_info}"
     )
@@ -698,7 +704,9 @@ async def process_delete_word(callback: CallbackQuery, state: FSMContext):
         f"Номер: <b>{word.get('word_number', 'N/A')}</b>\n"
         f"Слово: <b>{word.get('word_foreign', 'N/A')}</b>\n"
         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
-        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n\n"
+        f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
+        f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
+        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n\n"
         f"⚠️ <b>Внимание!</b> Это действие также удалит:\n"
         f"• Все пользовательские данные для этого слова\n"
         f"• Все созданные подсказки для этого слова\n"

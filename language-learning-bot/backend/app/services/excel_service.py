@@ -36,6 +36,8 @@ class ExcelService:
         column_word: int,
         column_translation: int,
         column_transcription: int,
+        column_radicals: int,
+        column_references: int,
         column_number: Optional[int] = None,
         start_row: int = 0
     ) -> Dict[str, Any]:
@@ -48,6 +50,8 @@ class ExcelService:
             column_word: Column index for foreign words (0-based)
             column_translation: Column index for translations (0-based)
             column_transcription: Column index for transcriptions (0-based)
+            column_radicals: Column index for radicals (0-based)
+            column_references: Column index for references (0-based)
             column_number: Optional column index for word numbers (0-based)
             start_row: Row index to start processing from (0-based): 0 if no headers, 1 if headers
             
@@ -86,10 +90,12 @@ class ExcelService:
                     # Extract values from row
                     word_foreign = str(row[column_word]).strip()
                     translation = str(row[column_translation]).strip()
-                    
+
                     # Handle optional values
                     transcription = str(row[column_transcription]).strip() if not pd.isna(row[column_transcription]) else None
-                    
+                    radicals = str(row[column_radicals]).strip() if not pd.isna(row[column_radicals]) else None
+                    references = str(row[column_references]).strip() if not pd.isna(row[column_references]) else None
+       
                     # Get word number from column or use index+1
                     if column_number is not None and not pd.isna(row[column_number]):
                         word_number = int(row[column_number])
@@ -102,7 +108,9 @@ class ExcelService:
                         word_foreign=word_foreign,
                         translation=translation,
                         transcription=transcription,
-                        word_number=word_number
+                        word_number=word_number,
+                        radicals=radicals,
+                        references=references
                     )
                     
                     # Check if word already exists by language_id and word_number
@@ -116,7 +124,9 @@ class ExcelService:
                         update_data = WordUpdate(
                             word_foreign=word_foreign,
                             translation=translation,
-                            transcription=transcription
+                            transcription=transcription,
+                            radicals=radicals,
+                            references=references
                         )
                         
                         await self.word_service.update_word(word_id, update_data.dict(exclude_unset=True))
@@ -190,7 +200,9 @@ class ExcelService:
                 "№": word.get("word_number", ""),
                 "Слово": self._clean_text_for_export(word.get("word_foreign", "")),
                 "Перевод": self._clean_text_for_export(word.get("translation", "")),
-                "Транскрипция": self._clean_text_for_export(word.get("transcription", ""))
+                "Транскрипция": self._clean_text_for_export(word.get("transcription", "")),
+                "Радикалы": self._clean_text_for_export(word.get("radicals", "")),
+                "Ссылки": self._clean_text_for_export(word.get("references", ""))
             }
             export_data.append(word_data)
         
@@ -262,7 +274,9 @@ class ExcelService:
                 "№": word.get("word_number", ""),
                 "Слово": self._clean_text_for_export(word.get("word_foreign", "")),
                 "Перевод": self._clean_text_for_export(word.get("translation", "")),
-                "Транскрипция": self._clean_text_for_export(word.get("transcription", ""))
+                "Транскрипция": self._clean_text_for_export(word.get("transcription", "")),
+                "Радикалы": self._clean_text_for_export(word.get("radicals", "")),
+                "Ссылки": self._clean_text_for_export(word.get("references", ""))
             }
             export_data.append(word_data)
         
@@ -321,7 +335,9 @@ class ExcelService:
                 "word_number": word.get("word_number", ""),
                 "word_foreign": self._clean_text_for_export(word.get("word_foreign", "")),
                 "translation": self._clean_text_for_export(word.get("translation", "")),
-                "transcription": self._clean_text_for_export(word.get("transcription", ""))
+                "transcription": self._clean_text_for_export(word.get("transcription", "")),
+                "radicals": self._clean_text_for_export(word.get("radicals", "")),
+                "references": self._clean_text_for_export(word.get("references", ""))
             }
             export_words.append(word_data)
         

@@ -83,6 +83,8 @@ async def show_study_word(
     translation = current_word.get("translation", "Нет перевода")
     word_foreign = current_word.get("word_foreign", "")
     transcription = current_word.get("transcription", "")
+    radicals = current_word.get("radicals", "")
+    references = current_word.get("references", "")
     
     # Get user word data
     user_word_data = current_word.get("user_word_data", {})
@@ -117,6 +119,8 @@ async def show_study_word(
         show_word=word_shown,
         word_foreign=word_foreign,
         transcription=transcription,
+        radicals=radicals,
+        references=references,
         show_big=show_big,
         show_check_date=show_check_date,
         words_studied=words_studied,
