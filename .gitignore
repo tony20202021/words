@@ -78,6 +78,10 @@ local_settings.py
 *.xlsx
 *.xls
 
+# Docx files
+*.docx
+*.doc
+
 # Media files
 *.mp3
 *.wav
