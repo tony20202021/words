@@ -44,25 +44,32 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
     
     # Создание списка записей и сортировка по частотности
     entries = []
-    for key, value in data.items():
+    for value in data["words"]:
+        # key = value["word_number"]
         # Проверяем, что частотность существует и является числом
-        if 'frequency' in value and value['frequency']:
-            try:
-                frequency = int(value['frequency'])
-                entries.append({
-                    'key': key,
-                    'frequency': frequency,
-                    'character': value.get(word_field_name, ''),  # Используем word_field_name
-                    'transcription': value.get('transcription', ''),
-                    'description': value.get('description', [])
-                })
-            except (ValueError, TypeError):
-                print(f"Пропуск записи {key}: некорректная частотность")
+        # if 'frequency' in value and value['frequency']:
+        try:
+            # frequency = int(value['word_number'])
+            entries.append({
+                # 'key': key,
+                # 'frequency': frequency,
+                'word_number': value.get('word_number', ''),
+                'word_foreign': value.get(word_field_name, ''),  # Используем word_field_name
+                'transcription': value.get('transcription', ''),
+                'translation': value.get('translation', []),
+                'radicals': value.get('radicals', []),
+                'references': value.get('references', [])
+            })
+        except (ValueError, TypeError):
+            print(f"Пропуск записи {value}: некорректная частотность")
     
     # Сортировка по частотности (по возрастанию)
-    entries.sort(key=lambda x: x['frequency'])
+    # entries.sort(key=lambda x: x['frequency'])
+    entries.sort(key=lambda x: x['word_number'])
     
     print(f"Найдено {len(entries)} записей с корректной частотностью")
+
+    print(entries[0])
     
     # Создание нового документа Word
     doc = Document()
@@ -75,8 +82,8 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
         section.top_margin = Inches(page_margins[2])
         section.bottom_margin = Inches(page_margins[3])
     
-    # Создание таблицы (изменено с 6 на 5 колонок, так как объединяем frequency и key)
-    table = doc.add_table(rows=1, cols=5)
+    # Создание таблицы 
+    table = doc.add_table(rows=1, cols=7)
     table.style = 'Table Grid'
     
     # Свойства для таблицы
@@ -96,13 +103,13 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
         
         # 1. Частотность и номер (объединенные в одну колонку)
         freq_key_para = row[0].paragraphs[0]
-        freq_key_text = f"{entry['frequency']}\n({entry['key']})"
+        freq_key_text = f"{entry['word_number']}"
         freq_key_run = freq_key_para.add_run(freq_key_text)
         freq_key_run.font.size = Pt(default_font_size)
         
         # 2. Слово/иероглиф (с увеличенным размером шрифта)
         char_para = row[1].paragraphs[0]
-        char_run = char_para.add_run(entry['character'])
+        char_run = char_para.add_run(entry['word_foreign'])
         char_run.font.size = Pt(character_font_size)
         
         # Установка точного межстрочного интервала
@@ -124,23 +131,22 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
         comm_run.font.size = Pt(default_font_size)
         
         # 5. Перевод (описание) с ограничением длины
-        description_text = ""
-        if entry['description']:
-            # Объединяем строки описания
-            for desc in entry['description'][:description_lines_count]:
-                if description_text:
-                    description_text += "\n"
-                
-                # Обрезаем по лимиту символов
-                if len(desc) > description_limit:
-                    description_text += desc[:description_limit] + "..."
-                else:
-                    description_text += desc
+        description_text = entry['translation'][:description_limit]
         
         # Добавляем описание в документ
         desc_para = row[4].paragraphs[0]
         desc_run = desc_para.add_run(description_text)
         desc_run.font.size = Pt(default_font_size)
+
+        radicals_text = entry['radicals']
+        radicals_para = row[5].paragraphs[0]
+        radicals_run = radicals_para.add_run(radicals_text)
+        radicals_run.font.size = Pt(default_font_size)
+
+        references_text = entry['references']
+        references_para = row[6].paragraphs[0]
+        references_run = references_para.add_run(references_text)
+        references_run.font.size = Pt(default_font_size)
     
     # Задаем ширину колонок, если они указаны
     if column_widths:
@@ -148,14 +154,14 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
         total_width = 6  # в дюймах
         
         # Обновляем ключи колонок под новую структуру (без ключа 'key')
-        column_keys = ['frequency', 'character', 'transcription', 'comments', 'description']
+        column_keys = ['word_number', 'character', 'transcription', 'comments', 'translation', 'radicals', 'references']
         for i, key in enumerate(column_keys):
             if key in column_widths:
                 # Преобразуем процент в дюймы
                 # Для первой колонки (frequency) теперь используем сумму процентов frequency и key
                 width_percent = column_widths[key]
-                if i == 0 and 'key' in column_widths:
-                    width_percent = column_widths['frequency']  # Используем только значение для frequency
+                # if i == 0 and 'key' in column_widths:
+                #     width_percent = column_widths['frequency']  # Используем только значение для frequency
                 
                 width_inches = (width_percent / 100) * total_width
                 for cell in table.columns[i].cells:
@@ -206,47 +212,43 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     
     # Создание списка записей и сортировка по частотности
     entries = []
-    for key, value in data.items():
+    for value in data["words"]:
+        # key = value["word_number"]
         # Проверяем, что частотность существует и является числом
-        if 'frequency' in value and value['frequency']:
-            try:
-                frequency = int(value['frequency'])
-                
-                # Подготовка описания
-                description_text = ""
-                if 'description' in value and value['description']:
-                    # Объединяем строки описания
-                    for desc in value['description'][:description_lines_count]:
-                        if description_text:
-                            description_text += "\n"
-                        
-                        # Обрезаем по лимиту символов
-                        if len(desc) > description_limit:
-                            description_text += desc[:description_limit] + "..."
-                        else:
-                            description_text += desc
-                
-                # Подготовка транскрипции
-                transcription_text = value.get('transcription', '')
-                if len(transcription_text) > transcription_limit:
-                    transcription_text = transcription_text[:transcription_limit] + "..."
-                
-                entries.append({
-                    'key': key,
-                    'frequency': frequency,
-                    word_field_name: value.get(word_field_name, ''),  # Используем word_field_name
-                    'transcription': transcription_text,
-                    'comments': '',  # Пустой столбец для комментариев
-                    'description': description_text
-                })
-            except (ValueError, TypeError):
-                print(f"Пропуск записи {key}: некорректная частотность")
+        # if 'frequency' in value and value['frequency']:
+        try:
+            # frequency = int(value['frequency'])
+            
+            # Подготовка описания
+            description_text = value['translation'][:description_limit]
+            
+            # Подготовка транскрипции
+            transcription_text = value.get('transcription', '')
+            if len(transcription_text) > transcription_limit:
+                transcription_text = transcription_text[:transcription_limit] + "..."
+            
+            entries.append({
+                # 'key': key,
+                # 'frequency': frequency,
+                'word_number': value.get('word_number', ''),
+                word_field_name: value.get(word_field_name, ''),  # Используем word_field_name
+                'transcription': transcription_text,
+                'comments': '',  # Пустой столбец для комментариев
+                'translation': description_text,
+                'radicals': value.get('radicals', []),
+                'references': value.get('references', [])
+            })
+        except (ValueError, TypeError):
+            print(f"Пропуск записи {value}: некорректная частотность")
     
     # Сортировка по частотности (по возрастанию)
-    entries.sort(key=lambda x: x['frequency'])
+    # entries.sort(key=lambda x: x['frequency'])
+    entries.sort(key=lambda x: x['word_number'])
     
     print(f"Найдено {len(entries)} записей с корректной частотностью")
     
+    print(entries[0])
+
     # Создание DataFrame
     df = pd.DataFrame(entries)
     
@@ -256,7 +258,7 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     ws.title = "Words"
     
     # Добавление заголовков
-    headers = ['key', 'frequency', word_field_name, 'transcription', 'comments', 'description']
+    headers = ['word_number', 'word_number', word_field_name, 'transcription', 'comments', 'translation', 'radicals', 'references']
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header
@@ -266,8 +268,10 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     
     # Добавление данных в Excel
     for i, entry in enumerate(entries, 2):  # начинаем со 2-й строки после заголовков
-        ws.cell(row=i, column=1).value = entry['key']
-        ws.cell(row=i, column=2).value = entry['frequency']
+        # ws.cell(row=i, column=1).value = entry['key']
+        # ws.cell(row=i, column=2).value = entry['frequency']
+        ws.cell(row=i, column=1).value = entry['word_number']
+        ws.cell(row=i, column=2).value = entry['word_number']
         
         # Настройка ячейки со словом
         char_cell = ws.cell(row=i, column=3)
@@ -280,8 +284,13 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
         
         # Настройка ячейки с описанием
         desc_cell = ws.cell(row=i, column=6)
-        desc_cell.value = entry['description']
+        desc_cell.value = entry['translation']
         desc_cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+        # print(i, entry['radicals'], entry['references'])
+
+        ws.cell(row=i, column=7).value = entry['radicals']
+        ws.cell(row=i, column=8).value = entry['references']
     
     # Настройка ширины колонок
     if column_widths:
@@ -290,23 +299,25 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
                 ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = column_widths[header]
     else:
         # Если ширина колонок не задана, устанавливаем приблизительные значения
-        ws.column_dimensions['A'].width = 6     # key
-        ws.column_dimensions['B'].width = 8     # frequency
+        # ws.column_dimensions['A'].width = 6     # key
+        # ws.column_dimensions['B'].width = 8     # frequency
         ws.column_dimensions['C'].width = 12    # word_field_name
         ws.column_dimensions['D'].width = 15    # transcription
         ws.column_dimensions['E'].width = 15    # comments
         ws.column_dimensions['F'].width = 45    # description
+        ws.column_dimensions['G'].width = 10    # radicals
+        ws.column_dimensions['H'].width = 10    # references
     
     # Автоматическая настройка высоты строк
     for i in range(2, len(entries) + 2):
         # Примерный расчет высоты строки в зависимости от количества строк в описании
-        desc = entries[i-2]['description']
+        desc = entries[i-2]['translation']
         num_lines = desc.count('\n') + 1
         row_height = max(14.5, num_lines * 14.5)  # Минимальная высота 14.5, для каждой строки добавляем 14.5
         ws.row_dimensions[i].height = row_height
     
     # Добавление автофильтра
-    ws.auto_filter.ref = f"A1:F{len(entries) + 1}"
+    ws.auto_filter.ref = f"A1:H{len(entries) + 1}"
     
     # Закрепление заголовков
     ws.freeze_panes = 'A2'
@@ -321,9 +332,11 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
 if __name__ == "__main__":
     # Задаем параметры как константы
     # INPUT_FILE = "chinese_characters_0_10000.json"
-    INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
-    OUTPUT_FILE_WORD = "chinese_characters_10_000.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_10_000.xlsx"
+    # INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
+    INPUT_FILE = "./chat_gpt/words_Китайский_20250805_194526.json.merged.json.cross_references.json"
+    
+    OUTPUT_FILE_WORD = "chinese_characters_10_000_merged.docx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_10_000_merged.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"
@@ -342,7 +355,7 @@ if __name__ == "__main__":
     # OUTPUT_FILE_EXCEL = "spain_10_000.xlsx"
 
     # Поле с основным словом
-    WORD_FIELD_NAME = "word"
+    WORD_FIELD_NAME = "word_foreign"
 
     # Размеры шрифтов
     CHARACTER_FONT_SIZE = 20
@@ -363,21 +376,25 @@ if __name__ == "__main__":
     
     # Ширина колонок в процентах от ширины страницы для Word
     COLUMN_WIDTHS_WORD = {
-        'frequency': 5,       # Частотность
-        'character': 15,       # Иероглиф/Слово
+        'word_number': 5,       # Частотность
+        'word_foreign': 15,       # Иероглиф/Слово
         'transcription': 12,   # Транскрипция
         'comments': 12,        # Комментарии
-        'description': 110      # Описание/перевод
+        'translation': 110,    # Описание/перевод
+        'radicals': 10,         # Радикалы
+        'references': 10,  # Ссылки на другие слова
     }
     
     # Ширина колонок в пикселях для Excel
     COLUMN_WIDTHS_EXCEL = {
-        'key': 6,          # Ключ
+        'word_number': 6,          # Ключ
         'frequency': 8,    # Частотность
-        'character': 12,   # Иероглиф/Слово
+        'word_foreign': 12,   # Иероглиф/Слово
         'transcription': 15, # Транскрипция
         'comments': 15,    # Комментарии
-        'description': 145  # Описание/перевод
+        'translation': 145,  # Описание/перевод
+        'radicals': 10,     # Радикалы
+        'references': 10,  # Ссылки на другие слова
     }
         
     # Вызов функции генерации Word документа

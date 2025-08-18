@@ -1,7 +1,8 @@
 import json
     
 if __name__ == "__main__":
-    INPUT_FILE_JSON = "/home/tony/repos/words/words/chat_gpt/words_Китайский_20250805_194526.json"
+    # INPUT_FILE_JSON = "/home/tony/repos/words/words/chat_gpt/words_Китайский_20250805_194526.json"
+    INPUT_FILE_JSON = "/home/tony/repos/words/words/chat_gpt/words_Китайский_20250805_194526.json.merged.json"
     
     OUTPUT_FILE_JSON = INPUT_FILE_JSON + ".cross_references.json"
 
