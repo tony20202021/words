@@ -219,10 +219,12 @@ def format_study_word_message(
 
     if word_number <= words_studied:
         if show_word:
-            message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n\n"
+            message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n"
         else:
-            message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n\n"
+            message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n"
     
+    message += "\n"
+
     # Добавляем информацию о статусе пропуска
     if is_skipped:
         message += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n\n"
@@ -237,6 +239,8 @@ def format_study_word_message(
                 message += f"⏱ Вы знали это слово:\n"
             if check_interval and check_interval > 0:
                 message += f"Предыдущий интервал: {check_interval} (дней)\n"
+    
+    message += "\n"
     
     message += f"🔍 Слово на русском:\n<b>{translation}</b>\n"
     

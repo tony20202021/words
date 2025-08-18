@@ -43,6 +43,8 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
         column_word = int(column_indices[1])
         column_transcription = int(column_indices[2])
         column_translation = int(column_indices[3])
+        column_radicals = int(column_indices[4])
+        column_references = int(column_indices[5])
     except (IndexError, ValueError) as e:
         logger.error(f"Error parsing column template: {e}")
         await callback.message.answer("❌ Ошибка при обработке шаблона колонок. Попробуйте настроить вручную.")
@@ -56,7 +58,9 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
         "column_number": column_number,
         "column_word": column_word,
         "column_transcription": column_transcription,
-        "column_translation": column_translation
+        "column_translation": column_translation,
+        "column_radicals": column_radicals,
+        "column_references": column_references
     })
     
     # Выводим информацию о выбранном шаблоне
@@ -66,6 +70,8 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
         f"- Колонка слова: {column_word}\n"
         f"- Колонка транскрипции: {column_transcription}\n"
         f"- Колонка перевода: {column_translation}\n\n"
+        f"- Колонка радикалов: {column_radicals}\n"
+        f"- Колонка ссылок: {column_references}\n"
         f"Теперь можно загрузить файл или настроить колонки точнее."
     )
     

@@ -548,7 +548,9 @@ def get_upload_settings_keyboard(
     column_number: int,
     column_word: int,
     column_transcription: int,
-    column_translation: int
+    column_translation: int,
+    column_radicals: int,
+    column_references: int
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for uploading settings.
@@ -570,7 +572,7 @@ def get_upload_settings_keyboard(
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
-    column_info = f"(сейчас: {column_number}, {column_word}, {column_transcription}, {column_translation})"
+    column_info = f"(сейчас: {column_number}, {column_word}, {column_transcription}, {column_translation}, {column_radicals}, {column_references})"
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
         callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"

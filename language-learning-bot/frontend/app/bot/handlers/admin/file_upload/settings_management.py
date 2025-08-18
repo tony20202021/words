@@ -91,7 +91,7 @@ async def toggle_headers_setting(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "⚙️ Настройки загрузки файла:\n\n"
         f"✅ Файл содержит заголовки: \"{('Да' if has_headers else 'Нет')}\"\n"
-        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n"
+        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n\n"
         f"{column_settings_str}\n"
         "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла.",
         reply_markup=builder.as_markup()
@@ -170,7 +170,7 @@ async def toggle_clear_existing_setting(callback: CallbackQuery, state: FSMConte
     await callback.message.edit_text(
         "⚙️ Настройки загрузки файла:\n\n"
         f"✅ Файл содержит заголовки: \"{('Да' if has_headers else 'Нет')}\"\n"
-        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n"
+        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n\n"
         f"{column_settings_str}\n"
         "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла.",
         reply_markup=builder.as_markup()
@@ -239,7 +239,7 @@ async def process_back_to_settings(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "⚙️ Настройки загрузки файла:\n\n"
         f"✅ Файл содержит заголовки: \"{('Да' if has_headers else 'Нет')}\"\n"
-        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n"
+        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n\n"
         f"{column_settings_str}\n"
         "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла.",
         reply_markup=builder.as_markup()
@@ -280,7 +280,7 @@ def format_column_settings(user_data):
     """
     # Проверяем, есть ли настройки колонок
     column_settings = []
-    for col_type in ["number", "word", "transcription", "translation"]:
+    for col_type in ["number", "word", "transcription", "translation", "radicals", "references"]:
         col_key = f"column_{col_type}"
         col_value = user_data.get(col_key)
         if col_value is not None:
@@ -305,7 +305,7 @@ def get_column_info_text(user_data):
     """
     # Проверяем наличие настроек колонок
     column_values = []
-    for col_type in ["number", "word", "transcription", "translation"]:
+    for col_type in ["number", "word", "transcription", "translation", "radicals", "references"]:
         col_value = user_data.get(f"column_{col_type}")
         if col_value is not None:
             column_values.append(str(col_value))
@@ -372,7 +372,7 @@ def create_upload_settings_interface(user_data: dict) -> tuple:
     message_text = (
         "⚙️ Настройки загрузки файла:\n\n"
         f"✅ Файл содержит заголовки: \"{('Да' if has_headers else 'Нет')}\"\n"
-        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n"
+        f"✅ Очистить существующие слова: \"{('Да' if clear_existing else 'Нет')}\"\n\n"
         f"{column_settings_str}\n"
         "Настройте параметры, нажмите 'Настроить колонки' для настройки колонок или 'Подтвердить и загрузить' для загрузки файла."
     )

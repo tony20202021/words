@@ -240,6 +240,7 @@ class APIClient:
                             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 
                 # Добавляем параметры колонок в форму, если они предоставлены
+                logger.info(f"Params: {params}")
                 if params:
                     processed_params = {}
                     for key, value in params.items():
