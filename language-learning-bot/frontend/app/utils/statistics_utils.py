@@ -372,11 +372,15 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
         one_day_stats["words_unknown"] = one_day_stats["words_studied"] - one_day_stats["words_known"] - one_day_stats["words_skipped"]
         
         if words_studied_previous is None:
-            words_studied_previous = one_day_stats["words_studied"]
             one_day_stats["words_new"] = None
         else:
-            one_day_stats["words_new"] = one_day_stats["words_studied"] - words_studied_previous
-            words_studied_previous = one_day_stats["words_studied"]
+            delta = one_day_stats["words_studied"] - words_studied_previous
+            if delta >= 0:
+                one_day_stats["words_new"] = delta
+            else:
+                one_day_stats["words_new"] = None
+
+        words_studied_previous = one_day_stats["words_studied"]
         
         all_days_stats.append(one_day_stats)
 

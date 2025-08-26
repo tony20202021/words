@@ -85,6 +85,7 @@ async def show_study_word(
     transcription = current_word.get("transcription", "")
     radicals = current_word.get("radicals", "")
     references = current_word.get("references", "")
+    tones = current_word.get("tones", "")
     
     # Get user word data
     user_word_data = current_word.get("user_word_data", {})
@@ -121,6 +122,7 @@ async def show_study_word(
         transcription=transcription,
         radicals=radicals,
         references=references,
+        tones=tones,
         show_big=show_big,
         show_check_date=show_check_date,
         words_studied=words_studied,

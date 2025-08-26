@@ -177,6 +177,7 @@ def format_study_word_message(
     transcription=None,
     radicals=None,
     references=None,
+    tones=None,
     show_big=False,
     show_check_date=True,
     words_studied=0,
@@ -201,6 +202,7 @@ def format_study_word_message(
         transcription: Транскрипция слова
         radicals: Радикалы слова
         references: Ссылки на слово
+        tones: Тоны слова
         show_big: Показывать ли большое слово
         show_check_date: Показывать ли дату проверки
         words_studied: Количество слов, изученных в сессии
@@ -223,25 +225,26 @@ def format_study_word_message(
         else:
             message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n"
     
-    message += "\n"
 
     # Добавляем информацию о статусе пропуска
     if is_skipped:
-        message += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n\n"
+        message += "\n"
+        message += "⏩ <b>Статус: это слово помечено для пропуска.</b>\n"
     
     # Добавляем информацию о периоде повторения
     if (score == 1) and show_check_date:
         if score_changed:
             if check_interval and check_interval > 0:
+                message += "\n"
                 message += f"Следующий интервал: {check_interval} (дней)\n"
         else:
             if (check_interval > 0) or (next_check_date):
+                message += "\n"
                 message += f"⏱ Вы знали это слово:\n"
             if check_interval and check_interval > 0:
                 message += f"Предыдущий интервал: {check_interval} (дней)\n"
     
-    message += "\n"
-    
+    message += "\n"    
     message += f"🔍 Слово на русском:\n<b>{translation}</b>\n"
     
     # Если нужно показать слово, добавляем его с кликабельной ссылкой
@@ -255,10 +258,12 @@ def format_study_word_message(
             escaped_transcription = transcription.replace('\n', ',')
             message += f"🔊 Транскрипция:\n<b>[{escaped_transcription}]</b>\n\n"
         if radicals:
-            message += f"🔍 Радикалы:\n<b>{radicals}</b>\n\n"
+            message += f"🔍 Радикалы:\n{radicals}\n\n"
         if references:
-            message += f"🔍 Ссылки:\n<b>{references}</b>\n\n"
-
+            message += f"🔍 Ссылки:\n{references}\n\n"
+        if tones:
+            message += f"🔍 Тоны:\n{tones}\n\n"
+            
     return message
 
 

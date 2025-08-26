@@ -190,7 +190,8 @@ async def process_edit_word(callback: CallbackQuery, state: FSMContext):
         f"Транскрипция: <code>{word.get('transcription', 'N/A')}</code>\n"
         f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n"
         f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
-        f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n\n"
+        f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
+        f"Тоны: <code>{word.get('tones', 'N/A')}</code>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -278,7 +279,7 @@ async def process_edit_wordfield_translation(callback: CallbackQuery, state: FSM
 @word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_transcription_"))
 async def process_edit_wordfield_transcription(callback: CallbackQuery, state: FSMContext):
     """
-    Start editing word transcription.
+    Start editing word transcription.   
     
     Args:
         callback: The callback query from Telegram
@@ -305,6 +306,108 @@ async def process_edit_wordfield_transcription(callback: CallbackQuery, state: F
     
     # Переходим в состояние редактирования транскрипции
     await state.set_state(AdminStates.editing_word_transcription)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_radicals_"))
+async def process_edit_wordfield_radicals(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word radicals.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="transcription")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование радикалов</b>\n\n"
+        "Введите новые радикалы слова:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования радикалов
+    await state.set_state(AdminStates.editing_word_radicals)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_references_"))
+async def process_edit_wordfield_references(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word references.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="transcription")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование ссылок</b>\n\n"
+        "Введите новые ссылки слова:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования ссылок
+    await state.set_state(AdminStates.editing_word_references)
+    
+    await callback.answer()
+
+
+@word_router.callback_query(AdminStates.viewing_word_details, F.data.startswith("edit_wordfield_tones_"))
+async def process_edit_wordfield_tones(callback: CallbackQuery, state: FSMContext):
+    """
+    Start editing word tones.
+    
+    Args:
+        callback: The callback query from Telegram
+        state: The FSM state context
+    """
+    from app.utils.callback_constants import CallbackParser
+    
+    # Парсим callback для получения word_id
+    field, word_id = CallbackParser.parse_edit_wordfield(callback.data)
+    
+    if not word_id:
+        await callback.message.answer("❌ Ошибка: ID слова не найден")
+        await callback.answer()
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(editing_word_id=word_id, editing_field="transcription")
+    
+    await callback.message.answer(
+        "✏️ <b>Редактирование тонов</b>\n\n"
+        "Введите новые тоны слова:",
+        parse_mode="HTML"
+    )
+    
+    # Переходим в состояние редактирования тонов
+    await state.set_state(AdminStates.editing_word_tones)
     
     await callback.answer()
 
@@ -492,7 +595,8 @@ async def show_word_fields_edit_screen(message: Message, word_id: str):
         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
         f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
         f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
-        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n\n"
+        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n"
+        f"Тоны: <b>{word.get('tones', 'N/A')}</b>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -627,6 +731,7 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
         f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n"
         f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
         f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
+        f"Тоны: <code>{word.get('tones', 'N/A')}</code>\n"
         f"ID: <code>{word_id}</code>"
         f"{user_info}"
     )
@@ -706,7 +811,8 @@ async def process_delete_word(callback: CallbackQuery, state: FSMContext):
         f"Транскрипция: <b>{word.get('transcription', 'N/A')}</b>\n"
         f"Перевод: <b>{word.get('translation', 'N/A')}</b>\n"
         f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
-        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n\n"
+        f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n"
+        f"Тоны: <b>{word.get('tones', 'N/A')}</b>\n\n"
         f"⚠️ <b>Внимание!</b> Это действие также удалит:\n"
         f"• Все пользовательские данные для этого слова\n"
         f"• Все созданные подсказки для этого слова\n"

@@ -47,6 +47,7 @@ async def process_select_column_type(callback: CallbackQuery, state: FSMContext)
         ("translation", "Колонка перевода", "select_translation"),
         ("radicals", "Колонка радикалов", "select_radicals"),
         ("references", "Колонка ссылок", "select_references"),
+        ("tones", "Колонка тонов", "select_tones"),
     ]
     
     for col_type, display_name, callback_data in column_types:
@@ -173,6 +174,7 @@ async def process_column_number_input(message: Message, state: FSMContext):
         ("translation", "Колонка перевода", "select_translation"),
         ("radicals", "Колонка радикалов", "select_radicals"),
         ("references", "Колонка ссылок", "select_references"),
+        ("tones", "Колонка тонов", "select_tones"),
     ]
     
     for col_type, display_name, callback_data in column_types:

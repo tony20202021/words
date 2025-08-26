@@ -16,6 +16,7 @@ class WordBase(BaseModel):
     sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
+    tones: Optional[str] = Field(None, description="Tones of the word")
 
 class WordCreate(WordBase):
     """Create model for word."""
@@ -30,6 +31,7 @@ class WordUpdate(BaseModel):
     sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
+    tones: Optional[str] = Field(None, description="Tones of the word")
 
 class WordInDB(WordBase):
     """Database model for word."""
@@ -50,6 +52,7 @@ class WordInDB(WordBase):
                 "sound_file_path": None,
                 "radicals": None,
                 "references": None,
+                "tones": None,
                 "created_at": "2020-10-29T12:00:00",
                 "updated_at": "2020-10-29T12:00:00"
             }
@@ -73,6 +76,7 @@ class Word(WordInDB):
                 "sound_file_path": None,
                 "radicals": None,
                 "references": None,
+                "tones": None,
                 "created_at": "2020-10-29T12:00:00",
                 "updated_at": "2020-10-29T12:00:00",
                 "language_name_ru": "Английский",
@@ -90,6 +94,7 @@ class WordForReview(BaseModel):
     word_number: int = Field(..., description="Sequential number in frequency list")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
+    tones: Optional[str] = Field(None, description="Tones of the word")
     score: int = Field(0, description="Current score (0 or 1)")
     check_interval: int = Field(0, description="Current check interval in days")
     next_check_date: Optional[datetime] = Field(None, description="Next check date")

@@ -72,6 +72,7 @@ async def process_upload_confirmation(callback: CallbackQuery, state: FSMContext
         "column_transcription": user_data.get('column_transcription'),
         "column_radicals": user_data.get('column_radicals'),
         "column_references": user_data.get('column_references'),
+        "column_tones": user_data.get('column_tones'),
         "column_number": user_data.get('column_number'),
         "start_row": 1 if user_data.get('has_headers', False) else 0,  # Если есть заголовки, начинаем с 1, иначе с 0
         "clear_existing": user_data.get('clear_existing', False)  # Параметр для очистки существующих слов

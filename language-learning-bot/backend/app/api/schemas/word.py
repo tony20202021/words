@@ -17,6 +17,7 @@ class WordBase(BaseModel):
     sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
+    tones: Optional[str] = Field(None, description="Tones of the word")
 
 
 class WordCreate(WordBase):
@@ -33,7 +34,8 @@ class WordUpdate(BaseModel):
     sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
-
+    tones: Optional[str] = Field(None, description="Tones of the word")
+    
 class WordResponse(WordBase):
     """Schema for word response data."""
     id: str = Field(..., description="Word ID")

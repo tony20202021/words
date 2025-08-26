@@ -278,6 +278,21 @@ def get_word_filed_edit_keyboard(word_id: str, language_id: str) -> InlineKeyboa
     ))
     
     builder.add(InlineKeyboardButton(
+        text="🔊 Изменить радикалы", 
+        callback_data=CallbackData.EDIT_WORDFIELD_RADICALS_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔊 Изменить ссылки", 
+        callback_data=CallbackData.EDIT_WORDFIELD_REFERENCES_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔊 Изменить тоны", 
+        callback_data=CallbackData.EDIT_WORDFIELD_TONES_TEMPLATE.format(word_id=word_id)
+    ))
+    
+    builder.add(InlineKeyboardButton(
         text="🔢 Изменить номер слова", 
         callback_data=CallbackData.EDIT_WORDFIELD_NUMBER_TEMPLATE.format(word_id=word_id)
     ))
@@ -550,7 +565,8 @@ def get_upload_settings_keyboard(
     column_transcription: int,
     column_translation: int,
     column_radicals: int,
-    column_references: int
+    column_references: int,
+    column_tones: int
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for uploading settings.
@@ -572,12 +588,12 @@ def get_upload_settings_keyboard(
     ))
     
     # Добавляем информацию о текущих настройках колонок в кнопку
-    column_info = f"(сейчас: {column_number}, {column_word}, {column_transcription}, {column_translation}, {column_radicals}, {column_references})"
+    column_info = f"(сейчас: {column_number}, {column_word}, {column_transcription}, {column_translation}, {column_radicals}, {column_references}, {column_tones})"
     builder.add(InlineKeyboardButton(
         text=f"🔧 Настроить колонки {column_info}", 
         callback_data=f"{CallbackData.SELECT_COLUMN_TYPE}:{language_id}"
     ))
-    
+
     # Добавляем кнопку подтверждения загрузки
     builder.add(InlineKeyboardButton(
         text="✅ Подтвердить и загрузить", 

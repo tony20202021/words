@@ -90,6 +90,9 @@ class CallbackData:
     EDIT_WORDFIELD_FOREIGN_TEMPLATE = "edit_wordfield_foreign_{word_id}"
     EDIT_WORDFIELD_TRANSLATION_TEMPLATE = "edit_wordfield_translation_{word_id}"
     EDIT_WORDFIELD_TRANSCRIPTION_TEMPLATE = "edit_wordfield_transcription_{word_id}"
+    EDIT_WORDFIELD_RADICALS_TEMPLATE = "edit_wordfield_radicals_{word_id}"
+    EDIT_WORDFIELD_REFERENCES_TEMPLATE = "edit_wordfield_references_{word_id}"
+    EDIT_WORDFIELD_TONES_TEMPLATE = "edit_wordfield_tones_{word_id}"
     EDIT_WORDFIELD_NUMBER_TEMPLATE = "edit_wordfield_number_{word_id}"
     CONFIRM_WORD_DELETE_TEMPLATE = "confirm_word_delete_{word_id}"
     CANCEL_WORD_DELETE_TEMPLATE = "cancel_word_delete_{word_id}"
@@ -180,11 +183,10 @@ class CallbackParser:
         'hint_setting_toggle': re.compile(r"settings_toggle_hint_(\w+)"),
         'edit_word': re.compile(r"edit_word_(.+)"),
         'delete_word': re.compile(r"delete_word_(.+)"),
-        'edit_wordfield': re.compile(r"edit_wordfield_(foreign|translation|transcription|number)_(.+)"),
+        'edit_wordfield': re.compile(r"edit_wordfield_(foreign|translation|transcription|radicals|references|tones|number)_(.+)"),
         'confirm_word_delete': re.compile(r"confirm_word_delete_(.+)"),
         'cancel_word_delete': re.compile(r"cancel_word_delete_(.+)"),
         'admin_edit_from_study': re.compile(r"admin_edit_word_from_study_(.+)"),
-        # НОВОЕ: Парсеры для настроек картинок написания
         'writing_images_setting_toggle': re.compile(r"settings_toggle_writing_images"),
     }
     

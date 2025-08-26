@@ -64,10 +64,15 @@ class AdminStates(StatesGroup):
     
     # Состояния управления словами
     viewing_word_details = State()              # Просмотр деталей слова в админке
+    
     editing_word_foreign = State()              # Редактирование иностранного слова
     editing_word_translation = State()          # Редактирование перевода
     editing_word_transcription = State()        # Редактирование транскрипции
+    editing_word_radicals = State()             # Редактирование радикалов
+    editing_word_references = State()           # Редактирование ссылок
+    editing_word_tones = State()                # Редактирование тонов
     editing_word_number = State()               # Редактирование номера слова
+
     confirming_word_deletion = State()          # Подтверждение удаления слова
     
     # Состояния загрузки файлов

@@ -31,6 +31,7 @@ DEFAULT_COLUMN_TRANSCRIPTION = 2
 DEFAULT_COLUMN_TRANSLATION = 3
 DEFAULT_COLUMN_RADICALS = 4
 DEFAULT_COLUMN_REFERENCES = 5
+DEFAULT_COLUMN_TONES = 6
 
 @file_router.message(Command("upload"))
 async def cmd_upload(message: Message, state: FSMContext):
@@ -157,7 +158,8 @@ async def process_file_upload(message: Message, state: FSMContext):
         column_transcription=DEFAULT_COLUMN_TRANSCRIPTION,
         column_translation=DEFAULT_COLUMN_TRANSLATION,
         column_radicals=DEFAULT_COLUMN_RADICALS,
-        column_references=DEFAULT_COLUMN_REFERENCES
+        column_references=DEFAULT_COLUMN_REFERENCES,
+        column_tones=DEFAULT_COLUMN_TONES
     )
     
     # Устанавливаем состояние настроек загрузки
@@ -171,7 +173,8 @@ async def process_file_upload(message: Message, state: FSMContext):
         column_transcription=DEFAULT_COLUMN_TRANSCRIPTION,
         column_translation=DEFAULT_COLUMN_TRANSLATION,
         column_radicals=DEFAULT_COLUMN_RADICALS,
-        column_references=DEFAULT_COLUMN_REFERENCES
+        column_references=DEFAULT_COLUMN_REFERENCES,
+        column_tones=DEFAULT_COLUMN_TONES
     )
     
     # Формируем строку с текущими настройками колонок
@@ -183,13 +186,14 @@ async def process_file_upload(message: Message, state: FSMContext):
         f"✅ Колонка translation: {DEFAULT_COLUMN_TRANSLATION}\n"
         f"✅ Колонка radicals: {DEFAULT_COLUMN_RADICALS}\n"
         f"✅ Колонка references: {DEFAULT_COLUMN_REFERENCES}\n"
+        f"✅ Колонка tones: {DEFAULT_COLUMN_TONES}\n"
     )
     
     # Предлагаем настроить параметры загрузки
     await message.answer(
         "⚙️ Настройки загрузки файла:\n\n"
-        '✅ Файл содержит заголовки: "Нет"\n'
-        '✅ Очистить существующие слова: "Нет"\n\n'
+        '❌ Файл содержит заголовки: "Нет"\n'
+        '❌ Очистить существующие слова: "Нет"\n\n'
         f"{column_settings}\n"
         "Настройте параметры или нажмите 'Подтвердить и загрузить' для продолжения.",
         reply_markup=builder

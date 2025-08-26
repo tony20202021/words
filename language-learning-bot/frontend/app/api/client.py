@@ -4,18 +4,20 @@ This client is used by the frontend to communicate with the backend API,
 not directly with the database.
 """
 
-import logging
 from typing import Dict, Optional, Any
 from datetime import datetime
 
 import aiohttp
 from dotenv import load_dotenv
 
+from app.utils.logger import get_module_logger
+
+
 # Загрузка переменных окружения
 load_dotenv()
 
 # Настройка логгера
-logger = logging.getLogger(__name__)
+logger = get_module_logger(__name__)
 
 class APIClient:
     """
@@ -206,6 +208,7 @@ class APIClient:
                 - column_transcription: Column index for transcriptions
                 - column_radicals: Column index for radicals
                 - column_references: Column index for references
+                - column_tones: Column index for tones
                 - column_number: Column index for word numbers
                 - start_row: Index of the first row to process (0 if no headers, 1 if headers)
                 - clear_existing: Whether to clear existing words before importing (bool)
