@@ -41,7 +41,7 @@ if __name__ == "__main__":
             if char in chars_ref:
                 for ref in chars_ref[char]:
                     if ref["word_number"] != entry["word_number"]:
-                        words_formatted.append(f"<i>[#{ref['word_number']}]</i>{ref['translation']}")
+                        words_formatted.append(f"<i>[#{ref['word_number']}] </i>{ref['translation']}")
 
             if len(words_formatted) > 0:
                 references_formatted.append(f"{reference_text} {', '.join(words_formatted)}")

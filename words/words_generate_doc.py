@@ -69,7 +69,7 @@ def generate_word_document(input_file, output_file=None, word_field_name="charac
     
     print(f"Найдено {len(entries)} записей с корректной частотностью")
 
-    print(entries[0])
+    # print(entries[0])
     
     # Создание нового документа Word
     doc = Document()
@@ -233,10 +233,11 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
                 'word_number': value.get('word_number', ''),
                 word_field_name: value.get(word_field_name, ''),  # Используем word_field_name
                 'transcription': transcription_text,
-                'comments': '',  # Пустой столбец для комментариев
+                # 'comments': '',  # Пустой столбец для комментариев
                 'translation': description_text,
                 'radicals': value.get('radicals', []),
-                'references': value.get('references', [])
+                'references': value.get('references', []),
+                'tones': value.get('tones', [])
             })
         except (ValueError, TypeError):
             print(f"Пропуск записи {value}: некорректная частотность")
@@ -247,7 +248,7 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     
     print(f"Найдено {len(entries)} записей с корректной частотностью")
     
-    print(entries[0])
+    # print(entries[0])
 
     # Создание DataFrame
     df = pd.DataFrame(entries)
@@ -258,7 +259,13 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     ws.title = "Words"
     
     # Добавление заголовков
-    headers = ['word_number', 'word_number', word_field_name, 'transcription', 'comments', 'translation', 'radicals', 'references']
+    headers = [
+        'word_number', 
+        # 'word_number', 
+        word_field_name, 'transcription', 
+        # 'comments', 
+        'translation', 'radicals', 'references', 'tones'
+    ]
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header
@@ -268,29 +275,39 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
     
     # Добавление данных в Excel
     for i, entry in enumerate(entries, 2):  # начинаем со 2-й строки после заголовков
+        column = 1
         # ws.cell(row=i, column=1).value = entry['key']
         # ws.cell(row=i, column=2).value = entry['frequency']
-        ws.cell(row=i, column=1).value = entry['word_number']
-        ws.cell(row=i, column=2).value = entry['word_number']
+        ws.cell(row=i, column=column).value = entry['word_number']
+        column += 1
+        # ws.cell(row=i, column=2).value = entry['word_number']
         
         # Настройка ячейки со словом
-        char_cell = ws.cell(row=i, column=3)
+        char_cell = ws.cell(row=i, column=column)
+        column += 1
         char_cell.value = entry[word_field_name]
         char_cell.font = Font(size=16)  # Увеличенный размер для слов
         char_cell.alignment = Alignment(horizontal='center', vertical='center')
         
-        ws.cell(row=i, column=4).value = entry['transcription']
-        ws.cell(row=i, column=5).value = entry['comments']
+        ws.cell(row=i, column=column).value = entry['transcription']
+        column += 1
+        # ws.cell(row=i, column=column).value = entry['comments']
+        # column += 1
         
         # Настройка ячейки с описанием
-        desc_cell = ws.cell(row=i, column=6)
+        desc_cell = ws.cell(row=i, column=column)
+        column += 1
         desc_cell.value = entry['translation']
         desc_cell.alignment = Alignment(wrap_text=True, vertical='top')
 
         # print(i, entry['radicals'], entry['references'])
 
-        ws.cell(row=i, column=7).value = entry['radicals']
-        ws.cell(row=i, column=8).value = entry['references']
+        ws.cell(row=i, column=column).value = entry['radicals']
+        column += 1
+        ws.cell(row=i, column=column).value = entry['references']
+        column += 1
+        ws.cell(row=i, column=column).value = entry['tones']
+        column += 1
     
     # Настройка ширины колонок
     if column_widths:
@@ -299,14 +316,22 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
                 ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = column_widths[header]
     else:
         # Если ширина колонок не задана, устанавливаем приблизительные значения
+        column = 'A'
         # ws.column_dimensions['A'].width = 6     # key
         # ws.column_dimensions['B'].width = 8     # frequency
-        ws.column_dimensions['C'].width = 12    # word_field_name
-        ws.column_dimensions['D'].width = 15    # transcription
-        ws.column_dimensions['E'].width = 15    # comments
-        ws.column_dimensions['F'].width = 45    # description
-        ws.column_dimensions['G'].width = 10    # radicals
-        ws.column_dimensions['H'].width = 10    # references
+        ws.column_dimensions[column].width = 12    # word_field_name
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 15    # transcription
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 15    # comments
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 45    # description
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 10    # radicals
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 10    # references
+        column = chr(ord(column) + 1)
+        ws.column_dimensions[column].width = 10    # tones
     
     # Автоматическая настройка высоты строк
     for i in range(2, len(entries) + 2):
@@ -333,10 +358,12 @@ if __name__ == "__main__":
     # Задаем параметры как константы
     # INPUT_FILE = "chinese_characters_0_10000.json"
     # INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
-    INPUT_FILE = "./chat_gpt/words_Китайский_20250805_194526.json.merged.json.cross_references.json"
+    # INPUT_FILE = "./chat_gpt/words_Китайский_20250805_194526.json.merged.json.cross_references.json"
+    # INPUT_FILE = "./radicals_names/words_Китайский_20250822_192754.json.new_radicals.json"
+    INPUT_FILE = "./tones/words_Китайский_20250826_160132.json.tones.json"
     
-    OUTPUT_FILE_WORD = "chinese_characters_10_000_merged.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_10_000_merged.xlsx"
+    OUTPUT_FILE_WORD = "chinese_characters_10_000_merged_tones.docx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_10_000_merged_tones.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"
@@ -379,22 +406,24 @@ if __name__ == "__main__":
         'word_number': 5,       # Частотность
         'word_foreign': 15,       # Иероглиф/Слово
         'transcription': 12,   # Транскрипция
-        'comments': 12,        # Комментарии
+        # 'comments': 12,        # Комментарии
         'translation': 110,    # Описание/перевод
         'radicals': 10,         # Радикалы
         'references': 10,  # Ссылки на другие слова
+        'tones': 10,  # Тоны
     }
     
     # Ширина колонок в пикселях для Excel
     COLUMN_WIDTHS_EXCEL = {
         'word_number': 6,          # Ключ
-        'frequency': 8,    # Частотность
+        # 'frequency': 8,    # Частотность
         'word_foreign': 12,   # Иероглиф/Слово
         'transcription': 15, # Транскрипция
-        'comments': 15,    # Комментарии
+        # 'comments': 15,    # Комментарии
         'translation': 145,  # Описание/перевод
         'radicals': 10,     # Радикалы
         'references': 10,  # Ссылки на другие слова
+        'tones': 10,  # Тоны
     }
         
     # Вызов функции генерации Word документа
