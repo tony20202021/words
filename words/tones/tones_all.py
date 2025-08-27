@@ -29,7 +29,7 @@ def generate_all_tones(transcription: str):
 
 
 if __name__ == "__main__":
-    INPUT_FILE = "/home/tony/repos/words/words/tones/words_Китайский_20250826_160132.json"
+    INPUT_FILE = "/home/tony/repos/words/words/tones/data/words_Китайский_20250826_160132.json"
 
     OUTPUT_FILE = INPUT_FILE + ".tones.json"
 

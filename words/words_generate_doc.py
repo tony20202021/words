@@ -360,7 +360,7 @@ if __name__ == "__main__":
     # INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
     # INPUT_FILE = "./chat_gpt/words_Китайский_20250805_194526.json.merged.json.cross_references.json"
     # INPUT_FILE = "./radicals_names/words_Китайский_20250822_192754.json.new_radicals.json"
-    INPUT_FILE = "./tones/words_Китайский_20250826_160132.json.tones.json"
+    INPUT_FILE = "./tones/data/words_Китайский_20250826_160132.json.tones.json"
     
     OUTPUT_FILE_WORD = "chinese_characters_10_000_merged_tones.docx"
     OUTPUT_FILE_EXCEL = "chinese_characters_10_000_merged_tones.xlsx"
@@ -426,21 +426,21 @@ if __name__ == "__main__":
         'tones': 10,  # Тоны
     }
         
-    # Вызов функции генерации Word документа
-    generate_word_document(
-        INPUT_FILE, 
-        OUTPUT_FILE_WORD,
-        WORD_FIELD_NAME,  # Добавляем новый параметр
-        CHARACTER_FONT_SIZE, 
-        DESCRIPTION_LINES_COUNT,
-        DESCRIPTION_LIMIT,
-        TRANSCRIPTION_FONT_SIZE,
-        DEFAULT_FONT_SIZE,
-        PAGE_MARGINS,
-        COLUMN_WIDTHS_WORD,
-        CHARACTER_LINE_SPACING,
-        TRANSCRIPTION_LIMIT
-    )
+    # # Вызов функции генерации Word документа
+    # generate_word_document(
+    #     INPUT_FILE, 
+    #     OUTPUT_FILE_WORD,
+    #     WORD_FIELD_NAME,  # Добавляем новый параметр
+    #     CHARACTER_FONT_SIZE, 
+    #     DESCRIPTION_LINES_COUNT,
+    #     DESCRIPTION_LIMIT,
+    #     TRANSCRIPTION_FONT_SIZE,
+    #     DEFAULT_FONT_SIZE,
+    #     PAGE_MARGINS,
+    #     COLUMN_WIDTHS_WORD,
+    #     CHARACTER_LINE_SPACING,
+    #     TRANSCRIPTION_LIMIT
+    # )
     
     # Вызов функции генерации Excel документа
     generate_excel_document(
