@@ -20,6 +20,7 @@ from app.bot.keyboards.admin_keyboards import (
 )
 from app.bot.handlers.admin.admin_language_handlers import show_language_edit_screen
 from app.utils.message_utils import get_user_info
+from app.utils.formatting_utils import MAX_MESSAGE_LENGTH
 
 # Создаем роутер для обработчиков администрирования
 word_router = Router()
@@ -731,7 +732,7 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
         f"Перевод: <code>{word.get('translation', 'N/A')}</code>\n"
         f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
         f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
-        f"Тоны: <code>{word.get('tones', 'N/A')}</code>\n"
+        f"Тоны: <code>{word.get('tones', 'N/A')[:MAX_MESSAGE_LENGTH]}</code>\n"
         f"ID: <code>{word_id}</code>"
         f"{user_info}"
     )
@@ -744,7 +745,6 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
     else:
         keyboard = get_word_actions_keyboard(word_id, language_id)
 
-    
     await message.answer(
         word_info,
         parse_mode="HTML",

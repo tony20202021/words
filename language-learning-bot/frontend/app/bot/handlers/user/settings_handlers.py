@@ -16,8 +16,9 @@ from app.utils.settings_utils import (
     toggle_writing_images_setting
 )
 from app.utils.hint_settings_utils import (
-    toggle_individual_hint_setting,
-    bulk_update_hint_settings
+    toggle_individual_hint_setting
+    # ,
+    # bulk_update_hint_settings
 )
 from app.utils.callback_constants import (
     CallbackData,
@@ -347,6 +348,33 @@ async def process_toggle_show_writing_images(callback: CallbackQuery, state: FSM
         setting_name="Картинки написания"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_RADICALS)
+async def process_toggle_show_radicals(callback: CallbackQuery, state: FSMContext):
+    """Handle radicals toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_radicals", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Радикалы"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_REFERENCES)
+async def process_toggle_show_references(callback: CallbackQuery, state: FSMContext):
+    """Handle references toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_references", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Ссылки"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_TONES)
+async def process_toggle_show_tones(callback: CallbackQuery, state: FSMContext):
+    """Handle tones toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_tones", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Тоны"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_BIG)
 async def process_toggle_show_big(callback: CallbackQuery, state: FSMContext):
     """Handle big word toggle."""
@@ -446,50 +474,50 @@ async def _handle_boolean_toggle(
         logger.error(f"Error toggling {setting_key}: {e}")
         await callback.answer("❌ Ошибка изменения настройки")
 
-# ОБНОВЛЕНО: Bulk operations для настроек подсказок
-@settings_router.callback_query(F.data == "enable_all_hints")
-async def process_enable_all_hints(callback: CallbackQuery, state: FSMContext):
-    """Handle enable all hints action."""
-    await _handle_bulk_hints_action(callback, state, enable_all=True)
+# # ОБНОВЛЕНО: Bulk operations для настроек подсказок
+# @settings_router.callback_query(F.data == "enable_all_hints")
+# async def process_enable_all_hints(callback: CallbackQuery, state: FSMContext):
+#     """Handle enable all hints action."""
+#     await _handle_bulk_hints_action(callback, state, enable_all=True)
 
-@settings_router.callback_query(F.data == "disable_all_hints")
-async def process_disable_all_hints(callback: CallbackQuery, state: FSMContext):
-    """Handle disable all hints action."""
-    await _handle_bulk_hints_action(callback, state, enable_all=False)
+# @settings_router.callback_query(F.data == "disable_all_hints")
+# async def process_disable_all_hints(callback: CallbackQuery, state: FSMContext):
+#     """Handle disable all hints action."""
+#     await _handle_bulk_hints_action(callback, state, enable_all=False)
 
-# НОВОЕ: Общая функция для bulk операций с подсказками
-async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, enable_all: bool):
-    """
-    Handle bulk hint settings action.
-    Общая функция для включения/отключения всех подсказок.
+# # НОВОЕ: Общая функция для bulk операций с подсказками
+# async def _handle_bulk_hints_action(callback: CallbackQuery, state: FSMContext, enable_all: bool):
+#     """
+#     Handle bulk hint settings action.
+#     Общая функция для включения/отключения всех подсказок.
     
-    Args:
-        callback: The callback query
-        state: FSM context
-        enable_all: True to enable all hints, False to disable all
-    """
-    action_text = "включить" if enable_all else "отключить"
-    logger.info(f"{action_text.capitalize()} all hints from {callback.from_user.full_name}")
+#     Args:
+#         callback: The callback query
+#         state: FSM context
+#         enable_all: True to enable all hints, False to disable all
+#     """
+#     action_text = "включить" if enable_all else "отключить"
+#     logger.info(f"{action_text.capitalize()} all hints from {callback.from_user.full_name}")
     
-    # Validate language selection
-    current_language = await validate_language_selected(state, callback)
-    if not current_language:
-        return
+#     # Validate language selection
+#     current_language = await validate_language_selected(state, callback)
+#     if not current_language:
+#         return
     
-    success = await bulk_update_hint_settings(callback, state, enable_all=enable_all)
+#     success = await bulk_update_hint_settings(callback, state, enable_all=enable_all)
     
-    if success:
-        result_text = "включены" if enable_all else "отключены"
-        await callback.answer(f"✅ Все подсказки {result_text}")
+#     if success:
+#         result_text = "включены" if enable_all else "отключены"
+#         await callback.answer(f"✅ Все подсказки {result_text}")
         
-        # Refresh display
-        await display_language_settings(
-            message_or_callback=callback,
-            state=state,
-            prefix="⚙️ <b>Настройки обучения</b>\n\n",
-        )
-    else:
-        await callback.answer("❌ Ошибка изменения настроек")
+#         # Refresh display
+#         await display_language_settings(
+#             message_or_callback=callback,
+#             state=state,
+#             prefix="⚙️ <b>Настройки обучения</b>\n\n",
+#         )
+#     else:
+#         await callback.answer("❌ Ошибка изменения настроек")
 
 
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RESET_SESSION_DAYS)

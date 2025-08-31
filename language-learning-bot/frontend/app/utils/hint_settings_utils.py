@@ -143,86 +143,86 @@ async def toggle_individual_hint_setting(
         logger.error(f"Error toggling hint setting {setting_key}: {e}")
         return False, True
 
-async def bulk_update_hint_settings(
-    message_or_callback: Union[Message, CallbackQuery],
-    state: FSMContext,
-    enable_all: bool
-) -> bool:
-    """
-    Enable or disable all hint settings at once.
+# async def bulk_update_hint_settings(
+#     message_or_callback: Union[Message, CallbackQuery],
+#     state: FSMContext,
+#     enable_all: bool
+# ) -> bool:
+#     """
+#     Enable or disable all hint settings at once.
     
-    Args:
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
-        enable_all: True to enable all, False to disable all
+#     Args:
+#         message_or_callback: Message or CallbackQuery object
+#         state: FSM context
+#         enable_all: True to enable all, False to disable all
         
-    Returns:
-        bool: True if successful
-    """
-    try:
-        # Create settings dict with all hints set to enable_all
-        hint_settings = {key: enable_all for key in HINT_SETTING_KEYS}
+#     Returns:
+#         bool: True if successful
+#     """
+#     try:
+#         # Create settings dict with all hints set to enable_all
+#         hint_settings = {key: enable_all for key in HINT_SETTING_KEYS}
         
-        # Save settings
-        success = await save_individual_hint_settings(message_or_callback, state, hint_settings)
+#         # Save settings
+#         success = await save_individual_hint_settings(message_or_callback, state, hint_settings)
         
-        if success:
-            action = "включены" if enable_all else "отключены"
-            logger.info(f"Bulk updated hint settings: все подсказки {action}")
+#         if success:
+#             action = "включены" if enable_all else "отключены"
+#             logger.info(f"Bulk updated hint settings: все подсказки {action}")
         
-        return success
+#         return success
         
-    except Exception as e:
-        logger.error(f"Error bulk updating hint settings: {e}")
-        return False
+#     except Exception as e:
+#         logger.error(f"Error bulk updating hint settings: {e}")
+#         return False
 
-async def is_hint_type_enabled_for_user(
-    hint_type: str,
-    message_or_callback: Union[Message, CallbackQuery],
-    state: FSMContext
-) -> bool:
-    """
-    Check if specific hint type is enabled for user.
+# async def is_hint_type_enabled_for_user(
+#     hint_type: str,
+#     message_or_callback: Union[Message, CallbackQuery],
+#     state: FSMContext
+# ) -> bool:
+#     """
+#     Check if specific hint type is enabled for user.
     
-    Args:
-        hint_type: Hint type to check (e.g., 'meaning', 'phoneticassociation')
-        message_or_callback: Message or CallbackQuery object
-        state: FSM context
+#     Args:
+#         hint_type: Hint type to check (e.g., 'meaning', 'phoneticassociation')
+#         message_or_callback: Message or CallbackQuery object
+#         state: FSM context
         
-    Returns:
-        bool: True if hint type is enabled
-    """
-    try:
-        hint_settings = await get_individual_hint_settings(message_or_callback, state)
-        return is_hint_enabled(hint_type, hint_settings)
+#     Returns:
+#         bool: True if hint type is enabled
+#     """
+#     try:
+#         hint_settings = await get_individual_hint_settings(message_or_callback, state)
+#         return is_hint_enabled(hint_type, hint_settings)
         
-    except Exception as e:
-        logger.error(f"Error checking if hint type {hint_type} is enabled: {e}")
-        return True  # Default to enabled on error
+#     except Exception as e:
+#         logger.error(f"Error checking if hint type {hint_type} is enabled: {e}")
+#         return True  # Default to enabled on error
 
-def parse_hint_setting_callback(callback_data: str) -> Optional[str]:
-    """
-    Parse hint setting callback data to get setting key.
+# def parse_hint_setting_callback(callback_data: str) -> Optional[str]:
+#     """
+#     Parse hint setting callback data to get setting key.
     
-    Args:
-        callback_data: Callback data string
+#     Args:
+#         callback_data: Callback data string
         
-    Returns:
-        Optional[str]: Setting key or None if not a hint setting callback
-    """
-    if not is_hint_setting_callback(callback_data):
-        return None
+#     Returns:
+#         Optional[str]: Setting key or None if not a hint setting callback
+#     """
+#     if not is_hint_setting_callback(callback_data):
+#         return None
     
-    return get_hint_setting_from_callback(callback_data)
+#     return get_hint_setting_from_callback(callback_data)
 
 # Export main functions
 __all__ = [
     'get_individual_hint_settings',
     'save_individual_hint_settings', 
     'toggle_individual_hint_setting',
-    'bulk_update_hint_settings',
-    'is_hint_type_enabled_for_user',
-    'parse_hint_setting_callback',
-    'migrate_legacy_hint_settings',
+    # 'bulk_update_hint_settings',
+    # 'is_hint_type_enabled_for_user',
+    # 'parse_hint_setting_callback',
+    # 'migrate_legacy_hint_settings',
     'DEFAULT_HINT_SETTINGS'
 ]

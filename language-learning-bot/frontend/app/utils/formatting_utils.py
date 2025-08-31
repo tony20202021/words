@@ -16,6 +16,8 @@ from app.utils.hint_constants import (
 
 logger = setup_logger(__name__)
 
+MAX_MESSAGE_LENGTH = 4096
+
 def format_date(date_str):
     """
     Форматирует дату из ISO формата в читаемый формат на русском языке.
@@ -71,6 +73,9 @@ def format_settings_text(
     show_charts,
     hint_settings,
     show_writing_images=False,
+    show_radicals=False,
+    show_references=False,
+    show_tones=False,
     show_short_captions=True,
     show_big=False,
     receive_messages=True,
@@ -92,6 +97,9 @@ def format_settings_text(
         show_charts: Показывать ли графики
         hint_settings: Словарь с индивидуальными настройками подсказок
         show_writing_images: Показывать ли картинки написания
+        show_radicals: Показывать ли радикалы
+        show_references: Показывать ли ссылки
+        show_tones: Показывать ли тоны
         show_short_captions: Показывать ли короткие подписи
         show_big: Показывать ли крупное написание
         receive_messages: Получать ли сообщения
@@ -136,6 +144,15 @@ def format_settings_text(
     show_writing_images = "Показывать ✅" if show_writing_images else "Скрывать ❌"
     settings_text += f"   • Картинки написания: <b>{show_writing_images}</b>\n"
     
+    show_radicals = "Показывать ✅" if show_radicals else "Скрывать ❌"
+    settings_text += f"   • Радикалы: <b>{show_radicals}</b>\n"
+    
+    show_references = "Показывать ✅" if show_references else "Скрывать ❌"
+    settings_text += f"   • Ссылки: <b>{show_references}</b>\n"
+    
+    show_tones = "Показывать ✅" if show_tones else "Скрывать ❌"
+    settings_text += f"   • Тоны: <b>{show_tones}</b>\n"
+    
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
     settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>\n"
@@ -173,6 +190,9 @@ def format_study_word_message(
     next_check_date,
     score_changed=False,
     show_word=False,
+    show_radicals=False,
+    show_references=False,
+    show_tones=False,
     word_foreign=None,
     transcription=None,
     radicals=None,
@@ -211,6 +231,9 @@ def format_study_word_message(
     Returns:
         str: Отформатированное сообщение
     """
+    message = ""
+    message_tones = None
+    
     message = f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
     message += f"Слово номер: <b>{word_number}</b>\n" 
     
@@ -257,15 +280,31 @@ def format_study_word_message(
         if transcription:
             escaped_transcription = transcription.replace('\n', ',')
             message += f"🔊 Транскрипция:\n<b>[{escaped_transcription}]</b>\n\n"
-        if radicals:
+        if show_radicals and radicals:
             message += f"🔍 Радикалы:\n{radicals}\n\n"
-        if references:
+        if show_references and references:
             message += f"🔍 Ссылки:\n{references}\n\n"
-        if tones:
-            message += f"🔍 Тоны:\n{tones}\n\n"
+        if show_tones and tones:
+            if len(tones) <= MAX_MESSAGE_LENGTH:
+                message_tones = f"🔍 Тоны:\n{tones}\n\n"
+            else:
+                tones_formatted = ""
+                for tone in tones.split('\n'):
+                    if len(tones_formatted) + len(tone) <= MAX_MESSAGE_LENGTH:
+                        if tones_formatted != "":
+                            tones_formatted += "\n"
+                        tones_formatted += tone
+                    else:
+                        break
+                message_tones = f"🔍 Тоны:\n{tones_formatted}\n\n"
             
-    return message
+    result = []
+    if message_tones:
+        result.append(message_tones)
+    result.append(message)
 
+    return result
+    
 
 def format_date_friendly(date_str: str) -> str:
     """

@@ -23,13 +23,16 @@ DEFAULT_SETTINGS = {
     "show_check_date": True,
     "show_debug": False,
     "show_charts": False,
-    "show_hint_meaning": True,
-    "show_hint_phoneticassociation": True,
-    "show_hint_phoneticsound": True,
-    "show_hint_writing": True,
+    "show_hint_meaning": False,
+    "show_hint_phoneticassociation": False,
+    "show_hint_phoneticsound": False,
+    "show_hint_writing": False,
     "show_big": False,
     "show_short_captions": True,
-    "show_writing_images": True,
+    "show_writing_images": False,
+    "show_radicals": False,
+    "show_references": False,
+    "show_tones": False,
     "receive_messages": True,
     "reset_session_days": 1,
     "reset_session_hours": 6,
@@ -198,6 +201,9 @@ async def display_language_settings(
         hint_settings[hint_key] = settings.get(hint_key, DEFAULT_SETTINGS[hint_key])
     
     show_writing_images = settings.get("show_writing_images", DEFAULT_SETTINGS["show_writing_images"])
+    show_radicals = settings.get("show_radicals", DEFAULT_SETTINGS["show_radicals"])
+    show_references = settings.get("show_references", DEFAULT_SETTINGS["show_references"])
+    show_tones = settings.get("show_tones", DEFAULT_SETTINGS["show_tones"])
     receive_messages = settings.get("receive_messages", DEFAULT_SETTINGS["receive_messages"])
     reset_session_days = settings.get("reset_session_days", DEFAULT_SETTINGS["reset_session_days"])
     reset_session_hours = settings.get("reset_session_hours", DEFAULT_SETTINGS["reset_session_hours"])
@@ -244,6 +250,9 @@ async def display_language_settings(
         show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
+        show_radicals=show_radicals,
+        show_references=show_references,
+        show_tones=show_tones,
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
         reset_session_hours=reset_session_hours,
@@ -262,6 +271,9 @@ async def display_language_settings(
         show_big=show_big,
         hint_settings=hint_settings,
         show_writing_images=show_writing_images,
+        show_radicals=show_radicals,
+        show_references=show_references,
+        show_tones=show_tones,
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
         reset_session_hours=reset_session_hours,
@@ -286,53 +298,53 @@ async def display_language_settings(
             parse_mode="HTML"
         )
 
-async def is_hint_type_enabled(hint_type: str, state_or_message, state=None) -> bool:
-    """
-    Check if specific hint type is enabled in user settings.
+# async def is_hint_type_enabled(hint_type: str, state_or_message, state=None) -> bool:
+#     """
+#     Check if specific hint type is enabled in user settings.
     
-    Args:
-        hint_type: The hint type to check
-        state_or_message: The state object or message/callback object
-        state: Optional state object if state_or_message is a message/callback
+#     Args:
+#         hint_type: The hint type to check
+#         state_or_message: The state object or message/callback object
+#         state: Optional state object if state_or_message is a message/callback
         
-    Returns:
-        bool: True if hint type is enabled, False otherwise
-    """
-    from app.utils.hint_constants import get_hint_setting_key
+#     Returns:
+#         bool: True if hint type is enabled, False otherwise
+#     """
+#     from app.utils.hint_constants import get_hint_setting_key
     
-    setting_key = get_hint_setting_key(hint_type)
-    if not setting_key:
-        return True  # Default to enabled if setting not found
+#     setting_key = get_hint_setting_key(hint_type)
+#     if not setting_key:
+#         return True  # Default to enabled if setting not found
     
-    # Get settings based on parameter type
-    if state is None:
-        # state_or_message is the state itself - not supported in this function
-        return True
-    else:
-        # state_or_message is a message/callback and state is provided separately
-        settings = await get_user_language_settings(state_or_message, state)
+#     # Get settings based on parameter type
+#     if state is None:
+#         # state_or_message is the state itself - not supported in this function
+#         return True
+#     else:
+#         # state_or_message is a message/callback and state is provided separately
+#         settings = await get_user_language_settings(state_or_message, state)
     
-    return settings.get(setting_key, True)
+#     return settings.get(setting_key, True)
 
-async def get_show_debug_setting(state_or_message, state=None):
-    """
-    Get show_debug setting from user's state or settings.
+# async def get_show_debug_setting(state_or_message, state=None):
+#     """
+#     Get show_debug setting from user's state or settings.
     
-    Args:
-        state_or_message: The state object or message/callback object
-        state: Optional state object if state_or_message is a message/callback
+#     Args:
+#         state_or_message: The state object or message/callback object
+#         state: Optional state object if state_or_message is a message/callback
         
-    Returns:
-        bool: True if debug info should be shown, False otherwise
-    """
-    if state is None:
-        # state_or_message is the state itself
-        state_data = await state_or_message.get_data()
-        return state_data.get("show_debug", DEFAULT_SETTINGS["show_debug"])
-    else:
-        # state_or_message is a message/callback and state is provided separately
-        settings = await get_user_language_settings(state_or_message, state)
-        return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
+#     Returns:
+#         bool: True if debug info should be shown, False otherwise
+#     """
+#     if state is None:
+#         # state_or_message is the state itself
+#         state_data = await state_or_message.get_data()
+#         return state_data.get("show_debug", DEFAULT_SETTINGS["show_debug"])
+#     else:
+#         # state_or_message is a message/callback and state is provided separately
+#         settings = await get_user_language_settings(state_or_message, state)
+#         return settings.get("show_debug", DEFAULT_SETTINGS["show_debug"])
 
 # Функции для работы с настройками картинок написания
 async def is_writing_images_enabled(message_or_callback, state: FSMContext) -> bool:

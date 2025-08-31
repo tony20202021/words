@@ -33,10 +33,6 @@ def create_word_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for word interaction during study process.
-    UPDATED: Added word image button when word is shown.
-    UPDATED: Added admin edit button for administrators.
-    UPDATED: Added writing image button - controlled by user settings only, no language restrictions.
-    
     Args:
         word: The word data
         word_shown: Whether the word has been shown to the user
@@ -225,10 +221,6 @@ def create_adaptive_study_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create adaptive keyboard that changes based on current FSM state and word status.
-    UPDATED: Uses individual hint settings and includes word image button.
-    UPDATED: Added admin edit button for administrators.
-    UPDATED: Added writing image button - controlled by user settings only.
-    
     Args:
         word: Word data
         word_shown: Whether word has been shown

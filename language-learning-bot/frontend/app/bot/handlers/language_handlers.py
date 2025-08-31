@@ -356,6 +356,9 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         show_check_date=settings.get("show_check_date", True),
         show_big=settings.get("show_big", False),
         show_writing_images=settings.get("show_writing_images", False),
+        show_radicals=settings.get("show_radicals", True),
+        show_references=settings.get("show_references", True),
+        show_tones=settings.get("show_tones", True),
         show_short_captions=settings.get("show_short_captions", True),
         hint_settings={
             "show_hint_phoneticsound": settings.get("show_hint_phoneticsound", True),

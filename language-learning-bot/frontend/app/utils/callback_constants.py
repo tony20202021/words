@@ -63,6 +63,9 @@ class CallbackData:
     
     # Настройка картинок написания
     SETTINGS_TOGGLE_WRITING_IMAGES = "settings_toggle_writing_images"
+    SETTINGS_TOGGLE_SHOW_RADICALS = "settings_toggle_show_radicals"
+    SETTINGS_TOGGLE_SHOW_REFERENCES = "settings_toggle_show_references"
+    SETTINGS_TOGGLE_SHOW_TONES = "settings_toggle_show_tones"
     
     # Language selection
     LANG_SELECT_TEMPLATE = "lang_select_{language_id}"

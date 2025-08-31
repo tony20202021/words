@@ -9,8 +9,9 @@ from datetime import datetime
 from app.utils.settings_utils import (
     get_user_language_settings,
     save_user_language_settings,
-    display_language_settings,
-    get_show_debug_setting
+    display_language_settings
+    # ,
+    # get_show_debug_setting
 )
 
 class TestGetUserLanguageSettings:
@@ -149,22 +150,22 @@ class TestDisplayLanguageSettings:
             assert "parse_mode" in kwargs
 
 
-class TestGetShowDebugSetting:
+# class TestGetShowDebugSetting:
     
-    @pytest.mark.asyncio
-    async def test_get_show_debug_setting_from_settings(self):
-        # Setup
-        message = AsyncMock()
-        state = AsyncMock()
+    # @pytest.mark.asyncio
+    # async def test_get_show_debug_setting_from_settings(self):
+    #     # Setup
+    #     message = AsyncMock()
+    #     state = AsyncMock()
         
-        # Патчим get_user_language_settings для возврата настроек
-        settings = {"show_debug": True}
+    #     # Патчим get_user_language_settings для возврата настроек
+    #     settings = {"show_debug": True}
         
-        # Патчим функцию получения настроек
-        with patch('app.utils.settings_utils.get_user_language_settings', return_value=settings):
-            # Execute
-            result = await get_show_debug_setting(message, state)
+    #     # Патчим функцию получения настроек
+    #     with patch('app.utils.settings_utils.get_user_language_settings', return_value=settings):
+    #         # Execute
+    #         result = await get_show_debug_setting(message, state)
             
-            # Verify
-            assert result is True
+    #         # Verify
+    #         assert result is True
             

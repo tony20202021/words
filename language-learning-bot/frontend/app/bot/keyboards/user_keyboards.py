@@ -81,6 +81,9 @@ def create_settings_keyboard(
     show_short_captions: bool = True,
     hint_settings: Optional[Dict[str, bool]] = None,
     show_writing_images: bool = False,
+    show_radicals: bool = False,
+    show_references: bool = False,
+    show_tones: bool = False,
     receive_messages: bool = True,
     reset_session_days: int = 1,
     reset_session_hours: int = 6,
@@ -88,7 +91,6 @@ def create_settings_keyboard(
 ) -> InlineKeyboardMarkup:
     """
     Create keyboard for user settings with individual hint settings and writing images.
-    UPDATED: Removed hieroglyphic language restrictions - writing images shown based on user setting only.
     
     Args:
         start_word: Starting word number
@@ -101,6 +103,9 @@ def create_settings_keyboard(
         show_short_captions: Whether to show short captions
         hint_settings: Individual hint settings dictionary
         show_writing_images: Whether writing images are enabled
+        show_radicals: Whether radicals are enabled
+        show_references: Whether references are enabled
+        show_tones: Whether tones are enabled
         current_language: Current language information (not used for restrictions anymore)
         
     Returns:
@@ -161,6 +166,24 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{writing_images_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_WRITING_IMAGES
+    ))
+    
+    radicals_text = "✅ Показывать радикалы" if show_radicals else "❌ Скрывать радикалы"
+    builder.add(InlineKeyboardButton(
+        text=f"{radicals_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_RADICALS
+    ))
+    
+    references_text = "✅ Показывать ссылки" if show_references else "❌ Скрывать ссылки"
+    builder.add(InlineKeyboardButton(
+        text=f"{references_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_REFERENCES
+    ))
+    
+    tones_text = "✅ Показывать тоны" if show_tones else "❌ Скрывать тоны"
+    builder.add(InlineKeyboardButton(
+        text=f"{tones_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_TONES
     ))
     
     # Debug setting

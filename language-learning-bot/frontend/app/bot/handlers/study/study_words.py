@@ -22,6 +22,7 @@ from app.utils.hint_settings_utils import get_individual_hint_settings
 from app.utils.admin_utils import is_user_admin
 from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
 from app.bot.states.centralized_states import StudyStates
+from app.utils.formatting_utils import MAX_MESSAGE_LENGTH
 
 # Создаем роутер для отображения слов
 word_display_router = Router()
@@ -29,6 +30,93 @@ word_display_router = Router()
 logger = setup_logger(__name__)
 
 BATCH_LIMIT = 100
+
+async def format_full_message(
+    language_name_ru, 
+    language_name_foreign, 
+    word_number, 
+    translation, 
+    is_skipped, 
+    score,
+    check_interval, 
+    next_check_date,
+    score_changed=False,
+    show_word=False,
+    show_radicals=False,
+    show_references=False,
+    show_tones=False,
+    word_foreign=None,
+    transcription=None,
+    radicals=None,
+    references=None,
+    tones=None,
+    show_big=False,
+    show_check_date=True,
+    words_studied=0,
+    words_for_today=0,
+    session_processed=0,
+    current_state=None,
+    used_hints=None,
+    message_or_callback=None,
+    user_word_state=None,
+    current_word=None,
+    show_debug=False,
+    state=None,
+    hint_settings=None,
+    is_admin=False,
+    show_writing_images=False,
+):
+    # Format the main message
+    messages = format_study_word_message(
+        language_name_ru=language_name_ru,
+        language_name_foreign=language_name_foreign,
+        word_number=word_number,
+        translation=translation,
+        is_skipped=is_skipped,
+        score=score,
+        check_interval=check_interval,
+        next_check_date=next_check_date,
+        score_changed=score_changed,
+        show_word=show_word,
+        show_radicals=show_radicals,
+        show_references=show_references,
+        show_tones=show_tones,
+        word_foreign=word_foreign,
+        transcription=transcription,
+        radicals=radicals,
+        references=references,
+        tones=tones,
+        show_big=show_big,
+        show_check_date=show_check_date,
+        words_studied=words_studied,
+        words_for_today=words_for_today,
+        session_processed=session_processed,
+    )
+    
+    if (current_state == StudyStates.confirming_word_knowledge.state):
+        messages[-1] += f"✅ <b>Отлично! Вы знаете это слово!</b>\n\n"
+
+    # Add active hints to message if any
+    if used_hints:
+        bot = message_or_callback.bot if hasattr(message_or_callback, 'bot') else message_or_callback.message.bot
+        
+        hint_text = await format_used_hints(
+            bot=bot,
+            user_id=user_word_state.user_id,
+            word_id=user_word_state.word_id,
+            current_word=current_word,
+            used_hints=used_hints,
+            include_header=True
+        )
+        messages[-1] += hint_text
+    
+    # Add debug information if enabled
+    if show_debug:
+        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones)
+        messages = [debug_info] + messages
+
+    return messages
+    
 
 async def show_study_word(
     message_or_callback, 
@@ -71,8 +159,10 @@ async def show_study_word(
     # Проверяем статус администратора
     is_admin = await is_user_admin(message_or_callback, state)
     
-    # НОВОЕ: Проверяем настройку картинок написания
     show_writing_images = await is_writing_images_enabled(message_or_callback, state)
+    show_radicals = basic_settings.get("show_radicals", True)
+    show_references = basic_settings.get("show_references", True)
+    show_tones = basic_settings.get("show_tones", True)
     
     # Get language info from state
     state_data = await state.get_data()
@@ -106,18 +196,20 @@ async def show_study_word(
     words_for_today = progress.get('words_for_today', 0)
     session_processed = user_word_state.get_session_info().get('total_words_processed', 0)
 
-    # Format the main message
-    message_text = format_study_word_message(
+    messages = await format_full_message(
         language_name_ru=current_language.get("name_ru", "Неизвестный"),
         language_name_foreign=current_language.get("name_foreign", ""),
-        word_number=word_number,
-        translation=translation,
-        is_skipped=is_skipped,
+        word_number=word_number, 
+        translation=translation, 
+        is_skipped=is_skipped, 
         score=score,
-        check_interval=check_interval,
+        check_interval=check_interval, 
         next_check_date=next_check_date,
         score_changed=score_changed,
         show_word=word_shown,
+        show_radicals=show_radicals,
+        show_references=show_references,
+        show_tones=show_tones,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
@@ -128,30 +220,18 @@ async def show_study_word(
         words_studied=words_studied,
         words_for_today=words_for_today,
         session_processed=session_processed,
+        current_state=current_state,
+        used_hints=used_hints,
+        message_or_callback=message_or_callback,
+        user_word_state=user_word_state,
+        current_word=current_word,
+        show_debug=show_debug,
+        state=state,
+        hint_settings=hint_settings,
+        is_admin=is_admin,
+        show_writing_images=show_writing_images,
     )
-    
-    if (current_state == StudyStates.confirming_word_knowledge.state):
-        message_text += f"✅ <b>Отлично! Вы знаете это слово!</b>\n\n"
 
-    # Add active hints to message if any
-    if used_hints:
-        bot = message_or_callback.bot if hasattr(message_or_callback, 'bot') else message_or_callback.message.bot
-        
-        hint_text = await format_used_hints(
-            bot=bot,
-            user_id=user_word_state.user_id,
-            word_id=user_word_state.word_id,
-            current_word=current_word,
-            used_hints=used_hints,
-            include_header=True
-        )
-        message_text += hint_text
-    
-    # Add debug information if enabled
-    if show_debug:
-        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images)
-        message_text = debug_info + '\n\n' + message_text
-    
     keyboard = create_adaptive_study_keyboard(
         word=current_word,
         word_shown=word_shown,
@@ -171,22 +251,24 @@ async def show_study_word(
         else:
             message = message_or_callback
 
-        if need_new_message:
-            await message.answer(
-                message_text,
+        # aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: message is too long
+        if (not need_new_message) and (len(messages) == 1):
+            await message.edit_text(
+                messages[0],
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
         else:
-            await message.edit_text(
-                message_text,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
+            for index, message_text in enumerate(messages):
+                await message.answer(
+                    message_text,
+                    reply_markup=(keyboard if (index == len(messages) - 1) else None),
+                    parse_mode="HTML"
+                )
     
     except Exception as e:
         logger.error(f"Error displaying study word: {e}")
-        await _send_error_message(message_or_callback, "Ошибка отображения слова")
+        await _send_error_message(message_or_callback, "Ошибка отображения слова: " + str(e))
 
 async def handle_no_more_words(
     message_or_callback, 
@@ -328,7 +410,10 @@ async def _get_debug_info(
     user_word_state: UserWordState, 
     hint_settings: Dict[str, bool],
     is_admin: bool = False,
-    show_writing_images: bool = False  # НОВОЕ: Добавляем информацию о настройке картинок
+    show_writing_images: bool = False,
+    show_radicals: bool = False,
+    show_references: bool = False,
+    show_tones: bool = False
 ) -> str:
     """
     Get debug information for display.
@@ -339,7 +424,9 @@ async def _get_debug_info(
         hint_settings: Individual hint settings
         is_admin: Whether user is admin
         show_writing_images: Whether writing images are enabled (NEW)
-        
+        show_radicals: Whether radicals are enabled
+        show_references: Whether references are enabled
+        show_tones: Whether tones are enabled
     Returns:
         str: Formatted debug information
     """
@@ -368,7 +455,10 @@ async def _get_debug_info(
         f"• Обработано в сессии: {session_info['total_words_processed']}\n"
         f"• Использовано подсказок: {len(user_word_state.get_used_hints())}\n"
         f"• Настройки подсказок: {enabled_hints}/{total_hints} включено\n"
-        f"• Картинки написания: {'Вкл' if show_writing_images else 'Откл'}\n"  # НОВОЕ
+        f"• Картинки написания: {'Вкл' if show_writing_images else 'Откл'}\n"
+        f"• Радикалы: {'Вкл' if show_radicals else 'Откл'}\n"
+        f"• Ссылки: {'Вкл' if show_references else 'Откл'}\n"
+        f"• Тоны: {'Вкл' if show_tones else 'Откл'}\n"
         f"• current_state: {current_state}\n"
         f"• is_admin: {'Да' if is_admin else 'Нет'}\n"
     )
