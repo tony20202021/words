@@ -360,10 +360,11 @@ if __name__ == "__main__":
     # INPUT_FILE = "chinese_characters_0_10000_description.valid.json.cleaned.json"
     # INPUT_FILE = "./chat_gpt/words_Китайский_20250805_194526.json.merged.json.cross_references.json"
     # INPUT_FILE = "./radicals_names/words_Китайский_20250822_192754.json.new_radicals.json"
-    INPUT_FILE = "./tones/data/words_Китайский_20250826_160132.json.tones.json"
+    # INPUT_FILE = "./tones/data/words_Китайский_20250826_160132.json.tones.json"
+    INPUT_FILE = "/home/tony/repos/words/words/chat_gpt_2/data/words_Китайский_20250826_160132.json.tones.json.merged.json.cross_references.json.tones.json"
     
-    OUTPUT_FILE_WORD = "chinese_characters_10_000_merged_tones.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_10_000_merged_tones.xlsx"
+    OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_10_000_short.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"
@@ -420,10 +421,10 @@ if __name__ == "__main__":
         'word_foreign': 12,   # Иероглиф/Слово
         'transcription': 15, # Транскрипция
         # 'comments': 15,    # Комментарии
-        'translation': 145,  # Описание/перевод
-        'radicals': 10,     # Радикалы
-        'references': 10,  # Ссылки на другие слова
-        'tones': 10,  # Тоны
+        'translation': 80,  # Описание/перевод
+        'radicals': 80,     # Радикалы
+        'references': 80,  # Ссылки на другие слова
+        'tones': 80,  # Тоны
     }
         
     # # Вызов функции генерации Word документа
