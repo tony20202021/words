@@ -19,4 +19,7 @@
 # python ./chat_gpt_2/merge_all.py
 # python ./chat_gpt_2/cross_references.py
 # python ./chat_gpt_2/tones_all.py
+# python ./words_generate_doc.py
+
+# python ./radicals_names_2/radicals_names.py
 python ./words_generate_doc.py
