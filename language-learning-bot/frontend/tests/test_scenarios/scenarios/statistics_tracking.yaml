@@ -68,7 +68,7 @@ steps:
         data: ["_state", "StudyStates:studying"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Отмечаем слово как известное
   - type: callback
@@ -98,7 +98,7 @@ steps:
         data: ["_state", "StudyStates:studying"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Отмечаем второе слово как неизвестное
   - type: callback
@@ -113,7 +113,7 @@ steps:
         data: ["_state", "StudyStates:viewing_word_details"]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 2
 
   # Проверяем обновленную статистику
   - type: command

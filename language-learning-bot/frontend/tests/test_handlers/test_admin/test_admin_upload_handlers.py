@@ -528,7 +528,7 @@ class TestUploadAdminHandlers:
         _, state, api_client, callback, _ = setup_mocks
         
         # Set callback data for column template
-        callback.data = "upload_columns:0,1,2,3:lang1"
+        callback.data = "upload_columns:0,1,2,3,4,5,6:lang1"
         
         # Mock message edit_text
         callback.message.edit_text = AsyncMock()
@@ -559,7 +559,10 @@ class TestUploadAdminHandlers:
                 "column_number": 0,
                 "column_word": 1,
                 "column_transcription": 2,
-                "column_translation": 3
+                "column_translation": 3,
+                "column_radicals": 4,
+                "column_references": 5,
+                "column_tones": 6
             })
             
             # Check that the keyboard builder was used correctly

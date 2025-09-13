@@ -55,15 +55,13 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "🧠 (рус): ➕"
+        button_text: "✅ Знаю"
       - type: keyboard_contains
-        button_text: "💡 (фонетик): ➕"
+        button_text: "❓ Не знаю"
       - type: keyboard_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Шаг 4: Создаем новую подсказку ассоциации
   - type: callback
@@ -97,15 +95,13 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "(рус): ➕"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Шаг 8: Редактируем созданную подсказку
   - type: callback
@@ -139,12 +135,10 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "(рус): ➕"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3

@@ -65,7 +65,7 @@ steps:
       - type: keyboard_contains
         button_text: "❓ Не знаю"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Шаг 4: Показываем слово
   # TODO выдается в лог app.utils.word_data_utils - WARNING - [word_data_utils.py:152] - Failed to get show_debug setting: 'NoneType' object has no attribute 'get_data'

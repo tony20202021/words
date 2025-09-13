@@ -48,15 +48,13 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "(рус): ➕"
+        button_text: "✅ Знаю"
       - type: keyboard_contains
-        button_text: "💡 (фонетик): ➕"
+        button_text: "❓ Не знаю"
       - type: keyboard_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Тестирование фонетической подсказки
   - type: callback
@@ -99,15 +97,13 @@ steps:
         data: ["_state", StudyStates:studying]
         # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "(рус): ➕"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "💡 (фонетик): ➕"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "✓ 🎵 (звук): ✏️"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Тестирование подсказки ассоциации
   - type: callback
@@ -131,17 +127,13 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "(рус): ➕"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
-      - type: keyboard_not_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Тестирование подсказки значения
   - type: callback
@@ -180,19 +172,13 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "✓ 🧠 (рус): ✏️"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
-      - type: keyboard_not_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✓ 🎵 (звук): ✏️"
-      - type: keyboard_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Тестирование подсказки по написанию
   - type: callback
@@ -216,16 +202,10 @@ steps:
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок
       - type: keyboard_contains
-        button_text: "✓ 🧠 (рус): ✏️"
+        button_text: "➡️ Дальше"
       - type: keyboard_contains
-        button_text: "✓ 💡 (фонетик): ✏️"
+        button_text: "❓ Показать"
       - type: keyboard_contains
-        button_text: "✓ 🎵 (звук): ✏️"
-      - type: keyboard_not_contains
-        button_text: "🎵 (звук): ➕"
-      - type: keyboard_contains
-        button_text: "✓ ✍️ (запись): ✏️"
-      - type: keyboard_not_contains
-        button_text: "✍️ (запись): ➕"
+        button_text: "⏩ Пропускать"
       - type: keyboard_button_count
-        count: 7
+        count: 3

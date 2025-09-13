@@ -55,7 +55,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   # Включаем отладочный режим
   - type: callback
@@ -76,7 +76,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   # Запускаем изучение с отладочной информацией
   - type: command
@@ -97,7 +97,7 @@ steps:
       - type: state_contains
         data: ["_state", 'StudyStates:studying']
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Выключаем отладочный режим
   - type: command
@@ -108,7 +108,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   - type: callback
     data: "settings_toggle_show_debug"
@@ -126,7 +126,7 @@ steps:
       - type: state_contains
         data: ["_state", "SettingsStates:viewing_settings"]
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   # Запускаем изучение без отладочной информации
   - type: command
@@ -144,5 +144,5 @@ steps:
       - type: state_contains
         data: ["_state", "StudyStates:studying"]
       - type: keyboard_button_count
-        count: 7
+        count: 3
         

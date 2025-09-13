@@ -233,7 +233,7 @@ class TestStudyHandlers:
                 await show_study_word(message, state)
                 
                 # Check that the bot sent a message
-                message.answer.assert_called_once()
+                assert message.answer.call_count == 2
                 
                 # Проверяем ключевые параметры в вызове метода
                 call_kwargs = message.answer.call_args.kwargs

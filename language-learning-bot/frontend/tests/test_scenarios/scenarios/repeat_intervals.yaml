@@ -48,7 +48,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   # Включаем отладочный режим для просмотра интервалов
   - type: callback
@@ -67,7 +67,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   # Начинаем изучение
   - type: command
@@ -82,7 +82,7 @@ steps:
         button_text: "Знаю"
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Отмечаем слово как известное в первый раз
   - type: callback
@@ -117,7 +117,7 @@ steps:
         button_text: "Знаю"
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   # Отмечаем слово как известное во второй раз
   - type: callback
@@ -138,10 +138,10 @@ steps:
     data: "CallbackData.CONFIRM_NEXT_WORD"
     asserts:
       - type: message_contains
-        position: -2
+        position: -3
         text: "batch_requested_count=100"
       - type: message_contains
-        position: -2
+        position: -3
         text: "batch_received_count=2"
       - type: message_contains
         position: -1

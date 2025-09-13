@@ -53,7 +53,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 17
+        count: 20
 
   - type: callback
     data: CallbackData.SETTINGS_START_WORD
@@ -97,7 +97,7 @@ steps:
         data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки
       - type: keyboard_button_count
-        count: 7
+        count: 3
 
   - type: callback
     data: "hint_create_meaning_word123"

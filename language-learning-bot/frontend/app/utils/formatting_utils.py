@@ -244,11 +244,16 @@ def format_study_word_message(
 
     if word_number <= words_studied:
         if show_word:
-            message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n"
+            if session_processed == words_for_today:
+                message += f"(завершающее в текущей сессии: <b>{session_processed}</b>)\n"
+            else:
+                message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n"
         else:
-            message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n"
+            if session_processed == words_for_today:
+                message += f"(завершающее в текущей сессии: <b>{session_processed + 1}</b>)\n"
+            else:
+                message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b>)\n"
     
-
     # Добавляем информацию о статусе пропуска
     if is_skipped:
         message += "\n"
