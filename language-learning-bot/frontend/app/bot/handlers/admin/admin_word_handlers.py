@@ -29,6 +29,7 @@ logger = setup_logger(__name__)
 
 
 @word_router.callback_query(AdminStates.viewing_language_details, F.data.startswith("search_word_by_number_"))
+@word_router.callback_query(AdminStates.viewing_word_search_results, F.data.startswith("search_word_by_number_"))
 async def process_search_word_by_number(callback_query: CallbackQuery, state: FSMContext):
     """
     Обработчик для инициализации поиска слова по номеру.
@@ -648,7 +649,7 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
     username = message_or_callback.from_user.username
     full_name = message_or_callback.from_user.full_name
 
-    logger.info(f"'show_edit_word' from: {full_name}")
+    logger.info(f"'show_word_details_screen' from: {full_name}")
 
     if isinstance(message_or_callback, CallbackQuery):
         message = message_or_callback.message
@@ -738,6 +739,8 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
     )
     
     from_study = state_data.get("return_to_study", False)
+
+    logger.info(f"'show_word_details_screen' state: {await state.get_state()}")
 
     # Выбираем клавиатуру в зависимости от контекста
     if from_study:

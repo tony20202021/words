@@ -23,6 +23,7 @@ navigation_router = Router()
 
 
 @navigation_router.callback_query(F.data == CallbackData.NEXT_WORD, StudyStates.viewing_word_details)
+@navigation_router.callback_query(F.data == CallbackData.NEXT_WORD, StudyStates.studying)
 async def process_next_word(callback: CallbackQuery, state: FSMContext):
     """
     Process 'Next word' action.

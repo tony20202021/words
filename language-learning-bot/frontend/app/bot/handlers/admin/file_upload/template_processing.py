@@ -34,7 +34,7 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
     
     logger.info(f"Selected column template: {column_indices} for language ID: {language_id}")
     
-    # ✅ НОВОЕ: Устанавливаем состояние выбора шаблона колонок
+    # Устанавливаем состояние выбора шаблона колонок
     await state.set_state(AdminStates.selecting_column_template)
     
     # Преобразуем индексы из строк в целые числа
@@ -49,7 +49,7 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
     except (IndexError, ValueError) as e:
         logger.error(f"Error parsing column template: {e}")
         await callback.message.answer("❌ Ошибка при обработке шаблона колонок. Попробуйте настроить вручную.")
-        # ✅ НОВОЕ: При ошибке возвращаемся к настройкам загрузки
+        # При ошибке возвращаемся к настройкам загрузки
         await state.set_state(AdminStates.configuring_upload_settings)
         await callback.answer()
         return
@@ -101,7 +101,7 @@ async def process_column_template(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
-# ✅ НОВОЕ: Обработчик подтверждения загрузки из состояния выбора шаблона
+# Обработчик подтверждения загрузки из состояния выбора шаблона
 @template_router.callback_query(AdminStates.selecting_column_template, F.data == CallbackData.CONFIRM_UPLOAD)
 async def process_upload_confirmation_from_template(callback: CallbackQuery, state: FSMContext):
     """
@@ -113,14 +113,14 @@ async def process_upload_confirmation_from_template(callback: CallbackQuery, sta
     """
     logger.info("Upload confirmation from template selection")
     
-    # ✅ НОВОЕ: Переходим в состояние подтверждения загрузки файла
+    # Переходим в состояние подтверждения загрузки файла
     await state.set_state(AdminStates.confirming_file_upload)
     
     # Импортируем и вызываем обработчик подтверждения загрузки
     from app.bot.handlers.admin.file_upload.column_configuration import process_upload_confirmation
     await process_upload_confirmation(callback, state)
 
-# ✅ НОВОЕ: Обработчик возврата к настройкам из шаблона
+#  Обработчик возврата к настройкам из шаблона
 @template_router.callback_query(AdminStates.selecting_column_template, F.data == CallbackData.BACK_TO_SETTINGS)
 async def process_back_to_settings_from_template(callback: CallbackQuery, state: FSMContext):
     """
@@ -132,14 +132,14 @@ async def process_back_to_settings_from_template(callback: CallbackQuery, state:
     """
     logger.info("Back to settings from template selection")
     
-    # ✅ НОВОЕ: Возвращаемся к состоянию настроек загрузки
+    # Возвращаемся к состоянию настроек загрузки
     await state.set_state(AdminStates.configuring_upload_settings)
     
     # Импортируем и вызываем обработчик возврата к настройкам
     from app.bot.handlers.admin.file_upload.settings_management import process_back_to_settings
     await process_back_to_settings(callback, state)
 
-# ✅ НОВОЕ: Обработчик настройки колонок из шаблона
+# Обработчик настройки колонок из шаблона
 @template_router.callback_query(AdminStates.selecting_column_template, F.data.startswith(CallbackData.SELECT_COLUMN_TYPE))
 async def process_configure_columns_from_template(callback: CallbackQuery, state: FSMContext):
     """
@@ -151,14 +151,14 @@ async def process_configure_columns_from_template(callback: CallbackQuery, state
     """
     logger.info("Configure columns manually from template selection")
     
-    # ✅ НОВОЕ: Переходим к состоянию конфигурации колонок
+    # Переходим к состоянию конфигурации колонок
     await state.set_state(AdminStates.configuring_columns)
     
     # Импортируем и вызываем обработчик выбора типа колонки
     from app.bot.handlers.admin.file_upload.column_type_processing import process_select_column_type
     await process_select_column_type(callback, state)
 
-# ✅ НОВОЕ: Обработчик возврата в админку из шаблона
+# Обработчик возврата в админку из шаблона
 @template_router.callback_query(AdminStates.selecting_column_template, F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin_from_template(callback: CallbackQuery, state: FSMContext):
     """
@@ -179,7 +179,7 @@ async def process_back_to_admin_from_template(callback: CallbackQuery, state: FS
     
     await callback.answer()
 
-# ✅ НОВОЕ: Предопределенные шаблоны колонок
+# Предопределенные шаблоны колонок
 COLUMN_TEMPLATES = {
     "1": {
         "name": "Номер, слово, транскрипция, перевод",
@@ -254,7 +254,7 @@ def create_template_selection_keyboard(language_id: str) -> InlineKeyboardButton
     builder.adjust(1)  # По одной кнопке в строке
     return builder.as_markup()
 
-# ✅ НОВОЕ: Обработчик для отображения списка шаблонов
+# Обработчик для отображения списка шаблонов
 @template_router.callback_query(AdminStates.configuring_upload_settings, F.data == "show_column_templates")
 @template_router.callback_query(AdminStates.configuring_columns, F.data == "show_column_templates")
 async def process_show_column_templates(callback: CallbackQuery, state: FSMContext):
@@ -267,7 +267,7 @@ async def process_show_column_templates(callback: CallbackQuery, state: FSMConte
     """
     logger.info("Showing column templates")
     
-    # ✅ НОВОЕ: Устанавливаем состояние выбора шаблона колонок
+    # Устанавливаем состояние выбора шаблона колонок
     await state.set_state(AdminStates.selecting_column_template)
     
     # Получаем ID языка из состояния
