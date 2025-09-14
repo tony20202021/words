@@ -247,12 +247,12 @@ def format_study_word_message(
             if session_processed == words_for_today:
                 message += f"(завершающее в текущей сессии: <b>{session_processed}</b>)\n"
             else:
-                message += f"(закончено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n"
+                message += f"(изучено в текущей сессии: <b>{session_processed}</b> из <b>{words_for_today}</b>)\n"
         else:
             if session_processed == words_for_today:
                 message += f"(завершающее в текущей сессии: <b>{session_processed + 1}</b>)\n"
             else:
-                message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b>)\n"
+                message += f"(изучается в текущей сессии: <b>{session_processed + 1}</b> из <b>{words_for_today}</b>)\n"
     
     # Добавляем информацию о статусе пропуска
     if is_skipped:
@@ -273,18 +273,18 @@ def format_study_word_message(
                 message += f"Предыдущий интервал: {check_interval} (дней)\n"
     
     message += "\n"    
-    message += f"🔍 Слово на русском:\n<b>{translation}</b>\n"
+    message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
     
     # Если нужно показать слово, добавляем его с кликабельной ссылкой
     if show_word and word_foreign:
         # Создаем кликабельную ссылку на команду /show_big
-        if show_big:
-            message += f"\n📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
-        else:
-            message += f"\n📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
         if transcription:
             escaped_transcription = transcription.replace('\n', ',')
             message += f"🔊 Транскрипция:\n<b>[{escaped_transcription}]</b>\n\n"
+        if show_big:
+            message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
+        else:
+            message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
         if show_radicals and radicals:
             message += f"🔍 Радикалы:\n{radicals}\n\n"
         if show_references and references:
