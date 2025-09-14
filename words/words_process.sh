@@ -21,5 +21,7 @@
 # python ./chat_gpt_2/tones_all.py
 # python ./words_generate_doc.py
 
-# python ./radicals_names_2/radicals_names.py
+# python ./radicals_names_3/radicals_names.py
 python ./words_generate_doc.py
+
+# python ./sounds/archchinese/sounds_parse.py

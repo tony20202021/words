@@ -362,9 +362,9 @@ if __name__ == "__main__":
     # INPUT_FILE = "./radicals_names/words_Китайский_20250822_192754.json.new_radicals.json"
     # INPUT_FILE = "./tones/data/words_Китайский_20250826_160132.json.tones.json"
     # INPUT_FILE = "/home/tony/repos/words/words/chat_gpt_2/data/words_Китайский_20250826_160132.json.tones.json.merged.json.cross_references.json.tones.json"
-    INPUT_FILE = "/home/tony/repos/words/words/radicals_names_2/data/words_Китайский_20250913_074237.json.new_radicals.json"
+    INPUT_FILE = "/home/tony/repos/words/words/radicals_names_3/data/words_Китайский_20250913_074237.json.new_radicals.json"
     
-    OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"
+    # OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"
     OUTPUT_FILE_EXCEL = "chinese_characters_10_000_short.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
