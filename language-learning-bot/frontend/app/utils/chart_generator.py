@@ -6,11 +6,12 @@
 import matplotlib.pyplot as plt
 from io import BytesIO
 from typing import List, Dict
-import logging
 import numpy as np
 import datetime
+from app.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+
+logger = setup_logger(__name__)
 
 # Настройка matplotlib для русского языка
 # plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
@@ -219,8 +220,13 @@ class ProgressChartGenerator:
             ax2.set_title(f'{title}\n{len(counts)} записей \n max={max(counts) if len(counts) > 0 else "None"}', fontsize=20, fontweight='bold')
         
         ax2.set_xlabel('Дата')
-        ax2.set_xticklabels(dates, rotation=45, ha='right')
-        ax2.set_xticks(range(0, len(dates), len(dates) // 10))
+        step = max(1, len(dates) // 10)
+        tick_indices = range(0, len(dates), step)
+        ax2.set_xticks(tick_indices)  # Сначала позиции
+        ax2.set_xticklabels([dates[i] for i in tick_indices], rotation=45, ha='right')  # Потом метки для этих позиций
+
+        # logger.info(f"dates: {dates}")
+        # logger.info(f"counts: {counts}")
         
         ax2.set_ylabel('Количество слов')
         ax2.yaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both'))        

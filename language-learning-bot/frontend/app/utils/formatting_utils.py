@@ -203,6 +203,7 @@ def format_study_word_message(
     words_studied=0,
     words_for_today=0,
     session_processed=0,
+    total_words=0,
 ):
     """
     Форматирует сообщение для отображения слова в процессе изучения.
@@ -228,6 +229,7 @@ def format_study_word_message(
         words_studied: Количество слов, изученных в сессии
         words_for_today: Количество слов на текущую сессию
         session_processed: Количество слов, обработанных в сессии
+        total_words: Общее количество слов в языке
     Returns:
         str: Отформатированное сообщение
     """
@@ -235,10 +237,10 @@ def format_study_word_message(
     message_tones = None
     
     message = f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
-    message += f"Слово номер: <b>{word_number}</b>\n" 
+    message += f"Слово номер: <b>{word_number}</b> / <b>{words_studied}</b> / <b>{total_words}</b>\n" 
     
     if word_number == words_studied:
-        message += f"(завершающее из изученых: {words_studied})\n"
+        message += f"(завершающее из изученых)\n"
     elif word_number > words_studied:
         message += f"(новое слово, изучается первый раз)\n"
 
@@ -291,7 +293,7 @@ def format_study_word_message(
             message += f"🔍 Ссылки:\n{references}\n\n"
         if show_tones and tones:
             if len(tones) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n{tones}\n\n"
+                message_tones = f"🔍 Тоны:\n<b>[{escaped_transcription}]</b>\n\n{tones}\n\n"
             else:
                 tones_formatted = ""
                 for tone in tones.split('\n'):

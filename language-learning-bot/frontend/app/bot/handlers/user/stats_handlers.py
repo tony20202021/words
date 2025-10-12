@@ -70,7 +70,6 @@ async def _get_languages_with_word_counts(api_client) -> Tuple[List[Dict], Optio
 async def get_user_progress_data(message, state, db_user_id: str, languages: List[Dict], api_client) -> Tuple[List[Dict], List[Dict]]:
     """
     Get user progress data for all languages.
-    НОВОЕ: Разделение языков на те, где есть прогресс, и те, где его нет.
     
     Args:
         db_user_id: Database user ID

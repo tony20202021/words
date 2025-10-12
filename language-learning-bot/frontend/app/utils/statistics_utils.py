@@ -212,10 +212,11 @@ async def update_daily_first_finish_statistics(callback: CallbackQuery, state: F
             return
 
 
-async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dict], first_finish_stats: List[Dict]):
+async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dict], first_finish_stats: List[Dict], show_all: bool):
     logger.info(f"Sending monthly charts for user {callback.from_user.full_name}")
-    logger.info(f"all_days_stats: {all_days_stats}")
-    logger.info(f"first_finish_stats: {first_finish_stats}")
+    # logger.info(f"all_days_stats: {all_days_stats}")
+    # logger.info(f"first_finish_stats: {first_finish_stats}")
+    logger.info(f"show_all: {show_all}")
 
     try:
         generator = ProgressChartGenerator()
@@ -232,7 +233,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_studied",
                 title="Всего изучено",
                 title_value="last",
-                y_axis_limits="zero_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -249,7 +250,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_new",
                 title="Новые слова",
                 title_value="max",
-                y_axis_limits="min_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -266,7 +267,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_known",
                 title="Известные слова",
                 title_value="last",
-                y_axis_limits="zero_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -283,7 +284,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_unknown",
                 title="Неизвестные слова \n (до первого завершения)",
                 title_value="max",
-                y_axis_limits="min_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -300,7 +301,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_unknown",
                 title="Неизвестные слова \n (после первого завершения)",
                 title_value="max",
-                y_axis_limits="min_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -317,7 +318,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 "words_for_today",
                 title="Слова для ежедневного повторения",
                 title_value="max",
-                y_axis_limits="min_max",
+                y_axis_limits="zero_max" if show_all else "min_max",
             )
             histogram_file = BufferedInputFile(
                 histogram_chart.getvalue(),
@@ -337,8 +338,11 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
             "❌ Ошибка при создании графиков. Используется текстовая статистика."
         )
 
+async def show_full_statistics(callback: CallbackQuery, state: FSMContext):
+    await show_monthly_statistics(callback, state, show_all=True)
 
-async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
+
+async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext, show_all: bool = False):
     logger.info(f"show_monthly_statistics from {callback.from_user.full_name}")
     
     # Получаем клиент API с помощью утилиты
@@ -359,10 +363,15 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
     last_action_date = datetime.fromisoformat(last_action_date_time).date()
     logger.info(f"last_action_date: {last_action_date} for monthly statistics")
 
-    api_response = await api_client.get_monthly_statistics(db_user_id, language_id, last_action_date)
+    if show_all:
+        api_response = await api_client.get_all_monthly_statistics(db_user_id, language_id, last_action_date)
+    else:
+        api_response = await api_client.get_monthly_statistics(db_user_id, language_id, last_action_date)
+
     if (not api_response['success']) or (api_response['status'] == 404) or (api_response['result'] == None):
         logger.error(f"No progress data found for user {db_user_id} and language {language_id} for date {last_action_date}.")
         return
+
     monthly_statistics = api_response['result']
     logger.info(f"monthly_statistics: {monthly_statistics}")
 
@@ -384,10 +393,15 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
         
         all_days_stats.append(one_day_stats)
 
-    api_response = await api_client.get_monthly_first_finish_statistics(db_user_id, language_id, last_action_date)
+    if show_all:
+        api_response = await api_client.get_all_monthly_first_finish_statistics(db_user_id, language_id, last_action_date)
+    else:
+        api_response = await api_client.get_monthly_first_finish_statistics(db_user_id, language_id, last_action_date)
+
     if (not api_response['success']) or (api_response['status'] == 404) or (api_response['result'] == None):
         logger.error(f"No first finish statistics found for user {db_user_id} and language {language_id} for date {last_action_date}.")
         return
+
     first_finish_statistics = api_response['result']
     logger.info(f"first_finish_statistics: {first_finish_statistics}")
 
@@ -396,5 +410,5 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext):
         one_day_stats["words_unknown"] = one_day_stats["words_studied"] - one_day_stats["words_known"] - one_day_stats["words_skipped"]
         first_finish_stats.append(one_day_stats)
 
-    await _send_monthly_charts(callback, all_days_stats, first_finish_stats)
+    await _send_monthly_charts(callback, all_days_stats, first_finish_stats, show_all)
 

@@ -55,6 +55,7 @@ async def format_full_message(
     words_studied=0,
     words_for_today=0,
     session_processed=0,
+    total_words=0,
     current_state=None,
     used_hints=None,
     message_or_callback=None,
@@ -91,6 +92,7 @@ async def format_full_message(
         words_studied=words_studied,
         words_for_today=words_for_today,
         session_processed=session_processed,
+        total_words=total_words,
     )
     
     if (current_state == StudyStates.confirming_word_knowledge.state):
@@ -194,6 +196,7 @@ async def show_study_word(
 
     words_studied = progress.get('words_studied', 0)
     words_for_today = progress.get('words_for_today', 0)
+    total_words = progress.get('total_words', 0)
     session_processed = user_word_state.get_session_info().get('total_words_processed', 0)
 
     messages = await format_full_message(
@@ -220,6 +223,7 @@ async def show_study_word(
         words_studied=words_studied,
         words_for_today=words_for_today,
         session_processed=session_processed,
+        total_words=total_words,
         current_state=current_state,
         used_hints=used_hints,
         message_or_callback=message_or_callback,

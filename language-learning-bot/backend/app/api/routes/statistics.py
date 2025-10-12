@@ -607,6 +607,18 @@ async def get_daily_statistics(
     return daily_stats
 
 
+@router.get("/{user_id}/languages/{language_id}/all-monthly-stats/{date}", response_model=UserMonthlyStats)
+async def get_all_monthly_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    monthly_stats = await process_monthly_statistics(user_id, language_id, show_all=True, date=date, statistics_service=statistics_service, user_service=user_service)
+    return monthly_stats
+
+
 @router.get("/{user_id}/languages/{language_id}/monthly-stats/{date}", response_model=UserMonthlyStats)
 async def get_monthly_statistics(
     user_id: str,
@@ -615,11 +627,23 @@ async def get_monthly_statistics(
     statistics_service: StatisticsService = Depends(get_statistics_service),
     user_service: UserService = Depends(get_user_service)
 ):
+    monthly_stats = await process_monthly_statistics(user_id, language_id, show_all=False, date=date, statistics_service=statistics_service, user_service=user_service)
+    return monthly_stats
+
+
+async def process_monthly_statistics(
+    user_id: str,
+    language_id: str,
+    show_all: bool,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
     """
     Get monthly statistics aggregation for a specific user and language.
     """
     logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
-               f"date={date}")
+               f"date={date}, show_all={show_all}")
 
     try:
         parsed_date = datetime.date.fromisoformat(date)
@@ -639,7 +663,7 @@ async def get_monthly_statistics(
         )
     
     monthly_stats = await statistics_service.get_monthly_statistics(
-        user_id, language_id, parsed_date, type="daily"
+        user_id, language_id, show_all=show_all, date=parsed_date, type="daily"
     )
     
     return monthly_stats
@@ -723,6 +747,18 @@ async def get_daily_first_finish_statistics(
     return first_finish_stats
 
 
+@router.get("/{user_id}/languages/{language_id}/all-monthly-first-finish-stats/{date}", response_model=UserMonthlyStats)
+async def get_all_monthly_first_finish_statistics(
+    user_id: str,
+    language_id: str,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
+    monthly_first_finish_stats = await process_monthly_first_finish_statistics(user_id, language_id, show_all=True, date=date, statistics_service=statistics_service, user_service=user_service)
+    return monthly_first_finish_stats
+
+
 @router.get("/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date}", response_model=UserMonthlyStats)
 async def get_monthly_first_finish_statistics(
     user_id: str,
@@ -731,11 +767,23 @@ async def get_monthly_first_finish_statistics(
     statistics_service: StatisticsService = Depends(get_statistics_service),
     user_service: UserService = Depends(get_user_service)
 ):
+    monthly_first_finish_stats = await process_monthly_first_finish_statistics(user_id, language_id, show_all=False, date=date, statistics_service=statistics_service, user_service=user_service)
+    return monthly_first_finish_stats
+
+
+async def process_monthly_first_finish_statistics(
+    user_id: str,
+    language_id: str,
+    show_all: bool,
+    date: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+    user_service: UserService = Depends(get_user_service)
+):
     """
     Get monthly first finish statistics aggregation for a specific user and language.
     """
     logger.info(f"Getting monthly first finish statistics for user_id={user_id}, language_id={language_id}, "
-               f"date={date}")
+               f"date={date}, show_all={show_all}")
 
     try:
         parsed_date = datetime.date.fromisoformat(date)
@@ -755,7 +803,7 @@ async def get_monthly_first_finish_statistics(
         )
     
     monthly_first_finish_stats = await statistics_service.get_monthly_statistics(
-        user_id, language_id, parsed_date, type="first_finish"
+        user_id, language_id, show_all=show_all, date=parsed_date, type="first_finish"
     )
     
     return monthly_first_finish_stats

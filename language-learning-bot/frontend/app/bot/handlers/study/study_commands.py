@@ -17,6 +17,7 @@ from app.bot.handlers.study.study_words import show_study_word, load_next_batch
 from app.bot.handlers.user.stats_handlers import process_stats
 from app.bot.handlers.language_handlers import process_language
 from app.utils.user_utils import get_or_create_user, validate_language_selected
+from app.utils.statistics_utils import show_monthly_statistics, show_today_statistics
 
 # Создаем роутер для команд изучения
 study_router = Router()
@@ -86,7 +87,12 @@ async def process_study(message_or_callback: Message, state: FSMContext):
         db_user_id=db_user_id,
         settings=settings,
     )
-    
+
+    show_charts = settings.get("show_charts", False)
+    if show_charts:
+        await show_monthly_statistics(message_or_callback, state)
+        await show_today_statistics(message_or_callback, state)
+
     batch_info = {}
     batch_info["current_batch_index"] = 0
     batch_info["batch_start_number"] = settings.get("start_word", 0)

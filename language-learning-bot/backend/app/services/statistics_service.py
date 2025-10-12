@@ -538,6 +538,7 @@ class StatisticsService:
         self,
         user_id: str,
         language_id: str,
+        show_all: bool,
         date: datetime.date,
         type: str = "daily"
     ) -> UserMonthlyStats:
@@ -555,4 +556,4 @@ class StatisticsService:
         logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
                    f"date={date}, type={type}")
         
-        return await self.repository.get_monthly_stats(user_id, language_id, date, type)
+        return await self.repository.get_monthly_stats(user_id, language_id, show_all, date, type)

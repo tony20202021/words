@@ -787,6 +787,31 @@ class APIClient:
         return await self._make_request("PUT", endpoint, data=stats_update)        
 
 
+    async def get_all_monthly_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get all monthly statistics aggregation for a user and language.
+        
+        Args:
+            user_id: User ID
+            language_id: Language ID
+            date: Date for statistics
+            
+        Returns:
+            API response with all monthly statistics
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/all-monthly-stats/{date.isoformat()}"
+        
+        logger.info(f"Getting all monthly statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}")
+        
+        return await self._make_request("GET", endpoint)
+
+
     async def get_monthly_statistics(
         self,
         user_id: str,
@@ -838,6 +863,18 @@ class APIClient:
         endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
         return await self._make_request("PUT", endpoint, data=stats_update)
 
+    async def get_all_monthly_first_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """
+        Get all monthly first finish statistics for a specific user and language.
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/all-monthly-first-finish-stats/{date.isoformat()}"
+        return await self._make_request("GET", endpoint)
+
     async def get_monthly_first_finish_statistics(
         self,
         user_id: str,
@@ -845,8 +882,7 @@ class APIClient:
         date: datetime.date
     ) -> Dict[str, Any]:
         """
-        Get first finish statistics for a specific user and language.
+        Get monthly first finish statistics for a specific user and language.
         """
         endpoint = f"/users/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date.isoformat()}"
         return await self._make_request("GET", endpoint)
-

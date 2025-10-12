@@ -15,7 +15,7 @@ from app.utils.formatting_utils import format_settings_text
 from app.bot.states.centralized_states import UserStates
 from app.bot.keyboards.user_keyboards import create_language_selected_keyboard
 from app.bot.handlers.study.word_actions.word_navigation_actions import update_daily_statistics
-from app.utils.statistics_utils import show_monthly_statistics, show_today_statistics
+from app.utils.statistics_utils import show_full_statistics
 
 # Создаем роутер для обработчиков языков
 language_router = Router()
@@ -403,8 +403,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
 
     show_charts = settings.get("show_charts", False)
     if show_charts:
-        await show_monthly_statistics(callback, state)
-        await show_today_statistics(callback, state)
+        await show_full_statistics(callback, state)
 
     await callback.message.answer(
         f"Теперь вы можете:\n"

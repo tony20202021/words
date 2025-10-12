@@ -909,6 +909,7 @@ class StatisticsRepository:
         self, 
         user_id: str, 
         language_id: str, 
+        show_all: bool,
         date: datetime.date,
         type: str = "daily"
     ) -> UserMonthlyStats:
@@ -923,7 +924,7 @@ class StatisticsRepository:
         cursor = self.daily_stats_collection.find({
             "user_id": user_id,
             "language_id": language_id,
-            "date": {"$gt": start_date, "$lte": date_datetime},
+            "date": {"$lte": date_datetime} if show_all else {"$gt": start_date, "$lte": date_datetime},
             "type": type
         }).sort("date", 1)
         
@@ -934,6 +935,8 @@ class StatisticsRepository:
             one_day_stat = UserDailyStatsInDB(**stats)
             daily_stats.append(one_day_stat)
         
+        # logger.info(f"daily_stats: {daily_stats}")
+
         return UserMonthlyStats(
             user_id=user_id,
             language_id=language_id,
