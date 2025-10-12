@@ -22,6 +22,13 @@
 # python ./words_generate_doc.py
 
 # python ./radicals_names_3/radicals_names.py
-python ./words_generate_doc.py
+# python ./words_generate_doc.py
 
 # python ./sounds/archchinese/sounds_parse.py
+
+# python ./radicals_names_4/radicals_names.py
+# python ./words_generate_doc.py
+
+# python ./radicals_names/radicals_names_5/radicals_names.py
+# python ./radicals_names/radicals_names_5/tones_all.py
+python ./words_generate_doc.py
