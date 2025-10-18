@@ -128,8 +128,10 @@ if __name__ == "__main__":
 
         entry["tones"] = "\n ".join(all_tones_word_formatted)
         entry["transcription"] = " ".join(word_transcription_formatted)
-        # print(entry["transcription"])
-        # print(entry["tones"])
+
+        # if word_number == 331:
+        #     print(entry["transcription"])
+        #     print(entry["tones"])
 
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
