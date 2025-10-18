@@ -211,14 +211,12 @@ async def process_upload_confirmation_from_settings(callback: CallbackQuery, sta
     """
     logger.info("Upload confirmation from settings state")
     
-    # ✅ НОВОЕ: Переходим в состояние подтверждения загрузки файла
     await state.set_state(AdminStates.confirming_file_upload)
     
     # Импортируем и вызываем обработчик подтверждения загрузки
     from app.bot.handlers.admin.file_upload.column_configuration import process_upload_confirmation
     await process_upload_confirmation(callback, state)
 
-# ✅ НОВОЕ: Обработчик возврата в админку из настроек загрузки
 @file_router.callback_query(AdminStates.configuring_upload_settings, F.data == CallbackData.BACK_TO_ADMIN)
 @file_router.callback_query(AdminStates.waiting_file, F.data == CallbackData.BACK_TO_ADMIN)
 async def process_back_to_admin_from_upload(callback: CallbackQuery, state: FSMContext):

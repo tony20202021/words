@@ -741,6 +741,8 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
     from_study = state_data.get("return_to_study", False)
 
     logger.info(f"'show_word_details_screen' state: {await state.get_state()}")
+    logger.info(f"'show_word_details_screen' word_info: {word_info}")
+    
 
     # Выбираем клавиатуру в зависимости от контекста
     if from_study:

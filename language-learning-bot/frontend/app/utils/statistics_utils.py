@@ -50,11 +50,16 @@ async def load_progress(callback: CallbackQuery, state: FSMContext):
 
     return progress
 
-async def _send_today_charts(callback: CallbackQuery, progress: Dict):
+async def _send_today_charts(message_or_callback: CallbackQuery, progress: Dict):
     """
     Отправляет реальные графики прогресса в виде изображений.
     Создает настоящие PNG-графики с помощью matplotlib.
     """
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
+
     try:
         generator = ProgressChartGenerator()
         
@@ -74,7 +79,7 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Слова для повторения сегодня"
             )
@@ -90,26 +95,31 @@ async def _send_today_charts(callback: CallbackQuery, progress: Dict):
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Неизвестные слова"
             )
                 
-        logger.info(f"Successfully sent progress charts to user {callback.from_user.username}")
+        logger.info(f"Successfully sent progress charts to user {message_or_callback.from_user.username}")
         
     except Exception as e:
         logger.error(f"Error generating progress charts: {e}", exc_info=True)
-        await callback.message.answer(
+        await message.answer(
             "❌ Ошибка при создании графиков. Используется текстовая статистика."
         )
 
 
-async def show_today_statistics(callback: CallbackQuery, state: FSMContext):
+async def show_today_statistics(message_or_callback: CallbackQuery, state: FSMContext):
     """
     Show daily statistics with real chart visualization.
     Использует реальные PNG-графики
     """
-    logger.info(f"show_today_statistics from {callback.from_user.full_name}")
+    logger.info(f"show_today_statistics from {message_or_callback.from_user.full_name}")
+
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
 
     state_data = await state.get_data()
     progress = state_data.get("progress", {})
@@ -138,10 +148,10 @@ async def show_today_statistics(callback: CallbackQuery, state: FSMContext):
         f"📈 **Детальные графики отправляются ниже...**"
     )
 
-    await callback.message.answer(stats_message, parse_mode="Markdown")
+    await message.answer(stats_message, parse_mode="Markdown")
     
     # 🆕 Отправляем реальные графики
-    await _send_today_charts(callback, progress)
+    await _send_today_charts(message_or_callback, progress)
 
 
 async def update_daily_statistics(callback: CallbackQuery, state: FSMContext):
@@ -212,17 +222,22 @@ async def update_daily_first_finish_statistics(callback: CallbackQuery, state: F
             return
 
 
-async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dict], first_finish_stats: List[Dict], show_all: bool):
-    logger.info(f"Sending monthly charts for user {callback.from_user.full_name}")
+async def _send_monthly_charts(message_or_callback: CallbackQuery, all_days_stats: List[Dict], first_finish_stats: List[Dict], show_all: bool):
+    logger.info(f"Sending monthly charts for user {message_or_callback.from_user.full_name}")
     # logger.info(f"all_days_stats: {all_days_stats}")
     # logger.info(f"first_finish_stats: {first_finish_stats}")
     logger.info(f"show_all: {show_all}")
+
+    if isinstance(message_or_callback, CallbackQuery):
+        message = message_or_callback.message
+    else:
+        message = message_or_callback
 
     try:
         generator = ProgressChartGenerator()
         
         if not all_days_stats:
-            await callback.message.answer(
+            await message.answer(
                 "Нет статистики по датам"
             )
             logger.info(f"monthly_statistics is empty")
@@ -240,7 +255,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Всего изучено"
             )
@@ -257,7 +272,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Новые слова"
             )
@@ -274,7 +289,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Известные слова"
             )
@@ -291,7 +306,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Неизвестные слова \n (до первого завершения)"
             )
@@ -308,7 +323,7 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Неизвестные слова \n (после первого завершения)"
             )
@@ -325,16 +340,16 @@ async def _send_monthly_charts(callback: CallbackQuery, all_days_stats: List[Dic
                 filename="words_histogram.png"
             )
             
-            await callback.message.answer_photo(
+            await message.answer_photo(
                 histogram_file,
                 caption="Слова для ежедневного повторения"
             )
                 
-        logger.info(f"Successfully sent progress charts to user {callback.from_user.username}")
+        logger.info(f"Successfully sent progress charts to user {message_or_callback.from_user.username}")
         
     except Exception as e:
         logger.error(f"Error generating progress charts: {e}", exc_info=True)
-        await callback.message.answer(
+        await message.answer(
             "❌ Ошибка при создании графиков. Используется текстовая статистика."
         )
 
@@ -342,11 +357,11 @@ async def show_full_statistics(callback: CallbackQuery, state: FSMContext):
     await show_monthly_statistics(callback, state, show_all=True)
 
 
-async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext, show_all: bool = False):
-    logger.info(f"show_monthly_statistics from {callback.from_user.full_name}")
+async def show_monthly_statistics(message_or_callback: CallbackQuery, state: FSMContext, show_all: bool = False):
+    logger.info(f"show_monthly_statistics from {message_or_callback.from_user.full_name}")
     
     # Получаем клиент API с помощью утилиты
-    api_client = get_api_client_from_bot(callback.bot)
+    api_client = get_api_client_from_bot(message_or_callback.bot)
     
     # Получение данных состояния
     state_data = await state.get_data()
@@ -410,5 +425,5 @@ async def show_monthly_statistics(callback: CallbackQuery, state: FSMContext, sh
         one_day_stats["words_unknown"] = one_day_stats["words_studied"] - one_day_stats["words_known"] - one_day_stats["words_skipped"]
         first_finish_stats.append(one_day_stats)
 
-    await _send_monthly_charts(callback, all_days_stats, first_finish_stats, show_all)
+    await _send_monthly_charts(message_or_callback, all_days_stats, first_finish_stats, show_all)
 

@@ -235,6 +235,7 @@ def format_study_word_message(
     """
     message = ""
     message_tones = None
+    message_references = None
     
     message = f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
     message += f"Слово номер: <b>{word_number}</b> / <b>{words_studied}</b> / <b>{total_words}</b>\n" 
@@ -289,17 +290,45 @@ def format_study_word_message(
             message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
         if show_radicals and radicals:
             message += f"🔍 Радикалы:\n{radicals}\n\n"
-        if show_references and references:
-            message += f"🔍 Ссылки:\n{references}\n\n"
+
         if show_tones and tones:
-            star_transcription = [(word[0] + '*' * len(word[1:])) for word in escaped_transcription.split(' ')]
+            star_transcription = [(word[0] + '*') for word in escaped_transcription.split(' ')]
             star_transcription = ' '.join(star_transcription)
 
-            if len(tones) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones}\n\n"
+            tones_filtered = []
+            words_number_begin_str_multiple = " - [<i>"
+            words_number_end_str_multiple = "</i>]"
+            words_number_begin_str_single = ": [<i>"
+            words_number_end_str_single = "</i>]"
+
+            for tone in tones.split('\n'):
+                words_number_begin = tone.find(words_number_begin_str_multiple)
+                if words_number_begin > -1:
+                    words_number_end = tone.find(words_number_end_str_multiple)
+                    words_number = tone[words_number_begin + len(words_number_begin_str_multiple):words_number_end]
+                    # logger.info(f"{words_number}: {tone}")
+                    if int(words_number) <= words_studied:
+                        tones_filtered.append(tone)
+                else:
+                    words_number_begin = tone.find(words_number_begin_str_single)
+                    if words_number_begin > -1:
+                        words_number_end = tone.find(words_number_end_str_single)
+                        words_number = tone[words_number_begin + len(words_number_begin_str_single):words_number_end]
+                        # logger.info(f"{words_number}: {tone}")
+                        if int(words_number) <= words_studied:
+                            tones_filtered.append(tone)
+                        else:
+                            tones_filtered.append(tone[:words_number_begin] + " counts: 1")
+                    else:
+                        tones_filtered.append(tone)
+
+            tones_filtered = "\n".join(tones_filtered)
+
+            if len(tones_filtered) <= MAX_MESSAGE_LENGTH:
+                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_filtered}\n\n"
             else:
                 tones_formatted = ""
-                for tone in tones.split('\n'):
+                for tone in tones_filtered.split('\n'):
                     if len(tones_formatted) + len(tone) <= MAX_MESSAGE_LENGTH:
                         if tones_formatted != "":
                             tones_formatted += "\n"
@@ -308,9 +337,31 @@ def format_study_word_message(
                         break
                 message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_formatted}\n\n"
             
+        if show_references and references:
+            references_filtered = []
+            words_number_begin_str = "<i>[#"
+            words_number_end_str = "]</i>"
+
+            for reference in references.split('\n'):
+                words_number_begin = reference.find(words_number_begin_str)
+                if words_number_begin > -1:
+                    words_number_end = reference.find(words_number_end_str)
+                    words_number = reference[words_number_begin + len(words_number_begin_str):words_number_end]
+                    # logger.info(f"{words_number}: {reference}")
+                    if int(words_number) <= words_studied:
+                        references_filtered.append(reference)
+                else:
+                    references_filtered.append(reference)
+
+            references_filtered = "\n".join(references_filtered)
+
+            message_references = f"🔍 Ссылки:\n{references_filtered}\n\n"
+
     result = []
     if message_tones:
         result.append(message_tones)
+    if message_references:
+        result.append(message_references)
     result.append(message)
 
     return result
