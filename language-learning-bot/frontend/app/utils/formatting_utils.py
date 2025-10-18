@@ -292,8 +292,13 @@ def format_study_word_message(
         if show_references and references:
             message += f"🔍 Ссылки:\n{references}\n\n"
         if show_tones and tones:
+            star_transcription = [(word[0] + '*' * len(word[1:])) for word in escaped_transcription.split(' ')]
+            logger.info(f"star_transcription: {star_transcription}")
+            star_transcription = ' '.join(star_transcription)
+            logger.info(f"star_transcription: {star_transcription}")
+
             if len(tones) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n<b>[{escaped_transcription}]</b>\n\n{tones}\n\n"
+                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones}\n\n"
             else:
                 tones_formatted = ""
                 for tone in tones.split('\n'):
@@ -303,7 +308,7 @@ def format_study_word_message(
                         tones_formatted += tone
                     else:
                         break
-                message_tones = f"🔍 Тоны:\n{tones_formatted}\n\n"
+                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_formatted}\n\n"
             
     result = []
     if message_tones:
