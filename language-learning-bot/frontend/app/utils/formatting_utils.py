@@ -325,7 +325,7 @@ def format_study_word_message(
             tones_filtered = "\n".join(tones_filtered)
 
             if len(tones_filtered) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n<tg-spoiler>[{star_transcription}]</tg-spoiler>\n\n{tones_filtered}\n\n"
+                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_filtered}\n\n"
             else:
                 tones_formatted = ""
                 for tone in tones_filtered.split('\n'):
@@ -335,7 +335,7 @@ def format_study_word_message(
                         tones_formatted += tone
                     else:
                         break
-                message_tones = f"🔍 Тоны:\n<tg-spoiler>[{star_transcription}]</tg-spoiler>\n\n{tones_formatted}\n\n"
+                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_formatted}\n\n"
             
         if show_references and references:
             references_filtered = []
