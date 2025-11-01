@@ -300,22 +300,32 @@ def format_study_word_message(
             words_number_end_str_multiple = "</i>]"
             words_number_begin_str_single = ": [<i>"
             words_number_end_str_single = "</i>]"
+            words_foreigh_end_str = "</b>: "
 
             for tone in tones.split('\n'):
                 words_number_begin = tone.find(words_number_begin_str_multiple)
                 if words_number_begin > -1:
                     words_number_end = tone.find(words_number_end_str_multiple)
-                    words_number = tone[words_number_begin + len(words_number_begin_str_multiple):words_number_end]
+                    words_number_found = int(tone[words_number_begin + len(words_number_begin_str_multiple):words_number_end])
                     # logger.info(f"{words_number}: {tone}")
-                    if int(words_number) <= words_studied:
-                        tones_filtered.append(tone)
+                    
+                    words_foreigh_begin = words_number_end + len(words_number_end_str_multiple) + len(" <b>")
+                    words_foreigh_end = words_foreigh_begin + tone[words_foreigh_begin:].find(words_foreigh_end_str)
+                    words_foreigh_found = tone[words_foreigh_begin:words_foreigh_end]
+                    # logger.info(f"words_number_found: {words_number_found}, words_foreigh_found: {words_foreigh_found}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, tone: {tone}")
+                    if (len(words_foreigh_found) == 1) and (words_foreigh_found in word_foreign):
+                        tones_filtered.append(tone[ : words_number_end + len(words_number_end_str_multiple)] + ": <b>***</b>")
+                    else:
+                        if words_number_found <= words_studied:
+                            tones_filtered.append(tone)
+
                 else:
                     words_number_begin = tone.find(words_number_begin_str_single)
                     if words_number_begin > -1:
                         words_number_end = tone.find(words_number_end_str_single)
-                        words_number = tone[words_number_begin + len(words_number_begin_str_single):words_number_end]
+                        words_number_found = int(tone[words_number_begin + len(words_number_begin_str_single):words_number_end])
                         # logger.info(f"{words_number}: {tone}")
-                        if int(words_number) <= words_studied:
+                        if words_number_found <= words_studied:
                             tones_filtered.append(tone)
                         else:
                             tones_filtered.append(tone[:words_number_begin] + " counts: 1")
@@ -347,16 +357,16 @@ def format_study_word_message(
                 words_number_begin = reference.find(words_number_begin_str)
                 if words_number_begin > -1:
                     words_number_end = reference.find(words_number_end_str)
-                    words_number = reference[words_number_begin + len(words_number_begin_str):words_number_end]
+                    words_number_found = int(reference[words_number_begin + len(words_number_begin_str):words_number_end])
 
-                    if int(words_number) <= words_studied:
+                    if words_number_found <= words_studied:
                         references_filtered.append(reference)
                     else:
                         words_foreigh_begin = words_number_end + len(words_number_end_str)
                         words_foreigh_end = words_foreigh_begin + reference[words_foreigh_begin:].find(words_foreigh_end_str)
-                        words_foreigh = reference[words_foreigh_begin:words_foreigh_end]
-                        # logger.info(f"words_number: {words_number}, words_foreigh: {words_foreigh}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, reference: {reference}")
-                        if len(words_foreigh) == 1:
+                        words_foreigh_found = reference[words_foreigh_begin:words_foreigh_end]
+                        # logger.info(f"words_number_found: {words_number_found}, words_foreigh_found: {words_foreigh_found}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, reference: {reference}")
+                        if len(words_foreigh_found) == 1:
                             references_filtered.append(reference)
                 else:
                     references_filtered.append(reference)
