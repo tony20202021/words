@@ -341,15 +341,23 @@ def format_study_word_message(
             references_filtered = []
             words_number_begin_str = "<i>[#"
             words_number_end_str = "]</i>"
+            words_foreigh_end_str = " ["
 
             for reference in references.split('\n'):
                 words_number_begin = reference.find(words_number_begin_str)
                 if words_number_begin > -1:
                     words_number_end = reference.find(words_number_end_str)
                     words_number = reference[words_number_begin + len(words_number_begin_str):words_number_end]
-                    # logger.info(f"{words_number}: {reference}")
+
                     if int(words_number) <= words_studied:
                         references_filtered.append(reference)
+                    else:
+                        words_foreigh_begin = words_number_end + len(words_number_end_str)
+                        words_foreigh_end = words_foreigh_begin + reference[words_foreigh_begin:].find(words_foreigh_end_str)
+                        words_foreigh = reference[words_foreigh_begin:words_foreigh_end]
+                        # logger.info(f"words_number: {words_number}, words_foreigh: {words_foreigh}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, reference: {reference}")
+                        if len(words_foreigh) == 1:
+                            references_filtered.append(reference)
                 else:
                     references_filtered.append(reference)
 
