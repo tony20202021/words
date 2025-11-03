@@ -16,7 +16,7 @@ from app.utils.hint_constants import (
 
 logger = setup_logger(__name__)
 
-MAX_MESSAGE_LENGTH = 4096
+MAX_MESSAGE_LENGTH = 2048
 
 def format_date(date_str):
     """
@@ -312,12 +312,17 @@ def format_study_word_message(
                     words_foreigh_begin = words_number_end + len(words_number_end_str_multiple) + len(" <b>")
                     words_foreigh_end = words_foreigh_begin + tone[words_foreigh_begin:].find(words_foreigh_end_str)
                     words_foreigh_found = tone[words_foreigh_begin:words_foreigh_end]
+                    
                     # logger.info(f"words_number_found: {words_number_found}, words_foreigh_found: {words_foreigh_found}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, tone: {tone}")
+
                     if (len(words_foreigh_found) == 1) and (words_foreigh_found in word_foreign):
                         tones_filtered.append(tone[ : words_number_end + len(words_number_end_str_multiple)] + ": <b>***</b>")
                     else:
                         if words_number_found <= words_studied:
-                            tones_filtered.append(tone)
+                            if (len(words_foreigh_found) == 1):
+                                tones_filtered.append(tone)
+                            else:
+                                tones_filtered.append(tone[ : words_number_end + len(words_number_end_str_multiple)] + f" <b>{words_foreigh_found}</b>: ***")
 
                 else:
                     words_number_begin = tone.find(words_number_begin_str_single)
