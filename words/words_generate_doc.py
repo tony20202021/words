@@ -365,10 +365,11 @@ if __name__ == "__main__":
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names_3/data/words_Китайский_20250913_074237.json.new_radicals.json"
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names_4/data/words_Китайский_20250921_154411.json.new_radicals.json"
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json"
-    INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
+    # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
+    INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json"
         
     # OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_5_000.xlsx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_4_000.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"

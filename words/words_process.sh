@@ -32,4 +32,7 @@
 # python ./radicals_names/radicals_names_5/radicals_names.py
 # python ./radicals_names/radicals_names_5/tones_all.py
 # python ./radicals_names/radicals_names_5/cross_references.py
+# python ./words_generate_doc.py
+
+python ./tones/tones_2/tones_all.py
 python ./words_generate_doc.py
