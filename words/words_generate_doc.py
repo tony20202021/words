@@ -237,7 +237,8 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
                 'translation': description_text,
                 'radicals': value.get('radicals', []),
                 'references': value.get('references', []),
-                'tones': value.get('tones', [])
+                'tones': value.get('tones', []),
+                'sounds': value.get('sounds', {})
             })
         except (ValueError, TypeError):
             print(f"Пропуск записи {value}: некорректная частотность")
@@ -264,7 +265,7 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
         # 'word_number', 
         word_field_name, 'transcription', 
         # 'comments', 
-        'translation', 'radicals', 'references', 'tones'
+        'translation', 'radicals', 'references', 'tones', 'sounds'
     ]
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
@@ -308,6 +309,8 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
         column += 1
         ws.cell(row=i, column=column).value = entry['tones']
         column += 1
+        ws.cell(row=i, column=column).value = json.dumps(entry['sounds'])
+        column += 1
     
     # Настройка ширины колонок
     if column_widths:
@@ -342,7 +345,7 @@ def generate_excel_document(input_file, output_file=None, word_field_name="chara
         ws.row_dimensions[i].height = row_height
     
     # Добавление автофильтра
-    ws.auto_filter.ref = f"A1:H{len(entries) + 1}"
+    ws.auto_filter.ref = f"A1:I{len(entries) + 1}"
     
     # Закрепление заголовков
     ws.freeze_panes = 'A2'
@@ -366,10 +369,12 @@ if __name__ == "__main__":
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names_4/data/words_Китайский_20250921_154411.json.new_radicals.json"
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json"
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
-    INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json"
+    # INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json"
+    INPUT_FILE = "/home/tony/repos/words/words/sounds/sounds/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json.sounds.json"
+
         
     # OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"
-    OUTPUT_FILE_EXCEL = "chinese_characters_4_000.xlsx"
+    OUTPUT_FILE_EXCEL = "chinese_characters_1_000.xlsx"
 
     # INPUT_FILE = "../data/fr.json.cleaned.json"
     # OUTPUT_FILE_WORD = "fr_10_000.docx"
@@ -417,6 +422,7 @@ if __name__ == "__main__":
         'radicals': 10,         # Радикалы
         'references': 10,  # Ссылки на другие слова
         'tones': 10,  # Тоны
+        'sounds': 10,  # Звуки
     }
     
     # Ширина колонок в пикселях для Excel
@@ -430,6 +436,7 @@ if __name__ == "__main__":
         'radicals': 80,     # Радикалы
         'references': 80,  # Ссылки на другие слова
         'tones': 80,  # Тоны
+        'sounds': 80,  # Звуки
     }
         
     # # Вызов функции генерации Word документа
