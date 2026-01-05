@@ -8,9 +8,10 @@ UPDATED: Added writing images support in keyboard creation.
 
 import asyncio
 from typing import Dict, List, Optional, Any
+import json
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from app.utils.logger import setup_logger
@@ -23,6 +24,7 @@ from app.utils.admin_utils import is_user_admin
 from app.bot.keyboards.study_keyboards import create_adaptive_study_keyboard
 from app.bot.states.centralized_states import StudyStates
 from app.utils.formatting_utils import MAX_MESSAGE_LENGTH
+from app.utils.api_utils import get_api_client_from_bot
 
 # Создаем роутер для отображения слов
 word_display_router = Router()
@@ -30,6 +32,55 @@ word_display_router = Router()
 logger = setup_logger(__name__)
 
 BATCH_LIMIT = 100
+
+async def get_sounds_files(bot, sounds):
+    """
+    Get sound files from API and convert them to BufferedInputFile for Telegram.
+    
+    Args:
+        bot: Bot instance
+        sounds: JSON string with sound file paths
+        
+    Returns:
+        List of BufferedInputFile objects ready to send to Telegram
+    """
+    api_client = get_api_client_from_bot(bot)
+
+    sounds_info = json.loads(sounds)
+    
+    result = []
+    # Sort keys to ensure consistent order (sound_1, sound_2, sound_3, etc.)
+    sorted_keys = sorted(sounds_info.keys())
+    for index, key in enumerate(sorted_keys):
+        file_path = sounds_info[key]
+        logger.debug(f"Processing sound {index} (key={key}): file_path={file_path}")
+        sound_response = await api_client.get_sound_file(file_path)
+        if not sound_response["success"]:
+            logger.error(f"Failed to get sound file ({file_path}): {sound_response}")
+            continue
+        
+        # sound_response["result"] contains binary data (bytes)
+        sound_bytes = sound_response["result"]
+        if not sound_bytes:
+            logger.warning(f"Empty sound data for {file_path}")
+            continue
+        
+        # Create filename using key if it's in format sound_N, otherwise use index
+        if key.startswith('sound_') and key[6:].isdigit():
+            filename = f"{key}.mp3"
+        else:
+            filename = f"sound_{index+1}.mp3"
+        logger.info(f"Creating BufferedInputFile with filename={filename} for index={index}, key={key}")
+        
+        # Create BufferedInputFile for Telegram
+        input_file = BufferedInputFile(
+            file=sound_bytes,
+            filename=filename
+        )
+        result.append(input_file)
+
+    return result
+
 
 async def format_full_message(
     language_name_ru, 
@@ -45,11 +96,13 @@ async def format_full_message(
     show_radicals=False,
     show_references=False,
     show_tones=False,
+    show_sounds=False,
     word_foreign=None,
     transcription=None,
     radicals=None,
     references=None,
     tones=None,
+    sounds=None,
     show_big=False,
     show_check_date=True,
     words_studied=0,
@@ -67,6 +120,15 @@ async def format_full_message(
     is_admin=False,
     show_writing_images=False,
 ):
+    bot = message_or_callback.bot if hasattr(message_or_callback, 'bot') else message_or_callback.message.bot
+        
+    sounds_files = []
+    if bot and sounds and show_sounds:
+        sounds_files = await get_sounds_files(
+            bot=bot,
+            sounds=sounds,
+        )
+
     # Format the main message
     messages = format_study_word_message(
         language_name_ru=language_name_ru,
@@ -82,11 +144,14 @@ async def format_full_message(
         show_radicals=show_radicals,
         show_references=show_references,
         show_tones=show_tones,
+        show_sounds=show_sounds,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
         references=references,
         tones=tones,
+        sounds=sounds,
+        sounds_files=sounds_files,
         show_big=show_big,
         show_check_date=show_check_date,
         words_studied=words_studied,
@@ -96,12 +161,10 @@ async def format_full_message(
     )
     
     if (current_state == StudyStates.confirming_word_knowledge.state):
-        messages[-1] += f"✅ <b>Отлично! Вы знаете это слово!</b>\n\n"
+        messages[-1]["text"] += f"✅ <b>Отлично! Вы знаете это слово!</b>\n\n"
 
     # Add active hints to message if any
     if used_hints:
-        bot = message_or_callback.bot if hasattr(message_or_callback, 'bot') else message_or_callback.message.bot
-        
         hint_text = await format_used_hints(
             bot=bot,
             user_id=user_word_state.user_id,
@@ -110,11 +173,11 @@ async def format_full_message(
             used_hints=used_hints,
             include_header=True
         )
-        messages[-1] += hint_text
+        messages[-1]["text"] += hint_text
     
     # Add debug information if enabled
     if show_debug:
-        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones)
+        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds,)
         messages = [debug_info] + messages
 
     return messages
@@ -165,6 +228,7 @@ async def show_study_word(
     show_radicals = basic_settings.get("show_radicals", True)
     show_references = basic_settings.get("show_references", True)
     show_tones = basic_settings.get("show_tones", True)
+    show_sounds = basic_settings.get("show_sounds", True)
     
     # Get language info from state
     state_data = await state.get_data()
@@ -178,6 +242,7 @@ async def show_study_word(
     radicals = current_word.get("radicals", "")
     references = current_word.get("references", "")
     tones = current_word.get("tones", "")
+    sounds = current_word.get("sounds", "")
     
     # Get user word data
     user_word_data = current_word.get("user_word_data", {})
@@ -213,11 +278,13 @@ async def show_study_word(
         show_radicals=show_radicals,
         show_references=show_references,
         show_tones=show_tones,
+        show_sounds=show_sounds,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
         references=references,
         tones=tones,
+        sounds=sounds,
         show_big=show_big,
         show_check_date=show_check_date,
         words_studied=words_studied,
@@ -256,19 +323,41 @@ async def show_study_word(
             message = message_or_callback
 
         # aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: message is too long
+        # Separate text messages and audio files
         if (not need_new_message) and (len(messages) == 1):
             await message.edit_text(
-                messages[0],
+                messages[0]["text"],
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
         else:
-            for index, message_text in enumerate(messages):
-                await message.answer(
-                    message_text,
-                    reply_markup=(keyboard if (index == len(messages) - 1) else None),
-                    parse_mode="HTML"
-                )
+            # Send text messages
+            for index, current_message in enumerate(messages):
+                if current_message["type"] == "text":
+                    # Add keyboard to last message
+                    has_keyboard = (index == len(messages) - 1) and keyboard
+                    await message.answer(
+                        current_message["text"],
+                        reply_markup=(keyboard if has_keyboard else None),
+                        parse_mode="HTML"
+                    )
+                elif current_message["type"] == "audio":
+                    try:
+                        audio_file = current_message["file"]
+                        
+                        # Log filename if available
+                        if hasattr(audio_file, 'filename'):
+                            logger.info(f"Sending audio file with filename: {audio_file.filename}")
+                        else:
+                            logger.info(f"Sending audio file")
+                        
+                        # Use send_audio with explicit parameters
+                        await message.bot.send_voice(
+                            chat_id=message.chat.id,
+                            voice=audio_file,
+                        )
+                    except Exception as e:
+                        logger.error(f"Error sending sound file: {e}")
     
     except Exception as e:
         logger.error(f"Error displaying study word: {e}")
@@ -417,7 +506,8 @@ async def _get_debug_info(
     show_writing_images: bool = False,
     show_radicals: bool = False,
     show_references: bool = False,
-    show_tones: bool = False
+    show_tones: bool = False,
+    show_sounds: bool = False,    
 ) -> str:
     """
     Get debug information for display.
@@ -431,6 +521,7 @@ async def _get_debug_info(
         show_radicals: Whether radicals are enabled
         show_references: Whether references are enabled
         show_tones: Whether tones are enabled
+        show_sounds: Whether sounds are enabled
     Returns:
         str: Formatted debug information
     """
@@ -463,6 +554,7 @@ async def _get_debug_info(
         f"• Радикалы: {'Вкл' if show_radicals else 'Откл'}\n"
         f"• Ссылки: {'Вкл' if show_references else 'Откл'}\n"
         f"• Тоны: {'Вкл' if show_tones else 'Откл'}\n"
+        f"• Звуки: {'Вкл' if show_sounds else 'Откл'}\n"
         f"• current_state: {current_state}\n"
         f"• is_admin: {'Да' if is_admin else 'Нет'}\n"
     )

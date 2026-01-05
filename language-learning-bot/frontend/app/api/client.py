@@ -6,6 +6,7 @@ not directly with the database.
 
 from typing import Dict, Optional, Any
 from datetime import datetime
+from urllib.parse import quote
 
 import aiohttp
 from dotenv import load_dotenv
@@ -209,6 +210,7 @@ class APIClient:
                 - column_radicals: Column index for radicals
                 - column_references: Column index for references
                 - column_tones: Column index for tones
+                - column_sounds: Column index for sounds
                 - column_number: Column index for word numbers
                 - start_row: Index of the first row to process (0 if no headers, 1 if headers)
                 - clear_existing: Whether to clear existing words before importing (bool)
@@ -886,3 +888,51 @@ class APIClient:
         """
         endpoint = f"/users/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date.isoformat()}"
         return await self._make_request("GET", endpoint)
+
+    async def get_sound_file(self, sound_name: str) -> Dict[str, Any]:
+        """
+        Get sound file by ID.
+        Returns binary data (bytes) for the sound file.
+        """
+        # Quote the sound name and explicitly escape dots
+        encoded_name = quote(sound_name, safe='').replace('.', '%2E')
+        endpoint = f"/sounds/{encoded_name}"
+        url = f"{self.base_url}{self.api_prefix}{endpoint}"
+        
+        response_dict = {
+            "success": False,
+            "status": 0,
+            "result": None,
+            "error": None
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=self.timeout) as response:
+                    response_dict["status"] = response.status
+                    
+                    if response.status >= 400:
+                        try:
+                            error_data = await response.json()
+                        except:
+                            error_data = await response.text()
+                        error_message = str(error_data)
+                        logger.error(f"API error: {response.status} - {error_data}")
+                        response_dict["error"] = error_message
+                        return response_dict
+                    
+                    # Read binary data for sound file
+                    response_dict["result"] = await response.read()
+                    response_dict["success"] = True
+                    return response_dict
+                    
+        except aiohttp.ClientError as e:
+            error_message = f"API request failed: {e}"
+            logger.error(error_message)
+            response_dict["error"] = error_message
+            return response_dict
+        except Exception as e:
+            error_message = f"Unexpected error: {e}"
+            logger.error(error_message)
+            response_dict["error"] = error_message
+            return response_dict

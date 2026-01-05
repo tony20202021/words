@@ -2,7 +2,7 @@
 # Этот файл должен быть сохранен как backend/conf/config/api.yaml
 
 # Настройки сервера
-host: "0.0.0.0"
+host: "127.0.0.1"
 port: 8500
 prefix: "/api"
 

@@ -25,7 +25,7 @@ try:
 except ImportError:
     hydra_available = False
 
-from app.api.routes import languages, users, words, statistics
+from app.api.routes import languages, users, words, statistics, sounds
 from app.api.routes.user_language_settings import router as user_language_settings_router
 from app.db.database import connect_to_mongo, close_mongo_connection
 from app.utils.logger import setup_logger
@@ -78,7 +78,7 @@ def get_api_settings():
     settings = {
         "api_prefix": os.getenv("API_PREFIX", "/api"),
         "host": os.getenv("BACKEND_HOST", "0.0.0.0"),
-        "port": int(os.getenv("BACKEND_PORT", "8000")),
+        "port": int(os.getenv("BACKEND_PORT", "8500")),
         "debug_mode": os.getenv("DEBUG", "False").lower() in ("true", "1", "t"),
         "cors_origins": os.getenv("CORS_ORIGINS", "*").split(","),
         "app_name": os.getenv("APP_NAME", "Language Learning Bot"),
@@ -148,6 +148,7 @@ def create_application() -> FastAPI:
     app.include_router(words.router, prefix=api_prefix)
     app.include_router(statistics.router, prefix=api_prefix)
     app.include_router(user_language_settings_router, prefix=api_prefix)
+    app.include_router(sounds.router, prefix=api_prefix)
 
     # Add health check endpoint
     @app.get(f"{api_prefix}/health", tags=["health"])

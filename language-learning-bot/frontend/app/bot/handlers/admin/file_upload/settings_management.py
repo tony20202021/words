@@ -280,7 +280,7 @@ def format_column_settings(user_data):
     """
     # Проверяем, есть ли настройки колонок
     column_settings = []
-    for col_type in ["number", "word", "transcription", "translation", "radicals", "references", "tones"]:
+    for col_type in ["number", "word", "transcription", "translation", "radicals", "references", "tones", "sounds"]:
         col_key = f"column_{col_type}"
         col_value = user_data.get(col_key)
         if col_value is not None:
@@ -305,7 +305,7 @@ def get_column_info_text(user_data):
     """
     # Проверяем наличие настроек колонок
     column_values = []
-    for col_type in ["number", "word", "transcription", "translation", "radicals", "references", "tones"]:
+    for col_type in ["number", "word", "transcription", "translation", "radicals", "references", "tones", "sounds"]:
         col_value = user_data.get(f"column_{col_type}")
         if col_value is not None:
             column_values.append(str(col_value))

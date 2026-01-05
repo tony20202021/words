@@ -445,7 +445,8 @@ class StatisticsRepository:
                     "word_number": "$word.word_number",
                     "radicals": "$word.radicals",
                     "references": "$word.references",
-                    "tones": "$word.tones"
+                    "tones": "$word.tones",
+                    "sounds": "$word.sounds",
                 }
             }
         ]
@@ -670,7 +671,8 @@ class StatisticsRepository:
                     "word_number": "$word.word_number",
                     "radicals": "$word.radicals",
                     "references": "$word.references",
-                    "tones": "$word.tones"
+                    "tones": "$word.tones",
+                    "sounds": "$word.sounds",
                 }
             },
             

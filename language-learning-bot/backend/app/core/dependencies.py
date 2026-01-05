@@ -17,7 +17,7 @@ from app.services.excel_service import ExcelService
 from app.db.database import get_db_session
 from app.db.repositories.user_language_settings_repository import UserLanguageSettingsRepository
 from app.services.user_language_settings_service import UserLanguageSettingsService
-
+from app.services.sound_service import SoundService
 
 
 # Repository dependencies
@@ -188,3 +188,13 @@ async def get_user_language_settings_service(
         UserLanguageSettingsService instance
     """
     return UserLanguageSettingsService(repository, user_repository, language_repository)
+
+
+async def get_sound_service() -> SoundService:
+    """
+    Get sound service instance.
+    
+    Returns:
+        SoundService instance
+    """
+    return SoundService()

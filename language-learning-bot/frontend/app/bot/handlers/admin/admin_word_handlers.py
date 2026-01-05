@@ -194,6 +194,7 @@ async def process_edit_word(callback: CallbackQuery, state: FSMContext):
         f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
         f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
         f"Тоны: <code>{word.get('tones', 'N/A')}</code>\n\n"
+        f"Звуки: <code>{word.get('sounds', 'N/A')}</code>\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -599,6 +600,7 @@ async def show_word_fields_edit_screen(message: Message, word_id: str):
         f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
         f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n"
         f"Тоны: <b>{word.get('tones', 'N/A')}</b>\n\n"
+        f"Звуки: <b>{word.get('sounds', 'N/A')}</b>\n\n"
         f"Выберите поле для редактирования:"
     )
     
@@ -734,6 +736,7 @@ async def show_word_details_screen(message_or_callback: CallbackQuery, word_id: 
         f"Радикалы: <code>{word.get('radicals', 'N/A')}</code>\n"
         f"Ссылки: <code>{word.get('references', 'N/A')}</code>\n"
         f"Тоны: <code>{word.get('tones', 'N/A')[:MAX_MESSAGE_LENGTH]}</code>\n"
+        f"Звуки: <code>{word.get('sounds', 'N/A')[:MAX_MESSAGE_LENGTH]}</code>\n"
         f"ID: <code>{word_id}</code>"
         f"{user_info}"
     )
@@ -818,6 +821,7 @@ async def process_delete_word(callback: CallbackQuery, state: FSMContext):
         f"Радикалы: <b>{word.get('radicals', 'N/A')}</b>\n"
         f"Ссылки: <b>{word.get('references', 'N/A')}</b>\n"
         f"Тоны: <b>{word.get('tones', 'N/A')}</b>\n\n"
+        f"Звуки: <b>{word.get('sounds', 'N/A')}</b>\n\n"
         f"⚠️ <b>Внимание!</b> Это действие также удалит:\n"
         f"• Все пользовательские данные для этого слова\n"
         f"• Все созданные подсказки для этого слова\n"

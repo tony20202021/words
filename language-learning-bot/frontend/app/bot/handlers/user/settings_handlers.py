@@ -375,6 +375,15 @@ async def process_toggle_show_tones(callback: CallbackQuery, state: FSMContext):
         setting_name="Тоны"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_SOUNDS)
+async def process_toggle_show_sounds(callback: CallbackQuery, state: FSMContext):
+    """Handle sounds toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "show_sounds", 
+        true_text="показывать", false_text="скрывать",
+        setting_name="Звуки"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_BIG)
 async def process_toggle_show_big(callback: CallbackQuery, state: FSMContext):
     """Handle big word toggle."""

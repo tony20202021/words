@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     "show_radicals": False,
     "show_references": False,
     "show_tones": False,
+    "show_sounds": False,
     "receive_messages": True,
     "reset_session_days": 1,
     "reset_session_hours": 6,
@@ -204,6 +205,7 @@ async def display_language_settings(
     show_radicals = settings.get("show_radicals", DEFAULT_SETTINGS["show_radicals"])
     show_references = settings.get("show_references", DEFAULT_SETTINGS["show_references"])
     show_tones = settings.get("show_tones", DEFAULT_SETTINGS["show_tones"])
+    show_sounds = settings.get("show_sounds", DEFAULT_SETTINGS["show_sounds"])
     receive_messages = settings.get("receive_messages", DEFAULT_SETTINGS["receive_messages"])
     reset_session_days = settings.get("reset_session_days", DEFAULT_SETTINGS["reset_session_days"])
     reset_session_hours = settings.get("reset_session_hours", DEFAULT_SETTINGS["reset_session_hours"])
@@ -253,6 +255,7 @@ async def display_language_settings(
         show_radicals=show_radicals,
         show_references=show_references,
         show_tones=show_tones,
+        show_sounds=show_sounds,
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
         reset_session_hours=reset_session_hours,
@@ -274,6 +277,7 @@ async def display_language_settings(
         show_radicals=show_radicals,
         show_references=show_references,
         show_tones=show_tones,
+        show_sounds=show_sounds,
         receive_messages=receive_messages,
         reset_session_days=reset_session_days,
         reset_session_hours=reset_session_hours,

@@ -39,6 +39,7 @@ class ExcelService:
         column_radicals: int,
         column_references: int,
         column_tones: int,
+        column_sounds: int,        
         column_number: Optional[int] = None,
         start_row: int = 0
     ) -> Dict[str, Any]:
@@ -54,6 +55,7 @@ class ExcelService:
             column_radicals: Column index for radicals (0-based)
             column_references: Column index for references (0-based)
             column_tones: Column index for tones (0-based)
+            column_sounds: Column index for sounds (0-based)
             column_number: Optional column index for word numbers (0-based)
             start_row: Row index to start processing from (0-based): 0 if no headers, 1 if headers
             
@@ -98,6 +100,7 @@ class ExcelService:
                     radicals = str(row[column_radicals]).strip() if not pd.isna(row[column_radicals]) else None
                     references = str(row[column_references]).strip() if not pd.isna(row[column_references]) else None
                     tones = str(row[column_tones]).strip() if not pd.isna(row[column_tones]) else None
+                    sounds = str(row[column_sounds]).strip() if not pd.isna(row[column_sounds]) else None
 
                     # Get word number from column or use index+1
                     if column_number is not None and not pd.isna(row[column_number]):
@@ -114,7 +117,8 @@ class ExcelService:
                         word_number=word_number,
                         radicals=radicals,
                         references=references,
-                        tones=tones
+                        tones=tones,
+                        sounds=sounds,
                     )
                     
                     # Check if word already exists by language_id and word_number
@@ -131,7 +135,8 @@ class ExcelService:
                             transcription=transcription,
                             radicals=radicals,
                             references=references,
-                            tones=tones
+                            tones=tones,
+                            sounds=sounds,
                         )
                         
                         await self.word_service.update_word(word_id, update_data.dict(exclude_unset=True))
@@ -208,7 +213,8 @@ class ExcelService:
                 "Транскрипция": self._clean_text_for_export(word.get("transcription", "")),
                 "Радикалы": word.get("radicals", ""),
                 "Ссылки": word.get("references", ""),
-                "Тоны": word.get("tones", "")
+                "Тоны": word.get("tones", ""),
+                "Звуки": word.get("sounds", ""),
             }
             export_data.append(word_data)
         
@@ -283,7 +289,8 @@ class ExcelService:
                 "Транскрипция": self._clean_text_for_export(word.get("transcription", "")),
                 "Радикалы": word.get("radicals", ""),
                 "Ссылки": word.get("references", ""),
-                "Тоны": word.get("tones", "")
+                "Тоны": word.get("tones", ""),
+                "Звуки": word.get("sounds", ""),
             }
             export_data.append(word_data)
         
@@ -345,7 +352,8 @@ class ExcelService:
                 "transcription": self._clean_text_for_export(word.get("transcription", "")),
                 "radicals": word.get("radicals", ""),
                 "references": word.get("references", ""),
-                "tones": word.get("tones", "")
+                "tones": word.get("tones", ""),
+                "sounds": word.get("sounds", ""),
             }
             export_words.append(word_data)
         

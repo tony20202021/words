@@ -14,10 +14,10 @@ class WordBase(BaseModel):
     translation: str = Field(..., description="Translation of the word to Russian")
     transcription: Optional[str] = Field(None, description="Phonetic transcription")
     word_number: int = Field(..., description="Sequential number in frequency list")
-    sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
+    sounds: Optional[str] = Field(None, description="List of sounds files")
 
 
 class WordCreate(WordBase):
@@ -31,10 +31,11 @@ class WordUpdate(BaseModel):
     translation: Optional[str] = Field(None, description="Translation of the word to Russian")
     transcription: Optional[str] = Field(None, description="Phonetic transcription")
     word_number: Optional[int] = Field(None, description="Sequential number in frequency list")
-    sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
+    sounds: Optional[str] = Field(None, description="List of sound files")
+
     
 class WordResponse(WordBase):
     """Schema for word response data."""

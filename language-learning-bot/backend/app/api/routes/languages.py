@@ -378,6 +378,7 @@ async def upload_words_file(
     column_radicals: int = Form(3),
     column_references: int = Form(4),
     column_tones: int = Form(5),
+    column_sounds: int = Form(6),
     column_number: Optional[int] = Form(None),
     start_row: int = Form(1),
     clear_existing: bool = Form(False),
@@ -397,6 +398,7 @@ async def upload_words_file(
         column_radicals: Column index for radicals (0-based)
         column_references: Column index for references (0-based)
         column_tones: Column index for tones (0-based)
+        column_sounds: Column index for sounds (0-based)        
         column_number: Optional column index for word numbers (0-based)
         start_row: Row index to start processing from (0 if no headers, 1 if headers)
         clear_existing: Whether to clear existing words before importing
@@ -452,6 +454,7 @@ async def upload_words_file(
             column_radicals=column_radicals,
             column_references=column_references,
             column_tones=column_tones,
+            column_sounds=column_sounds,            
             column_number=column_number,
             start_row=start_row  # Already 0-based (0 if no headers, 1 if headers)
         )

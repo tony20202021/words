@@ -21,6 +21,7 @@ class UserLanguageSettingsBase(BaseModel):
     show_radicals: bool = Field(True, description="Whether to show radicals")
     show_references: bool = Field(True, description="Whether to show references")
     show_tones: bool = Field(True, description="Whether to show tones")
+    show_sounds: bool = Field(True, description="Whether to show sounds")
 
     # Раздельные настройки для каждого типа подсказки
     show_hint_phoneticsound: bool = Field(True, description="Whether to show syllables hint button")
@@ -53,7 +54,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_radicals: Optional[bool] = None
     show_references: Optional[bool] = None
     show_tones: Optional[bool] = None
-
+    show_sounds: Optional[bool] = None
+    
     # Раздельные настройки для каждого типа подсказки
     show_hint_phoneticsound: Optional[bool] = None
     show_hint_phoneticassociation: Optional[bool] = None

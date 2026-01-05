@@ -13,10 +13,10 @@ class WordBase(BaseModel):
     translation: str = Field(..., description="Translation of the word to Russian")
     transcription: Optional[str] = Field(None, description="Phonetic transcription")
     word_number: int = Field(..., description="Sequential number in frequency list")
-    sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
+    sounds: Optional[str] = Field(None, description="List of sounds files")
 
 class WordCreate(WordBase):
     """Create model for word."""
@@ -28,10 +28,10 @@ class WordUpdate(BaseModel):
     translation: Optional[str] = Field(None, description="Translation of the word to Russian")
     transcription: Optional[str] = Field(None, description="Phonetic transcription")
     word_number: Optional[int] = Field(None, description="Sequential number in frequency list")
-    sound_file_path: Optional[str] = Field(None, description="Path to sound file")
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
+    sounds: Optional[str] = Field(None, description="List of sounds files")
 
 class WordInDB(WordBase):
     """Database model for word."""
@@ -49,10 +49,10 @@ class WordInDB(WordBase):
                 "translation": "привет",
                 "transcription": "həˈləʊ",
                 "word_number": 1,
-                "sound_file_path": None,
                 "radicals": None,
                 "references": None,
                 "tones": None,
+                "sounds": None,
                 "created_at": "2020-10-29T12:00:00",
                 "updated_at": "2020-10-29T12:00:00"
             }
@@ -73,10 +73,10 @@ class Word(WordInDB):
                 "translation": "привет",
                 "transcription": "həˈləʊ",
                 "word_number": 1,
-                "sound_file_path": None,
                 "radicals": None,
                 "references": None,
                 "tones": None,
+                "sounds": None,                
                 "created_at": "2020-10-29T12:00:00",
                 "updated_at": "2020-10-29T12:00:00",
                 "language_name_ru": "Английский",
@@ -95,6 +95,7 @@ class WordForReview(BaseModel):
     radicals: Optional[str] = Field(None, description="Radicals of the word")
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
+    sounds: Optional[str] = Field(None, description="List of sounds files")
     score: int = Field(0, description="Current score (0 or 1)")
     check_interval: int = Field(0, description="Current check interval in days")
     next_check_date: Optional[datetime] = Field(None, description="Next check date")

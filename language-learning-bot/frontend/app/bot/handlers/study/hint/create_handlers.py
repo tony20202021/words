@@ -100,6 +100,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
     radicals = current_word.get("radicals", "")
     references = current_word.get("references", "")
     tones = current_word.get("tones", "")
+    sounds = current_word.get("sounds", "")    
     
     # Send creation prompt
     await callback.message.answer(
@@ -110,6 +111,7 @@ async def process_hint_create(callback: CallbackQuery, state: FSMContext):
         f"Радикалы: <b>{radicals}</b>\n"
         f"Ссылки: <b>{references}</b>\n\n"
         f"Тоны: <b>{tones}</b>\n\n"
+        f"Звуки: <b>{sounds}</b>\n\n"        
         f"💡 Создание подсказки типа «{hint_name}»\n\n"
         f"Пожалуйста, введите текст подсказки,\n"
         f"или запишите голосовое сообщение,\n"

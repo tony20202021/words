@@ -71,6 +71,7 @@ class AdminStates(StatesGroup):
     editing_word_radicals = State()             # Редактирование радикалов
     editing_word_references = State()           # Редактирование ссылок
     editing_word_tones = State()                # Редактирование тонов
+    editing_word_sounds = State()                # Редактирование звуков
     editing_word_number = State()               # Редактирование номера слова
 
     confirming_word_deletion = State()          # Подтверждение удаления слова

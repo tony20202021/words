@@ -84,6 +84,7 @@ def create_settings_keyboard(
     show_radicals: bool = False,
     show_references: bool = False,
     show_tones: bool = False,
+    show_sounds: bool = False,
     receive_messages: bool = True,
     reset_session_days: int = 1,
     reset_session_hours: int = 6,
@@ -106,6 +107,7 @@ def create_settings_keyboard(
         show_radicals: Whether radicals are enabled
         show_references: Whether references are enabled
         show_tones: Whether tones are enabled
+        show_sounds: Whether sounds are enabled
         current_language: Current language information (not used for restrictions anymore)
         
     Returns:
@@ -184,6 +186,12 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{tones_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_TONES
+    ))
+    
+    sounds_text = "✅ Показывать звуки" if show_sounds else "❌ Скрывать звуки"
+    builder.add(InlineKeyboardButton(
+        text=f"{sounds_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_SOUNDS
     ))
     
     # Debug setting

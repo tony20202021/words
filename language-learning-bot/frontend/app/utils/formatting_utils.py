@@ -76,6 +76,7 @@ def format_settings_text(
     show_radicals=False,
     show_references=False,
     show_tones=False,
+    show_sounds=False,
     show_short_captions=True,
     show_big=False,
     receive_messages=True,
@@ -100,6 +101,7 @@ def format_settings_text(
         show_radicals: Показывать ли радикалы
         show_references: Показывать ли ссылки
         show_tones: Показывать ли тоны
+        show_sounds: Показывать ли звуки
         show_short_captions: Показывать ли короткие подписи
         show_big: Показывать ли крупное написание
         receive_messages: Получать ли сообщения
@@ -153,6 +155,9 @@ def format_settings_text(
     show_tones = "Показывать ✅" if show_tones else "Скрывать ❌"
     settings_text += f"   • Тоны: <b>{show_tones}</b>\n"
     
+    show_sounds = "Показывать ✅" if show_sounds else "Скрывать ❌"
+    settings_text += f"   • Звуки: <b>{show_sounds}</b>\n"
+    
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
     settings_text += f"🔍 Отладочные данные: <b>{debug_status}</b>\n"
@@ -193,11 +198,14 @@ def format_study_word_message(
     show_radicals=False,
     show_references=False,
     show_tones=False,
+    show_sounds=False,
     word_foreign=None,
     transcription=None,
     radicals=None,
     references=None,
     tones=None,
+    sounds=None,
+    sounds_files=None,
     show_big=False,
     show_check_date=True,
     words_studied=0,
@@ -224,6 +232,7 @@ def format_study_word_message(
         radicals: Радикалы слова
         references: Ссылки на слово
         tones: Тоны слова
+        sounds: Звуки слова
         show_big: Показывать ли большое слово
         show_check_date: Показывать ли дату проверки
         words_studied: Количество слов, изученных в сессии
@@ -236,6 +245,7 @@ def format_study_word_message(
     message = ""
     message_tones = None
     message_references = None
+    message_sounds = None
     
     message = f"📝 Язык: \"{language_name_ru} ({language_name_foreign})\":\n\n"
     message += f"Слово номер: <b>{word_number}</b> / <b>{words_studied}</b> / <b>{total_words}</b>\n" 
@@ -295,6 +305,7 @@ def format_study_word_message(
             star_transcription = [(word[0] + '*') for word in escaped_transcription.split(' ')]
             star_transcription = ' '.join(star_transcription)
 
+        if show_tones and tones:
             tones_filtered = []
             words_number_begin_str_multiple = " - [<i>"
             words_number_end_str_multiple = "</i>]"
@@ -340,7 +351,7 @@ def format_study_word_message(
             tones_filtered = "\n".join(tones_filtered)
 
             if len(tones_filtered) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_filtered}\n\n"
+                message_tones = f"🔍 Тоны:\n{tones_filtered}\n\n"
             else:
                 tones_formatted = ""
                 for tone in tones_filtered.split('\n'):
@@ -350,7 +361,7 @@ def format_study_word_message(
                         tones_formatted += tone
                     else:
                         break
-                message_tones = f"🔍 Тоны:\n<b>[{star_transcription}]</b>\n\n{tones_formatted}\n\n"
+                message_tones = f"🔍 Тоны:\n\n{tones_formatted}\n\n"
             
         if show_references and references:
             references_filtered = []
@@ -380,12 +391,23 @@ def format_study_word_message(
 
             message_references = f"🔍 Ссылки:\n{references_filtered}\n\n"
 
+            if show_sounds and sounds_files:
+                message_sounds = []
+                for sound_file in sounds_files:
+                    # Add audio file as dict to distinguish from text messages
+                    # Preserve filename if available
+                    filename = getattr(sound_file, 'filename', None)
+                    message_sounds.append({"type": "audio", "file": sound_file, "filename": filename})
+
     result = []
     if message_tones:
-        result.append(message_tones)
+        result.append({"type": "text", "text": f"🔍 Тоны (подсказка):\n<b>[{star_transcription}]</b>"})
+        result.append({"type": "text", "text": message_tones})
     if message_references:
-        result.append(message_references)
-    result.append(message)
+        result.append({"type": "text", "text": message_references})
+    if message_sounds:
+        result.extend(message_sounds)
+    result.append({"type": "text", "text": message})
 
     return result
     

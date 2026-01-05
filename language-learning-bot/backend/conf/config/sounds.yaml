@@ -1,0 +1,4 @@
+# Конфигурация хранения звуковых файлов
+# Этот файл должен быть сохранен как backend/conf/config/sounds.yaml
+
+sound_path: "/home/tony/repos/words/language-learning-bot/backend/data/"
