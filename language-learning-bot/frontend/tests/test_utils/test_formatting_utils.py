@@ -105,12 +105,12 @@ class TestFormatStudyWordMessage:
         )
         
         # Verify
-        assert any([language_name_ru in r for r in result])
-        assert any([language_name_foreign in r for r in result])
-        assert any([str(word_number) in r for r in result])
-        assert any([translation in r for r in result])
-        assert any([word_foreign not in r for r in result])  # Слово не должно показываться
-        assert any([transcription not in r for r in result])  # Транскрипция не должна показываться
+        assert any([language_name_ru in r["text"] for r in result])
+        assert any([language_name_foreign in r["text"] for r in result])
+        assert any([str(word_number) in r["text"] for r in result])
+        assert any([translation in r["text"] for r in result])
+        assert any([word_foreign not in r["text"] for r in result])  # Слово не должно показываться
+        assert any([transcription not in r["text"] for r in result])  # Транскрипция не должна показываться
     
     def test_format_study_word_message_with_showing_word(self):
         # Setup
@@ -139,12 +139,12 @@ class TestFormatStudyWordMessage:
         )
         
         # Verify
-        assert any([language_name_ru in r for r in result])
-        assert any([language_name_foreign in r for r in result])
-        assert any([str(word_number) in r for r in result])
-        assert any([translation in r for r in result])
-        assert any([word_foreign in r for r in result])  # Слово должно показываться
-        assert any([transcription in r for r in result])  # Транскрипция должна показываться
+        assert any([language_name_ru in r["text"] for r in result])
+        assert any([language_name_foreign in r["text"] for r in result])
+        assert any([str(word_number) in r["text"] for r in result])
+        assert any([translation in r["text"] for r in result])
+        assert any([word_foreign in r["text"] for r in result])  # Слово должно показываться
+        assert any([transcription in r["text"] for r in result])  # Транскрипция должна показываться
 
 
 class TestFormatUsedHints:

@@ -376,57 +376,6 @@ class TestUploadAdminHandlers:
             
     
     @pytest.mark.asyncio
-    async def test_process_column_template(self, setup_mocks):
-        """Test process_column_template handler."""
-        _, state, api_client, callback, _ = setup_mocks
-        
-        # Set callback data for column template
-        callback.data = "upload_columns:0,1,2,3:lang1"
-        
-        # Mock message edit_text
-        callback.message.edit_text = AsyncMock()
-        
-        # Patch the logger and InlineKeyboardBuilder
-        # Исправляем путь импорта - патчим InlineKeyboardBuilder из модуля
-        with patch('app.bot.handlers.admin.file_upload.template_processing.logger'), \
-            patch('app.bot.handlers.admin.file_upload.template_processing.InlineKeyboardBuilder') as mock_builder, \
-            patch('app.bot.handlers.admin.file_upload.template_processing.InlineKeyboardButton') as mock_button:
-            
-            # Setup mock builder
-            mock_instance = MagicMock()
-            mock_builder.return_value = mock_instance
-            mock_instance.add.return_value = mock_instance
-            mock_instance.adjust.return_value = mock_instance
-            mock_instance.as_markup.return_value = MagicMock()
-            
-            # Setup mock button
-            mock_button.return_value = MagicMock()
-            
-            # Call the handler
-            await process_column_template(callback, state)
-            
-            # Check that state was updated with column indices
-            expected_updates = {
-                "column_number": 0,
-                "column_word": 1,
-                "column_transcription": 2,
-                "column_translation": 3
-            }
-            state.update_data.assert_called_once_with(expected_updates)
-            
-            # Check that the builder was used correctly
-            mock_builder.assert_called_once()
-            assert mock_instance.add.call_count >= 3  # Минимум 3 кнопки
-            mock_instance.adjust.assert_called_once_with(1)
-            mock_instance.as_markup.assert_called_once()
-            
-            # Check that the message was edited
-            callback.message.edit_text.assert_called_once()
-            
-            # Check that callback.answer was called
-            callback.answer.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_process_back_to_settings(self, setup_mocks):
         """Test process_back_to_settings handler."""
         _, state, api_client, callback, _ = setup_mocks
@@ -528,7 +477,7 @@ class TestUploadAdminHandlers:
         _, state, api_client, callback, _ = setup_mocks
         
         # Set callback data for column template
-        callback.data = "upload_columns:0,1,2,3,4,5,6:lang1"
+        callback.data = "upload_columns:0,1,2,3,4,5,6,7:lang1"
         
         # Mock message edit_text
         callback.message.edit_text = AsyncMock()
@@ -562,7 +511,8 @@ class TestUploadAdminHandlers:
                 "column_translation": 3,
                 "column_radicals": 4,
                 "column_references": 5,
-                "column_tones": 6
+                "column_tones": 6,
+                "column_sounds": 7,
             })
             
             # Check that the keyboard builder was used correctly

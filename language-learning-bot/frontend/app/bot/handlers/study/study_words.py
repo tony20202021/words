@@ -9,6 +9,7 @@ UPDATED: Added writing images support in keyboard creation.
 import asyncio
 from typing import Dict, List, Optional, Any
 import json
+import traceback
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -16,7 +17,6 @@ from aiogram.fsm.context import FSMContext
 
 from app.utils.logger import setup_logger
 from app.utils.formatting_utils import format_study_word_message
-# , format_used_hints
 from app.utils.state_models import UserWordState, StateManager
 from app.utils.settings_utils import get_user_language_settings, is_writing_images_enabled
 from app.utils.hint_settings_utils import get_individual_hint_settings
@@ -178,7 +178,7 @@ async def format_full_message(
     # Add debug information if enabled
     if show_debug:
         debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds,)
-        messages = [debug_info] + messages
+        messages = [{"type": "text", "text": debug_info}] + messages
 
     return messages
     
@@ -361,6 +361,7 @@ async def show_study_word(
     
     except Exception as e:
         logger.error(f"Error displaying study word: {e}")
+        logger.error(f"{traceback.format_exc()}")
         await _send_error_message(message_or_callback, "Ошибка отображения слова: " + str(e))
 
 async def handle_no_more_words(
