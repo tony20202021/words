@@ -6,6 +6,7 @@ UPDATED: Removed hieroglyphic language restrictions - writing images are control
 
 from datetime import datetime
 import locale
+import random
 from typing import Dict, Any, List, Optional
 from aiogram.types import BufferedInputFile
 from app.utils.big_word_generator import generate_big_word
@@ -298,19 +299,58 @@ async def format_study_word_message(
             if check_interval and check_interval > 0:
                 message += f"Предыдущий интервал: {check_interval} (дней)\n"
     
+    if show_word:
+        first_translation = True
+        first_transcription = False
+        first_foreign = False
+    else:
+        if random_foreign and random_transcription:
+            random_num = random.random()
+            first_translation = (random_num <= 1/3)
+            first_transcription = (random_num > 1/3) and (random_num <= 2/3)
+            first_foreign = (random_num > 2/3)
+        elif random_foreign:
+            random_num = random.random()
+            first_translation = (random_num <= 1/2)
+            first_transcription = False
+            first_foreign = (random_num > 1/2)
+        elif random_transcription:
+            random_num = random.random()
+            first_translation = (random_num <= 1/2)
+            first_transcription = (random_num > 1/2)
+            first_foreign = False
+        else:
+            first_translation = True
+            first_transcription = False
+            first_foreign = False
+
+    logger.info(f"{show_word}: {show_word}, {random_foreign}: {random_foreign}, {random_transcription}: {random_transcription}")
+    logger.info(f"first_translation: {first_translation}, first_transcription: {first_transcription}, first_foreign: {first_foreign}")
+    
     message += "\n"    
-    message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
+    if first_translation:
+        message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
+    elif first_transcription:
+        message += f"🔍 Транскрипция:\n<b>[{transcription}]</b>\n\n"
+    elif first_foreign:
+        message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
+    else:
+        message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
     
     # Если нужно показать слово, добавляем его с кликабельной ссылкой
     if show_word and word_foreign:
+        if translation and (not first_translation):
+            message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
         # Создаем кликабельную ссылку на команду /show_big
-        if transcription:
+        if transcription and (not first_transcription):
             escaped_transcription = transcription.replace('\n', ',')
             message += f"🔊 Транскрипция:\n<b>[{escaped_transcription}]</b>\n\n"
-        if show_big:
-            message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
-        else:
-            message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
+        if word_foreign and (not first_foreign):
+            if show_big:
+                message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
+            else:
+                message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
+
         if show_tones and tones:
             star_transcription = [(word[0] + '*') for word in escaped_transcription.split(' ')]
             star_transcription = ' '.join(star_transcription)
