@@ -22,6 +22,8 @@ class UserLanguageSettingsBase(BaseModel):
     show_references: bool = Field(True, description="Whether to show references")
     show_tones: bool = Field(True, description="Whether to show tones")
     show_sounds: bool = Field(True, description="Whether to show sounds")
+    random_foreign: bool = Field(True, description="Whether to randomly show foreign words")
+    random_transcription: bool = Field(True, description="Whether to randomly show transcriptions")
 
     # Раздельные настройки для каждого типа подсказки
     show_hint_phoneticsound: bool = Field(True, description="Whether to show syllables hint button")
@@ -55,6 +57,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_references: Optional[bool] = None
     show_tones: Optional[bool] = None
     show_sounds: Optional[bool] = None
+    random_foreign: Optional[bool] = None
+    random_transcription: Optional[bool] = None
     
     # Раздельные настройки для каждого типа подсказки
     show_hint_phoneticsound: Optional[bool] = None

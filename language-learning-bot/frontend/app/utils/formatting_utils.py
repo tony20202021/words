@@ -7,6 +7,8 @@ UPDATED: Removed hieroglyphic language restrictions - writing images are control
 from datetime import datetime
 import locale
 from typing import Dict, Any, List, Optional
+from aiogram.types import BufferedInputFile
+from app.utils.big_word_generator import generate_big_word
 
 from app.utils.logger import setup_logger
 from app.utils.hint_constants import (
@@ -77,6 +79,8 @@ def format_settings_text(
     show_references=False,
     show_tones=False,
     show_sounds=False,
+    random_foreign=True,
+    random_transcription=True,
     show_short_captions=True,
     show_big=False,
     receive_messages=True,
@@ -102,6 +106,8 @@ def format_settings_text(
         show_references: Показывать ли ссылки
         show_tones: Показывать ли тоны
         show_sounds: Показывать ли звуки
+        random_foreign: Показывать ли случайные иностранные слова
+        random_transcription: Показывать ли случайные транскрипции
         show_short_captions: Показывать ли короткие подписи
         show_big: Показывать ли крупное написание
         receive_messages: Получать ли сообщения
@@ -157,6 +163,11 @@ def format_settings_text(
     
     show_sounds = "Показывать ✅" if show_sounds else "Скрывать ❌"
     settings_text += f"   • Звуки: <b>{show_sounds}</b>\n"
+
+    random_foreign_status = "Да ✅" if random_foreign else "Нет ❌"
+    settings_text += f"   • Рандомно начинать с иностранных слов: <b>{random_foreign_status}</b>\n"
+    random_transcription_status = "Да ✅" if random_transcription else "Нет ❌"
+    settings_text += f"   • Рандомно начинать с транскрипций: <b>{random_transcription_status}</b>\n"
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
@@ -184,7 +195,7 @@ def format_settings_text(
     
     return settings_text
 
-def format_study_word_message(
+async def format_study_word_message(
     language_name_ru, 
     language_name_foreign, 
     word_number, 
@@ -199,6 +210,8 @@ def format_study_word_message(
     show_references=False,
     show_tones=False,
     show_sounds=False,
+    random_foreign=True,
+    random_transcription=True,
     word_foreign=None,
     transcription=None,
     radicals=None,
@@ -298,9 +311,6 @@ def format_study_word_message(
             message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>(/show_big) 🔍\n\n"
         else:
             message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
-        if show_radicals and radicals:
-            message += f"🔍 Радикалы:\n{radicals}\n\n"
-
         if show_tones and tones:
             star_transcription = [(word[0] + '*') for word in escaped_transcription.split(' ')]
             star_transcription = ' '.join(star_transcription)
@@ -399,17 +409,49 @@ def format_study_word_message(
                     filename = getattr(sound_file, 'filename', None)
                     message_sounds.append({"type": "audio", "file": sound_file, "filename": filename})
 
+    if show_word and show_big:
+        big_word_message = await generate_big_word_message(
+            word_foreign,
+            transcription,
+        )
+
     result = []
+    if message_sounds:
+        result.extend(message_sounds)
     if message_tones:
         result.append({"type": "text", "text": f"🔍 Тоны (подсказка):\n<b>[{star_transcription}]</b>"})
         result.append({"type": "text", "text": message_tones})
     if message_references:
         result.append({"type": "text", "text": message_references})
-    if message_sounds:
-        result.extend(message_sounds)
+    if show_word and show_radicals and radicals:
+        result.append({"type": "text", "text": f"🔍 Радикалы:\n{radicals}\n\n"})
+    if show_word and show_big:
+        result.append({"type": "image", "image": big_word_message})
+
     result.append({"type": "text", "text": message})
 
     return result
+    
+async def generate_big_word_message(
+    word_foreign,
+    transcription,
+):
+    # Generate word image
+    logger.info(f"Generating image for word: '{word_foreign}', transcription: '{transcription}'")
+    
+    image_buffer = await generate_big_word(
+        word=word_foreign,
+        transcription=transcription,
+    )
+    
+    # Create BufferedInputFile from BytesIO for Telegram
+    image_buffer.seek(0)  # Reset buffer position
+    input_file = BufferedInputFile(
+        file=image_buffer.read(),
+        filename=f"word_{word_foreign}.png"
+    )
+
+    return input_file
     
 
 def format_date_friendly(date_str: str) -> str:

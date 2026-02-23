@@ -85,6 +85,8 @@ def create_settings_keyboard(
     show_references: bool = False,
     show_tones: bool = False,
     show_sounds: bool = False,
+    random_foreign: bool = True,
+    random_transcription: bool = True,
     receive_messages: bool = True,
     reset_session_days: int = 1,
     reset_session_hours: int = 6,
@@ -108,6 +110,8 @@ def create_settings_keyboard(
         show_references: Whether references are enabled
         show_tones: Whether tones are enabled
         show_sounds: Whether sounds are enabled
+        random_foreign: Whether random foreign words are enabled
+        random_transcription: Whether random transcriptions are enabled
         current_language: Current language information (not used for restrictions anymore)
         
     Returns:
@@ -192,6 +196,18 @@ def create_settings_keyboard(
     builder.add(InlineKeyboardButton(
         text=f"{sounds_text}",
         callback_data=CallbackData.SETTINGS_TOGGLE_SHOW_SOUNDS
+    ))
+
+    random_foreign_text = "✅ Рандомно начинать с иностранных слов" if random_foreign else "❌ Не начинать рандомно с иностранных слов"
+    builder.add(InlineKeyboardButton(
+        text=f"{random_foreign_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_RANDOM_FOREIGN
+    ))
+
+    random_transcription_text = "✅ Рандомно начинать с транскрипций" if random_transcription else "❌ Не начинать рандомно с транскрипций"
+    builder.add(InlineKeyboardButton(
+        text=f"{random_transcription_text}",
+        callback_data=CallbackData.SETTINGS_TOGGLE_RANDOM_TRANSCRIPTION
     ))
     
     # Debug setting

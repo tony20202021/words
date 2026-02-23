@@ -104,6 +104,8 @@ class UserLanguageSettingsRepository:
             "show_references": settings_dict.get("show_references", True),
             "show_tones": settings_dict.get("show_tones", True),
             "show_sounds": settings_dict.get("show_sounds", True),
+            "random_foreign": settings_dict.get("random_foreign", True),
+            "random_transcription": settings_dict.get("random_transcription", True),
             "show_debug": settings_dict.get("show_debug", False),
             "show_charts": settings_dict.get("show_charts", False),
             "show_short_captions": settings_dict.get("show_short_captions", True),

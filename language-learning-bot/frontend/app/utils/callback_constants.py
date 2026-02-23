@@ -67,6 +67,8 @@ class CallbackData:
     SETTINGS_TOGGLE_SHOW_REFERENCES = "settings_toggle_show_references"
     SETTINGS_TOGGLE_SHOW_TONES = "settings_toggle_show_tones"
     SETTINGS_TOGGLE_SHOW_SOUNDS = "settings_toggle_show_sounds"
+    SETTINGS_TOGGLE_RANDOM_FOREIGN = "settings_toggle_random_foreign"
+    SETTINGS_TOGGLE_RANDOM_TRANSCRIPTION = "settings_toggle_random_transcription"
     
     # Language selection
     LANG_SELECT_TEMPLATE = "lang_select_{language_id}"

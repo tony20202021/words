@@ -384,6 +384,24 @@ async def process_toggle_show_sounds(callback: CallbackQuery, state: FSMContext)
         setting_name="Звуки"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RANDOM_FOREIGN)
+async def process_toggle_random_foreign(callback: CallbackQuery, state: FSMContext):
+    """Handle random foreign toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "random_foreign", 
+        true_text="да", false_text="нет",
+        setting_name="Рандомно начинать с иностранных слов"
+    )
+
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RANDOM_TRANSCRIPTION)
+async def process_toggle_random_transcription(callback: CallbackQuery, state: FSMContext):
+    """Handle random transcription toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "random_transcription", 
+        true_text="да", false_text="нет",
+        setting_name="Рандомно начинать с транскрипций"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_BIG)
 async def process_toggle_show_big(callback: CallbackQuery, state: FSMContext):
     """Handle big word toggle."""

@@ -97,6 +97,8 @@ async def format_full_message(
     show_references=False,
     show_tones=False,
     show_sounds=False,
+    random_foreign=True,
+    random_transcription=True,
     word_foreign=None,
     transcription=None,
     radicals=None,
@@ -130,7 +132,7 @@ async def format_full_message(
         )
 
     # Format the main message
-    messages = format_study_word_message(
+    messages = await format_study_word_message(
         language_name_ru=language_name_ru,
         language_name_foreign=language_name_foreign,
         word_number=word_number,
@@ -145,6 +147,8 @@ async def format_full_message(
         show_references=show_references,
         show_tones=show_tones,
         show_sounds=show_sounds,
+        random_foreign=random_foreign,
+        random_transcription=random_transcription,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
@@ -177,7 +181,7 @@ async def format_full_message(
     
     # Add debug information if enabled
     if show_debug:
-        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds,)
+        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds, random_foreign, random_transcription)
         messages = [{"type": "text", "text": debug_info}] + messages
 
     return messages
@@ -229,7 +233,9 @@ async def show_study_word(
     show_references = basic_settings.get("show_references", True)
     show_tones = basic_settings.get("show_tones", True)
     show_sounds = basic_settings.get("show_sounds", True)
-    
+    random_foreign = basic_settings.get("random_foreign", True)
+    random_transcription = basic_settings.get("random_transcription", True)
+
     # Get language info from state
     state_data = await state.get_data()
     current_language = state_data.get("current_language", {})
@@ -279,6 +285,8 @@ async def show_study_word(
         show_references=show_references,
         show_tones=show_tones,
         show_sounds=show_sounds,
+        random_foreign=random_foreign,
+        random_transcription=random_transcription,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
@@ -341,6 +349,7 @@ async def show_study_word(
                         reply_markup=(keyboard if has_keyboard else None),
                         parse_mode="HTML"
                     )
+                    
                 elif current_message["type"] == "audio":
                     try:
                         audio_file = current_message["file"]
@@ -358,7 +367,12 @@ async def show_study_word(
                         )
                     except Exception as e:
                         logger.error(f"Error sending sound file: {e}")
-    
+
+                elif current_message["type"] == "image":
+                    await message.answer_photo(
+                        photo=current_message["image"],
+                    )
+
     except Exception as e:
         logger.error(f"Error displaying study word: {e}")
         logger.error(f"{traceback.format_exc()}")
@@ -509,6 +523,8 @@ async def _get_debug_info(
     show_references: bool = False,
     show_tones: bool = False,
     show_sounds: bool = False,    
+    random_foreign: bool = True,
+    random_transcription: bool = True,
 ) -> str:
     """
     Get debug information for display.
@@ -523,6 +539,8 @@ async def _get_debug_info(
         show_references: Whether references are enabled
         show_tones: Whether tones are enabled
         show_sounds: Whether sounds are enabled
+        random_foreign: Whether foreign words are randomly enabled
+        random_transcription: Whether transcriptions are randomly enabled
     Returns:
         str: Formatted debug information
     """
@@ -558,6 +576,8 @@ async def _get_debug_info(
         f"• Звуки: {'Вкл' if show_sounds else 'Откл'}\n"
         f"• current_state: {current_state}\n"
         f"• is_admin: {'Да' if is_admin else 'Нет'}\n"
+        f"• random_foreign: {'Да' if random_foreign else 'Нет'}\n"
+        f"• random_transcription: {'Да' if random_transcription else 'Нет'}\n"
     )
     
     # Add enabled hint types

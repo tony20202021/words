@@ -24,6 +24,8 @@ from app.utils.settings_utils import is_writing_images_enabled, get_user_languag
 from app.utils.message_utils import get_message_from_callback
 from app.utils.error_utils import validate_state_data
 from app.utils.word_data_utils import get_hint_text
+from app.utils.formatting_utils import generate_big_word_message
+
 
 logger = setup_logger(__name__)
 
@@ -239,29 +241,14 @@ async def process_show_big(
             await message.answer(error_msg)
             return
         
-        
-        # Generate word image
-        logger.info(f"Generating image for word: '{word_foreign}', transcription: '{transcription}'")
-        
-        image_buffer = await generate_big_word(
-            word=word_foreign,
-            transcription=transcription,
+        input_file = await generate_big_word_message(
+            word_foreign,
+            transcription,
         )
-        
-        # Create BufferedInputFile from BytesIO for Telegram
-        image_buffer.seek(0)  # Reset buffer position
-        input_file = BufferedInputFile(
-            file=image_buffer.read(),
-            filename=f"word_{word_foreign}.png"
-        )
-        
-        # Prepare caption
+
         caption = ""
-        
-        # Create keyboard
         keyboard = create_word_image_keyboard()
         
-        # Set state
         await state.set_state(StudyStates.viewing_word_image)
         
         # Send image
