@@ -4,6 +4,7 @@
 """
 
 import matplotlib.pyplot as plt
+from collections import Counter
 from io import BytesIO
 from typing import List, Dict, Tuple
 import numpy as np
@@ -222,8 +223,35 @@ class ProgressChartGenerator:
         )
 
         # Точечная диаграмма интервалов повторения слов
+        BIN_LEN = 20
+        bins = []
+        for bin_start in range(0, max_word, BIN_LEN):
+            bin_end = bin_start + BIN_LEN
+            bin_values = [x[1] for x in word_check_interval if x[0] >= bin_start and x[0] < bin_end]
+            bin_values_counts = Counter(bin_values)
+            for value, count in bin_values_counts.items():
+                bin = {
+                    "x": bin_start,
+                    "y": value,
+                    "alpha": count / BIN_LEN,
+                    "size": count * 3,
+                    "color": 'blue',
+                    "marker": 'o',
+                }
+                bins.append(bin)
+
+        x = []
+        y = []
+        alpha = []
+        size = []
+        for bin in bins:
+            x.append(bin["x"])
+            y.append(bin["y"])
+            alpha.append(bin["alpha"])
+            size.append(bin["size"])
+
         if word_check_interval:
-            ax3.scatter([x[0] for x in word_check_interval], [x[1] for x in word_check_interval], color='#2196F3', alpha=0.7, edgecolor='blue', marker='o', s=1)
+            ax3.scatter(x, y, color='blue', alpha=alpha, edgecolor='blue', marker='o', s=size)
             ax3.set_title(f'Интервалы повторения слов \n ({len(word_check_interval)} интервалов)', 
                          fontsize=20, fontweight='bold')
         else:
