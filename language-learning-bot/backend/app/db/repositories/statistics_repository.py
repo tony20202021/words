@@ -323,6 +323,17 @@ class StatisticsRepository:
                                     "$$REMOVE"
                                 ]
                             }
+                        },
+                        "word_check_interval": {
+                            "$push": {
+                                "$cond": [
+                                    {"$and": [
+                                        {"$ne": ["$is_skipped", True]}
+                                    ]},
+                                    ("$word_number", "$check_interval"),
+                                    "$$REMOVE"
+                                ]
+                            }
                         }
                     }
                 },
@@ -331,7 +342,8 @@ class StatisticsRepository:
                 {
                     "$addFields": {
                         "word_numbers_for_today": {"$sortArray": {"input": "$word_numbers_for_today", "sortBy": 1}},
-                        "word_numbers_unknown": {"$sortArray": {"input": "$word_numbers_unknown", "sortBy": 1}}
+                        "word_numbers_unknown": {"$sortArray": {"input": "$word_numbers_unknown", "sortBy": 1}},
+                        "word_check_interval": {"$sortArray": {"input": "$word_check_interval", "sortBy": 1}},
                     }
                 }
             ]
@@ -350,7 +362,8 @@ class StatisticsRepository:
                 "words_skipped": result[0]["words_skipped"],
                 "words_for_today": result[0]["words_for_today"],
                 "word_numbers_for_today": result[0]["word_numbers_for_today"],
-                "word_numbers_unknown": result[0]["word_numbers_unknown"]
+                "word_numbers_unknown": result[0]["word_numbers_unknown"],
+                "word_check_interval": result[0]["word_check_interval"]
             }
         else:
             return {
@@ -359,7 +372,8 @@ class StatisticsRepository:
                 "words_skipped": 0,
                 "words_for_today": 0,
                 "word_numbers_for_today": [],
-                "word_numbers_unknown": []
+                "word_numbers_unknown": [],
+                "word_check_interval": []
             }
 
 
@@ -751,7 +765,8 @@ class StatisticsRepository:
                 progress_percentage=round(progress_percentage, 2),
                 last_study_date=last_study_date,
                 word_numbers_for_today=stats_data["word_numbers_for_today"],
-                word_numbers_unknown=stats_data["word_numbers_unknown"]
+                word_numbers_unknown=stats_data["word_numbers_unknown"],
+                word_check_interval=stats_data["word_check_interval"]
             )
             
         except Exception as e:
@@ -770,7 +785,8 @@ class StatisticsRepository:
                 progress_percentage=0.0,
                 last_study_date=None,
                 word_numbers_for_today=[],
-                word_numbers_unknown=[]
+                word_numbers_unknown=[],
+                word_check_interval=[]
             )
 
     async def get_data_integrity_report(self) -> Dict[str, Any]:

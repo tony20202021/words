@@ -99,6 +99,7 @@ async def format_full_message(
     show_sounds=False,
     random_foreign=True,
     random_transcription=True,
+    random_sound=True,    
     word_foreign=None,
     transcription=None,
     radicals=None,
@@ -149,6 +150,7 @@ async def format_full_message(
         show_sounds=show_sounds,
         random_foreign=random_foreign,
         random_transcription=random_transcription,
+        random_sound=random_sound,
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
@@ -181,7 +183,7 @@ async def format_full_message(
     
     # Add debug information if enabled
     if show_debug:
-        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds, random_foreign, random_transcription)
+        debug_info = await _get_debug_info(state, user_word_state, hint_settings, is_admin, show_writing_images, show_radicals, show_references, show_tones, show_sounds, random_foreign, random_transcription, random_sound)
         messages = [{"type": "text", "text": debug_info}] + messages
 
     return messages
@@ -235,6 +237,7 @@ async def show_study_word(
     show_sounds = basic_settings.get("show_sounds", True)
     random_foreign = basic_settings.get("random_foreign", True)
     random_transcription = basic_settings.get("random_transcription", True)
+    random_sound = basic_settings.get("random_sound", True)    
 
     # Get language info from state
     state_data = await state.get_data()
@@ -287,6 +290,7 @@ async def show_study_word(
         show_sounds=show_sounds,
         random_foreign=random_foreign,
         random_transcription=random_transcription,
+        random_sound=random_sound,        
         word_foreign=word_foreign,
         transcription=transcription,
         radicals=radicals,
@@ -525,6 +529,7 @@ async def _get_debug_info(
     show_sounds: bool = False,    
     random_foreign: bool = True,
     random_transcription: bool = True,
+    random_sound: bool = True,    
 ) -> str:
     """
     Get debug information for display.
@@ -578,6 +583,7 @@ async def _get_debug_info(
         f"• is_admin: {'Да' if is_admin else 'Нет'}\n"
         f"• random_foreign: {'Да' if random_foreign else 'Нет'}\n"
         f"• random_transcription: {'Да' if random_transcription else 'Нет'}\n"
+        f"• random_sound: {'Да' if random_sound else 'Нет'}\n"        
     )
     
     # Add enabled hint types

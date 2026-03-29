@@ -362,6 +362,7 @@ async def process_language_selection(callback: CallbackQuery, state: FSMContext)
         show_sounds=settings.get("show_sounds", True),
         random_foreign=settings.get("random_foreign", True),
         random_transcription=settings.get("random_transcription", True),
+        random_sound=settings.get("random_sound", True),        
         show_short_captions=settings.get("show_short_captions", True),
         hint_settings={
             "show_hint_phoneticsound": settings.get("show_hint_phoneticsound", True),

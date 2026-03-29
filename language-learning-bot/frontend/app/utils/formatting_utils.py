@@ -82,6 +82,7 @@ def format_settings_text(
     show_sounds=False,
     random_foreign=True,
     random_transcription=True,
+    random_sound=True,    
     show_short_captions=True,
     show_big=False,
     receive_messages=True,
@@ -107,8 +108,9 @@ def format_settings_text(
         show_references: Показывать ли ссылки
         show_tones: Показывать ли тоны
         show_sounds: Показывать ли звуки
-        random_foreign: Показывать ли случайные иностранные слова
-        random_transcription: Показывать ли случайные транскрипции
+        random_foreign: Начинать ли с иностранных слов
+        random_transcription: Начинать ли с транскрипций
+        random_sound: Начинать ли со звуков
         show_short_captions: Показывать ли короткие подписи
         show_big: Показывать ли крупное написание
         receive_messages: Получать ли сообщения
@@ -169,6 +171,8 @@ def format_settings_text(
     settings_text += f"   • Рандомно начинать с иностранных слов: <b>{random_foreign_status}</b>\n"
     random_transcription_status = "Да ✅" if random_transcription else "Нет ❌"
     settings_text += f"   • Рандомно начинать с транскрипций: <b>{random_transcription_status}</b>\n"
+    random_sound_status = "Да ✅" if random_sound else "Нет ❌"
+    settings_text += f"   • Рандомно начинать со звуков: <b>{random_sound_status}</b>\n"
     
     # Статус отображения отладочной информации
     debug_status = "Показывать ✅" if show_debug else "Скрывать ❌"
@@ -213,6 +217,7 @@ async def format_study_word_message(
     show_sounds=False,
     random_foreign=True,
     random_transcription=True,
+    random_sound=True,
     word_foreign=None,
     transcription=None,
     radicals=None,
@@ -303,28 +308,22 @@ async def format_study_word_message(
         first_translation = True
         first_transcription = False
         first_foreign = False
+        first_sound = False        
     else:
-        if random_foreign and random_transcription:
-            random_num = random.random()
-            first_translation = (random_num <= 1/3)
-            first_transcription = (random_num > 1/3) and (random_num <= 2/3)
-            first_foreign = (random_num > 2/3)
-        elif random_foreign:
-            random_num = random.random()
-            first_translation = (random_num <= 1/2)
-            first_transcription = False
-            first_foreign = (random_num > 1/2)
-        elif random_transcription:
-            random_num = random.random()
-            first_translation = (random_num <= 1/2)
-            first_transcription = (random_num > 1/2)
-            first_foreign = False
-        else:
-            first_translation = True
-            first_transcription = False
-            first_foreign = False
+        options = ["translation"]
+        if random_transcription:
+            options.append("transcription")
+        if random_foreign:
+            options.append("foreign")
+        if random_sound:
+            options.append("sound")
+        first = random.choice(options)
+        first_translation = (first == "translation")
+        first_transcription = (first == "transcription")
+        first_foreign = (first == "foreign")
+        first_sound = (first == "sound")
 
-    logger.info(f"{show_word}: {show_word}, {random_foreign}: {random_foreign}, {random_transcription}: {random_transcription}")
+    logger.info(f"show_word: {show_word}, random_foreign: {random_foreign}, random_transcription: {random_transcription}, random_sound: {random_sound}")
     logger.info(f"first_translation: {first_translation}, first_transcription: {first_transcription}, first_foreign: {first_foreign}")
     
     message += "\n"    
@@ -334,8 +333,6 @@ async def format_study_word_message(
         message += f"🔍 Транскрипция:\n<b>[{transcription}]</b>\n\n"
     elif first_foreign:
         message += f"📝 Слово на иностранном:\n<b>{word_foreign}</b>\n\n"
-    else:
-        message += f"🔍 Слово на русском:\n<b>{translation}</b>\n\n"
     
     # Если нужно показать слово, добавляем его с кликабельной ссылкой
     if show_word and word_foreign:
@@ -441,13 +438,13 @@ async def format_study_word_message(
 
             message_references = f"🔍 Ссылки:\n{references_filtered}\n\n"
 
-            if show_sounds and sounds_files:
-                message_sounds = []
-                for sound_file in sounds_files:
-                    # Add audio file as dict to distinguish from text messages
-                    # Preserve filename if available
-                    filename = getattr(sound_file, 'filename', None)
-                    message_sounds.append({"type": "audio", "file": sound_file, "filename": filename})
+    if show_sounds and sounds_files:
+        message_sounds = []
+        for sound_file in sounds_files:
+            # Add audio file as dict to distinguish from text messages
+            # Preserve filename if available
+            filename = getattr(sound_file, 'filename', None)
+            message_sounds.append({"type": "audio", "file": sound_file, "filename": filename})
 
     if show_word and show_big:
         big_word_message = await generate_big_word_message(
@@ -456,7 +453,7 @@ async def format_study_word_message(
         )
 
     result = []
-    if message_sounds:
+    if message_sounds and (first_sound or show_word):
         result.extend(message_sounds)
     if message_tones:
         result.append({"type": "text", "text": f"🔍 Тоны (подсказка):\n<b>[{star_transcription}]</b>"})

@@ -402,6 +402,15 @@ async def process_toggle_random_transcription(callback: CallbackQuery, state: FS
         setting_name="Рандомно начинать с транскрипций"
     )
 
+@settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_RANDOM_SOUND)
+async def process_toggle_random_sound(callback: CallbackQuery, state: FSMContext):
+    """Handle random sound toggle."""
+    await _handle_boolean_toggle(
+        callback, state, "random_sound", 
+        true_text="да", false_text="нет",
+        setting_name="Рандомно начинать с звуков"
+    )
+
 @settings_router.callback_query(F.data == CallbackData.SETTINGS_TOGGLE_SHOW_BIG)
 async def process_toggle_show_big(callback: CallbackQuery, state: FSMContext):
     """Handle big word toggle."""

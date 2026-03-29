@@ -39,7 +39,8 @@ async def load_progress(callback: CallbackQuery, state: FSMContext):
             "words_for_today": 0,
             "progress_percentage": 0,
             "word_numbers_for_today": [],
-            "word_numbers_unknown": []
+            "word_numbers_unknown": [],
+            "word_check_interval": []
         }
     else:
         progress = api_response['result']
@@ -66,6 +67,7 @@ async def _send_today_charts(message_or_callback: CallbackQuery, progress: Dict)
         # 2. Гистограмма слов для повторения и неизвестных слов
         word_numbers_for_today = progress.get("word_numbers_for_today", [])
         word_numbers_unknown = progress.get("word_numbers_unknown", [])
+        word_check_interval = progress.get("word_check_interval", [])
         words_studied = progress.get("words_studied", 0)
         
         if word_numbers_for_today:
@@ -98,6 +100,22 @@ async def _send_today_charts(message_or_callback: CallbackQuery, progress: Dict)
             await message.answer_photo(
                 histogram_file,
                 caption="Неизвестные слова"
+            )
+                
+        if word_check_interval:
+            histogram_chart = generator.create_check_interval_histogram(
+                word_check_interval, 
+                words_studied,
+                x_axis_limits="one_max",
+            )
+            histogram_file = BufferedInputFile(
+                histogram_chart.getvalue(),
+                filename="words_histogram.png"
+            )
+            
+            await message.answer_photo(
+                histogram_file,
+                caption="Интервалы повторения слов"
             )
                 
         logger.info(f"Successfully sent progress charts to user {message_or_callback.from_user.username}")

@@ -2,7 +2,7 @@
 Models related to user statistics.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -93,6 +93,7 @@ class UserProgress(BaseModel):
     last_study_date: Optional[datetime] = Field(None, description="Last study date")
     word_numbers_for_today: List[int] = Field(default_factory=list, description="Word numbers for today review")
     word_numbers_unknown: List[int] = Field(default_factory=list, description="Unknown word numbers (score=0, not skipped)")
+    word_check_interval: List[Tuple[int, int]] = Field(default_factory=list, description="Word check interval (word_number, check_interval)")
 
 # class UserDailyStats(BaseModel):
 #     """Model for user daily stats."""

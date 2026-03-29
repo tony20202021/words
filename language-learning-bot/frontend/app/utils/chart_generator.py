@@ -5,7 +5,7 @@
 
 import matplotlib.pyplot as plt
 from io import BytesIO
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import numpy as np
 import datetime
 from app.utils.logger import setup_logger
@@ -195,6 +195,61 @@ class ProgressChartGenerator:
         buffer.seek(0)
         plt.close(fig)
         
+        return buffer
+
+    @staticmethod 
+    def create_check_interval_histogram(
+        word_check_interval: List[Tuple[int, int]],
+        words_studied: int,
+        x_axis_limits: str = "one_max"
+    ) -> BytesIO:
+        """
+        Создает точечную диаграмму интервалов повторения слов.
+        
+        Args:
+            word_check_interval: интервалы повторения слов
+            words_studied: Общее количество слов изученных пользователем
+            
+        Returns:
+            BytesIO с PNG изображением
+        """
+
+        fig, (ax3) = plt.subplots(1, 1, figsize=(6, 5))
+        
+        max_word = max(
+            max([x[0] for x in word_check_interval]) if word_check_interval else 0,
+            words_studied
+        )
+
+        # Точечная диаграмма интервалов повторения слов
+        if word_check_interval:
+            ax3.scatter([x[0] for x in word_check_interval], [x[1] for x in word_check_interval], color='#2196F3', alpha=0.7, edgecolor='blue', marker='o', s=1)
+            ax3.set_title(f'Интервалы повторения слов \n ({len(word_check_interval)} интервалов)', 
+                         fontsize=20, fontweight='bold')
+        else:
+            ax3.text(0.5, 0.5, 'Нет интервалов повторения слов!', 
+                    transform=ax3.transAxes, ha='center', va='center',
+                    fontsize=14, fontweight='bold', color='#4CAF50')
+            ax3.set_title('Интервалы повторения слов', fontsize=14, fontweight='bold')
+
+        if x_axis_limits == "one_max":
+            ax3.set_xlim(1, max_word)
+            
+        ax3.set_xlabel('Номер слова')
+        ax3.set_ylabel('Интервал повторения')
+        ax3.yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Только целые значения
+        ax3.grid(True, alpha=0.3)
+        
+        # Компактное расположение
+        plt.tight_layout()
+        
+        # Сохраняем в BytesIO
+        buffer = BytesIO()
+        plt.savefig(buffer, format='PNG', dpi=300, bbox_inches='tight',
+                   facecolor='white', edgecolor='none')
+        buffer.seek(0)
+        plt.close(fig)
+
         return buffer
 
     @staticmethod
