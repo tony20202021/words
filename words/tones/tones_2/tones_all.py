@@ -30,11 +30,14 @@ def generate_all_tones(transcription: str):
 
 if __name__ == "__main__":
     # INPUT_FILE = "/home/tony/repos/words/words/tones/data/words_Китайский_20250826_160132.json"
-    INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
+    # INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
+    INPUT_FILE = "/home/tony/repos/words/words/data/words_Китайский_20260331_151646.json"
 
     OUTPUT_FILE = INPUT_FILE + ".tones.json"
 
-    LIMIT = 4_000
+    LIMIT = 1_000
+
+    HIDE_TONES = False
 
     with open(INPUT_FILE, 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -110,12 +113,12 @@ if __name__ == "__main__":
                             all_words_str = []
                             word_foreign_star_all = set()
                             for t in tones_dict[tone]:
-                                if t['word_number'] == word_number:
+                                if HIDE_TONES and (t['word_number'] == word_number):
                                     all_words_str.append(f" - ***")
                                 else:
                                     translation = ", ".join(t['translation'].split(',')[:3])
-                                    if len(t['word_foreign']) == 1:
-                                        all_words_str.append(f" - [<i>{t['word_number']}</i>] <b>{t['word_foreign']}</b>: {translation}")
+                                    if (not HIDE_TONES) or (len(t['word_foreign']) == 1):
+                                        all_words_str.append(f" - [<i>{t['word_number']}</i>] <b>{t['word_foreign']}</b> [{t['transcription']}]: {translation}")
                                         word_foreign_star_all.add(t['word_foreign'])
                                     else:
                                         word_foreign_star_list = [t['word_foreign'][i] if (p == tone) else '*' for (i,p) in enumerate(t['transcription'].split(' ')) ]
@@ -126,17 +129,17 @@ if __name__ == "__main__":
                                             word_foreign_star_all.add(word_foreign_not_star_str)
 
                             all_words_str = "\n" + "\n".join(all_words_str)
-                            all_tones_char_formatted.append(f"{tone_index}. <b>{tone}</b>{len_tones_str}: {all_words_str}")
-                        elif tone == char_transcription:
-                            all_tones_char_formatted.append(f"{tone_index}. <b>{tone}</b>: ***")
+                            all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>{len_tones_str}: {all_words_str}")
+                        elif HIDE_TONES and (tone == char_transcription):
+                            all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>: ***")
                         else:
                             len_tones_str = ''
                             t = tones_dict[tone][0]
                             translation = ", ".join(t['translation'].split(',')[:3])
                             all_words_str = f"[<i>{t['word_number']}</i>] <b>{t['word_foreign']}</b>: {translation}"
-                            all_tones_char_formatted.append(f"{tone_index}. <b>{tone}</b>: {all_words_str}")
+                            all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>: {all_words_str}")
                     else:
-                        all_tones_char_formatted.append(f"{tone_index}. <b>{tone}</b>: ---")
+                        all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>: ---")
 
             all_tones_word_formatted.append("\n".join(all_tones_char_formatted))
 

@@ -370,7 +370,8 @@ if __name__ == "__main__":
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json"
     # INPUT_FILE = "/home/tony/repos/words/words/radicals_names/radicals_names_5/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json"
     # INPUT_FILE = "/home/tony/repos/words/words/tones/tones_2/data/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json"
-    INPUT_FILE = "/home/tony/repos/words/words/sounds/sounds/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json.sounds.json"
+    # INPUT_FILE = "/home/tony/repos/words/words/sounds/sounds/words_Китайский_20251002_055605.json.new_radicals.json.tones.json.cross_references.json.tones.json.sounds.json"
+    INPUT_FILE = "/home/tony/repos/words/words/data/words_Китайский_20260331_151646.json.tones.json"
 
         
     # OUTPUT_FILE_WORD = "chinese_characters_10_000_short.docx"

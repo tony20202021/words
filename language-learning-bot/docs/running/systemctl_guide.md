@@ -160,12 +160,18 @@ sudo systemctl status langbot-db langbot-backend langbot-frontend
 ```bash
 # Запустить отдельный сервис
 sudo systemctl start langbot-db
+sudo systemctl start langbot-backend
+sudo systemctl start langbot-frontend
 
 # Остановить отдельный сервис
+sudo systemctl stop langbot-db
+sudo systemctl stop langbot-backend
 sudo systemctl stop langbot-frontend
 
 # Перезапустить сервис (например, после изменения кода)
+sudo systemctl restart langbot-db
 sudo systemctl restart langbot-backend
+sudo systemctl restart langbot-frontend
 
 # Перезапустить все сразу
 sudo systemctl restart langbot-db langbot-backend langbot-frontend

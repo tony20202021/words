@@ -261,8 +261,10 @@ async def format_study_word_message(
     Returns:
         str: Отформатированное сообщение
     """
+    HIDE_TONES = False
+    
     message = ""
-    message_tones = None
+    messages_tones_all = None
     message_references = None
     message_sounds = None
     
@@ -373,11 +375,11 @@ async def format_study_word_message(
                     
                     # logger.info(f"words_number_found: {words_number_found}, words_foreigh_found: {words_foreigh_found}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, tone: {tone}")
 
-                    if (len(words_foreigh_found) == 1) and (words_foreigh_found in word_foreign):
+                    if HIDE_TONES and ((len(words_foreigh_found) == 1) and (words_foreigh_found in word_foreign)):
                         tones_filtered.append(tone[ : words_number_end + len(words_number_end_str_multiple)] + ": <b>***</b>")
                     else:
                         if words_number_found <= words_studied:
-                            if (len(words_foreigh_found) == 1):
+                            if (not HIDE_TONES) or ((len(words_foreigh_found) == 1)):
                                 tones_filtered.append(tone)
                             else:
                                 tones_filtered.append(tone[ : words_number_end + len(words_number_end_str_multiple)] + f" <b>{words_foreigh_found}</b>: ***")
@@ -397,8 +399,9 @@ async def format_study_word_message(
 
             tones_filtered = "\n".join(tones_filtered)
 
+            messages_tones_all = []
             if len(tones_filtered) <= MAX_MESSAGE_LENGTH:
-                message_tones = f"🔍 Тоны:\n{tones_filtered}\n\n"
+                messages_tones_all.append(f"🔍 Тоны:\n\n{tones_filtered}\n\n")
             else:
                 tones_formatted = ""
                 for tone in tones_filtered.split('\n'):
@@ -407,9 +410,11 @@ async def format_study_word_message(
                             tones_formatted += "\n"
                         tones_formatted += tone
                     else:
-                        break
-                message_tones = f"🔍 Тоны:\n\n{tones_formatted}\n\n"
-            
+                        messages_tones_all.append(f"🔍 Тоны:\n\n{tones_formatted}\n\n")
+                        tones_formatted = tone
+                if tones_formatted != "":
+                    messages_tones_all.append(f"🔍 Тоны:\n\n{tones_formatted}\n\n")
+
         if show_references and references:
             references_filtered = []
             words_number_begin_str = "<i>[#"
@@ -422,12 +427,15 @@ async def format_study_word_message(
                     words_number_end = reference.find(words_number_end_str)
                     words_number_found = int(reference[words_number_begin + len(words_number_begin_str):words_number_end])
 
+                    words_foreigh_begin = words_number_end + len(words_number_end_str)
+                    words_foreigh_end = words_foreigh_begin + reference[words_foreigh_begin:].find(words_foreigh_end_str)
+                    words_foreigh_found = reference[words_foreigh_begin:words_foreigh_end]
+
+                    reference_hidden = reference[:words_foreigh_begin] + "<tg-spoiler>" + reference[words_foreigh_begin:] + "</tg-spoiler>"
+
                     if words_number_found <= words_studied:
                         references_filtered.append(reference)
                     else:
-                        words_foreigh_begin = words_number_end + len(words_number_end_str)
-                        words_foreigh_end = words_foreigh_begin + reference[words_foreigh_begin:].find(words_foreigh_end_str)
-                        words_foreigh_found = reference[words_foreigh_begin:words_foreigh_end]
                         # logger.info(f"words_number_found: {words_number_found}, words_foreigh_found: {words_foreigh_found}, words_foreigh_begin: {words_foreigh_begin}, words_foreigh_end: {words_foreigh_end}, reference: {reference}")
                         if len(words_foreigh_found) == 1:
                             references_filtered.append(reference)
@@ -455,9 +463,10 @@ async def format_study_word_message(
     result = []
     if message_sounds and (first_sound or show_word):
         result.extend(message_sounds)
-    if message_tones:
+    if messages_tones_all:
         result.append({"type": "text", "text": f"🔍 Тоны (подсказка):\n<b>[{star_transcription}]</b>"})
-        result.append({"type": "text", "text": message_tones})
+        for message_tone in messages_tones_all:
+            result.append({"type": "text", "text": message_tone})
     if message_references:
         result.append({"type": "text", "text": message_references})
     if show_word and show_radicals and radicals:

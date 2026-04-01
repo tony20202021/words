@@ -47,7 +47,15 @@ async def get_sounds_files(bot, sounds):
     api_client = get_api_client_from_bot(bot)
 
     sounds_info = json.loads(sounds)
-    
+
+    if isinstance(sounds_info, str):
+        sounds_info = json.loads(sounds_info)
+    elif isinstance(sounds_info, dict):
+        pass
+    else:
+        logger.error(f"Invalid sounds info type: {type(sounds_info)}")
+        return []
+
     result = []
     # Sort keys to ensure consistent order (sound_1, sound_2, sound_3, etc.)
     sorted_keys = sorted(sounds_info.keys())
