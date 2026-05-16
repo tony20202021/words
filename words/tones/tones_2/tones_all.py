@@ -136,7 +136,7 @@ if __name__ == "__main__":
                             len_tones_str = ''
                             t = tones_dict[tone][0]
                             translation = ", ".join(t['translation'].split(',')[:3])
-                            all_words_str = f"[<i>{t['word_number']}</i>] <b>{t['word_foreign']}</b>: {translation}"
+                            all_words_str = f"[<i>{t['word_number']}</i>] <b>{t['word_foreign']}</b> [{t['transcription']}]: {translation}"
                             all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>: {all_words_str}")
                     else:
                         all_tones_char_formatted.append(f"\n{tone_index}. <b>{tone}</b>: ---")
