@@ -150,7 +150,7 @@ class TestAPIClientPrivate:
     async def test_make_request_all_retries_failed(self):
         """
         Проверяет поведение, когда все повторные попытки запроса завершились неудачей.
-        
+
         Должен:
         - Создать мок для aiohttp.ClientSession и его методов
         - Настроить мок для генерации исключения при каждом вызове
@@ -160,3 +160,59 @@ class TestAPIClientPrivate:
         - Проверить, что было залогировано сообщение о том, что все попытки провалились
         """
         pass
+
+
+class TestBareExceptRegression:
+    """Regression tests: bare except: clauses must not swallow KeyboardInterrupt/SystemExit."""
+
+    @pytest.fixture
+    def client(self):
+        return APIClient(base_url="http://testserver", timeout=5)
+
+    @pytest.mark.asyncio
+    async def test_export_words_json_parse_error_does_not_swallow_keyboard_interrupt(self, client):
+        """
+        Regression: except: в export_words_by_language глотал KeyboardInterrupt.
+        После замены на except Exception: сигнал должен пробрасываться.
+        """
+        mock_response = mock.AsyncMock()
+        mock_response.status = 404
+        mock_response.reason = "Not Found"
+        mock_response.json = mock.AsyncMock(side_effect=KeyboardInterrupt)
+        mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+
+        mock_session = mock.AsyncMock()
+        mock_session.get.return_value = mock_response
+        mock_session.__aenter__ = mock.AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = mock.AsyncMock(return_value=False)
+
+        with mock.patch("aiohttp.ClientSession", return_value=mock_session):
+            with pytest.raises(KeyboardInterrupt):
+                await client.export_words_by_language("lang123")
+
+    @pytest.mark.asyncio
+    async def test_export_words_json_parse_exception_returns_fallback_error(self, client):
+        """
+        Нормальный Exception при парсинге JSON ошибки должен приводить к fallback-сообщению,
+        а не к краху метода.
+        """
+        mock_response = mock.AsyncMock()
+        mock_response.status = 500
+        mock_response.reason = "Internal Server Error"
+        mock_response.json = mock.AsyncMock(side_effect=ValueError("not json"))
+        mock_response.read = mock.AsyncMock(return_value=b"")
+        mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+
+        mock_session = mock.AsyncMock()
+        mock_session.get.return_value = mock_response
+        mock_session.__aenter__ = mock.AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = mock.AsyncMock(return_value=False)
+
+        with mock.patch("aiohttp.ClientSession", return_value=mock_session):
+            client.retry_count = 1
+            result = await client.export_words_by_language("lang123")
+
+        assert result["success"] is False
+        assert "500" in result["error"]

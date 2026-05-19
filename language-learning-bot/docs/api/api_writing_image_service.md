@@ -1,8 +1,8 @@
-# Документация API Writing Service (ОБНОВЛЕНО с Translation Service)
+# Документация API Writing Images Service
 
 ## Общая информация
 
-Writing Service - это AI микросервис для генерации изображений написания слов с **реальной AI генерацией** и **интегрированным Translation Service** для перевода русских значений в английские промпты.
+Writing Images Service - это AI микросервис для генерации изображений написания слов. Использует Stable Diffusion XL + Union ControlNet и Translation Service для перевода русских значений в английские промпты.
 
 - **Базовый URL**: `http://localhost:8600`
 - **API префикс**: `/api`
@@ -119,71 +119,7 @@ X-Generation-Time-Ms: 8500
 X-Model-Used: union
 ```
 
-## 🆕 Translation Service Эндпоинты
-
-### Проверка статуса Translation Service
-- **URL**: `/api/translation/status`
-- **Метод**: `GET`
-
-**Ответ:**
-```json
-{
-  "enabled": true,
-  "active_model": "qwen2_7b",
-  "model_loaded": true,
-  "available_models": ["qwen2_7b", "qwen2_1_5b", "nllb_3_3b", "mt5_xl"],
-  "statistics": {
-    "total_translations": 1250,
-    "cache_hits": 856,
-    "cache_hit_rate": 0.685
-  },
-  "cache_stats": {
-    "enabled": true,
-    "entries": 856,
-    "max_size": 10000
-  }
-}
-```
-
-### Переключение Translation модели
-- **URL**: `/api/translation/switch-model`
-- **Метод**: `POST`
-
-**Тело запроса:**
-```json
-{
-  "model_name": "nllb_3_3b"
-}
-```
-
-### Прямой перевод (без AI генерации)
-- **URL**: `/api/translation/translate`
-- **Метод**: `POST`
-
-**Тело запроса:**
-```json
-{
-  "character": "学",
-  "russian_text": "учить",
-  "use_cache": true
-}
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "translated_text": "learn, study",
-  "original_text": "учить",
-  "character": "学",
-  "translation_time_ms": 180,
-  "model_used": "Qwen/Qwen2-7B-Instruct",
-  "cache_hit": false,
-  "confidence_score": 0.89
-}
-```
-
-## Health Check Эндпоинты (обновлено)
+## Health Check Эндпоинты
 
 ### Детальная проверка здоровья
 - **URL**: `/health/detailed`
@@ -233,63 +169,34 @@ X-Model-Used: union
 }
 ```
 
-### Прогрев AI + Translation моделей
-- **URL**: `/health/warmup`
-- **Метод**: `POST`
-
-**Тело запроса:**
-```json
-{
-  "warmup_ai": true,
-  "warmup_translation": true,
-  "test_characters": ["学", "写", "读"]
-}
-```
-
 ## Примеры использования
 
-### Генерация с автоматическим переводом (Qwen)
+### Генерация изображения
 ```bash
 curl -X POST http://localhost:8600/api/writing/generate-writing-image \
   -H "Content-Type: application/json" \
   -d '{
     "word": "美丽",
     "translation": "красивый",
-    "translation_model": "qwen2_7b",
     "style": "watercolor",
     "include_prompt": true
   }'
 ```
 
-### Генерация с NLLB переводом
+### Генерация (бинарный ответ)
 ```bash
-curl -X POST http://localhost:8600/api/writing/generate-writing-image \
+curl -X POST http://localhost:8600/api/writing/generate-writing-image-binary \
   -H "Content-Type: application/json" \
-  -d '{
-    "word": "дом",
-    "translation": "дом",
-    "translation_model": "nllb_3_3b",
-    "language": "russian"
-  }'
+  -d '{"word": "学习", "translation": "учёба"}' \
+  --output image.png
 ```
 
-### Проверка Translation Service
+### Проверка здоровья
 ```bash
-# Статус Translation Service
-curl http://localhost:8600/api/translation/status
-
-# Переключение модели
-curl -X POST http://localhost:8600/api/translation/switch-model \
-  -H "Content-Type: application/json" \
-  -d '{"model_name": "mt5_xl"}'
-
-# Прямой перевод
-curl -X POST http://localhost:8600/api/translation/translate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "character": "水",
-    "russian_text": "вода"
-  }'
+curl http://localhost:8600/health
+curl http://localhost:8600/health/detailed
+curl http://localhost:8600/health/ready
+curl http://localhost:8600/health/live
 ```
 
 ## Обработка ошибок (обновлено)
@@ -342,7 +249,7 @@ Total Time: ~8.5s (RTX 4090)
 
 ### 🆕 Translation настройки
 ```yaml
-# writing_service/conf/config/translation.yaml
+# writing_images_service/conf/config/translation.yaml
 translation:
   enabled: true
   active_model: "qwen2_7b"

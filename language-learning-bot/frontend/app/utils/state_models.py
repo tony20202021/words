@@ -31,8 +31,8 @@ class UserWordState:
         study_words=None,
         study_settings=None,
         flags=None,
-        batch_info={},
-        session_info={},
+        batch_info=None,
+        session_info=None,
     ):
         """
         Инициализация состояния слова пользователя.
@@ -60,8 +60,8 @@ class UserWordState:
         self.flags = flags or {}
 
         # Счетчики для партий
-        self.batch_info = batch_info
-        self.session_info = session_info
+        self.batch_info = batch_info if batch_info is not None else {}
+        self.session_info = session_info if session_info is not None else {}
         
         # Инициализируем флаги для просмотренных подсказок
         if "used_hints" not in self.flags:

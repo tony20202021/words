@@ -14,8 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
 
-# Add the parent directory to sys.path to allow imports from other modules
+# Add the parent directory and project root to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from common.version import __version__ as PROJECT_VERSION
 
 # Попытка импорта Hydra - если он доступен, будет использоваться для конфигурации
 try:
@@ -123,7 +126,7 @@ def create_application() -> FastAPI:
     app = FastAPI(
         title=f"{app_name} API",
         description=f"Backend API for {app_name}",
-        version="1.0.0",
+        version=PROJECT_VERSION,
         docs_url=f"{api_prefix}/docs",
         redoc_url=f"{api_prefix}/redoc",
         openapi_url=f"{api_prefix}/openapi.json"

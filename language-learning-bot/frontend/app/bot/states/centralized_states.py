@@ -97,6 +97,7 @@ class AdminStates(StatesGroup):
     input_word_number = State()                 # Ввод номера слова для поиска
     input_column_number = State()               # Ввод номера колонки при загрузке файла
     managing_users = State()                    # Управление пользователями
+    viewing_diagnostics = State()               # Диагностика системы
 
 
 class CommonStates(StatesGroup):

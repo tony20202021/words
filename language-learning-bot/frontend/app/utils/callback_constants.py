@@ -80,6 +80,8 @@ class CallbackData:
     ADMIN_STATS = "admin_stats"
     ADMIN_STATS_CALLBACK = "admin_stats_callback"
     ADMIN_SEND_MESSAGE_TO_ALL = "admin_send_message_to_all"
+    ADMIN_DIAGNOSTICS = "admin_diagnostics"
+    ADMIN_DIAGNOSTICS_REFRESH = "admin_diagnostics_refresh"
     
     # Messaging callbacks
     CONFIRM_MESSAGING = "confirm_messaging"

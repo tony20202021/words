@@ -22,8 +22,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-# Add the parent directory to sys.path to allow imports from other modules
+# Add the parent directory and project root to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from common.version import __version__ as PROJECT_VERSION
 
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
@@ -288,7 +291,7 @@ def create_application() -> FastAPI:
     app = FastAPI(
         title=f"{app_name} (AI Generation)",
         description="Service for generating writing images using real AI models for language learning",
-        version="1.0.0",
+        version=PROJECT_VERSION,
         docs_url=f"{api_prefix}/docs",
         redoc_url=f"{api_prefix}/redoc",
         openapi_url=f"{api_prefix}/openapi.json",

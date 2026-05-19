@@ -408,6 +408,20 @@ class TestUserWordState:
         # Test removing flags
         state.remove_flag("test_flag")
         assert state.get_flag("test_flag") is None
+    def test_mutable_default_args_isolation(self):
+        """Regression test: batch_info/session_info не должны делиться между экземплярами."""
+        state_a = UserWordState()
+        state_b = UserWordState()
+
+        state_a.batch_info["current_batch_index"] = 99
+        state_a.session_info["total_words_processed"] = 42
+
+        assert state_b.batch_info.get("current_batch_index") is None
+        assert state_b.session_info.get("total_words_processed") is None
+        assert state_a.batch_info is not state_b.batch_info
+        assert state_a.session_info is not state_b.session_info
+
+
 class TestHintState:
 
     @pytest.mark.asyncio

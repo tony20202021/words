@@ -94,7 +94,7 @@ class APIClient:
                         url=url,
                         json=data,
                         params=params,
-                        timeout=self.timeout
+                        timeout=aiohttp.ClientTimeout(total=self.timeout)
                     ) as response:
                         response_dict["status"] = response.status
                         
@@ -261,9 +261,9 @@ class APIClient:
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
-                        url, 
-                        data=form_data, 
-                        timeout=self.timeout * timeout_multiplier
+                        url,
+                        data=form_data,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout * timeout_multiplier)
                     ) as response:
                         response_dict["status"] = response.status
                         
@@ -693,16 +693,16 @@ class APIClient:
                     async with session.get(
                         url,
                         params=params,
-                        timeout=self.timeout * timeout_multiplier
+                        timeout=aiohttp.ClientTimeout(total=self.timeout * timeout_multiplier)
                     ) as response:
                         response_dict["status"] = response.status
-                        
+
                         if response.status >= 400:
                             # Try to get JSON error if possible
                             try:
                                 error_data = await response.json()
                                 error_message = error_data.get("error", f"HTTP {response.status}")
-                            except:
+                            except Exception:
                                 error_message = f"HTTP {response.status}: {response.reason}"
                             
                             logger.error(f"Export error: {response.status} - {error_message}")
@@ -908,13 +908,13 @@ class APIClient:
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=self.timeout) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout)) as response:
                     response_dict["status"] = response.status
                     
                     if response.status >= 400:
                         try:
                             error_data = await response.json()
-                        except:
+                        except Exception:
                             error_data = await response.text()
                         error_message = str(error_data)
                         logger.error(f"API error: {response.status} - {error_data}")

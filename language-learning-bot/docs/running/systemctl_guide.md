@@ -51,9 +51,9 @@ Type=forking
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot
 Environment="PATH=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin:/home/tony/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/bin/bash start_1___db.sh__
+ExecStart=/bin/bash start_1_db.sh
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -80,9 +80,9 @@ Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot
 Environment="PATH=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin:/home/tony/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/bin/bash start_2___backend.sh__
+ExecStart=/bin/bash start_2_backend.sh
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -109,9 +109,9 @@ Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot
 Environment="PATH=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin:/home/tony/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/bin/bash start_3_frontend_auto___reload.sh__
+ExecStart=/bin/bash start_3_frontend_auto_reload.sh
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

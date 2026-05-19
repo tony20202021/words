@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+from common.version import __version__
 
 setup(
     name="language-learning-bot",
-    version="0.1.0",
+    version=__version__,
     description="Telegram bot for learning foreign languages",
     author="Your Name",
     author_email="your.email@example.com",

@@ -6,7 +6,7 @@
     - [start_1_db.sh](#start_1_dbsh)
     - [start_2_backend.sh](#start_2_backendsh)
     - [start_3_frontend.sh](#start_3_frontendsh)
-    - [start_4_writing_service.sh](#start_4_writing_servicesh)
+    - [start_4_writing_images_service.sh](#start_4_writing_images_servicesh)
     - [start_3_frontend_auto_reload.sh](#start_3_frontend_auto_reloadsh)
 3. [Скрипты управления окружением](#скрипты-управления-окружением)
     - [run_export_env.sh](#run_export_envsh)
@@ -103,20 +103,20 @@ chmod +x start_3_frontend.sh
 
 ---
 
-### start_4_writing_service.sh
+### start_4_writing_images_service.sh
 
 **🆕 Назначение**: Запуск Writing Service (микросервис генерации картинок)
 
 **Основные операции**:
 - Проверка, запущен ли уже процесс Writing Service
 - Проверка занятости порта 8600
-- Запуск Python-модуля с параметром `--process-name=writing_service`
-- Сохранение PID процесса в файл `.writing_service.pid`
+- Запуск Python-модуля с параметром `--process-name=writing_images_service`
+- Сохранение PID процесса в файл `.writing_images_service.pid`
 
 **Использование**:
 ```bash
-chmod +x start_4_writing_service.sh
-./start_4_writing_service.sh [--port=PORT]
+chmod +x start_4_writing_images_service.sh
+./start_4_writing_images_service.sh [--port=PORT]
 ```
 
 **Параметры**:
@@ -126,7 +126,7 @@ chmod +x start_4_writing_service.sh
 - Запущенный Writing Service на порту 8600
 - API доступен по адресу `http://localhost:8600/api`
 - Swagger документация: `http://localhost:8600/api/docs`
-- Файл `.writing_service.pid` с идентификатором процесса
+- Файл `.writing_images_service.pid` с идентификатором процесса
 
 **Проверка работоспособности**:
 ```bash
@@ -204,7 +204,7 @@ chmod +x run_tests.sh
 - `--component frontend` - Запуск только тестов фронтенда
 - `--component backend` - Запуск только тестов бэкенда
 - `--component common` - Запуск только тестов общих модулей
-- `--component writing_service` - 🆕 Запуск только тестов Writing Service
+- `--component writing_images_service` - 🆕 Запуск только тестов Writing Service
 - `--component all` - Запуск всех тестов (по умолчанию)
 - `--verbose` - Подробный вывод тестов
 - `--coverage` - Генерация отчета о покрытии кода
@@ -217,13 +217,13 @@ chmod +x run_tests.sh
 ./run_tests.sh
 
 # Запуск только тестов Writing Service
-./run_tests.sh --component writing_service
+./run_tests.sh --component writing_images_service
 
 # Запуск с отчетом о покрытии
 ./run_tests.sh --coverage --html
 
 # Запуск конкретного теста
-./run_tests.sh --specific writing_service/tests/test_health.py
+./run_tests.sh --specific writing_images_service/tests/test_health.py
 ```
 
 **Результаты работы**:
@@ -256,7 +256,7 @@ source ./run_export_env.sh
 # Запуск всех компонентов
 ./start_1_db.sh
 ./start_2_backend.sh
-./start_4_writing_service.sh  # 🆕 Новый сервис
+./start_4_writing_images_service.sh  # 🆕 Новый сервис
 ./start_3_frontend.sh
 ```
 
@@ -269,7 +269,7 @@ source ./run_export_env.sh
 # Запуск базовых сервисов
 ./start_1_db.sh
 ./start_2_backend.sh
-./start_4_writing_service.sh
+./start_4_writing_images_service.sh
 
 # Запуск фронтенда с автоперезагрузкой
 ./start_3_frontend_auto_reload.sh
@@ -284,7 +284,7 @@ source ./run_export_env.sh
 # Запуск тестов по компонентам
 ./run_tests.sh --component frontend
 ./run_tests.sh --component backend
-./run_tests.sh --component writing_service  # 🆕
+./run_tests.sh --component writing_images_service  # 🆕
 ./run_tests.sh --component common
 
 # Генерация отчетов о покрытии
@@ -295,7 +295,7 @@ source ./run_export_env.sh
 
 ```bash
 # Проверка процессов
-ps aux | grep -e "mongod" -e "--process-name=backend" -e "--process-name=frontend" -e "--process-name=writing_service"
+ps aux | grep -e "mongod" -e "--process-name=backend" -e "--process-name=frontend" -e "--process-name=writing_images_service"
 
 # Проверка портов
 lsof -i :27017  # MongoDB
@@ -315,15 +315,15 @@ curl http://localhost:8600/api/docs        # Writing Service docs
 pkill -f mongod
 pkill -f -- "--process-name=backend"
 pkill -f -- "--process-name=frontend"
-pkill -f -- "--process-name=writing_service"  # 🆕
+pkill -f -- "--process-name=writing_images_service"  # 🆕
 
 # Очистка PID файлов
-rm -f .backend.pid .frontend.pid .writing_service.pid
+rm -f .backend.pid .frontend.pid .writing_images_service.pid
 
 # Запуск процессов
 ./start_1_db.sh
 ./start_2_backend.sh
-./start_4_writing_service.sh  # 🆕
+./start_4_writing_images_service.sh  # 🆕
 ./start_3_frontend.sh
 ```
 
@@ -331,4 +331,4 @@ rm -f .backend.pid .frontend.pid .writing_service.pid
 
 ### Writing Service не запускается
 
-**Симптомы**: Ошибки при запуске Writing Service, скрипт `start_4_writing_service.sh` завершается с ошибкой.
+**Симптомы**: Ошибки при запуске Writing Service, скрипт `start_4_writing_images_service.sh` завершается с ошибкой.
