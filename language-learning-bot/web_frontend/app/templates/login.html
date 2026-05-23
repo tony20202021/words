@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-4 text-center">Вход</h4>
+
+        {% if error %}
+          <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        {# ── Not found: offer to create ── #}
+        {% if not_found %}
+          <div class="alert alert-warning">Пользователь не найден.</div>
+
+          {% if prev_mode == 'telegram' %}
+            <p class="text-muted small mb-3">
+              Создать нового пользователя с Telegram ID <strong>{{ prev_telegram_id }}</strong>?
+            </p>
+            <form method="post" action="/auth/create">
+              <input type="hidden" name="mode" value="telegram">
+              <input type="hidden" name="telegram_id" value="{{ prev_telegram_id }}">
+              <div class="mb-3">
+                <label class="form-label">Ваше имя</label>
+                <input type="text" name="first_name" class="form-control" required autofocus placeholder="Введите имя">
+              </div>
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">Создать и войти</button>
+                <a href="/login" class="btn btn-outline-secondary">Отмена</a>
+              </div>
+            </form>
+          {% elif prev_mode == 'name' %}
+            <p class="text-muted small mb-3">
+              Создать нового пользователя с именем <strong>{{ prev_name }}</strong>?
+            </p>
+            <form method="post" action="/auth/create">
+              <input type="hidden" name="mode" value="name">
+              <input type="hidden" name="first_name" value="{{ prev_name }}">
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">Создать и войти</button>
+                <a href="/login" class="btn btn-outline-secondary">Отмена</a>
+              </div>
+            </form>
+          {% endif %}
+
+        {% else %}
+          {# ── Login form ── #}
+          <form method="post" action="/login" id="login-form">
+            <div class="mb-3">
+              <div class="d-flex gap-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="mode" id="mode-telegram"
+                    value="telegram" {% if prev_mode != 'name' %}checked{% endif %}
+                    onchange="switchMode('telegram')">
+                  <label class="form-check-label" for="mode-telegram">Telegram ID</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="mode" id="mode-name"
+                    value="name" {% if prev_mode == 'name' %}checked{% endif %}
+                    onchange="switchMode('name')">
+                  <label class="form-check-label" for="mode-name">По username</label>
+                </div>
+              </div>
+            </div>
+
+            <div id="field-telegram" {% if prev_mode == 'name' %}style="display:none"{% endif %} class="mb-3">
+              <input type="number" name="telegram_id" id="input-telegram"
+                class="form-control" placeholder="Например: 123456789"
+                value="{{ prev_telegram_id or '' }}">
+              <div class="form-text">Найти у бота @userinfobot</div>
+            </div>
+
+            <div id="field-name" {% if prev_mode != 'name' %}style="display:none"{% endif %} class="mb-3">
+              <input type="text" name="name" id="input-name"
+                class="form-control" placeholder="@username"
+                value="{{ prev_name or '' }}">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Войти</button>
+          </form>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchMode(mode) {
+  var showTg = mode === 'telegram';
+  document.getElementById('field-telegram').style.display = showTg ? '' : 'none';
+  document.getElementById('field-name').style.display = showTg ? 'none' : '';
+  document.getElementById(showTg ? 'input-telegram' : 'input-name').focus();
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var checked = document.querySelector('input[name="mode"]:checked');
+  if (checked) switchMode(checked.value);
+});
+</script>
+{% endblock %}

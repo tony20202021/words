@@ -32,7 +32,7 @@ class TestAdminKeyboards:
             all_buttons.extend(row)
         
         # ИСПРАВЛЕНО: Теперь должно быть 4 кнопки (добавлено управление пользователями)
-        assert len(all_buttons) == 5, "Should have 5 buttons"
+        assert len(all_buttons) == 6, "Should have 6 buttons"
         
         # Check texts
         button_texts = [button.text for button in all_buttons]

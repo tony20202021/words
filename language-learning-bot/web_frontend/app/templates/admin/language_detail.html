@@ -1,0 +1,101 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Язык — {{ lang.name_ru }}{% endblock %}
+{% block admin_content %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="/admin/languages" class="btn btn-sm btn-outline-secondary">← Назад</a>
+  <h4 class="mb-0">{{ lang.name_ru }} / {{ lang.name_foreign }}</h4>
+  <span class="badge bg-secondary">{{ lang.word_count }} слов</span>
+</div>
+
+{% if import_message %}
+  <div class="alert {% if import_ok %}alert-success{% else %}alert-danger{% endif %}">{{ import_message }}</div>
+{% endif %}
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{# Edit form #}
+<div class="card mb-3">
+  <div class="card-header">Редактировать</div>
+  <div class="card-body">
+    <form method="post" action="/admin/languages/{{ language_id }}/update">
+      <div class="row g-2">
+        <div class="col-md-5">
+          <input type="text" name="name_ru" class="form-control" value="{{ lang.name_ru }}" placeholder="Название (рус)" required>
+        </div>
+        <div class="col-md-5">
+          <input type="text" name="name_foreign" class="form-control" value="{{ lang.name_foreign }}" placeholder="Название (ориг)" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Сохранить</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Words link #}
+<div class="d-flex gap-2 mb-3">
+  <a href="/admin/languages/{{ language_id }}/words" class="btn btn-outline-primary">📝 Слова</a>
+</div>
+
+{# Export #}
+<div class="card mb-3">
+  <div class="card-header">Экспорт слов</div>
+  <div class="card-body">
+    <form method="get" action="/admin/languages/{{ language_id }}/export" class="row g-2">
+      <div class="col-md-3">
+        <select name="format" class="form-select">
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="csv">CSV (.csv)</option>
+          <option value="json">JSON (.json)</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <input type="number" name="start" class="form-control" placeholder="С (номер)">
+      </div>
+      <div class="col-md-2">
+        <input type="number" name="end" class="form-control" placeholder="По (номер)">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success">Скачать</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Import #}
+<div class="card mb-3">
+  <div class="card-header">Импорт слов (Excel/CSV)</div>
+  <div class="card-body">
+    <form method="post" action="/admin/languages/{{ language_id }}/import" enctype="multipart/form-data" class="row g-2">
+      <div class="col-md-6">
+        <input type="file" name="file" class="form-control" accept=".xlsx,.csv" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-center gap-2">
+        <input type="checkbox" name="clear_existing" id="clear" value="true">
+        <label for="clear" class="mb-0">Очистить существующие</label>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-warning">Загрузить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Delete #}
+<div class="card border-danger">
+  <div class="card-header text-danger">Удалить язык</div>
+  <div class="card-body">
+    <p class="text-danger small">Удалит все слова, прогресс пользователей и статистику!</p>
+    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#deleteConfirm">Удалить</button>
+    <div class="collapse mt-2" id="deleteConfirm">
+      <form method="post" action="/admin/languages/{{ language_id }}/delete">
+        <p>Подтвердите удаление <strong>{{ lang.name_ru }}</strong>:</p>
+        <button type="submit" class="btn btn-danger">Да, удалить</button>
+        <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#deleteConfirm">Отмена</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

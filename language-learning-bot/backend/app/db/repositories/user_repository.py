@@ -23,6 +23,9 @@ class UserRepository:
         self.db = db
         self.collection = db.users
     
+    async def count(self, filters: Dict[str, Any] = None) -> int:
+        return await self.collection.count_documents(filters or {})
+
     async def create(self, user: UserCreate) -> UserInDB:
         """
         Create a new user.
@@ -33,7 +36,7 @@ class UserRepository:
         Returns:
             Created user
         """
-        user_dict = user.dict()
+        user_dict = user.model_dump()
         user_dict["created_at"] = datetime.utcnow()
         user_dict["updated_at"] = user_dict["created_at"]
         
@@ -145,7 +148,7 @@ class UserRepository:
         Returns:
             Updated user or None if not found
         """
-        user_dict = {k: v for k, v in user.dict().items() if v is not None}
+        user_dict = {k: v for k, v in user.model_dump().items() if v is not None}
         if not user_dict:
             # Nothing to update
             return await self.get_by_id(id)

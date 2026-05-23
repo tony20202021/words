@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Выбор языка{% endblock %}
+{% block content %}
+<h2 class="mb-4">Привет, {{ first_name }}! Выбери язык</h2>
+<div class="row g-3">
+  {% for lang in languages %}
+    {% set s = stats.get(lang.id, {}) %}
+    {% set pct = s.get('progress_percentage', 0) | round(1) %}
+    {% set studied = s.get('words_studied', 0) %}
+    {% set total = s.get('total_words', 0) %}
+    {% set for_today = s.get('words_for_today', 0) %}
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ lang.name_foreign }}</h5>
+          <p class="text-muted small mb-2">{{ lang.name_ru }}</p>
+          {% if total > 0 %}
+            <div class="progress progress-bar-thin mb-2">
+              <div class="progress-bar bg-success" style="width: {{ pct }}%"></div>
+            </div>
+            <div class="small text-muted mb-3">
+              Изучено: {{ studied }} / {{ total }} ({{ pct }}%)
+              {% if for_today > 0 %}
+                · <span class="text-warning fw-bold">{{ for_today }} к повторению</span>
+              {% endif %}
+            </div>
+          {% else %}
+            <p class="text-muted small mb-3">Нет данных</p>
+          {% endif %}
+          <div class="d-flex gap-2">
+            <a href="/study/{{ lang.id }}" class="btn btn-primary btn-sm">
+              {% if for_today > 0 %}Повторять ({{ for_today }}){% else %}Учить{% endif %}
+            </a>
+            <a href="/settings/{{ lang.id }}" class="btn btn-outline-secondary btn-sm">⚙️</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <p class="text-muted">Языки не найдены.</p>
+  {% endfor %}
+</div>
+{% endblock %}

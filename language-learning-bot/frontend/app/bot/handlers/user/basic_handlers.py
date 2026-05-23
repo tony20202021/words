@@ -3,6 +3,7 @@ Basic user command handlers for Language Learning Bot.
 Handles start, help, and other basic commands.
 """
 
+import os
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
@@ -131,6 +132,16 @@ async def handle_start_command(
     welcome_message += "Добро пожаловать в бот для изучения иностранных слов!\n\n"
     await message.answer(welcome_message)
 
+    from app.utils import config_holder as _ch
+    _cfg = _ch.cfg
+    _base_url = (
+        _cfg.bot.web_url
+        if _cfg and hasattr(_cfg, "bot") and hasattr(_cfg.bot, "web_url")
+        else os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+    )
+    web_url = f"{_base_url}/autologin?telegram_id={message.from_user.id}"
+    await message.answer(f"🌐 Веб-версия: {web_url}", disable_web_page_preview=True)
+
     # Get API client
     api_client = get_api_client_from_bot(bot)
     if not api_client:
@@ -193,6 +204,22 @@ async def handle_start_command(
     welcome_message = _format_welcome_message(full_name, languages, languages_with_progress)
     keyboard = create_welcome_keyboard(has_error=False)
     await message.answer(welcome_message, reply_markup=keyboard)
+
+@basic_router.message(Command("web"))
+async def cmd_web(message: Message):
+    from app.utils import config_holder
+    cfg = config_holder.cfg
+    _base_url = (
+        cfg.bot.web_url
+        if cfg and hasattr(cfg, "bot") and hasattr(cfg.bot, "web_url")
+        else os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+    )
+    web_url = f"{_base_url}/autologin?telegram_id={message.from_user.id}"
+    await message.answer(
+        f"🌐 Веб-версия бота:\n{web_url}",
+        disable_web_page_preview=True,
+    )
+
 
 @basic_router.callback_query(F.data == "retry_start")
 async def process_retry_start(callback: CallbackQuery, state: FSMContext):

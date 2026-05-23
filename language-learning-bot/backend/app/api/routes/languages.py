@@ -93,7 +93,10 @@ async def create_language(
         Created language object
     """
     logger.info(f"Creating language with data={language}")
-    return await language_service.create_language(language)
+    try:
+        return await language_service.create_language(language)
+    except ValueError as e:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.put("/{language_id}", response_model=LanguageResponse)
@@ -214,7 +217,7 @@ async def get_language_words(
 @router.get("/{language_id}/export")
 async def export_words_by_language(
     language_id: str,
-    format: str = Query("xlsx", regex="^(xlsx|csv|json)$"),
+    format: str = Query("xlsx", pattern="^(xlsx|csv|json)$"),
     start_word: Optional[int] = Query(None, ge=1),
     end_word: Optional[int] = Query(None, ge=1),
     language_service: LanguageService = Depends(get_language_service),
@@ -298,7 +301,7 @@ async def export_words_by_language(
     words_data = []
     for word in all_words:
         if hasattr(word, 'dict'):
-            word_dict = word.dict()
+            word_dict = word.model_dump()
         else:
             word_dict = dict(word) if hasattr(word, '__iter__') else word
         words_data.append(word_dict)
@@ -463,7 +466,7 @@ async def upload_words_file(
             "success": True,
             "filename": file.filename,
             "language_id": language_id,
-            "language_name": language.dict().get("name_ru", "") if hasattr(language, 'dict') else getattr(language, 'name_ru', ""),
+            "language_name": language.model_dump().get("name_ru", "") if hasattr(language, 'dict') else getattr(language, 'name_ru', ""),
             "total_words_processed": process_result["total_processed"],
             "words_added": process_result["added"],
             "words_updated": process_result["updated"],

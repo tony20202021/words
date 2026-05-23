@@ -126,35 +126,18 @@ class WordService:
         return await self.repository.create(word_create)
     
     async def update_word(self, word_id: str, word_data: Dict[str, Any]) -> Optional[WordInDB]:
-        """
-        Update a word by ID.
-        
-        Args:
-            word_id: ID of the word to update
-            word_data: Updated word data
-            
-        Returns:
-            Updated word object or None if not found
-        """
-        # Remove language_id from update data if present to prevent changing language
+        existing = await self.repository.get_by_id(word_id)
+        if not existing:
+            return None
         if "language_id" in word_data:
             del word_data["language_id"]
-        
-        # Convert Dict to Pydantic model
         word_update = WordUpdate(**word_data)
-        
         return await self.repository.update(word_id, word_update)
-    
+
     async def delete_word(self, word_id: str) -> bool:
-        """
-        Delete a word by ID.
-        
-        Args:
-            word_id: ID of the word to delete
-            
-        Returns:
-            True if deleted, False if not found
-        """
+        existing = await self.repository.get_by_id(word_id)
+        if not existing:
+            return False
         return await self.repository.delete(word_id)
     
     async def get_words_for_review(

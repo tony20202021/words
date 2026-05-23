@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Помощь{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="/languages" class="btn btn-outline-secondary btn-sm">← Назад</a>
+  <h4 class="mb-0">Помощь</h4>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem;">{{ help_text }}</pre>
+  </div>
+</div>
+{% endblock %}

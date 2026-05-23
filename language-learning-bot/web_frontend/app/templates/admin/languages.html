@@ -1,0 +1,43 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Админ — Языки{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">🌐 Языки</h4>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#createForm">+ Создать</button>
+</div>
+
+<div class="collapse mb-4" id="createForm">
+  <div class="card card-body">
+    <form method="post" action="/admin/languages/create">
+      <div class="row g-2">
+        <div class="col-md-5">
+          <input type="text" name="name_ru" class="form-control" placeholder="Название (рус)" required>
+        </div>
+        <div class="col-md-5">
+          <input type="text" name="name_foreign" class="form-control" placeholder="Название (ориг)" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-success w-100">Создать</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<table class="table table-hover">
+  <thead><tr><th>Рус</th><th>Оригинал</th><th>Слов</th><th>Активных</th><th></th></tr></thead>
+  <tbody>
+  {% for l in languages %}
+  <tr>
+    <td>{{ l.name_ru }}</td>
+    <td>{{ l.name_foreign }}</td>
+    <td>{{ l.word_count }}</td>
+    <td>{{ l.active_users }}</td>
+    <td><a href="/admin/languages/{{ l.id }}" class="btn btn-sm btn-outline-primary">Открыть</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="text-muted">Нет языков</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

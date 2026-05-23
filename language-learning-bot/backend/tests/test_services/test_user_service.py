@@ -94,14 +94,16 @@ class TestCreateUser:
 class TestUpdateUser:
     @pytest.mark.asyncio
     async def test_update_user_success(self, service, mock_user_repo):
+        user = make_user()
         updated = make_user(username="new_name")
+        mock_user_repo.get_by_id.return_value = user
         mock_user_repo.update.return_value = updated
-        result = await service.update_user("abc", UserUpdate(username="new_name"))
+        result = await service.update_user(user.id, UserUpdate(username="new_name"))
         assert result.username == "new_name"
 
     @pytest.mark.asyncio
     async def test_update_nonexistent_user_returns_none(self, service, mock_user_repo):
-        mock_user_repo.update.return_value = None
+        mock_user_repo.get_by_id.return_value = None
         result = await service.update_user("000", UserUpdate(username="x"))
         assert result is None
 
@@ -109,13 +111,15 @@ class TestUpdateUser:
 class TestDeleteUser:
     @pytest.mark.asyncio
     async def test_delete_user_success(self, service, mock_user_repo):
+        user = make_user()
+        mock_user_repo.get_by_id.return_value = user
         mock_user_repo.delete.return_value = True
-        result = await service.delete_user("abc")
+        result = await service.delete_user(user.id)
         assert result is True
-        mock_user_repo.delete.assert_called_once_with("abc")
+        mock_user_repo.delete.assert_called_once_with(user.id)
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent_user(self, service, mock_user_repo):
-        mock_user_repo.delete.return_value = False
+        mock_user_repo.get_by_id.return_value = None
         result = await service.delete_user("000")
         assert result is False

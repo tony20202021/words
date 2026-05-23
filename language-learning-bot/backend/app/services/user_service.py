@@ -61,40 +61,21 @@ class UserService:
         return await self.repository.get_by_telegram_id(telegram_id)
     
     async def create_user(self, user: UserCreate) -> UserInDB:
-        """
-        Create a new user.
-        
-        Args:
-            user: User data
-            
-        Returns:
-            Created user object
-        """
+        existing = await self.repository.get_by_telegram_id(user.telegram_id)
+        if existing:
+            raise ValueError(f"User with telegram_id {user.telegram_id} already exists")
         return await self.repository.create(user)
     
     async def update_user(self, user_id: str, user: UserUpdate) -> Optional[UserInDB]:
-        """
-        Update a user by ID.
-        
-        Args:
-            user_id: ID of the user to update
-            user: Updated user data
-            
-        Returns:
-            Updated user object or None if not found
-        """
+        existing = await self.repository.get_by_id(user_id)
+        if not existing:
+            return None
         return await self.repository.update(user_id, user)
-    
+
     async def delete_user(self, user_id: str) -> bool:
-        """
-        Delete a user by ID.
-        
-        Args:
-            user_id: ID of the user to delete
-            
-        Returns:
-            True if deleted, False if not found
-        """
+        existing = await self.repository.get_by_id(user_id)
+        if not existing:
+            return False
         return await self.repository.delete(user_id)
     
     async def get_user_languages(self, user_id: str) -> List[UserLanguage]:
@@ -123,12 +104,4 @@ class UserService:
     """
 
     async def get_users_count(self) -> int:
-        """
-        Get the total count of users in the system.
-        
-        Returns:
-            Total number of users
-        """
-        # Use collection to count documents
-        count = await self.repository.collection.count_documents({})
-        return count
+        return await self.repository.count({})

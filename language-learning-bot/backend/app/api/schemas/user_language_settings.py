@@ -82,8 +82,7 @@ class UserLanguageSettingsInDB(UserLanguageSettingsBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class UserLanguageSettings(UserLanguageSettingsBase):
@@ -94,6 +93,5 @@ class UserLanguageSettings(UserLanguageSettingsBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
         

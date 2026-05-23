@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="/languages" class="btn btn-outline-secondary btn-sm">← Назад</a>
+  <h4 class="mb-0">
+    Настройки
+    {% if language %}— {{ language.name_ru or language.name_foreign }}{% endif %}
+  </h4>
+</div>
+
+<div class="card shadow-sm">
+  <div class="list-group list-group-flush">
+    {% for s in settings %}
+    <div class="list-group-item d-flex justify-content-between align-items-center">
+      <span>{{ s.label }}</span>
+      <form method="post" action="/settings/{{ language_id }}/toggle" class="m-0">
+        <input type="hidden" name="key" value="{{ s.key }}">
+        <button type="submit"
+          class="btn btn-sm {% if s.value %}btn-success{% else %}btn-outline-secondary{% endif %}">
+          {% if s.value %}✅ Вкл{% else %}❌ Выкл{% endif %}
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+  <div class="card-header small text-muted">🔢 Числовые настройки</div>
+  <div class="list-group list-group-flush">
+    {% for s in numeric_settings %}
+    <div class="list-group-item d-flex justify-content-between align-items-center">
+      <span>{{ s.label }}</span>
+      <form method="post" action="/settings/{{ language_id }}/set" class="d-flex gap-2 align-items-center m-0">
+        <input type="hidden" name="key" value="{{ s.key }}">
+        <input type="number" name="value" value="{{ s.value }}" min="0" max="9999"
+               class="form-control form-control-sm" style="width:80px">
+        <button type="submit" class="btn btn-sm btn-outline-primary">✓</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="/study/{{ language_id }}" class="btn btn-primary">Учить</a>
+</div>
+{% endblock %}

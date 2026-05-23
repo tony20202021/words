@@ -1,0 +1,63 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Слова — {{ lang.name_ru }}{% endblock %}
+{% block admin_content %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="/admin/languages/{{ language_id }}" class="btn btn-sm btn-outline-secondary">← Язык</a>
+  <h4 class="mb-0">📝 Слова: {{ lang.name_ru }}</h4>
+  <span class="badge bg-secondary">{{ data.total }} слов</span>
+</div>
+
+{# Search by number #}
+<form method="get" action="/admin/languages/{{ language_id }}/words" class="row g-2 mb-3">
+  <div class="col-auto">
+    <input type="number" name="number" class="form-control form-control-sm" placeholder="Номер слова"
+           value="{{ search_number or '' }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-outline-primary">Найти</button>
+  </div>
+</form>
+
+{% if found_word %}
+<div class="card mb-3 border-primary">
+  <div class="card-header text-primary">Найдено: #{{ found_word.number }}</div>
+  <div class="card-body">
+    {% include "admin/_word_card.html" %}
+  </div>
+</div>
+{% elif search_number is not none %}
+<div class="alert alert-warning">Слово #{{ search_number }} не найдено.</div>
+{% endif %}
+
+{# Word list #}
+<table class="table table-sm table-hover">
+  <thead><tr><th>#</th><th>Слово</th><th>Перевод</th><th>Транскр.</th><th></th></tr></thead>
+  <tbody>
+  {% for w in data.words %}
+  <tr>
+    <td>{{ w.number }}</td>
+    <td>{{ w.foreign }}</td>
+    <td>{{ w.translation }}</td>
+    <td class="text-muted small">{{ w.transcription or '' }}</td>
+    <td>
+      <a href="/admin/languages/{{ language_id }}/words?number={{ w.number }}"
+         class="btn btn-xs btn-outline-secondary btn-sm">✏</a>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="text-muted">Нет слов</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{# Pagination #}
+<div class="d-flex gap-2 align-items-center">
+  {% if data.page > 1 %}
+  <a href="/admin/languages/{{ language_id }}/words?page={{ data.page - 1 }}" class="btn btn-sm btn-outline-secondary">←</a>
+  {% endif %}
+  <span class="small text-muted">Стр. {{ data.page }} из {{ data.total_pages }}</span>
+  {% if data.page < data.total_pages %}
+  <a href="/admin/languages/{{ language_id }}/words?page={{ data.page + 1 }}" class="btn btn-sm btn-outline-secondary">→</a>
+  {% endif %}
+</div>
+{% endblock %}

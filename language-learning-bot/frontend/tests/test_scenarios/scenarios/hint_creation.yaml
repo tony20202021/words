@@ -50,7 +50,7 @@ steps:
         text: "Слово номер"
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", StudyStates:studying]
       # Проверяем клавиатуру подсказок

@@ -48,7 +48,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 21
+        count: 24
 
   # Включаем отладочный режим для просмотра интервалов
   - type: callback
@@ -67,7 +67,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 21
+        count: 24
 
   # Начинаем изучение
   - type: command
@@ -75,7 +75,7 @@ steps:
     asserts:
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", "StudyStates:studying"]
       - type: keyboard_contains
@@ -110,7 +110,7 @@ steps:
         text: "Слово номер"
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", "StudyStates:studying"]
       - type: keyboard_contains
@@ -151,6 +151,6 @@ steps:
         text: "Слово номер"
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", "StudyStates:studying"]

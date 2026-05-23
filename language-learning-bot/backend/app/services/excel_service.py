@@ -143,7 +143,7 @@ class ExcelService:
                         result["updated"] += 1
                     else:
                         # Create new word
-                        await self.word_service.create_word(word_data.dict())
+                        await self.word_service.create_word(word_data.model_dump())
                         result["added"] += 1
                     
                 except Exception as e:

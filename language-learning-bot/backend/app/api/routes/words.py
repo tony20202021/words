@@ -68,7 +68,7 @@ async def create_word(
     """
     logger.info(f"Creating word with data={word}")
     try:
-        return await word_service.create_word(word.dict())
+        return await word_service.create_word(word.model_dump())
     except ValueError as e:
         logger.warning(f"Error creating word: {str(e)}")
         raise HTTPException(
@@ -98,7 +98,7 @@ async def update_word(
         HTTPException: If word not found
     """
     logger.info(f"Updating word with id={word_id}, data={word}")
-    updated_word = await word_service.update_word(word_id, word.dict())
+    updated_word = await word_service.update_word(word_id, word.model_dump())
     if not updated_word:
         logger.warning(f"Word with id={word_id} not found for update")
         raise HTTPException(

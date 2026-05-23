@@ -133,10 +133,13 @@ class StatisticsService:
         """
         return await self.repository.create(user_id, statistics)
     
+    async def delete_user_word_statistics(self, user_id: str, word_id: str) -> bool:
+        return await self.repository.delete(user_id, word_id)
+
     async def update_user_word_statistics(
-        self, 
-        user_id: str, 
-        word_id: str, 
+        self,
+        user_id: str,
+        word_id: str,
         statistics: UserStatisticsUpdate
     ) -> Optional[UserStatisticsInDB]:
         """
@@ -504,7 +507,7 @@ class StatisticsService:
             Updated daily statistics
         """
         logger.info(f"Updating daily statistics for user_id={user_id}, language_id={language_id}, "
-                   f"date={date}, updates={stats_update.dict()}")
+                   f"date={date}, updates={stats_update.model_dump()}")
         
         return await self.repository.create_or_update_daily_stats(
             user_id, language_id, date, stats_update, type

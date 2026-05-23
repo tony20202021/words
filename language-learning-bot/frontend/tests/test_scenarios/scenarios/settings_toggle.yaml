@@ -51,7 +51,7 @@ steps:
       - type: keyboard_contains
         button_text: "✅ Учитывать дату"
       - type: keyboard_button_count
-        count: 21
+        count: 24
 
   # Шаг 5: Переключаем настройку пропуска помеченных слов
   - type: callback

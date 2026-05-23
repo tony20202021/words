@@ -1,0 +1,13 @@
+<div class="card shadow text-center py-5" id="word-area">
+  <div class="card-body">
+    <div class="display-1 mb-3">🎉</div>
+    <h3 class="mb-2">Сессия завершена!</h3>
+    {% if progress %}
+      <p class="text-muted">Обработано слов: {{ progress.get('total_words_processed', 0) }}</p>
+    {% endif %}
+    <div class="d-flex gap-3 justify-content-center mt-4">
+      <a href="/study/{{ language_id }}" class="btn btn-primary">Ещё раз</a>
+      <a href="/languages" class="btn btn-outline-secondary">К языкам</a>
+    </div>
+  </div>
+</div>

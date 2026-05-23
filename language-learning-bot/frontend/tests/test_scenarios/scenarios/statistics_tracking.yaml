@@ -93,7 +93,7 @@ steps:
         text: "Слово номер: <b>11</b>"
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", "StudyStates:studying"]
         #  TODO перечислить все кнопки
@@ -108,7 +108,7 @@ steps:
         position: -1
         text: "Слово номер: <b>11</b>"
       - type: message_contains
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", "StudyStates:viewing_word_details"]
         #  TODO перечислить все кнопки

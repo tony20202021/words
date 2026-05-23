@@ -4,7 +4,7 @@ Models related to user statistics.
 
 from typing import Optional, List, Tuple
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class UserStatisticsBase(BaseModel):
     """Base model for user statistics."""
@@ -50,26 +50,7 @@ class UserStatisticsInDB(UserStatisticsBase):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True  # Updated from orm_mode to from_attributes
-        json_schema_extra = {   # Updated from schema_extra to json_schema_extra
-            "example": {
-                "id": "5f9b3b3b9c9d440000b3b3b3",
-                "user_id": "5f9b3b3b9c9d440000b3b3b3",
-                "word_id": "5f9b3b3b9c9d440000b3b3b3",
-                "language_id": "5f9b3b3b9c9d440000b3b3b3",
-                "hint_phoneticsound": "бон-жур",
-                "hint_phoneticassociation": "бонус за журнал",
-                "hint_meaning": "приветствие при встрече",
-                "hint_writing": None,
-                "score": 1,
-                "is_skipped": False,
-                "next_check_date": "2020-11-05T00:00:00",
-                "check_interval": 4,
-                "created_at": "2020-10-29T12:00:00",
-                "updated_at": "2020-10-29T12:00:00"
-            }
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 class UserStatistics(UserStatisticsInDB):
     """Response model for user statistics."""
@@ -142,23 +123,7 @@ class UserDailyStatsInDB(UserDailyStatsBase):
     updated_at: datetime = Field(..., description="Last update timestamp")
     type: str = Field(..., description="Type of statistics")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "5f9b3b3b9c9d440000b3b3b3",
-                "user_id": "5f9b3b3b9c9d440000b3b3b3",
-                "language_id": "5f9b3b3b9c9d440000b3b3b3",
-                "date": "2023-04-15T00:00:00",
-                "words_studied": 10,
-                "words_known": 3,
-                "words_skipped": 7,
-                "words_for_today": 10,
-                "created_at": "2023-04-15T12:00:00",
-                "updated_at": "2023-04-15T12:00:00",
-                "type": "daily"
-            }
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 class UserMonthlyStats(BaseModel):
     """Model for user monthly stats aggregation."""

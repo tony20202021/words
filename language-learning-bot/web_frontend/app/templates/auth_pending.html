@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Ожидание подтверждения{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-body p-4 text-center">
+        <h4 class="card-title mb-3">Подтвердите вход</h4>
+
+        {% if message_sent %}
+          <p class="text-muted mb-4">
+            Мы отправили сообщение в Telegram.<br>
+            Нажмите <strong>✅ Да</strong> в боте, чтобы войти.
+          </p>
+        {% else %}
+          <div class="alert alert-warning text-start">
+            Не удалось отправить сообщение в Telegram.<br>
+            Убедитесь, что вы написали боту хотя бы одно сообщение, и
+            <a href="/login">попробуйте снова</a>.
+          </div>
+        {% endif %}
+
+        <div
+          id="auth-status"
+          hx-get="/auth/poll?token={{ token }}"
+          hx-trigger="every 2s"
+          hx-swap="outerHTML">
+          <div class="d-flex align-items-center justify-content-center gap-2 text-muted">
+            <div class="spinner-border spinner-border-sm"></div>
+            Ожидание подтверждения в Telegram…
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <a href="/login" class="text-muted small">Отмена</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

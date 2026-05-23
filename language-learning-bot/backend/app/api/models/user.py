@@ -4,7 +4,7 @@ Models related to users.
 
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class UserBase(BaseModel):
     """Base model for user."""
@@ -31,20 +31,7 @@ class UserInDB(UserBase):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True  # Updated from orm_mode to from_attributes
-        json_schema_extra = {   # Updated from schema_extra to json_schema_extra
-            "example": {
-                "id": "5f9b3b3b9c9d440000b3b3b3",
-                "telegram_id": 123456789,
-                "username": "john_doe",
-                "first_name": "John",
-                "last_name": "Doe",
-                "is_admin": False,
-                "created_at": "2020-10-29T12:00:00",
-                "updated_at": "2020-10-29T12:00:00"
-            }
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 class User(UserInDB):
     """Response model for user."""

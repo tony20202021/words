@@ -250,7 +250,7 @@ async def toggle_hint_setting(
         return {
             "success": True,
             "status": 200,
-            "result": settings.dict(),
+            "result": settings.model_dump(),
             "error": None
         }
         
@@ -354,7 +354,7 @@ async def update_multiple_hint_settings(
         return {
             "success": True,
             "status": 200,
-            "result": updated_settings.dict(),
+            "result": updated_settings.model_dump(),
             "error": None
         }
         

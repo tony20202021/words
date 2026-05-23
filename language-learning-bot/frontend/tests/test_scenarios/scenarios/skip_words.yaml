@@ -53,7 +53,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 21
+        count: 24
 
   - type: callback
     data: CallbackData.SETTINGS_TOGGLE_SKIP_MARKED
@@ -73,7 +73,7 @@ steps:
       - type: keyboard_contains
         button_text: "Отладочная информация"
       - type: keyboard_button_count
-        count: 21
+        count: 24
 
   # Начинаем изучение
   - type: command
@@ -90,7 +90,7 @@ steps:
         text: "Слово номер: <b>10</b>"
       - type: message_contains
         position: -1
-        text: "Слово на русском"
+        text: "Слово номер"
       - type: state_contains
         data: ["_state", StudyStates:studying]
         #  TODO перечислить все кнопки

@@ -28,6 +28,11 @@ commands:
     description: "Показать текущее слово крупно"
   - command: "admin"
     description: "Режим администратора"
+  - command: "web"
+    description: "Открыть веб-версию"
+
+# URL веб-сервиса
+web_url: "http://136.244.102.39:8800"
 
 # Настройки для администраторов
 admin:

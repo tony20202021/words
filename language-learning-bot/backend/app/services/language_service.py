@@ -70,40 +70,21 @@ class LanguageService:
         return await self.language_repository.get_by_id(language_id)
     
     async def create_language(self, language: LanguageCreate) -> LanguageInDB:
-        """
-        Create a new language.
-        
-        Args:
-            language: Language data
-            
-        Returns:
-            Created language object
-        """
+        existing = await self.language_repository.get_by_name_ru(language.name_ru)
+        if existing:
+            raise ValueError(f"Language '{language.name_ru}' already exists")
         return await self.language_repository.create(language)
-    
+
     async def update_language(self, language_id: str, language: LanguageUpdate) -> Optional[LanguageInDB]:
-        """
-        Update a language by ID.
-        
-        Args:
-            language_id: ID of the language to update
-            language: Updated language data
-            
-        Returns:
-            Updated language object or None if not found
-        """
+        existing = await self.language_repository.get_by_id(language_id)
+        if not existing:
+            return None
         return await self.language_repository.update(language_id, language)
-    
+
     async def delete_language(self, language_id: str) -> bool:
-        """
-        Delete a language by ID.
-        
-        Args:
-            language_id: ID of the language to delete
-            
-        Returns:
-            True if deleted, False if not found
-        """
+        existing = await self.language_repository.get_by_id(language_id)
+        if not existing:
+            return False
         return await self.language_repository.delete(language_id)
     
     async def delete_all_words_for_language(self, language_id: str) -> int:
@@ -202,7 +183,7 @@ class LanguageService:
         ]
         
         # Convert language to Language model with word_count
-        language_dict = language.dict()
+        language_dict = language.model_dump()
         language_dict["word_count"] = await self.word_repository.collection.count_documents({"language_id": language_id})
         
         return Language(**language_dict)

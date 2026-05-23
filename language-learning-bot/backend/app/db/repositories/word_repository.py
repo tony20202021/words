@@ -37,7 +37,7 @@ class WordRepository:
         Returns:
             Created word
         """
-        word_dict = word.dict()
+        word_dict = word.model_dump()
         
         # Convert language_id from string to ObjectId
         if "language_id" in word_dict and isinstance(word_dict["language_id"], str):
@@ -251,7 +251,7 @@ class WordRepository:
         Returns:
             Updated word or None if not found
         """
-        word_dict = {k: v for k, v in word.dict().items() if v is not None}
+        word_dict = {k: v for k, v in word.model_dump().items() if v is not None}
         if not word_dict:
             # Nothing to update
             return await self.get_by_id(id)

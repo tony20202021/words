@@ -73,7 +73,7 @@ def run_frontend_tests(args):
     
     # Проверяем наличие директории с тестами
     tests_dir = Path("tests")
-    if not tests_dir.exists() or not list(tests_dir.glob("test_*.py")):
+    if not tests_dir.exists() or not list(tests_dir.rglob("test_*.py")):
         print("⚠️ No test files found in frontend/tests directory!")
         print("✅ Frontend tests: No tests to run!")
         return 0
@@ -131,7 +131,7 @@ def run_backend_tests(args):
     
     # Проверяем наличие директории с тестами
     tests_dir = Path("tests")
-    if not tests_dir.exists() or not list(tests_dir.glob("test_*.py")):
+    if not tests_dir.exists() or not list(tests_dir.rglob("test_*.py")):
         print("⚠️ No test files found in backend/tests directory!")
         print("✅ Backend tests: No tests to run!")
         return 0
@@ -195,7 +195,7 @@ def run_common_tests(args):
         tests_dir.mkdir(exist_ok=True)
         print(f"📁 Created tests directory: {tests_dir}")
     
-    if not list(tests_dir.glob("test_*.py")):
+    if not list(tests_dir.rglob("test_*.py")):
         print("⚠️ No test files found in common/tests directory!")
         print("✅ Common tests: No tests to run!")
         return 0
@@ -254,7 +254,7 @@ def run_writing_service_tests(args):
     
     # Проверяем наличие директории с тестами
     tests_dir = Path("tests")
-    if not tests_dir.exists() or not list(tests_dir.glob("test_*.py")):
+    if not tests_dir.exists() or not list(tests_dir.rglob("test_*.py")):
         print("⚠️ No test files found in writing_service/tests directory!")
         print("✅ Writing service tests: No tests to run!")
         return 0

@@ -43,12 +43,7 @@ class WordResponse(WordBase):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     
-    class Config:
-        """Pydantic configuration."""
-        orm_mode = True
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat()
-        }
+    model_config = {"from_attributes": True}
 
 
 class WordWithLanguageResponse(WordResponse):

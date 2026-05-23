@@ -49,7 +49,7 @@ class StatisticsRepository:
         Returns:
             Created statistics
         """
-        statistics_dict = statistics.dict()
+        statistics_dict = statistics.model_dump()
         statistics_dict["user_id"] = user_id
         
         # Convert IDs from string to ObjectId for MongoDB
@@ -489,7 +489,7 @@ class StatisticsRepository:
         Returns:
             Updated statistics or None if not found
         """
-        statistics_dict = {k: v for k, v in statistics.dict().items() if v is not None}
+        statistics_dict = {k: v for k, v in statistics.model_dump().items() if v is not None}
         if not statistics_dict:
             # Nothing to update
             return await self.get_by_id(id)
@@ -523,7 +523,7 @@ class StatisticsRepository:
         Returns:
             Updated statistics or None if not found
         """
-        statistics_dict = {k: v for k, v in statistics.dict().items() if v is not None}
+        statistics_dict = {k: v for k, v in statistics.model_dump().items() if v is not None}
         if not statistics_dict:
             # Nothing to update
             return await self.get_by_user_and_word(user_id, word_id)
@@ -857,7 +857,7 @@ class StatisticsRepository:
         
         if existing_stats:
             # ✅ Запись существует - просто обновляем
-            update_data = {k: v for k, v in stats_update.dict().items() if v is not None}
+            update_data = {k: v for k, v in stats_update.model_dump().items() if v is not None}
             update_data["updated_at"] = datetime.utcnow()
             
             await self.daily_stats_collection.update_one(
@@ -886,7 +886,7 @@ class StatisticsRepository:
             }
             
             # Применяем переданные обновления
-            update_data = {k: v for k, v in stats_update.dict().items() if v is not None}
+            update_data = {k: v for k, v in stats_update.model_dump().items() if v is not None}
             new_stats.update(update_data)
             
             result = await self.daily_stats_collection.insert_one(new_stats)

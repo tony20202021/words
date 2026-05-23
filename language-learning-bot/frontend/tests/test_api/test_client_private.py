@@ -182,8 +182,8 @@ class TestBareExceptRegression:
         mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
         mock_response.__aexit__ = mock.AsyncMock(return_value=False)
 
-        mock_session = mock.AsyncMock()
-        mock_session.get.return_value = mock_response
+        mock_session = mock.MagicMock()
+        mock_session.get = mock.MagicMock(return_value=mock_response)
         mock_session.__aenter__ = mock.AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = mock.AsyncMock(return_value=False)
 
@@ -205,8 +205,8 @@ class TestBareExceptRegression:
         mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
         mock_response.__aexit__ = mock.AsyncMock(return_value=False)
 
-        mock_session = mock.AsyncMock()
-        mock_session.get.return_value = mock_response
+        mock_session = mock.MagicMock()
+        mock_session.get = mock.MagicMock(return_value=mock_response)
         mock_session.__aenter__ = mock.AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = mock.AsyncMock(return_value=False)
 

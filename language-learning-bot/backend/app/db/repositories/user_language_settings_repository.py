@@ -89,7 +89,7 @@ class UserLanguageSettingsRepository:
 
         # Prepare the document for insertion
         now = datetime.now()
-        settings_dict = settings.dict()
+        settings_dict = settings.model_dump()
         
         document = {
             "user_id": user_id_obj,
@@ -186,7 +186,7 @@ class UserLanguageSettingsRepository:
             
             # Get default values for fields not specified in update
             default_settings = UserLanguageSettingsCreate()
-            default_dict = default_settings.dict()
+            default_dict = default_settings.model_dump()
             
             # Merge default values with update values
             create_dict = {**default_dict, **settings_dict}

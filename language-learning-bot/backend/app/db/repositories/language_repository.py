@@ -33,7 +33,7 @@ class LanguageRepository:
         Returns:
             Created language
         """
-        language_dict = language.dict()
+        language_dict = language.model_dump()
         language_dict["created_at"] = datetime.utcnow()
         language_dict["updated_at"] = language_dict["created_at"]
         
@@ -150,7 +150,7 @@ class LanguageRepository:
         Returns:
             Updated language or None if not found
         """
-        language_dict = {k: v for k, v in language.dict().items() if v is not None}
+        language_dict = {k: v for k, v in language.model_dump().items() if v is not None}
         if not language_dict:
             # Nothing to update
             return await self.get_by_id(id)

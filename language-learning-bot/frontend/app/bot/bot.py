@@ -11,6 +11,7 @@ BOT_COMMANDS = [
     {"command": "help", "description": "Получить справку"},
     {"command": "stats", "description": "Показать статистику"},
     {"command": "admin", "description": "Режим администратора"},
+    {"command": "web", "description": "Открыть веб-версию"},
 ]
 
 class BotManager:

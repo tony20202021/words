@@ -1,0 +1,29 @@
+{% set w = found_word %}
+<div class="row g-2">
+  {% for field, label in field_labels.items() %}
+  <div class="col-12">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small" style="min-width:140px">{{ label }}:</span>
+      <strong>{{ w.get(field, '') or '—' }}</strong>
+      <button class="btn btn-xs btn-outline-secondary btn-sm ms-auto"
+              data-bs-toggle="collapse" data-bs-target="#edit_{{ field }}_{{ w.id }}">✏</button>
+    </div>
+    <div class="collapse mt-1" id="edit_{{ field }}_{{ w.id }}">
+      <form method="post" action="/admin/words/{{ w.id }}/update" class="d-flex gap-2">
+        <input type="hidden" name="language_id" value="{{ language_id }}">
+        <input type="hidden" name="field" value="{{ field }}">
+        <input type="text" name="value" class="form-control form-control-sm"
+               value="{{ w.get(field, '') or '' }}">
+        <button type="submit" class="btn btn-sm btn-success">✓</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="col-12 mt-2">
+    <form method="post" action="/admin/words/{{ w.id }}/delete"
+          onsubmit="return confirm('Удалить слово #{{ w.number }}?')">
+      <input type="hidden" name="language_id" value="{{ language_id }}">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Удалить слово</button>
+    </form>
+  </div>
+</div>

@@ -162,76 +162,113 @@ class TestMain:
     async def test_on_startup(self):
         """
         Проверка успешного запуска и регистрации команд бота.
+        После рефакторинга: on_startup НЕ вызывает setup_middleware/register_all_handlers.
         """
-        # Создаем моки для основных объектов
         mock_bot = MagicMock(spec=Bot)
         mock_dp = MagicMock(spec=Dispatcher)
         mock_bot_manager = AsyncMock()
         mock_api_client = MagicMock(spec=APIClient)
-        
-        # Создаем моки для logger и cfg
-        mock_logger = MagicMock()
         mock_cfg = MagicMock()
 
         health_status = {
-            "bot": True,  # Если мы дошли до этой точки, бот работает
             "api_connection": True,
             "database": True,
-            "admin_notification_sent": False
+            "admin_notification_sent": False,
         }
-        
-        # Определяем функцию для получения ID администраторов из конфигурации
-        def get_admin_ids_from_config(cfg):
-            return []
-        
-        # Настраиваем мок диспетчера
+
         mock_dp.get.return_value = mock_bot_manager
-        
-        # Патчим все необходимые зависимости
+
         with patch.object(app.main_frontend, 'get_api_client_from_bot', return_value=mock_api_client), \
-            patch('app.main_frontend.check_system_health', return_value=health_status), \
-            patch('app.main_frontend.register_all_handlers') as mock_register_handlers, \
-            patch('app.main_frontend.setup_middleware') as mock_setup_middleware, \
-            patch('app.main_frontend.logger', mock_logger), \
-            patch.object(app.main_frontend, 'cfg', mock_cfg), \
-            patch('app.main_frontend.get_admin_ids_from_config', return_value=[]):
-            
-            # Вызываем тестируемую функцию
+             patch('app.main_frontend.check_system_health', return_value=health_status), \
+             patch('app.main_frontend.register_all_handlers') as mock_register_handlers, \
+             patch('app.main_frontend.setup_middleware') as mock_setup_middleware, \
+             patch.object(app.main_frontend, 'cfg', mock_cfg), \
+             patch('app.main_frontend.get_admin_ids_from_config', return_value=[]):
+
             await app.main_frontend.on_startup(mock_dp, mock_bot)
-            
-            # Проверяем, что setup_commands был вызван
-            mock_bot_manager.setup_commands.assert_awaited_once()
-            
-            # Проверяем, что register_all_handlers был вызван с правильным параметром
-            mock_register_handlers.assert_called_once_with(mock_dp)
-            
-            # Проверяем, что диспетчер вызвал get для получения bot_manager
+
+            # setup_middleware и register_all_handlers теперь вызываются из main(), не отсюда
+            mock_setup_middleware.assert_not_called()
+            mock_register_handlers.assert_not_called()
+
+            # bot_manager.setup_commands вызывается из on_startup
             mock_dp.get.assert_called_with('bot_manager')
-            
-            # Проверяем логирование
-            mock_logger.info.assert_any_call("🚀 Starting Language Learning Bot...")
-            mock_logger.info.assert_any_call("✅ API client found successfully")
-            mock_logger.info.assert_any_call("✅ All systems operational")
-            mock_logger.info.assert_any_call("✅ Bot commands configured")
-            mock_logger.info.assert_any_call("🎉 Bot started successfully!")
-                        
+            mock_bot_manager.setup_commands.assert_awaited_once()
+
     @pytest.mark.asyncio
-    async def test_on_shutdown_successful(self):
-        """
-        Проверка корректного завершения работы.
-        """
-        # Создаем мок диспетчера
+    async def test_on_shutdown_sends_notification_to_admins(self):
+        """Bot инжектируется как параметр — inspect.currentframe() больше не используется."""
         mock_dp = MagicMock(spec=Dispatcher)
-        
-        # Патчим логгер
-        with patch('app.main_frontend.logger.info') as mock_logger_info:
-            # Вызываем on_shutdown
-            await app.main_frontend.on_shutdown(mock_dp)
-            
-            # Проверяем, что были залогированы сообщения о начале и успешном завершении
-            assert mock_logger_info.call_count == 5
-            mock_logger_info.assert_any_call("🛑 Shutting down bot...")
-            mock_logger_info.assert_any_call("🏁 Bot stopped successfully!")
+        mock_bot = AsyncMock(spec=Bot)
+        mock_cfg = MagicMock()
+
+        with patch('app.main_frontend.get_admin_ids_from_config', return_value=[111, 222]), \
+             patch.object(app.main_frontend, 'cfg', mock_cfg):
+
+            await app.main_frontend.on_shutdown(mock_dp, mock_bot)
+
+        assert mock_bot.send_message.await_count == 2
+        calls = [c.args[0] for c in mock_bot.send_message.await_args_list]
+        assert 111 in calls
+        assert 222 in calls
+
+    @pytest.mark.asyncio
+    async def test_on_shutdown_no_admins(self):
+        """Если администраторов нет — send_message не вызывается."""
+        mock_dp = MagicMock(spec=Dispatcher)
+        mock_bot = AsyncMock(spec=Bot)
+        mock_cfg = MagicMock()
+
+        with patch('app.main_frontend.get_admin_ids_from_config', return_value=[]), \
+             patch.object(app.main_frontend, 'cfg', mock_cfg):
+
+            await app.main_frontend.on_shutdown(mock_dp, mock_bot)
+
+        mock_bot.send_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_main_registers_middleware_before_polling(self):
+        """setup_middleware и register_all_handlers вызываются до dp.start_polling()."""
+        mock_cfg = MagicMock()
+        mock_cfg.bot.token = "fake_token"
+        mock_cfg.bot.skip_updates = False
+        mock_cfg.api.base_url = "http://localhost:8500"
+        mock_cfg.api.timeout = 5
+        mock_cfg.api.retry_count = 3
+        mock_cfg.api.prefix = "/api"
+
+        mock_bot = MagicMock()
+        mock_dp = MagicMock()
+        call_order = []
+
+        async def fake_setup_middleware(dp):
+            call_order.append("setup_middleware")
+
+        def fake_register_handlers(dp):
+            call_order.append("register_all_handlers")
+
+        async def fake_start_polling(*args, **kwargs):
+            call_order.append("start_polling")
+
+        mock_dp.start_polling = fake_start_polling
+
+        with patch('app.main_frontend.Bot', return_value=mock_bot), \
+             patch('app.main_frontend.Dispatcher', return_value=mock_dp), \
+             patch('app.main_frontend.MemoryStorage'), \
+             patch('app.main_frontend.APIClient'), \
+             patch('app.main_frontend.BotManager'), \
+             patch('app.main_frontend.store_api_client'), \
+             patch('app.main_frontend.setup_middleware', side_effect=fake_setup_middleware), \
+             patch('app.main_frontend.register_all_handlers', side_effect=fake_register_handlers), \
+             patch('app.main_frontend.load_secrets', return_value=True), \
+             patch('app.main_frontend.validate_configuration', return_value=True), \
+             patch.object(app.main_frontend, 'cfg', mock_cfg), \
+             patch('sys.exit'):
+
+            await app.main_frontend.main()
+
+        assert call_order.index("setup_middleware") < call_order.index("start_polling")
+        assert call_order.index("register_all_handlers") < call_order.index("start_polling")
 
 
     @pytest.mark.asyncio

@@ -1,0 +1,27 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Рассылка{% endblock %}
+{% block admin_content %}
+<h4 class="mb-4">📢 Рассылка сообщений</h4>
+
+{% if done %}
+<div class="alert {% if sent > 0 %}alert-success{% else %}alert-warning{% endif %}">
+  Отправлено: <strong>{{ sent }}</strong>
+  {% if errors %}
+  <ul class="mt-2 mb-0 small">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="/admin/broadcast/send">
+      <div class="mb-3">
+        <label class="form-label">Текст сообщения</label>
+        <textarea name="text" class="form-control" rows="6" required placeholder="Введите текст..."></textarea>
+      </div>
+      <p class="text-muted small">Сообщение будет отправлено всем пользователям через Telegram Bot API.</p>
+      <button type="submit" class="btn btn-primary">Отправить</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

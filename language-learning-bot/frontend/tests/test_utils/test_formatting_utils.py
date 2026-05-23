@@ -82,7 +82,8 @@ class TestFormatSettingsText:
 
 class TestFormatStudyWordMessage:
     
-    def test_format_study_word_message_without_showing_word(self):
+    @pytest.mark.asyncio
+    async def test_format_study_word_message_without_showing_word(self):
         # Setup
         language_name_ru = "Английский"
         language_name_foreign = "English"
@@ -96,23 +97,25 @@ class TestFormatStudyWordMessage:
         show_word = False
         word_foreign = "Book"
         transcription = "bʊk"
-        
+
         # Execute
-        result = format_study_word_message(
+        result = await format_study_word_message(
             language_name_ru, language_name_foreign, word_number, translation,
             is_skipped, score, check_interval, next_check_date,
             score_changed, show_word, word_foreign, transcription
         )
         
-        # Verify
+        # Verify — header always present
         assert any([language_name_ru in r["text"] for r in result])
         assert any([language_name_foreign in r["text"] for r in result])
         assert any([str(word_number) in r["text"] for r in result])
-        assert any([translation in r["text"] for r in result])
-        assert any([word_foreign not in r["text"] for r in result])  # Слово не должно показываться
-        assert any([transcription not in r["text"] for r in result])  # Транскрипция не должна показываться
+        # With show_word=False and random hints, only one element is shown randomly —
+        # foreign word must never leak (the word being tested stays hidden).
+        all_text = " ".join(r["text"] for r in result)
+        assert word_foreign not in all_text
     
-    def test_format_study_word_message_with_showing_word(self):
+    @pytest.mark.asyncio
+    async def test_format_study_word_message_with_showing_word(self):
         # Setup
         language_name_ru = "Английский"
         language_name_foreign = "English"
@@ -128,7 +131,7 @@ class TestFormatStudyWordMessage:
         transcription = "bʊk"
 
         # Execute
-        result = format_study_word_message(
+        result = await format_study_word_message(
             language_name_ru, language_name_foreign, word_number, translation,
             is_skipped, score, check_interval, next_check_date, score_changed,
             show_word, 

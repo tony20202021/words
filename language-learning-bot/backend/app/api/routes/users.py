@@ -6,7 +6,7 @@ This module contains all the API endpoints for managing users in the system.
 from typing import List, Optional
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_201_CREATED
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 
 from app.api.models.user import UserCreate, UserUpdate, User, UserInDB, UserLanguage
 from app.services.user_service import UserService
@@ -114,7 +114,10 @@ async def create_user(
         Created user object
     """
     logger.info(f"Creating user with data={user}")
-    return await user_service.create_user(user)
+    try:
+        return await user_service.create_user(user)
+    except ValueError as e:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.put("/{user_id}", response_model=UserInDB)

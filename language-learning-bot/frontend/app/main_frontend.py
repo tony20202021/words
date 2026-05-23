@@ -320,12 +320,6 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot) -> None:
             bot, health_status, admin_ids
         )
     
-    # Настройка middleware
-    await setup_middleware(dispatcher)
-    
-    # Register all handlers
-    register_all_handlers(dispatcher)
-    
     # Настройка команд бота через BotManager
     bot_manager = dispatcher.get("bot_manager")
     if bot_manager:
@@ -341,55 +335,34 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot) -> None:
     logger.info("🎉 Bot started successfully!")
     logger.info("=" * 50)
 
-async def on_shutdown(dispatcher: Dispatcher) -> None:
+async def on_shutdown(dispatcher: Dispatcher, bot: Bot) -> None:
     """
     Execute actions on application shutdown.
-    Enhanced with cleanup and admin notifications.
-    
+
     Args:
         dispatcher: Aiogram dispatcher
+        bot: Aiogram bot instance (injected by aiogram)
     """
     logger.info("=" * 30)
     logger.info("🛑 Shutting down bot...")
     logger.info("=" * 30)
-    
-    # Уведомляем администраторов об остановке
+
     try:
         admin_ids = get_admin_ids_from_config(cfg)
         if admin_ids:
-            # Попробуем получить бот из диспетчера или глобального контекста
-            bot = dispatcher.get("bot")
-            if not bot:
-                # Fallback - попробуем получить из глобальных переменных
-                import inspect
-                frame = inspect.currentframe()
+            shutdown_message = (
+                f"🛑 **Бот остановлен**\n\n"
+                f"Время остановки: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            for admin_id in admin_ids:
                 try:
-                    while frame:
-                        if 'bot' in frame.f_locals:
-                            bot = frame.f_locals['bot']
-                            break
-                        frame = frame.f_back
-                finally:
-                    del frame
-            
-            if bot:
-                shutdown_message = (
-                    f"🛑 **Бот остановлен**\n\n"
-                    f"Время остановки: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-                
-                for admin_id in admin_ids:
-                    try:
-                        await bot.send_message(admin_id, shutdown_message, parse_mode="Markdown")
-                        logger.info(f"✅ Shutdown notification sent to admin {admin_id}")
-                    except Exception as e:
-                        logger.error(f"❌ Failed to send shutdown notification to admin {admin_id}: {e}")
-            else:
-                logger.warning("⚠️ Bot instance not available for shutdown notifications")
-                
+                    await bot.send_message(admin_id, shutdown_message, parse_mode="Markdown")
+                    logger.info(f"✅ Shutdown notification sent to admin {admin_id}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to send shutdown notification to admin {admin_id}: {e}")
     except Exception as e:
         logger.error(f"Error during admin shutdown notification: {e}")
-    
+
     logger.info("🏁 Bot stopped successfully!")
 
 def load_secrets(cfg, path):
@@ -520,10 +493,15 @@ async def main() -> None:
         # Связываем диспетчера с ботом для возможности доступа к диспетчеру через бот
         setattr(bot, "dispatcher", dp)
         
+        # Настройка middleware и хендлеров до старта поллинга
+        await setup_middleware(dp)
+        register_all_handlers(dp)
+        logger.info("✅ Middleware and handlers registered")
+
         # Регистрация обработчиков для запуска и остановки
         dp.startup.register(on_startup)
         dp.shutdown.register(on_shutdown)
-        
+
         logger.info("✅ Startup and shutdown handlers registered")
         logger.info("🔄 Starting polling...")
         

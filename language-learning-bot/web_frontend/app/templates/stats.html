@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Статистика{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="/languages" class="btn btn-outline-secondary btn-sm">← Назад</a>
+  <h4 class="mb-0">Статистика</h4>
+</div>
+
+{% if not stats_list %}
+  <p class="text-muted">Нет данных — начните изучение языка.</p>
+{% else %}
+  {% for item in stats_list %}
+    {% set lang = item.language %}
+    {% set s = item.stats %}
+    {% set pct = s.get('progress_percentage', 0) | round(1) %}
+    {% set studied = s.get('words_studied', 0) %}
+    {% set known = s.get('words_known', 0) %}
+    {% set skipped = s.get('words_skipped', 0) %}
+    {% set total = s.get('total_words', 0) %}
+    {% set for_today = s.get('words_for_today', 0) %}
+    {% set pct_known = ((known / studied * 100) | round(1)) if studied > 0 else 0 %}
+    {% set lang_id = lang.id %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h5 class="mb-0">{{ lang.name_foreign }}</h5>
+            <small class="text-muted">{{ lang.name_ru }}</small>
+          </div>
+          {% if for_today > 0 %}
+            <span class="badge bg-warning text-dark">{{ for_today }} к повторению</span>
+          {% endif %}
+        </div>
+        {% if total > 0 %}
+          <div class="progress progress-bar-thin mb-2">
+            <div class="progress-bar bg-success" style="width: {{ pct }}%"></div>
+          </div>
+        {% endif %}
+        <div class="row text-center small text-muted">
+          <div class="col">
+            <div class="fw-bold fs-5 text-dark">{{ studied }}</div>
+            изучено
+          </div>
+          <div class="col">
+            <div class="fw-bold fs-5 text-success">{{ known }}</div>
+            знаю
+          </div>
+          <div class="col">
+            <div class="fw-bold fs-5 text-secondary">{{ total }}</div>
+            всего
+          </div>
+          <div class="col">
+            <div class="fw-bold fs-5 text-primary">{{ pct }}%</div>
+            прогресс
+          </div>
+        </div>
+        {% if studied > 0 %}
+        <div class="mt-2 small text-muted">
+          Прогресс известно/изучено: <strong>{{ pct_known }}%</strong>
+          &nbsp;·&nbsp; Пропущено: <strong>{{ skipped }}</strong>
+        </div>
+        {% endif %}
+        <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
+          <a href="/study/{{ lang_id }}" class="btn btn-primary btn-sm">Учить</a>
+          <a href="/settings/{{ lang_id }}" class="btn btn-outline-secondary btn-sm">⚙️</a>
+          {% if studied > 0 %}
+            <button class="btn btn-outline-info btn-sm" type="button"
+              data-bs-toggle="collapse" data-bs-target="#charts-{{ lang_id }}"
+              aria-expanded="false">
+              📊 Графики
+            </button>
+          {% endif %}
+        </div>
+
+        {# Charts section (collapsed by default) #}
+        {% if studied > 0 %}
+        <div class="collapse mt-3" id="charts-{{ lang_id }}">
+
+          {# Today charts #}
+          <div id="today-sec-{{ lang_id }}">
+            <p class="text-muted small mb-2">Распределение слов:</p>
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-md-4 chart-wrap">
+                <img data-src="/stats/chart/{{ lang_id }}/words_for_today"
+                     class="img-fluid rounded lazy-chart" alt="Слова к повторению"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-4 chart-wrap">
+                <img data-src="/stats/chart/{{ lang_id }}/words_unknown"
+                     class="img-fluid rounded lazy-chart" alt="Неизвестные слова"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-4 chart-wrap">
+                <img data-src="/stats/chart/{{ lang_id }}/check_interval"
+                     class="img-fluid rounded lazy-chart" alt="Интервалы"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
+              </div>
+            </div>
+          </div>
+
+          {# Monthly charts — last 30 days #}
+          <div id="monthly-recent-sec-{{ lang_id }}">
+            <p class="text-muted small mb-2">Прогресс по датам: за месяц</p>
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_studied"
+                     class="img-fluid rounded lazy-chart" alt="Всего изучено"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_new"
+                     class="img-fluid rounded lazy-chart" alt="Новые слова"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_known"
+                     class="img-fluid rounded lazy-chart" alt="Известные слова"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_unknown_before"
+                     class="img-fluid rounded lazy-chart" alt="Неизвестные (до)"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_unknown_after"
+                     class="img-fluid rounded lazy-chart" alt="Неизвестные (после)"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_for_today"
+                     class="img-fluid rounded lazy-chart" alt="К повторению"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
+              </div>
+            </div>
+          </div>
+
+          {# Monthly charts — all time #}
+          <div id="monthly-sec-{{ lang_id }}">
+            <p class="text-muted small mb-2">Прогресс по датам: за все время</p>
+            <div class="row g-2">
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_studied"
+                     class="img-fluid rounded lazy-chart" alt="Всего изучено"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_new"
+                     class="img-fluid rounded lazy-chart" alt="Новые слова"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_known"
+                     class="img-fluid rounded lazy-chart" alt="Известные слова"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_unknown_before"
+                     class="img-fluid rounded lazy-chart" alt="Неизвестные (до)"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_unknown_after"
+                     class="img-fluid rounded lazy-chart" alt="Неизвестные (после)"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+              <div class="col-12 col-md-6 chart-wrap">
+                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_for_today"
+                     class="img-fluid rounded lazy-chart" alt="К повторению"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<script>
+function checkSec(id) {
+  var sec = document.getElementById(id);
+  if (!sec) return;
+  var wraps = sec.querySelectorAll('.chart-wrap');
+  if (wraps.length > 0 && Array.from(wraps).every(function(w) { return w.style.display === 'none'; })) {
+    sec.style.display = 'none';
+  }
+}
+document.addEventListener('show.bs.collapse', function(e) {
+  if (!e.target.id || !e.target.id.startsWith('charts-')) return;
+  e.target.querySelectorAll('img.lazy-chart[data-src]').forEach(function(img) {
+    if (!img.getAttribute('src')) img.setAttribute('src', img.getAttribute('data-src'));
+  });
+});
+</script>
+{% endblock %}

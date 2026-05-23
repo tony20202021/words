@@ -169,7 +169,7 @@ class UserLanguageSettingsService:
             Dictionary with default settings values
         """
         default_settings = UserLanguageSettingsCreate()
-        return default_settings.dict()
+        return default_settings.model_dump()
 
     async def toggle_hint_setting(
         self, user_id: str, language_id: str, hint_type: str, enabled: bool

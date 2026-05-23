@@ -1,0 +1,193 @@
+{% set meta = card.meta %}
+{% set badge = meta.score_badge %}
+{% set show_session_counter = (meta.word_number and words_studied and meta.word_number <= words_studied and words_for_today and words_for_today > 0) %}
+
+<div id="word-area">
+<div class="card shadow card-word mb-3">
+  <div class="card-body py-3 px-4">
+
+    {# ── Header ──────────────────────────────────────────────────────────── #}
+    <div class="text-muted small mb-2">
+      {% if lang %}
+        📝 <strong>{{ lang.get('name_ru', '') }}</strong>
+        {% if lang.get('name_foreign') %}<span class="ms-1">({{ lang.get('name_foreign') }})</span>{% endif %}
+      {% endif %}
+    </div>
+
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div class="small text-muted">
+        Слово номер: <strong>{{ meta.word_number or '?' }}</strong>
+        {% if words_studied %} / {{ words_studied }}{% endif %}
+        {% if total_words %} / {{ total_words }}{% endif %}
+        {% if show_session_counter %}
+          <br><span class="text-secondary">(в сессии: {{ meta.session_pos }} из {{ words_for_today }})</span>
+        {% endif %}
+      </div>
+      <div class="text-end small">
+        {% if badge.variant == 'success' %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle">{{ badge.text }}</span>
+          {% if badge.next_date %}
+            <div class="text-muted" style="font-size:0.75rem">след. {{ badge.next_date }}</div>
+          {% endif %}
+        {% elif badge.variant == 'danger' %}
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ badge.text }}</span>
+        {% else %}
+          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ badge.text }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Content items ────────────────────────────────────────────────────── #}
+    {% if card.show_answer %}<hr class="my-2">{% endif %}
+
+    {% for item in card.content %}
+      {% if item.type == 'label' %}
+        <div class="text-muted small mb-1{% if item.get('align') == 'center' %} text-center{% endif %}">{{ item.text }}</div>
+      {% elif item.type == 'foreign' %}
+        <div class="word-foreign text-center {% if card.show_answer %}mb-1{% else %}mb-3{% endif %}">{{ item.text }}</div>
+      {% elif item.type == 'transcription' %}
+        <div class="word-transcription text-center mb-2">{{ item.text }}</div>
+      {% elif item.type == 'translation' %}
+        <div class="word-translation text-center mb-2">{{ item.text }}</div>
+      {% elif item.type == 'hint' %}
+        <p class="text-muted small mb-2">{{ item.text }}</p>
+      {% elif item.type == 'notice' %}
+        <div class="alert alert-{{ item.variant }} py-1 px-3 mb-3 small">{{ item.text }}</div>
+      {% endif %}
+    {% endfor %}
+
+    {# ── Sounds ───────────────────────────────────────────────────────────── #}
+    {% if card.sounds %}
+      {% if card.show_answer %}
+        <div class="text-muted small mb-1">🔊 Произношение:</div>
+      {% endif %}
+      <div class="text-center mb-2" id="sounds-area">
+        {% for url in card.sounds %}
+          <span id="snd-wrap-{{ loop.index }}">
+            <audio id="snd-{{ loop.index }}" src="/sound/{{ url }}" preload="auto"
+                   onerror="document.getElementById('snd-wrap-{{ loop.index }}').style.display='none'"></audio>
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+              onclick="document.getElementById('snd-{{ loop.index }}').play()">
+              🔊{% if card.sounds|length > 1 %} {{ loop.index }}{% endif %}
+            </button>
+          </span>
+        {% endfor %}
+        {% if card.sounds|length > 1 %}
+          <button type="button" class="btn btn-outline-primary btn-sm" id="play-all-btn"
+            onclick="playAllSounds([{% for url in card.sounds %}'snd-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">
+            ▶ Все
+          </button>
+        {% endif %}
+      </div>
+      <script>
+      function playAllSounds(ids) {
+        var idx = 0;
+        function next() {
+          if (idx >= ids.length) return;
+          var a = document.getElementById(ids[idx++]);
+          if (!a || a.parentElement.style.display === 'none') { next(); return; }
+          a.onended = next;
+          a.play().catch(next);
+        }
+        next();
+      }
+      </script>
+    {% endif %}
+
+    {# ── Buttons ──────────────────────────────────────────────────────────── #}
+    <div class="d-flex gap-2 justify-content-center flex-wrap mt-2 mb-2">
+      {% for btn in card.buttons %}
+        {% if btn.id == 'know' %}
+          <button class="btn btn-{{ btn.style }} btn-rate"
+            hx-post="/study/{{ language_id }}/know"
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'show_answer' %}
+          <button class="btn btn-{{ btn.style }} btn-lg px-4"
+            hx-post="/study/{{ language_id }}/show_answer"
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'rate' %}
+          <button class="btn btn-{{ btn.style }} btn-rate"
+            hx-post="/study/{{ language_id }}/rate"
+            hx-vals='{"rating": "{{ btn.rating }}"}'
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'toggle_skip' %}
+          <button class="btn btn-{{ btn.style }}"
+            hx-post="/study/{{ language_id }}/toggle_skip"
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'reconsider' %}
+          <button class="btn btn-{{ btn.style }}"
+            hx-post="/study/{{ language_id }}/reconsider"
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+{# ── Progress bar ──────────────────────────────────────────────────────────── #}
+{# Use words_for_today when available (accurate total); fall back to batch size for new-word sessions #}
+{% set bar_total = words_for_today if (words_for_today and words_for_today > 0) else meta.session_total %}
+{% if bar_total and bar_total > 0 %}
+<div class="mt-1 mb-2">
+  <div class="progress progress-bar-thin" style="background-color: #e9ecef;">
+    {% set seg_pct = (100 / bar_total) | round(4) %}
+    {% for result in meta.result_history %}
+      {% if result == 'know' %}
+        <div class="progress-bar bg-success" style="width: {{ seg_pct }}%"></div>
+      {% elif result == 'dont_know' %}
+        <div class="progress-bar bg-danger" style="width: {{ seg_pct }}%"></div>
+      {% else %}
+        <div class="progress-bar bg-secondary" style="width: {{ seg_pct }}%"></div>
+      {% endif %}
+    {% endfor %}
+    {% if meta.pending_result == 'know' %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: {{ seg_pct }}%"></div>
+    {% elif meta.pending_result == 'dont_know' %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width: {{ seg_pct }}%"></div>
+    {% endif %}
+  </div>
+  <div class="d-flex justify-content-between" style="font-size:0.75rem; color:#888;">
+    <span>{{ meta.session_pos - 1 }} готово (правильных {{ meta.correct_count }} ошибок {{ meta.incorrect_count }})</span>
+    <span>{{ bar_total }} всего</span>
+  </div>
+</div>
+{% endif %}
+
+{# ── Extra content after progress bar (radicals, references, tones) ───────── #}
+{% if card.extra_content %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-2 px-4">
+    {% for item in card.extra_content %}
+      {% if item.type == 'label' %}
+        <div class="text-muted small mb-1{% if not loop.first %} mt-3{% endif %}">{{ item.text }}</div>
+      {% elif item.type == 'extra' %}
+        <div class="small mb-1" style="white-space: pre-wrap">{{ item.text | safe }}</div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+</div>
+<script>
+(function() {
+  var _htmxTimeout = null;
+  document.querySelectorAll('[hx-post]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _htmxTimeout = setTimeout(function() { window.location.reload(); }, 8000);
+    });
+  });
+  document.addEventListener('htmx:afterSwap', function() {
+    clearTimeout(_htmxTimeout);
+  });
+  document.addEventListener('htmx:responseError', function() {
+    clearTimeout(_htmxTimeout);
+    window.location.reload();
+  });
+  document.addEventListener('htmx:sendError', function() {
+    clearTimeout(_htmxTimeout);
+    window.location.reload();
+  });
+})();
+</script>
