@@ -3,132 +3,123 @@
 {% block admin_content %}
 <h4 class="mb-4">🔧 Диагностика системы</h4>
 
-<div class="row g-3 mb-4">
-  <div class="col-md-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h6 class="text-muted">CPU</h6>
-        <div class="progress mb-1" style="height:8px">
+{# ── Диски ── #}
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-2">
+    <h6 class="text-muted mb-2">Диски</h6>
+    {% for d in disks %}
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="text-muted small" style="width:80px">{{ d.mount }}</span>
+      <div class="progress flex-grow-1" style="height:8px">
+        <div class="progress-bar {% if d.pct > 90 %}bg-danger{% elif d.pct > 70 %}bg-warning{% else %}bg-info{% endif %}"
+             style="width:{{ d.pct }}%"></div>
+      </div>
+      <span class="small text-nowrap">{{ d.used }} / {{ d.total }} ГБ ({{ d.pct }}%)</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# ── Топ по CPU ── #}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="text-muted mb-0">Топ-5 по CPU</h6>
+      <div class="d-flex align-items-center gap-2">
+        <div class="progress" style="width:120px;height:8px">
           <div class="progress-bar {% if cpu_pct > 80 %}bg-danger{% elif cpu_pct > 50 %}bg-warning{% else %}bg-success{% endif %}"
                style="width:{{ cpu_pct }}%"></div>
         </div>
-        <small>{{ cpu_pct }}% (ядер: {{ cpu_count }})</small>
+        <small class="text-nowrap">{{ cpu_pct }}% ({{ cpu_count }} ядер)</small>
       </div>
     </div>
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>PID</th><th>Процесс</th><th>Сервис</th><th class="text-end">CPU %</th></tr></thead>
+      <tbody>
+      {% for p in top_cpu %}
+      <tr>
+        <td class="text-muted small">{{ p.pid }}</td>
+        <td class="small">
+          <span class="fw-semibold">{{ p.name }}</span>
+          {% if p.hint %}<span class="text-muted ms-1">{{ p.hint }}</span>{% endif %}
+        </td>
+        <td class="small text-muted">{{ p.service }}</td>
+        <td class="text-end">
+          <span class="badge {% if p.cpu > 50 %}bg-danger{% elif p.cpu > 20 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+            {{ p.cpu }}%
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-  <div class="col-md-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h6 class="text-muted">RAM</h6>
-        <div class="progress mb-1" style="height:8px">
+</div>
+
+{# ── Топ по памяти ── #}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="text-muted mb-0">Топ-10 по памяти</h6>
+      <div class="d-flex align-items-center gap-2">
+        <div class="progress" style="width:120px;height:8px">
           <div class="progress-bar {% if ram_pct > 80 %}bg-danger{% elif ram_pct > 60 %}bg-warning{% else %}bg-success{% endif %}"
                style="width:{{ ram_pct }}%"></div>
         </div>
-        <small>{{ ram_used }} / {{ ram_total }} ГБ ({{ ram_pct }}%)</small>
-        {% if swap_total > 0 %}
-        <div class="text-muted small mt-1">Swap: {{ swap_used }} / {{ swap_total }} ГБ</div>
-        {% endif %}
+        <small class="text-nowrap">{{ ram_used }} / {{ ram_total }} ГБ ({{ ram_pct }}%)</small>
       </div>
     </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h6 class="text-muted">Диски</h6>
-        {% for d in disks %}
-        <div class="small mb-1">
-          <span class="text-muted">{{ d.mount }}</span>
-          <div class="progress" style="height:6px">
-            <div class="progress-bar {% if d.pct > 90 %}bg-danger{% elif d.pct > 70 %}bg-warning{% else %}bg-info{% endif %}"
-                 style="width:{{ d.pct }}%"></div>
-          </div>
-          <span>{{ d.used }} / {{ d.total }} ГБ ({{ d.pct }}%)</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-</div>
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>PID</th><th>Процесс</th><th>Сервис</th><th class="text-end">МБ</th></tr></thead>
+      <tbody>
+      {% for p in top_mem %}
+      <tr>
+        <td class="text-muted small">{{ p.pid }}</td>
+        <td class="small">
+          <span class="fw-semibold">{{ p.name }}</span>
+          {% if p.hint %}<span class="text-muted ms-1">{{ p.hint }}</span>{% endif %}
+        </td>
+        <td class="small text-muted">{{ p.service }}</td>
+        <td class="text-end">
+          <span class="badge {% if p.mem_mb > 400 %}bg-danger{% elif p.mem_mb > 150 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+            {{ p.mem_mb }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
 
-<div class="row g-3 mb-4">
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <h6 class="text-muted">Топ-5 по CPU</h6>
-        <table class="table table-sm table-hover mb-0">
-          <thead><tr><th>PID</th><th colspan="2">Процесс</th><th class="text-end">CPU %</th></tr></thead>
-          <tbody>
-          {% for p in top_cpu %}
-          <tr>
-            <td class="text-muted small">{{ p.pid }}</td>
-            <td class="small fw-semibold">{{ p.name }}</td>
-            <td class="text-muted small">{{ p.hint }}</td>
-            <td class="text-end">
-              <span class="badge {% if p.cpu > 50 %}bg-danger{% elif p.cpu > 20 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                {{ p.cpu }}%
-              </span>
-            </td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <h6 class="text-muted">Топ-5 по памяти</h6>
-        <table class="table table-sm table-hover mb-0">
-          <thead><tr><th>PID</th><th colspan="2">Процесс</th><th class="text-end">МБ</th></tr></thead>
+    <div class="mt-2">
+      <button class="btn btn-link btn-sm px-0 text-muted" type="button"
+              data-bs-toggle="collapse" data-bs-target="#proc-cmdlines">
+        ▶ полный cmdline
+      </button>
+      <div class="collapse" id="proc-cmdlines">
+        <table class="table table-sm mt-2 mb-0" style="font-size:0.72rem">
+          <thead><tr><th>PID</th><th>cmdline</th></tr></thead>
           <tbody>
           {% for p in top_mem %}
           <tr>
-            <td class="text-muted small">{{ p.pid }}</td>
-            <td class="small fw-semibold">{{ p.name }}</td>
-            <td class="text-muted small">{{ p.hint }}</td>
-            <td class="text-end">
-              <span class="badge {% if p.mem_mb > 500 %}bg-danger{% elif p.mem_mb > 200 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                {{ p.mem_mb }}
-              </span>
-            </td>
+            <td class="text-nowrap text-muted">{{ p.pid }}</td>
+            <td style="word-break:break-all">{{ p.cmdline or "—" }}</td>
           </tr>
           {% endfor %}
           </tbody>
         </table>
-
-        <div class="mt-2">
-          <button class="btn btn-link btn-sm px-0 text-muted" type="button"
-                  data-bs-toggle="collapse" data-bs-target="#proc-cmdlines">
-            ▶ полный cmdline
-          </button>
-          <div class="collapse" id="proc-cmdlines">
-            <table class="table table-sm mt-2 mb-0" style="font-size:0.72rem">
-              <thead><tr><th>PID</th><th>cmdline</th></tr></thead>
-              <tbody>
-              {% for p in top_mem %}
-              <tr>
-                <td class="text-nowrap text-muted">{{ p.pid }}</td>
-                <td style="word-break:break-all">{{ p.cmdline or "—" }}</td>
-              </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
       </div>
     </div>
   </div>
 </div>
 
-<div class="card shadow-sm mb-4">
+{# ── Сервисы ── #}
+<div class="card shadow-sm mb-3">
   <div class="card-body">
-    <h6>Сервисы</h6>
+    <h6 class="text-muted mb-2">Сервисы</h6>
     <div class="list-group list-group-flush">
       {% for s in services %}
-      <div class="list-group-item d-flex justify-content-between align-items-center px-0">
-        <span>{{ s.name }}</span>
+      <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
+        <span class="small">{{ s.name }}</span>
         {% if s.disabled %}
           <span class="badge bg-secondary">— отключён</span>
         {% elif s.ok %}
@@ -142,12 +133,13 @@
   </div>
 </div>
 
+{# ── Окружение ── #}
 <div class="card shadow-sm">
-  <div class="card-body">
-    <h6>Окружение</h6>
+  <div class="card-body py-2">
+    <h6 class="text-muted mb-1">Окружение</h6>
     <table class="table table-sm mb-0">
-      <tr><td class="text-muted">Python</td><td>{{ python }}</td></tr>
-      <tr><td class="text-muted">Платформа</td><td><small>{{ platform }}</small></td></tr>
+      <tr><td class="text-muted small">Python</td><td class="small">{{ python }}</td></tr>
+      <tr><td class="text-muted small">Платформа</td><td class="small">{{ platform }}</td></tr>
     </table>
   </div>
 </div>

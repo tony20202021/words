@@ -7,8 +7,9 @@ from app.services.card_builder import build_card, _parse_sound_urls
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def make_session(show_mode="foreign", score_changed=False, word_processed=False,
-                 show_answer=False, correct=0, incorrect=0, settings=None):
-    return {
+                 show_answer=False, correct=0, incorrect=0, settings=None,
+                 prev_score=None, prev_interval=None, prev_next_check_date=None):
+    s = {
         "session_id": "test-session",
         "user_id": "u1",
         "language_id": "lang1",
@@ -21,6 +22,13 @@ def make_session(show_mode="foreign", score_changed=False, word_processed=False,
         "incorrect_count": incorrect,
         "settings": settings or {"show_sounds": True},
     }
+    if prev_score is not None:
+        s["prev_score"] = prev_score
+    if prev_interval is not None:
+        s["prev_interval"] = prev_interval
+    if prev_next_check_date is not None:
+        s["prev_next_check_date"] = prev_next_check_date
+    return s
 
 
 def make_word(foreign="hello", translation="привет", transcription="[hɛˈloʊ]",
@@ -199,6 +207,32 @@ class TestScoreBadge:
         card = build_card(make_session(), make_word(score=0), show_answer=False)
         assert card["meta"]["score_badge"]["variant"] == "danger"
 
+    def test_badge_shows_old_interval_after_know(self):
+        # word now has interval=8 (after update), but session stores prev_interval=4
+        session = make_session(score_changed=True, prev_score=1, prev_interval=4,
+                               prev_next_check_date="2026-01-01")
+        word = make_word(score=1, interval=8, next_check_date="2026-01-09")
+        card = build_card(session, word, show_answer=True)
+        badge = card["meta"]["score_badge"]
+        assert "4" in badge["text"]
+        assert badge["next_date"] == "2026-01-01"
+
+    def test_badge_shows_old_state_when_was_unknown_before(self):
+        # word was unknown (score=0) before show_answer; now it's score=0 after update — still danger
+        session = make_session(score_changed=False, prev_score=0)
+        word = make_word(score=0, interval=1)
+        card = build_card(session, word, show_answer=True)
+        assert card["meta"]["score_badge"]["variant"] == "danger"
+
+    def test_badge_uses_current_values_before_answer(self):
+        # before answer, prev_* should be ignored
+        session = make_session(prev_score=0, prev_interval=0)
+        word = make_word(score=1, interval=5)
+        card = build_card(session, word, show_answer=False)
+        badge = card["meta"]["score_badge"]
+        assert badge["variant"] == "success"
+        assert "5" in badge["text"]
+
 
 # ── rate button rating value ──────────────────────────────────────────────────
 
@@ -227,6 +261,20 @@ class TestSkipButton:
         card = build_card(make_session(), make_word(is_skipped=True), show_answer=False)
         skip_btn = next(b for b in card["buttons"] if b["id"] == "toggle_skip")
         assert "Не пропускать" in skip_btn["text"]
+
+    def test_skip_present_after_answer_score_changed(self):
+        card = build_card(make_session(score_changed=True), make_word(), show_answer=True)
+        assert "toggle_skip" in button_ids(card)
+
+    def test_skip_present_after_answer_not_score_changed(self):
+        card = build_card(make_session(score_changed=False), make_word(), show_answer=True)
+        assert "toggle_skip" in button_ids(card)
+
+    def test_reconsider_present_only_when_score_changed(self):
+        card_changed = build_card(make_session(score_changed=True), make_word(), show_answer=True)
+        card_unchanged = build_card(make_session(score_changed=False), make_word(), show_answer=True)
+        assert "reconsider" in button_ids(card_changed)
+        assert "reconsider" not in button_ids(card_unchanged)
 
 
 # ── meta ──────────────────────────────────────────────────────────────────────

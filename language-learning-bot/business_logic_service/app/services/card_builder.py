@@ -16,6 +16,11 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
     next_check_date = (uwd.get("next_check_date") or "")
     is_skipped = uwd.get("is_skipped", False)
     score_changed = session.get("score_changed", False)
+
+    # for the badge use pre-answer values so it shows what the user knew before
+    badge_score = session.get("prev_score", score) if show_answer else score
+    badge_interval = session.get("prev_interval", interval) if show_answer else interval
+    badge_next_date = session.get("prev_next_check_date", next_check_date) if show_answer else next_check_date
     settings = session.get("settings") or {}
 
     all_sounds = _parse_sound_urls(word) if settings.get("show_sounds", True) else []
@@ -70,7 +75,7 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
             "incorrect_count": session.get("incorrect_count", 0),
             "result_history": session.get("result_history", []),
             "pending_result": ("know" if session.get("score_changed") else "dont_know") if show_answer else None,
-            "score_badge": _score_badge(score, interval, next_check_date),
+            "score_badge": _score_badge(badge_score, badge_interval, badge_next_date),
         },
     }
 
@@ -132,16 +137,20 @@ def _buttons_before(is_skipped: bool) -> List[Dict[str, Any]]:
 
 
 def _buttons_after(is_skipped: bool, score_changed: bool) -> List[Dict[str, Any]]:
+    skip_btn = {
+        "id": "toggle_skip",
+        "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
+        "style": "outline-secondary",
+    }
     if score_changed:
         return [
             {"id": "rate", "text": "✅ К следующему слову", "style": "success", "rating": "know"},
             {"id": "reconsider", "text": "❌ Ой, все-таки не знаю", "style": "outline-danger"},
+            skip_btn,
         ]
     return [
         {"id": "rate", "text": "➡️ Дальше", "style": "success", "rating": "dont_know"},
-        {"id": "toggle_skip",
-         "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
-         "style": "outline-secondary"},
+        skip_btn,
     ]
 
 

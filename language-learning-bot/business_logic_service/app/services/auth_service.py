@@ -21,9 +21,36 @@ from app.logger import setup_logger
 logger = setup_logger(__name__)
 
 TOKEN_TTL = 300  # 5 minutes
+MOBILE_TOKEN_TTL = 600  # 10 minutes
 
 # token → {telegram_id, expires_at, status: pending|confirmed|denied|expired, user_id}
 _tokens: dict = {}
+
+# 6-char code → {user_id, expires_at}
+_mobile_tokens: dict = {}
+
+
+# ── Mobile token (Android) ────────────────────────────────────────────────────
+
+def create_mobile_token(user_id: str) -> str:
+    """Generate a short 6-char alphanumeric code for Android login."""
+    _cleanup_expired()
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I to avoid confusion
+    code = "".join(random.choices(alphabet, k=6))
+    _mobile_tokens[code] = {"user_id": user_id, "expires_at": time.time() + MOBILE_TOKEN_TTL}
+    logger.info(f"Mobile token created for user_id={user_id}")
+    return code
+
+
+def activate_mobile_token(code: str) -> Optional[str]:
+    """Exchange code for user_id. Single-use."""
+    entry = _mobile_tokens.pop(code.upper(), None)
+    if not entry:
+        return None
+    if time.time() > entry["expires_at"]:
+        return None
+    logger.info(f"Mobile token activated for user_id={entry['user_id']}")
+    return entry["user_id"]
 
 
 # ── Token store ───────────────────────────────────────────────────────────────
@@ -77,6 +104,9 @@ def _cleanup_expired() -> None:
     stale = [t for t, e in _tokens.items() if now > e["expires_at"] + 60]
     for t in stale:
         del _tokens[t]
+    stale_m = [c for c, e in _mobile_tokens.items() if now > e["expires_at"] + 60]
+    for c in stale_m:
+        del _mobile_tokens[c]
 
 
 # ── Telegram lookup & messaging ───────────────────────────────────────────────

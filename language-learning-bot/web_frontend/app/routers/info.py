@@ -72,16 +72,19 @@ async def stats_page(request: Request):
         return redirect
 
     bls = get_bls_client()
+    import asyncio as _asyncio
     languages = await bls.get_languages()
 
-    stats_list = []
-    for lang in languages:
+    async def _fetch(lang):
         s = await bls.get_statistics(user_id, lang["id"])
-        if s.get("words_studied", 0) > 0 or s.get("total_words", 0) > 0:
-            stats_list.append({
-                "language": lang,
-                "stats": s,
-            })
+        return lang, s
+
+    results = await _asyncio.gather(*[_fetch(lang) for lang in languages])
+    stats_list = [
+        {"language": lang, "stats": s}
+        for lang, s in results
+        if s.get("words_studied", 0) > 0 or s.get("total_words", 0) > 0
+    ]
 
     return templates.TemplateResponse("stats.html", {
         "request": request,

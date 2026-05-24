@@ -173,6 +173,12 @@ class BLSClient:
 
     # ── Sounds ────────────────────────────────────────────────────────────────
 
+    async def mobile_create_token(self, user_id: str) -> Dict[str, Any]:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.base_url}/auth/mobile/create",
+                                    json={"user_id": user_id}) as resp:
+                return await resp.json() if resp.status == 200 else {}
+
     async def get_sound(self, path: str) -> Optional[bytes]:
         encoded = quote(path, safe="").replace(".", "%2E")
         timeout = aiohttp.ClientTimeout(total=10)

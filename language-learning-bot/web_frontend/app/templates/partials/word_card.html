@@ -95,6 +95,7 @@
     {% endif %}
 
     {# ── Buttons ──────────────────────────────────────────────────────────── #}
+    <hr class="my-3">
     <div class="d-flex gap-2 justify-content-center flex-wrap mt-2 mb-2">
       {% for btn in card.buttons %}
         {% if btn.id == 'know' %}
@@ -102,7 +103,7 @@
             hx-post="/study/{{ language_id }}/know"
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% elif btn.id == 'show_answer' %}
-          <button class="btn btn-{{ btn.style }} btn-lg px-4"
+          <button class="btn btn-{{ btn.style }} btn-rate"
             hx-post="/study/{{ language_id }}/show_answer"
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% elif btn.id == 'rate' %}
@@ -111,11 +112,11 @@
             hx-vals='{"rating": "{{ btn.rating }}"}'
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% elif btn.id == 'toggle_skip' %}
-          <button class="btn btn-{{ btn.style }}"
+          <button class="btn btn-{{ btn.style }} btn-rate"
             hx-post="/study/{{ language_id }}/toggle_skip"
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% elif btn.id == 'reconsider' %}
-          <button class="btn btn-{{ btn.style }}"
+          <button class="btn btn-{{ btn.style }} btn-rate"
             hx-post="/study/{{ language_id }}/reconsider"
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% endif %}
@@ -126,30 +127,48 @@
 </div>
 
 {# ── Progress bar ──────────────────────────────────────────────────────────── #}
-{# Use words_for_today when available (accurate total); fall back to batch size for new-word sessions #}
 {% set bar_total = words_for_today if (words_for_today and words_for_today > 0) else meta.session_total %}
 {% if bar_total and bar_total > 0 %}
+{% set seg_pct = (100 / bar_total) | round(4) %}
+{% set correct_pct  = (meta.correct_count   / bar_total * 100) | round(2) %}
+{% set incorrect_pct = (meta.incorrect_count / bar_total * 100) | round(2) %}
 <div class="mt-1 mb-2">
-  <div class="progress progress-bar-thin" style="background-color: #e9ecef;">
-    {% set seg_pct = (100 / bar_total) | round(4) %}
+  {# line 1: green=know, gray=other — total length = bar_total segments #}
+  <div class="progress" style="height:5px; background-color:#adb5bd; border-radius:3px 3px 0 0; margin-bottom:2px;">
     {% for result in meta.result_history %}
       {% if result == 'know' %}
-        <div class="progress-bar bg-success" style="width: {{ seg_pct }}%"></div>
-      {% elif result == 'dont_know' %}
-        <div class="progress-bar bg-danger" style="width: {{ seg_pct }}%"></div>
+        <div class="progress-bar bg-success" style="width:{{ seg_pct }}%"></div>
       {% else %}
-        <div class="progress-bar bg-secondary" style="width: {{ seg_pct }}%"></div>
+        <div class="progress-bar" style="width:{{ seg_pct }}%; background-color:#e9ecef;"></div>
       {% endif %}
     {% endfor %}
     {% if meta.pending_result == 'know' %}
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: {{ seg_pct }}%"></div>
-    {% elif meta.pending_result == 'dont_know' %}
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width: {{ seg_pct }}%"></div>
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:{{ seg_pct }}%"></div>
+    {% elif meta.pending_result %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:{{ seg_pct }}%; background-color:#e9ecef;"></div>
     {% endif %}
   </div>
-  <div class="d-flex justify-content-between" style="font-size:0.75rem; color:#888;">
-    <span>{{ meta.session_pos - 1 }} готово (правильных {{ meta.correct_count }} ошибок {{ meta.incorrect_count }})</span>
-    <span>{{ bar_total }} всего</span>
+  {# line 2: red=dont_know, gray=other — total length = bar_total segments #}
+  <div class="progress" style="height:5px; background-color:#adb5bd; border-radius:0 0 3px 3px;">
+    {% for result in meta.result_history %}
+      {% if result == 'dont_know' %}
+        <div class="progress-bar bg-danger" style="width:{{ seg_pct }}%"></div>
+      {% else %}
+        <div class="progress-bar" style="width:{{ seg_pct }}%; background-color:#e9ecef;"></div>
+      {% endif %}
+    {% endfor %}
+    {% if meta.pending_result == 'dont_know' %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width:{{ seg_pct }}%"></div>
+    {% elif meta.pending_result %}
+      <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:{{ seg_pct }}%; background-color:#e9ecef;"></div>
+    {% endif %}
+  </div>
+  <div class="d-flex justify-content-between align-items-end mt-1" style="font-size:1rem; color:#888;">
+    <div class="d-flex flex-column lh-1" style="gap:3px;">
+      <span><span class="text-success fw-semibold">{{ meta.correct_count }}</span> правильных</span>
+      <span><span class="text-danger fw-semibold">{{ meta.incorrect_count }}</span> ошибок</span>
+    </div>
+    <span>готово <strong>{{ meta.session_pos - 1 }}</strong> из <strong>{{ bar_total }}</strong></span>
   </div>
 </div>
 {% endif %}

@@ -343,66 +343,103 @@ async def diagnostics(request: Request):
             pass
     await _asyncio.sleep(0.3)        # let the counter accumulate
 
-    def _proc_hint(p) -> str:
-        """Return a short hint that helps identify which service this process belongs to."""
+    _PORT_SERVICE = {
+        "8500": "Backend API",
+        "8700": "BLS",
+        "8800": "Web Frontend",
+        "27017": "MongoDB",
+        "27027": "MongoDB",
+    }
+
+    def _proc_info(p):
+        """Return (hint, service) for a process."""
         import re as _re
         try:
             cmd = p.cmdline()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return ""
+            return "", ""
         full = " ".join(cmd)
-        name = p.name()
+        binary = cmd[0] if cmd else ""
 
-        # uvicorn → port number
+        # ── service label ──────────────────────────────────────────────
+        service = ""
+
+        # uvicorn → identify by port
         if "uvicorn" in full:
+            port = ""
             for i, tok in enumerate(cmd):
                 if tok == "--port" and i + 1 < len(cmd):
-                    return f"порт {cmd[i+1]}"
-            m = _re.search(r"--port[= ](\d+)", full)
-            return f"порт {m.group(1)}" if m else ""
+                    port = cmd[i + 1]
+            if not port:
+                m = _re.search(r"--port[= ](\d+)", full)
+                port = m.group(1) if m else ""
+            hint = f":{port}" if port else "uvicorn"
+            service = _PORT_SERVICE.get(port, f"uvicorn :{port}")
+            return hint, service
 
-        # python/conda → last .py script name, skip wrappers
+        # python scripts
         for tok in cmd:
             if tok.endswith(".py") and not tok.startswith("-"):
                 stem = tok.split("/")[-1].removesuffix(".py")
-                if stem and stem != name:
-                    return stem
+                if stem == "main_frontend":
+                    service = "Telegram Bot (старый)"
+                elif stem == "main_backend":
+                    service = "Backend API"
+                elif "process-name" in full:
+                    m = _re.search(r"--process-name[= ](\S+)", full)
+                    service = m.group(1) if m else stem
+                if stem and stem != p.name():
+                    return stem, service
 
-        # well-known tools — check the BINARY (cmd[0]), not the whole cmdline
-        binary = cmd[0] if cmd else ""
+        # well-known binaries
         if "claude-code" in binary or binary.endswith("/claude"):
-            return "Claude Code"
+            return "Claude Code", "Claude Code"
         if ".cursor-server/bin" in binary or ".vscode-server/bin" in binary:
-            return "Cursor IDE"
+            # distinguish Cursor node roles
+            if "--type=extensionHost" in full:
+                return "Cursor IDE", "Extension Host"
+            if "htmlServerMain" in full:
+                return "Cursor IDE", "HTML Language Server"
+            if "cursorpyright" in full or "pylance" in full:
+                return "Cursor IDE", "Python Language Server"
+            return "Cursor IDE", "Cursor IDE"
+        if ".vscode-server" in full or ".cursor-server" in full:
+            return "Cursor IDE", "Cursor IDE"
 
-        # node → .js script name if not just "node"
+        # mongod
+        if p.name() in ("mongod", "mongos"):
+            return "mongod", "MongoDB"
+
+        # node .js
         for tok in cmd:
             if tok.endswith(".js") and not tok.startswith("-"):
                 stem = tok.split("/")[-1].removesuffix(".js")
-                if stem and stem != name:
-                    return stem
+                return stem, ""
 
-        # fallback → cwd last three path segments
+        # fallback cwd
         try:
             cwd = p.cwd()
             parts = [s for s in cwd.split("/") if s]
-            return "/".join(parts[-3:]) if len(parts) >= 3 else "/".join(parts)
+            hint = "/".join(parts[-2:]) if len(parts) >= 2 else "/".join(parts)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return ""
+            hint = ""
+        return hint, service
 
     all_procs = []
     for pid, p in _snapshot.items():
         try:
-            cpu = p.cpu_percent()    # second call gives real %
+            cpu = p.cpu_percent()
             mi = p.memory_info()
             try:
                 cmdline = " ".join(p.cmdline())
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 cmdline = ""
+            hint, service = _proc_info(p)
             all_procs.append({
                 "pid": pid,
                 "name": p.name(),
-                "hint": _proc_hint(p),
+                "hint": hint,
+                "service": service,
                 "cpu": round(cpu or 0, 1),
                 "mem_mb": round(mi.rss / 1024**2, 1) if mi else 0,
                 "cmdline": cmdline,
@@ -472,6 +509,9 @@ async def diagnostics(request: Request):
         "ram_pct": vm.percent,
         "swap_total": round(swap.total / 1024**3, 1),
         "swap_used": round(swap.used / 1024**3, 1),
+        "disk_used": round(sum(d["used"] for d in disks), 1),
+        "disk_total": round(sum(d["total"] for d in disks), 1),
+        "disk_pct": round(max((d["pct"] for d in disks), default=0), 1),
         "disks": disks,
         "services": services,
         "top_cpu": top_cpu,

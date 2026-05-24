@@ -186,6 +186,11 @@ async def know_word(session: Dict[str, Any], api_client) -> Dict[str, Any]:
     user_id = session["user_id"]
     word_id = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
 
+    uwd = (word or {}).get("user_word_data") or {}
+    session["prev_score"] = uwd.get("score", -1)
+    session["prev_interval"] = uwd.get("check_interval", 0)
+    session["prev_next_check_date"] = uwd.get("next_check_date", "")
+
     success, result = await update_word_score(
         api_client, user_id, word_id, score=1, word=word, is_skipped=False
     )
@@ -218,6 +223,11 @@ async def show_answer_word(session: Dict[str, Any], api_client) -> Dict[str, Any
 
     user_id = session["user_id"]
     word_id = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
+
+    uwd = (word or {}).get("user_word_data") or {}
+    session["prev_score"] = uwd.get("score", -1)
+    session["prev_interval"] = uwd.get("check_interval", 0)
+    session["prev_next_check_date"] = uwd.get("next_check_date", "")
 
     success, result = await update_word_score(
         api_client, user_id, word_id, score=0, word=word, is_skipped=False

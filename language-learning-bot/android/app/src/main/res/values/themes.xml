@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LangBot" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#212529</item>
+        <item name="colorPrimaryVariant">#343a40</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#0d6efd</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="android:windowBackground">#F8F9FA</item>
+    </style>
+</resources>

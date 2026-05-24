@@ -90,6 +90,28 @@ async def deny_auth(token: str):
     return {"ok": ok}
 
 
+@router.post("/mobile/create")
+async def mobile_create(body: dict):
+    """Telegram bot calls this to generate a code the user types into Android app."""
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    code = auth_service.create_mobile_token(user_id)
+    return {"code": code, "ttl_seconds": 600}
+
+
+@router.post("/mobile/activate")
+async def mobile_activate(body: dict):
+    """Android app exchanges code for user_id. Single-use."""
+    code = (body.get("code") or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="code required")
+    user_id = auth_service.activate_mobile_token(code)
+    if not user_id:
+        raise HTTPException(status_code=404, detail="invalid or expired code")
+    return {"user_id": user_id}
+
+
 @router.get("/status/{token}")
 async def auth_status(token: str):
     """Web polls this to check if user confirmed via Telegram."""

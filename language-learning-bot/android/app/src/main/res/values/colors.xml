@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="btnSuccess">#198754</color>
+    <color name="btnDanger">#dc3545</color>
+    <color name="btnSecondary">#6c757d</color>
+</resources>
