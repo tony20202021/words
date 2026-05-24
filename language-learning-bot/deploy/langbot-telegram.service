@@ -1,5 +1,5 @@
 [Unit]
-Description=Language Learning Bot — Telegram Bot (new thin client)
+Description=Language Learning Bot — Telegram Bot (новый, порт BLS 8700)
 After=network.target langbot-bls.service
 
 [Service]
@@ -7,9 +7,9 @@ Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot/telegram_bot
 Environment="BLS_URL=http://localhost:8700"
-Environment="BOT_TOKEN="
-EnvironmentFile=-/home/tony/repos/words/language-learning-bot/deploy/.env
-ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/python -m app.main
+EnvironmentFile=-/home/tony/repos/words/language-learning-bot/.env
+ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/python \
+    -m app.main
 Restart=on-failure
 RestartSec=5
 

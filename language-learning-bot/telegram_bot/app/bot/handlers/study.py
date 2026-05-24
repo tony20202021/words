@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from app.bls_client.client import get_bls_client
 from app.bot.handlers.start import UserState
@@ -66,7 +66,7 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         rating = parts[3] if len(parts) > 3 else "dont_know"
         resp = await bls.rate_word(session_id, rating)
         if resp.get("batch_exhausted"):
-            batch = await bls.next_batch(resp["session_id"])
+            batch = await bls.next_batch(session_id)
             if batch.get("loaded"):
                 resp = batch
             else:
@@ -77,6 +77,28 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         resp = await bls.toggle_skip(session_id)
     elif action == "reconsider":
         resp = await bls.reconsider(session_id)
+        if resp.get("batch_exhausted"):
+            batch = await bls.next_batch(session_id)
+            if batch.get("loaded"):
+                resp = batch
+            else:
+                await callback.message.edit_text(COMPLETED_TEXT, parse_mode="HTML")
+                await callback.answer()
+                return
+    elif action == "sound":
+        sound_index = int(parts[3]) if len(parts) > 3 else 0
+        sounds = (session_resp.get("card") or {}).get("sounds") or []
+        if 0 <= sound_index < len(sounds):
+            sound_data = await bls.get_sound(sounds[sound_index])
+            if sound_data:
+                await callback.message.answer_audio(
+                    BufferedInputFile(sound_data, filename="sound.mp3")
+                )
+            else:
+                await callback.answer("Звук недоступен", show_alert=True)
+                return
+        await callback.answer()
+        return
     else:
         await callback.answer()
         return

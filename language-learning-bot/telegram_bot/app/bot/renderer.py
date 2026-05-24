@@ -7,23 +7,32 @@ from typing import Dict, Any
 
 
 _ITEM_RENDERERS = {
-    "label":        lambda i: f"\n<b>{i['text']}</b>",
-    "foreign":      lambda i: f"<code>{i['text']}</code>",
+    "label":         lambda i: f"\n<b>{i['text']}</b>",
+    "foreign":       lambda i: f"<code>{i['text']}</code>",
     "transcription": lambda i: f"<i>{i['text']}</i>",
-    "translation":  lambda i: i["text"],
-    "hint":         lambda i: f"<i>{i['text']}</i>",
-    "notice":       lambda i: i["text"],
+    "translation":   lambda i: i["text"],
+    "hint":          lambda i: f"<i>{i['text']}</i>",
+    "notice":        lambda i: i["text"],
+    "extra":         lambda i: i["text"],
 }
 
 
 def render_card_text(card: Dict[str, Any]) -> str:
-    """Convert card.content items to Telegram HTML text with meta footer."""
+    """Convert card.content + extra_content items to Telegram HTML text with meta footer."""
     lines = []
 
     for item in card.get("content", []):
         renderer = _ITEM_RENDERERS.get(item.get("type", ""))
         if renderer:
             lines.append(renderer(item))
+
+    extra = card.get("extra_content") or []
+    if extra:
+        lines.append("\n──────────")
+        for item in extra:
+            renderer = _ITEM_RENDERERS.get(item.get("type", ""))
+            if renderer:
+                lines.append(renderer(item))
 
     meta = card.get("meta") or {}
     footer = _render_footer(meta)

@@ -1,0 +1,16 @@
+[Unit]
+Description=Language Learning Bot — Backend API (port 8500)
+After=network.target
+
+[Service]
+Type=simple
+User=tony
+WorkingDirectory=/home/tony/repos/words/language-learning-bot/backend
+EnvironmentFile=-/home/tony/repos/words/language-learning-bot/.env
+ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/uvicorn \
+    app.main_backend:app --host 0.0.0.0 --port 8500
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

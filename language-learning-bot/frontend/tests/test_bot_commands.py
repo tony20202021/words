@@ -23,7 +23,7 @@ class MockContextManager:
 mock_config = MagicMock()
 mock_config.logging.level = "INFO"
 mock_config.logging.format = None
-mock_config.logging.log_dir = "logs"
+mock_config.logging.log_dir = ".logs"
 
 # Патчим Hydra перед импортом модулей
 with pytest.MonkeyPatch().context() as mp:

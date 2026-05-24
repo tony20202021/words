@@ -8,9 +8,9 @@ format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(
 # Записывать ли логи в файл
 log_to_file: true
 # Путь к файлу лога
-log_file: "logs/app.log"
+log_file: ".logs/app.log"
 # Директория для хранения файлов логов
-log_dir: "logs"
+log_dir: ".logs"
 # Максимальный размер файла лога перед ротацией (в байтах)
 log_file_max_size: 5242880  # 5 MB
 # Количество сохраняемых файлов лога при ротации

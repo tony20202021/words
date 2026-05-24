@@ -9,12 +9,22 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboardMarkup:
-    """Convert card.buttons list to InlineKeyboardMarkup."""
+    """Convert card.buttons list to InlineKeyboardMarkup, with optional sound buttons."""
     builder = InlineKeyboardBuilder()
     for btn in card.get("buttons", []):
         cb = _callback(btn, language_id)
         builder.button(text=btn["text"], callback_data=cb)
     builder.adjust(2, repeat=True)
+
+    sounds = card.get("sounds") or []
+    if sounds:
+        sound_builder = InlineKeyboardBuilder()
+        for i in range(len(sounds)):
+            label = f"🔊 {i + 1}" if len(sounds) > 1 else "🔊"
+            sound_builder.button(text=label, callback_data=f"study:{language_id}:sound:{i}")
+        sound_builder.adjust(len(sounds))
+        builder.attach(sound_builder)
+
     return builder.as_markup()
 
 

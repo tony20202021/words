@@ -319,6 +319,8 @@ async def diagnostics(request: Request):
 
     disks = []
     for part in psutil.disk_partitions(all=False):
+        if part.mountpoint.startswith("/snap/") or part.mountpoint == "/boot/efi":
+            continue
         try:
             u = psutil.disk_usage(part.mountpoint)
             disks.append({
@@ -330,19 +332,137 @@ async def diagnostics(request: Request):
         except PermissionError:
             pass
 
+    # top-5 by CPU (two-pass: init → wait → read) and by RSS
+    import asyncio as _asyncio
+    _snapshot = {}
+    for p in psutil.process_iter(["pid", "name", "memory_info"]):
+        try:
+            p.cpu_percent()          # prime the counter
+            _snapshot[p.pid] = p
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    await _asyncio.sleep(0.3)        # let the counter accumulate
+
+    def _proc_hint(p) -> str:
+        """Return a short hint that helps identify which service this process belongs to."""
+        import re as _re
+        try:
+            cmd = p.cmdline()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return ""
+        full = " ".join(cmd)
+        name = p.name()
+
+        # uvicorn → port number
+        if "uvicorn" in full:
+            for i, tok in enumerate(cmd):
+                if tok == "--port" and i + 1 < len(cmd):
+                    return f"порт {cmd[i+1]}"
+            m = _re.search(r"--port[= ](\d+)", full)
+            return f"порт {m.group(1)}" if m else ""
+
+        # python/conda → last .py script name, skip wrappers
+        for tok in cmd:
+            if tok.endswith(".py") and not tok.startswith("-"):
+                stem = tok.split("/")[-1].removesuffix(".py")
+                if stem and stem != name:
+                    return stem
+
+        # well-known tools — check the BINARY (cmd[0]), not the whole cmdline
+        binary = cmd[0] if cmd else ""
+        if "claude-code" in binary or binary.endswith("/claude"):
+            return "Claude Code"
+        if ".cursor-server/bin" in binary or ".vscode-server/bin" in binary:
+            return "Cursor IDE"
+
+        # node → .js script name if not just "node"
+        for tok in cmd:
+            if tok.endswith(".js") and not tok.startswith("-"):
+                stem = tok.split("/")[-1].removesuffix(".js")
+                if stem and stem != name:
+                    return stem
+
+        # fallback → cwd last three path segments
+        try:
+            cwd = p.cwd()
+            parts = [s for s in cwd.split("/") if s]
+            return "/".join(parts[-3:]) if len(parts) >= 3 else "/".join(parts)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return ""
+
+    all_procs = []
+    for pid, p in _snapshot.items():
+        try:
+            cpu = p.cpu_percent()    # second call gives real %
+            mi = p.memory_info()
+            try:
+                cmdline = " ".join(p.cmdline())
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                cmdline = ""
+            all_procs.append({
+                "pid": pid,
+                "name": p.name(),
+                "hint": _proc_hint(p),
+                "cpu": round(cpu or 0, 1),
+                "mem_mb": round(mi.rss / 1024**2, 1) if mi else 0,
+                "cmdline": cmdline,
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    top_cpu = sorted(all_procs, key=lambda x: x["cpu"], reverse=True)[:5]
+    top_mem = sorted(all_procs, key=lambda x: x["mem_mb"], reverse=True)[:10]
+
     import httpx as _httpx
+    import socket as _socket
+
+    def _port_open(port: int) -> bool:
+        try:
+            with _socket.create_connection(("localhost", port), timeout=1):
+                return True
+        except OSError:
+            return False
+
+    def _proc_running(*keywords) -> bool:
+        """Return True if any process has all keywords in its cmdline string."""
+        for p in psutil.process_iter():
+            try:
+                cmd = " ".join(p.cmdline())
+                if all(kw in cmd for kw in keywords):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+        return False
+
     services = []
-    for name, url in [
-        ("Backend (API)", "http://localhost:8500/api/health"),
-        ("BLS", "http://localhost:8700/health"),
-        ("Web Frontend", "http://localhost:8800/health"),
+    for name, url, disabled in [
+        ("MongoDB",                                    None,                               False),
+        ("Backend API",                                "http://localhost:8500/api/health", False),
+        ("BLS (Business Logic Service)",               "http://localhost:8700/health",     False),
+        ("Web Frontend",                               "http://localhost:8800/health",     False),
+        ("Telegram Bot (новый)",                       None,                               False),
+        ("Telegram Bot (старый)",                      None,                               False),
+        ("Генерация картинок",                         None,                               True),
     ]:
+        if disabled:
+            services.append({"name": name, "ok": False, "disabled": True})
+            continue
+        if url is None:
+            if name == "MongoDB":
+                ok = _port_open(27027)
+            elif "новый" in name:
+                ok = _proc_running("telegram_bot", "app.main")
+            elif "старый" in name:
+                ok = _proc_running("main_frontend")
+            else:
+                ok = False
+            services.append({"name": name, "ok": ok, "disabled": False})
+            continue
         try:
             r = await _httpx.AsyncClient(timeout=2).get(url)
             ok = r.status_code == 200
         except Exception:
             ok = False
-        services.append({"name": name, "ok": ok, "url": url})
+        services.append({"name": name, "ok": ok, "disabled": False})
 
     ctx = {
         "cpu_pct": cpu_pct,
@@ -354,6 +474,8 @@ async def diagnostics(request: Request):
         "swap_used": round(swap.used / 1024**3, 1),
         "disks": disks,
         "services": services,
+        "top_cpu": top_cpu,
+        "top_mem": top_mem,
         "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "platform": platform.platform(),
     }

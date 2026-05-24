@@ -1,5 +1,5 @@
 [Unit]
-Description=Language Learning Bot — Business Logic Service
+Description=Language Learning Bot — Business Logic Service (port 8700)
 After=network.target langbot-backend.service
 
 [Service]
@@ -7,8 +7,7 @@ Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot/business_logic_service
 Environment="BACKEND_URL=http://localhost:8500"
-Environment="TELEGRAM_BOT_TOKEN="
-EnvironmentFile=-/home/tony/repos/words/language-learning-bot/deploy/.env
+EnvironmentFile=-/home/tony/repos/words/language-learning-bot/.env
 ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/uvicorn \
     app.main:app --host 0.0.0.0 --port 8700
 Restart=on-failure

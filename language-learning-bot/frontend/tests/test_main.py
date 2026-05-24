@@ -68,7 +68,7 @@ class TestMain:
             
             mock_cfg.logging = MagicMock()
             mock_cfg.logging.level = "INFO"
-            mock_cfg.logging.log_dir = "logs"
+            mock_cfg.logging.log_dir = ".logs"
             
             # Патчим загрузку секретов - новое
             with patch('app.main_frontend.load_secrets', return_value=True) as mock_load_secrets, \
@@ -128,7 +128,7 @@ class TestMain:
         # Настраиваем остальные атрибуты конфигурации
         mock_cfg.logging = MagicMock()
         mock_cfg.logging.level = "INFO"
-        mock_cfg.logging.log_dir = "logs"
+        mock_cfg.logging.log_dir = ".logs"
         
         # Моки для объектов
         mock_logger = MagicMock()

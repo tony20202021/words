@@ -72,6 +72,40 @@ class TestBuildCardKeyboard:
         assert all_buttons(kb) == []
 
 
+    def test_sound_buttons_added_when_sounds_present(self):
+        card = make_card(show_answer=False)
+        card["sounds"] = ["chinese/word1.mp3"]
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert "study:lang1:sound:0" in cbs
+
+    def test_no_sound_buttons_when_no_sounds(self):
+        card = make_card(show_answer=False)
+        card["sounds"] = []
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert not any("sound" in c for c in cbs)
+
+    def test_single_sound_not_numbered(self):
+        card = make_card(show_answer=False)
+        card["sounds"] = ["a.mp3"]
+        kb = build_card_keyboard(card, "lang1")
+        txts = texts(kb)
+        assert "🔊" in txts
+        assert "🔊 1" not in txts
+
+    def test_multiple_sounds_numbered(self):
+        card = make_card(show_answer=False)
+        card["sounds"] = ["a.mp3", "b.mp3"]
+        kb = build_card_keyboard(card, "lang1")
+        txts = texts(kb)
+        assert "🔊 1" in txts
+        assert "🔊 2" in txts
+        cbs = callbacks(kb)
+        assert "study:lang1:sound:0" in cbs
+        assert "study:lang1:sound:1" in cbs
+
+
 class TestBuildLanguageKeyboard:
     def test_one_button_per_language(self):
         langs = [

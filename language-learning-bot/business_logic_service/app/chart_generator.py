@@ -3,6 +3,8 @@
 Создает PNG-изображения гистограмм и диаграмм.
 """
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from collections import Counter
 from io import BytesIO

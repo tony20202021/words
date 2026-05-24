@@ -1,47 +1,52 @@
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
 from app.bls_client.client import get_bls_client
 
 router = Router()
 
 
 @router.message(Command("stats"))
-async def cmd_stats(message: Message, state: FSMContext, bls_user_id: str) -> None:
-    data = await state.get_data()
-    language_id = data.get("language_id")
-
-    if not language_id:
-        await message.answer("Сначала выберите язык — /language")
-        return
-
+async def cmd_stats(message: Message, bls_user_id: str) -> None:
     bls = get_bls_client()
     languages = await bls.get_languages()
-    lang_name = next((l.get("name_ru", l.get("name_foreign", language_id))
-                      for l in languages if l.get("id") == language_id), language_id)
 
-    stats = await bls.get_statistics(bls_user_id, language_id)
+    if not languages:
+        await message.answer("Нет доступных языков.")
+        return
 
-    total = stats.get("total_words", 0)
-    studied = stats.get("words_studied", 0)
-    known = stats.get("words_known", 0)
-    skipped = stats.get("words_skipped", 0)
-    unknown = stats.get("words_unknown", studied - known - skipped)
-    for_today = stats.get("words_for_today", 0)
-    pct = stats.get("progress_percentage", 0)
+    sections = ["📊 <b>Статистика</b>"]
 
-    text = (
-        f"📊 <b>Статистика: {lang_name}</b>\n\n"
-        f"Всего слов: {total}\n"
-        f"Изучено: {studied} ({pct:.1f}%)\n"
-        f"  ✅ Знаю: {known}\n"
-        f"  ❌ Не знаю: {unknown}\n"
-        f"  ⏭ Пропущено: {skipped}\n"
-    )
-    if for_today > 0:
-        text += f"\n🔔 К повторению сегодня: {for_today}"
-    else:
-        text += "\n✨ На сегодня всё готово!"
+    for lang in languages:
+        lang_id = lang.get("id")
+        lang_name = lang.get("name_ru", lang.get("name_foreign", lang_id))
+        stats = await bls.get_statistics(bls_user_id, lang_id)
 
-    await message.answer(text, parse_mode="HTML")
+        total = stats.get("total_words", 0)
+        studied = stats.get("words_studied", 0)
+        if studied == 0 and total == 0:
+            continue
+
+        known = stats.get("words_known", 0)
+        skipped = stats.get("words_skipped", 0)
+        unknown = stats.get("words_unknown", studied - known - skipped)
+        for_today = stats.get("words_for_today", 0)
+        pct = stats.get("progress_percentage", 0)
+        pct_known = round(known / studied * 100, 1) if studied > 0 else 0
+
+        lines = [f"<b>{lang_name}</b>  {pct:.1f}%"]
+        lines.append(f"Всего: {total} | Изучено: {studied}")
+        if studied > 0:
+            lines.append(f"✅ {known}  ❌ {unknown}  ⏭ {skipped}")
+            lines.append(f"Известно/изучено: {pct_known}%")
+        if for_today > 0:
+            lines.append(f"🔔 К повторению: {for_today}")
+        else:
+            lines.append("✨ На сегодня готово!")
+
+        sections.append("\n".join(lines))
+
+    if len(sections) == 1:
+        sections.append("Нет данных — начните изучение.")
+
+    await message.answer("\n\n".join(sections), parse_mode="HTML")

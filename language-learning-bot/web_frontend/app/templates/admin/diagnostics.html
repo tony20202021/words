@@ -50,6 +50,78 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">Топ-5 по CPU</h6>
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr><th>PID</th><th colspan="2">Процесс</th><th class="text-end">CPU %</th></tr></thead>
+          <tbody>
+          {% for p in top_cpu %}
+          <tr>
+            <td class="text-muted small">{{ p.pid }}</td>
+            <td class="small fw-semibold">{{ p.name }}</td>
+            <td class="text-muted small">{{ p.hint }}</td>
+            <td class="text-end">
+              <span class="badge {% if p.cpu > 50 %}bg-danger{% elif p.cpu > 20 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                {{ p.cpu }}%
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="text-muted">Топ-5 по памяти</h6>
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr><th>PID</th><th colspan="2">Процесс</th><th class="text-end">МБ</th></tr></thead>
+          <tbody>
+          {% for p in top_mem %}
+          <tr>
+            <td class="text-muted small">{{ p.pid }}</td>
+            <td class="small fw-semibold">{{ p.name }}</td>
+            <td class="text-muted small">{{ p.hint }}</td>
+            <td class="text-end">
+              <span class="badge {% if p.mem_mb > 500 %}bg-danger{% elif p.mem_mb > 200 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                {{ p.mem_mb }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="mt-2">
+          <button class="btn btn-link btn-sm px-0 text-muted" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#proc-cmdlines">
+            ▶ полный cmdline
+          </button>
+          <div class="collapse" id="proc-cmdlines">
+            <table class="table table-sm mt-2 mb-0" style="font-size:0.72rem">
+              <thead><tr><th>PID</th><th>cmdline</th></tr></thead>
+              <tbody>
+              {% for p in top_mem %}
+              <tr>
+                <td class="text-nowrap text-muted">{{ p.pid }}</td>
+                <td style="word-break:break-all">{{ p.cmdline or "—" }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <h6>Сервисы</h6>
@@ -57,7 +129,9 @@
       {% for s in services %}
       <div class="list-group-item d-flex justify-content-between align-items-center px-0">
         <span>{{ s.name }}</span>
-        {% if s.ok %}
+        {% if s.disabled %}
+          <span class="badge bg-secondary">— отключён</span>
+        {% elif s.ok %}
           <span class="badge bg-success">✅ OK</span>
         {% else %}
           <span class="badge bg-danger">❌ Недоступен</span>

@@ -6,9 +6,11 @@ All session endpoints return {session_id, card}.
 
 import os
 from typing import Dict, Any, Optional
+from urllib.parse import quote
 import aiohttp
 
 BLS_URL = os.environ.get("BLS_URL", "http://localhost:8700")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8500")
 
 
 class BLSClient:
@@ -29,6 +31,11 @@ class BLSClient:
     async def _delete(self, path: str) -> Dict[str, Any]:
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.delete(f"{self.base_url}{path}") as resp:
+                return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
+
+    async def _put(self, path: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+            async with session.put(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     # ── User ──────────────────────────────────────────────────────────────────
@@ -55,6 +62,10 @@ class BLSClient:
 
     async def toggle_setting(self, user_id: str, language_id: str, key: str) -> Dict[str, Any]:
         result = await self._post(f"/settings/{user_id}/{language_id}/{key}/toggle")
+        return result.get("data") or {}
+
+    async def set_setting(self, user_id: str, language_id: str, key: str, value) -> Dict[str, Any]:
+        result = await self._put(f"/settings/{user_id}/{language_id}/{key}", {"value": value})
         return result.get("data") or {}
 
     async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, bool]:
@@ -159,6 +170,17 @@ class BLSClient:
     async def get_statistics(self, user_id: str, language_id: str) -> Dict[str, Any]:
         result = await self._get(f"/statistics/{user_id}/{language_id}")
         return result.get("data") or {}
+
+    # ── Sounds ────────────────────────────────────────────────────────────────
+
+    async def get_sound(self, path: str) -> Optional[bytes]:
+        encoded = quote(path, safe="").replace(".", "%2E")
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(f"{BACKEND_URL}/api/sounds/{encoded}") as resp:
+                if resp.status == 200:
+                    return await resp.read()
+        return None
 
 
 _client: Optional[BLSClient] = None

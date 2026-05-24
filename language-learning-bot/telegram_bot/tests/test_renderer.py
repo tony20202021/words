@@ -67,6 +67,29 @@ class TestRenderCardText:
         assert "x" not in text
 
 
+    def test_extra_content_rendered_with_separator(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "Радикалы:"},
+            {"type": "extra", "text": "木 — дерево"},
+        ]
+        text = render_card_text(card)
+        assert "──────────" in text
+        assert "Радикалы:" in text
+        assert "木 — дерево" in text
+
+    def test_extra_content_absent_no_separator(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = []
+        text = render_card_text(card)
+        assert "──────────" not in text
+
+    def test_extra_item_type_rendered(self):
+        card = {"content": [], "extra_content": [{"type": "extra", "text": "raw html text"}], "meta": {}}
+        text = render_card_text(card)
+        assert "raw html text" in text
+
+
 class TestRenderFooter:
     def test_score_badge_included(self):
         meta = {
