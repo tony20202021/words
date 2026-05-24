@@ -4,6 +4,7 @@ import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 
 from app.bls_client.client import get_bls_client
 from app.bot.middleware import UserMiddleware
@@ -32,6 +33,15 @@ async def main() -> None:
     dp.include_router(settings.router)
 
     await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_my_commands([
+        BotCommand(command="start",           description="Главное меню"),
+        BotCommand(command="language",        description="Сменить язык"),
+        BotCommand(command="web",             description="Открыть веб-версию"),
+        BotCommand(command="android",         description="Скачать Android-приложение"),
+        BotCommand(command="connect_android", description="Код для входа в Android-приложение"),
+        BotCommand(command="stats",           description="Статистика"),
+        BotCommand(command="help",            description="Помощь"),
+    ])
     logging.info("Bot started")
     await dp.start_polling(bot)
 

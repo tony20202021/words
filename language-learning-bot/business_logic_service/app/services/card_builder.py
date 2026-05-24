@@ -31,13 +31,17 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         content.append({"type": "notice", "variant": "secondary",
                          "text": "⏩ Статус: это слово помечено для пропуска."})
 
+    if not show_answer and score == 1 and interval > 0:
+        content.append({"type": "notice", "variant": "info",
+                         "text": f"⏱ Вы знали это слово:\nПредыдущий интервал: {interval} дн."})
+
     if show_answer:
         if score_changed and score == 1 and interval > 0:
             content.append({"type": "notice", "variant": "success",
-                             "text": f"✅ Следующий интервал: {interval} дн."})
+                             "text": f"Следующий интервал: {interval} дн."})
         elif not score_changed and score == 1 and interval > 0:
             content.append({"type": "notice", "variant": "info",
-                             "text": f"⏱ Вы знали это слово · предыдущий интервал: {interval} дн."})
+                             "text": f"⏱ Вы знали это слово:\nПредыдущий интервал: {interval} дн."})
 
     session_words = session.get("words", [])
     session_current = session.get("current_index", 0)
@@ -57,12 +61,20 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         sounds = all_sounds
         buttons = _buttons_after(is_skipped, score_changed)
 
+    big_word = None
+    if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
+        big_word = {
+            "word": word.get("word_foreign", ""),
+            "transcription": word.get("transcription") or "",
+        }
+
     return {
         "show_answer": show_answer,
         "content": content,
         "extra_content": extra_content,
         "sounds": sounds,
         "buttons": buttons,
+        "big_word": big_word,
         "meta": {
             "word_number": (word or {}).get("word_number"),
             "score": score,
@@ -76,6 +88,11 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
             "result_history": session.get("result_history", []),
             "pending_result": ("know" if session.get("score_changed") else "dont_know") if show_answer else None,
             "score_badge": _score_badge(badge_score, badge_interval, badge_next_date),
+            "language_name_ru": session.get("language_name_ru", ""),
+            "language_name_foreign": session.get("language_name_foreign", ""),
+            "words_studied": session.get("words_studied", 0),
+            "total_words": session.get("total_words", 0),
+            "words_for_today": session.get("words_for_today", 0),
         },
     }
 
@@ -104,15 +121,16 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list) ->
         content.append({"type": "transcription", "text": f"[{word.get('transcription')}]"})
     content.append({"type": "label", "text": "📝 Слово на иностранном:"})
     content.append({"type": "foreign", "text": word.get("word_foreign", "")})
-    if settings.get("show_radicals") and (word.get("radicals") or "").strip():
-        extra.append({"type": "label", "text": "🔍 Радикалы:"})
-        extra.append({"type": "extra", "text": word.get("radicals")})
-    if settings.get("show_references") and (word.get("references") or "").strip():
-        extra.append({"type": "label", "text": "🔍 Ссылки:"})
-        extra.append({"type": "extra", "text": word.get("references")})
+    # Order matches old bot: tones → references → radicals
     if settings.get("show_tones") and (word.get("tones") or "").strip():
         extra.append({"type": "label", "text": "🎵 Тоны:"})
         extra.append({"type": "extra", "text": word.get("tones")})
+    if settings.get("show_references") and (word.get("references") or "").strip():
+        extra.append({"type": "label", "text": "🔍 Ссылки:"})
+        extra.append({"type": "extra", "text": word.get("references")})
+    if settings.get("show_radicals") and (word.get("radicals") or "").strip():
+        extra.append({"type": "label", "text": "🔍 Радикалы:"})
+        extra.append({"type": "extra", "text": word.get("radicals")})
 
 
 def _add_hints(content: list, word: dict, uwd: dict) -> None:

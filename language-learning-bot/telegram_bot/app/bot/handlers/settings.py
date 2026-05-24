@@ -61,15 +61,6 @@ def _format_settings_text(language_name: str) -> str:
     return f"⚙️ <b>Настройки: {language_name}</b>\n\nНажмите на кнопку, чтобы переключить:"
 
 
-async def _lang_name(bls, language_id: str) -> str:
-    languages = await bls.get_languages()
-    return next(
-        (l.get("name_ru", l.get("name_foreign", language_id))
-         for l in languages if l.get("id") == language_id),
-        language_id,
-    )
-
-
 @router.message(Command("settings"))
 async def cmd_settings(message: Message, state: FSMContext, bls_user_id: str) -> None:
     data = await state.get_data()
@@ -80,7 +71,7 @@ async def cmd_settings(message: Message, state: FSMContext, bls_user_id: str) ->
         return
 
     bls = get_bls_client()
-    lang_name = await _lang_name(bls, language_id)
+    lang_name = data.get("language_name") or language_id
     settings = await bls.get_settings(bls_user_id, language_id)
     keyboard = _build_settings_keyboard(settings, language_id)
 

@@ -25,7 +25,8 @@ class UserMiddleware(BaseMiddleware):
             result = await self._bls.get_or_create_user(
                 tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name
             )
-            bls_id = (result.get("data") or {}).get("id") or str(tg_user.id)
+            data_obj = result.get("data") or {}
+            bls_id = data_obj.get("user_id") or (data_obj.get("user_data") or {}).get("id") or str(tg_user.id)
             self._cache[tg_user.id] = bls_id
 
         if tg_user:

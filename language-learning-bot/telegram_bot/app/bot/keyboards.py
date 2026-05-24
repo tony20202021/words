@@ -16,15 +16,6 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
         builder.button(text=btn["text"], callback_data=cb)
     builder.adjust(2, repeat=True)
 
-    sounds = card.get("sounds") or []
-    if sounds:
-        sound_builder = InlineKeyboardBuilder()
-        for i in range(len(sounds)):
-            label = f"🔊 {i + 1}" if len(sounds) > 1 else "🔊"
-            sound_builder.button(text=label, callback_data=f"study:{language_id}:sound:{i}")
-        sound_builder.adjust(len(sounds))
-        builder.attach(sound_builder)
-
     return builder.as_markup()
 
 
@@ -37,6 +28,20 @@ def build_language_keyboard(languages: List[Dict[str, Any]]) -> InlineKeyboardMa
         label = f"{name} ({foreign})" if foreign else name
         builder.button(text=label, callback_data=f"lang:{lang['id']}")
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def build_welcome_keyboard(web_url: str = "") -> InlineKeyboardMarkup:
+    """Navigation keyboard shown after the stats block in /start."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🌐 Выбрать язык",  callback_data="welcome:language")
+    builder.button(text="📊 Статистика",    callback_data="welcome:stats")
+    builder.button(text="📱 Android",       callback_data="welcome:android")
+    builder.button(text="💡 О подсказках",  callback_data="welcome:hints")
+    builder.button(text="📚 Помощь",        callback_data="welcome:help")
+    if web_url:
+        builder.button(text="🔗 Веб-версия", url=web_url)
+    builder.adjust(2)
     return builder.as_markup()
 
 

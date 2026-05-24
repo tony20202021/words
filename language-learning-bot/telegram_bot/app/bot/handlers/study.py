@@ -5,7 +5,8 @@ from aiogram.fsm.context import FSMContext
 from app.bls_client.client import get_bls_client
 from app.bot.handlers.start import UserState
 from app.bot.keyboards import build_card_keyboard
-from app.bot.renderer import render_card_text
+from app.bot.renderer import render_card_text, render_extra_texts
+from app.bot.big_word import generate_big_word_image
 
 router = Router()
 
@@ -14,6 +15,49 @@ COMPLETED_TEXT = (
     "Все слова на сегодня изучены. Отличная работа!\n"
     "Используйте /study чтобы начать снова."
 )
+
+
+async def _display_card(target: Message, card: dict, language_id: str, bls, edit_mode: bool = False) -> None:
+    """
+    Display a card like the old bot:
+      - sounds as voice messages (first)
+      - extra content (radicals/refs/tones) as separate messages
+      - main card text + keyboard last
+    edit_mode=True: edits the existing message when there are no sounds/extras.
+    edit_mode=False: always sends new messages.
+    """
+    sounds = card.get("sounds") or []
+    extras = render_extra_texts(card)
+    main_text = render_card_text(card)
+    keyboard = build_card_keyboard(card, language_id)
+    big_word = card.get("big_word")
+
+    has_extras = bool(sounds or extras or big_word)
+
+    if edit_mode and not has_extras:
+        # Simple same-word update (toggle skip, show answer with no extras) — edit in place
+        await target.edit_text(main_text, reply_markup=keyboard, parse_mode="HTML")
+        return
+
+    # Send new messages: sounds → extras → big word image → main card+keyboard (last)
+    for url in sounds:
+        sound_data = await bls.get_sound(url)
+        if sound_data:
+            await target.answer_voice(BufferedInputFile(sound_data, filename="sound.ogg"))
+
+    for extra_text in extras:
+        await target.answer(extra_text, parse_mode="HTML")
+
+    if big_word:
+        try:
+            img_bytes = await generate_big_word_image(
+                big_word["word"], big_word.get("transcription") or None
+            )
+            await target.answer_photo(BufferedInputFile(img_bytes, filename="word.png"))
+        except Exception:
+            pass  # image generation failure must not block the card
+
+    await target.answer(main_text, reply_markup=keyboard, parse_mode="HTML")
 
 
 @router.message(Command("study"))
@@ -36,11 +80,7 @@ async def cmd_study(message: Message, state: FSMContext, bls_user_id: str) -> No
 
     card = resp["card"]
     await state.set_state(UserState.studying)
-    await message.answer(
-        render_card_text(card),
-        reply_markup=build_card_keyboard(card, language_id),
-        parse_mode="HTML",
-    )
+    await _display_card(message, card, language_id, bls, edit_mode=False)
 
 
 @router.callback_query(F.data.startswith("study:"))
@@ -70,8 +110,8 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
             if batch.get("loaded"):
                 resp = batch
             else:
-                await callback.message.edit_text(COMPLETED_TEXT, parse_mode="HTML")
                 await callback.answer()
+                await callback.message.answer(COMPLETED_TEXT, parse_mode="HTML")
                 return
     elif action == "toggle_skip":
         resp = await bls.toggle_skip(session_id)
@@ -82,37 +122,26 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
             if batch.get("loaded"):
                 resp = batch
             else:
-                await callback.message.edit_text(COMPLETED_TEXT, parse_mode="HTML")
                 await callback.answer()
+                await callback.message.answer(COMPLETED_TEXT, parse_mode="HTML")
                 return
-    elif action == "sound":
-        sound_index = int(parts[3]) if len(parts) > 3 else 0
-        sounds = (session_resp.get("card") or {}).get("sounds") or []
-        if 0 <= sound_index < len(sounds):
-            sound_data = await bls.get_sound(sounds[sound_index])
-            if sound_data:
-                await callback.message.answer_audio(
-                    BufferedInputFile(sound_data, filename="sound.mp3")
-                )
-            else:
-                await callback.answer("Звук недоступен", show_alert=True)
-                return
-        await callback.answer()
-        return
     else:
         await callback.answer()
         return
 
     card = resp.get("card")
     if card is None:
-        await callback.message.edit_text(COMPLETED_TEXT, parse_mode="HTML")
         await callback.answer()
+        await callback.message.answer(COMPLETED_TEXT, parse_mode="HTML")
         return
 
     await state.update_data(language_id=language_id)
-    await callback.message.edit_text(
-        render_card_text(card),
-        reply_markup=build_card_keyboard(card, language_id),
-        parse_mode="HTML",
-    )
+
     await callback.answer()
+
+    # Actions that advance to next word → always new message (like old bot)
+    # Actions on the same word (show_answer, toggle_skip) → try to edit
+    next_word_actions = {"rate", "know", "reconsider"}
+    edit_mode = action not in next_word_actions
+
+    await _display_card(callback.message, card, language_id, bls, edit_mode=edit_mode)

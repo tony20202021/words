@@ -55,6 +55,8 @@ async def start_session(
     if not words and actual_shift > 10_000:
         return None
 
+    progress = ((await api_client.get_user_progress(user_id, language_id)) or {}).get("result") or {}
+
     session_id = str(uuid.uuid4())
     session = {
         "session_id": session_id,
@@ -74,6 +76,11 @@ async def start_session(
         "score_changed": False,
         "settings": settings,
         "show_mode": _pick_show_mode(settings),
+        "language_name_ru": progress.get("language_name_ru", ""),
+        "language_name_foreign": progress.get("language_name_foreign", ""),
+        "words_studied": progress.get("words_studied", 0),
+        "total_words": progress.get("total_words", 0),
+        "words_for_today": progress.get("words_for_today", 0),
     }
 
     _sessions[session_id] = session

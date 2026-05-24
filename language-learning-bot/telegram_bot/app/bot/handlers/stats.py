@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -15,12 +16,13 @@ async def cmd_stats(message: Message, bls_user_id: str) -> None:
         await message.answer("Нет доступных языков.")
         return
 
+    # fetch all stats in parallel
+    stats_list = await asyncio.gather(*[bls.get_statistics(bls_user_id, l["id"]) for l in languages])
+
     sections = ["📊 <b>Статистика</b>"]
 
-    for lang in languages:
-        lang_id = lang.get("id")
-        lang_name = lang.get("name_ru", lang.get("name_foreign", lang_id))
-        stats = await bls.get_statistics(bls_user_id, lang_id)
+    for lang, stats in zip(languages, stats_list):
+        lang_name = lang.get("name_ru", lang.get("name_foreign", lang["id"]))
 
         total = stats.get("total_words", 0)
         studied = stats.get("words_studied", 0)
