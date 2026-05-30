@@ -17,7 +17,8 @@ async def login_page(request: Request, code: Optional[str] = None):
         result = await bls.mobile_activate_token(code)
         user_id = result.get("user_id") if result else None
         if user_id:
-            await _store_session(request, user_id)
+            first_name = await bls.get_user_first_name(user_id)
+            await _store_session(request, user_id, first_name=first_name or "Пользователь")
             return RedirectResponse("/languages", status_code=302)
         return templates.TemplateResponse("login.html", {
             "request": request,

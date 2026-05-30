@@ -1,20 +1,18 @@
 package com.langbot.app
 
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.langbot.app.databinding.ActivityStatsBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.network.Statistics
 import com.langbot.app.prefs.UserPrefs
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class StatsActivity : AppCompatActivity() {
 
@@ -22,12 +20,18 @@ class StatsActivity : AppCompatActivity() {
     private lateinit var userId: String
     private lateinit var languageId: String
 
+    companion object {
+        private val TODAY_CHARTS   = listOf("words_for_today", "words_unknown", "check_interval")
+        private val MONTHLY_CHARTS = listOf("words_studied", "words_new", "words_known",
+                                            "words_unknown_before", "words_unknown_after", "words_for_today")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityStatsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        userId = UserPrefs.getUserId(this) ?: run { finish(); return }
+        userId     = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
         val langName = intent.getStringExtra("language_name") ?: "Статистика"
 
@@ -43,9 +47,11 @@ class StatsActivity : AppCompatActivity() {
         binding.progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                val resp = BLSClient.api.getStatistics(userId, languageId)
-                if (resp.isSuccessful && resp.body() != null) {
-                    renderStats(resp.body()!!)
+                val statsDeferred = async { BLSClient.api.getStatistics(userId, languageId) }
+                val statsResp = statsDeferred.await()
+                if (statsResp.isSuccessful && statsResp.body() != null) {
+                    renderStats(statsResp.body()!!)
+                    loadCharts()
                 } else {
                     Toast.makeText(this@StatsActivity, "Ошибка загрузки", Toast.LENGTH_SHORT).show()
                 }
@@ -57,26 +63,119 @@ class StatsActivity : AppCompatActivity() {
         }
     }
 
+    private fun loadCharts() {
+        // Section header
+        val tvHeader = TextView(this)
+        tvHeader.text = "Графики"
+        tvHeader.textSize = 14f
+        tvHeader.setTypeface(null, android.graphics.Typeface.BOLD)
+        tvHeader.setTextColor(android.graphics.Color.parseColor("#888888"))
+        tvHeader.gravity = android.view.Gravity.CENTER
+        val headerLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        headerLp.topMargin = 24; headerLp.bottomMargin = 8
+        tvHeader.layoutParams = headerLp
+        binding.statsContainer.addView(tvHeader)
+
+        // Spinner while loading — centered
+        val spinner = ProgressBar(this)
+        val spinnerLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        spinnerLp.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        spinner.layoutParams = spinnerLp
+        val spinnerWrap = android.widget.LinearLayout(this)
+        spinnerWrap.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        spinnerWrap.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        spinnerWrap.addView(spinner)
+        binding.statsContainer.addView(spinnerWrap)
+
+        lifecycleScope.launch {
+            var anyLoaded = false
+
+            fun sectionLabel(text: String) {
+                val tv = TextView(this@StatsActivity)
+                tv.text = text
+                tv.textSize = 12f
+                tv.setTextColor(android.graphics.Color.parseColor("#888888"))
+                tv.gravity = android.view.Gravity.CENTER
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.topMargin = 16; lp.bottomMargin = 4
+                tv.layoutParams = lp
+                binding.statsContainer.addView(tv)
+            }
+
+            fun addChartImage(bytes: ByteArray) {
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
+                val iv = ImageView(this@StatsActivity)
+                iv.setImageBitmap(bmp)
+                iv.adjustViewBounds = true
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.bottomMargin = 8
+                iv.layoutParams = lp
+                binding.statsContainer.addView(iv)
+            }
+
+            // Today charts
+            sectionLabel("Распределение слов")
+            for (name in TODAY_CHARTS) {
+                try {
+                    val resp = BLSClient.api.getChart(userId, languageId, name)
+                    if (resp.isSuccessful) {
+                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("StatsActivity", "today/$name: ${e.message}")
+                }
+            }
+
+            // Monthly charts (last 30 days)
+            sectionLabel("Прогресс за месяц")
+            for (name in MONTHLY_CHARTS) {
+                try {
+                    val resp = BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = false)
+                    if (resp.isSuccessful) {
+                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("StatsActivity", "monthly-recent/$name: ${e.message}")
+                }
+            }
+
+            // Monthly charts (all time)
+            sectionLabel("Прогресс за всё время")
+            for (name in MONTHLY_CHARTS) {
+                try {
+                    val resp = BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = true)
+                    if (resp.isSuccessful) {
+                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("StatsActivity", "monthly/$name: ${e.message}")
+                }
+            }
+
+            binding.statsContainer.removeView(spinnerWrap)
+            if (!anyLoaded) {
+                val tv = TextView(this@StatsActivity)
+                tv.text = "Нет данных для графиков"
+                tv.textSize = 13f
+                tv.setTextColor(android.graphics.Color.parseColor("#888888"))
+                tv.gravity = android.view.Gravity.CENTER
+                binding.statsContainer.addView(tv)
+            }
+        }
+    }
+
     private fun renderStats(s: Statistics) {
         val c = binding.statsContainer
         c.removeAllViews()
 
-        if (s.total_words > 0) {
-            val pct = (s.progress_percentage).roundToInt()
-            val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
-            bar.max = 100
-            bar.progress = pct
-            bar.progressTintList = android.content.res.ColorStateList.valueOf(
-                android.graphics.Color.parseColor("#28a745"))
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 20)
-            lp.bottomMargin = 16
-            bar.layoutParams = lp
-            c.addView(bar)
-        }
-
-        addStatRow(c, "Знаю", s.words_known.toString(), "#28a745")
-        addStatRow(c, "Изучено", s.words_studied.toString(), "#333333")
-        addStatRow(c, "Всего слов", s.total_words.toString(), "#666666")
+        addStatRow(c, "Знаю",              s.words_known.toString(),    "#28a745")
+        addStatRow(c, "Изучено",           s.words_studied.toString(),  "#333333")
+        addStatRow(c, "Всего слов",        s.total_words.toString(),    "#666666")
         addStatRow(c, "К повторению сегодня", s.words_for_today.toString(),
             if (s.words_for_today > 0) "#f0ad4e" else "#666666")
         addStatRow(c, "Прогресс (знаю / всего)",
@@ -94,10 +193,10 @@ class StatsActivity : AppCompatActivity() {
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
         row.setPadding(0, 12, 0, 12)
+
         val divider = View(this)
         divider.setBackgroundColor(android.graphics.Color.parseColor("#E0E0E0"))
-        val divLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-        divider.layoutParams = divLp
+        divider.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
 
         val tvLabel = TextView(this)
         tvLabel.text = label

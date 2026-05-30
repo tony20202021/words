@@ -1,6 +1,7 @@
 package com.langbot.app.network
 
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -12,6 +13,9 @@ interface BLSApi {
     // Auth
     @POST("auth/mobile/activate")
     suspend fun activateMobileToken(@Body body: MobileActivateRequest): Response<MobileActivateResponse>
+
+    @POST("auth/mobile/create")
+    suspend fun createMobileToken(@Body body: Map<String, String>): Response<CreateMobileTokenResponse>
 
     // Languages
     @GET("languages/")
@@ -46,7 +50,10 @@ interface BLSApi {
     suspend fun toggleSkip(@Path("session_id") sessionId: String): Response<SessionResponse>
 
     @POST("session/{session_id}/next_batch")
-    suspend fun nextBatch(@Path("session_id") sessionId: String, @Body body: Map<String, String> = emptyMap()): Response<SessionResponse>
+    suspend fun nextBatch(
+        @Path("session_id") sessionId: String,
+        @Body body: Map<String, String> = emptyMap(),
+    ): Response<SessionResponse>
 
     @DELETE("session/{user_id}/{language_id}")
     suspend fun endSession(
@@ -60,16 +67,83 @@ interface BLSApi {
         @Path("user_id") userId: String,
         @Path("language_id") languageId: String,
     ): Response<Statistics>
+
+    @GET("statistics/{user_id}/{language_id}/chart/{chart_name}")
+    suspend fun getChart(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+        @Path("chart_name") chartName: String,
+    ): Response<ResponseBody>
+
+    @GET("statistics/{user_id}/{language_id}/monthly-chart/{chart_name}")
+    suspend fun getMonthlyChart(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+        @Path("chart_name") chartName: String,
+        @Query("show_all") showAll: Boolean = true,
+    ): Response<ResponseBody>
+
+    // Hints
+    @GET("hints/{user_id}/{word_id}")
+    suspend fun getHints(
+        @Path("user_id") userId: String,
+        @Path("word_id") wordId: String,
+    ): Response<Map<String, String>>
+
+    @PUT("hints/{user_id}/{word_id}")
+    suspend fun setHint(
+        @Path("user_id") userId: String,
+        @Path("word_id") wordId: String,
+        @Body body: HintUpdateRequest,
+    ): Response<HintUpdateResponse>
+
+    @DELETE("hints/{user_id}/{word_id}/{hint_type}")
+    suspend fun deleteHint(
+        @Path("user_id") userId: String,
+        @Path("word_id") wordId: String,
+        @Path("hint_type") hintType: String,
+    ): Response<HintUpdateResponse>
+
+    // Settings
+    @GET("settings/{user_id}/{language_id}")
+    suspend fun getSettings(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+    ): Response<Map<String, Any>>
+
+    @POST("settings/{user_id}/{language_id}/{key}/toggle")
+    suspend fun toggleSetting(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+        @Path("key") key: String,
+    ): Response<Map<String, Any>>
+
+    // Help
+    @GET("help")
+    suspend fun getHelp(): Response<HelpResponse>
+
+    @PUT("settings/{user_id}/{language_id}/{key}")
+    suspend fun setSetting(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+        @Path("key") key: String,
+        @Body body: Map<String, Any>,
+    ): Response<Map<String, Any>>
 }
 
 object BLSClient {
     private var _api: BLSApi? = null
 
+    /** Stored without trailing slash — use for constructing sound URLs. */
+    var rawBaseUrl: String = ""
+        private set
+
     fun init(baseUrl: String) {
+        rawBaseUrl = baseUrl.trimEnd('/')
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         val okhttp = OkHttpClient.Builder().addInterceptor(logging).build()
         _api = Retrofit.Builder()
-            .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
+            .baseUrl("$rawBaseUrl/")
             .client(okhttp)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -77,4 +151,7 @@ object BLSClient {
     }
 
     val api: BLSApi get() = _api ?: error("BLSClient not initialized — call BLSClient.init(url) first")
+
+    /** Full URL for a sound path, routed through BLS sound proxy. */
+    fun soundUrl(path: String): String = "$rawBaseUrl/sounds/$path"
 }

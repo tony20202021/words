@@ -21,6 +21,9 @@
         <activity android:name=".LanguagesActivity" android:exported="false" />
         <activity android:name=".StudyActivity" android:exported="false" />
         <activity android:name=".StatsActivity" android:exported="false" />
+        <activity android:name=".HintsActivity" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
+        <activity android:name=".HelpActivity" android:exported="false" />
 
     </application>
 </manifest>

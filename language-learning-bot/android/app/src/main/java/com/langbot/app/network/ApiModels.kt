@@ -22,6 +22,8 @@ data class SessionResponse(
     val session_id: String?,
     val card: Card?,
     val no_words: Boolean = false,
+    val batch_exhausted: Boolean = false,
+    val loaded: Boolean = false,
 )
 
 data class Card(
@@ -30,6 +32,8 @@ data class Card(
     val buttons: List<CardButton>,
     val meta: CardMeta,
     val sounds: List<String> = emptyList(),
+    val extra_content: List<ExtraContentItem> = emptyList(),
+    val big_word: BigWord? = null,
 )
 
 data class CardItem(
@@ -37,6 +41,17 @@ data class CardItem(
     val text: String,
     val variant: String? = null,
     val align: String? = null,
+)
+
+data class ExtraContentItem(
+    val type: String,    // label, extra
+    val text: String,
+    val group: String? = null,
+)
+
+data class BigWord(
+    val word: String,
+    val transcription: String,
 )
 
 data class CardButton(
@@ -47,6 +62,7 @@ data class CardButton(
 )
 
 data class CardMeta(
+    val word_id: String = "",
     val word_number: Int?,
     val session_pos: Int,
     val session_total: Int?,
@@ -55,12 +71,19 @@ data class CardMeta(
     val result_history: List<String> = emptyList(),
     val pending_result: String?,
     val score_badge: ScoreBadge?,
+    val hint_enabled_types: List<String> = emptyList(),
+    val words_studied: Int = 0,
+    val total_words: Int = 0,
+    val words_for_today: Int = 0,
 )
 
 data class ScoreBadge(
     val text: String,
     val variant: String,
     val next_date: String?,
+    val new_interval: Int? = null,
+    val new_next_date: String? = null,
+    val new_variant: String? = null,
 )
 
 data class Statistics(
@@ -71,3 +94,21 @@ data class Statistics(
     val words_for_today: Int = 0,
     val progress_percentage: Double = 0.0,
 )
+
+// ── Hints ─────────────────────────────────────────────────────────────────────
+
+data class HintUpdateRequest(
+    val hint_type: String,
+    val text: String,
+    val language_id: String? = null,
+)
+
+data class HintUpdateResponse(val ok: Boolean)
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+typealias SettingsMap = Map<String, Any>
+
+data class HelpResponse(val text: String)
+
+data class CreateMobileTokenResponse(val code: String, val ttl_seconds: Int = 600)

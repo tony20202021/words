@@ -11,141 +11,119 @@
         android:background="?attr/colorPrimary"
         android:titleTextColor="@android:color/white" />
 
-    <ScrollView
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true">
+        android:layout_weight="1">
 
-        <LinearLayout
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_height="match_parent"
+            android:fillViewport="true">
 
-            <!-- Badge row -->
             <LinearLayout
-                android:id="@+id/badgeRow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="end"
-                android:layout_marginBottom="8dp">
-                <TextView
-                    android:id="@+id/tvBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:background="@drawable/badge_bg"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-            <!-- Card content area -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp">
-                <LinearLayout
-                    android:id="@+id/cardContent"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp"
-                    android:minHeight="200dp"
-                    android:gravity="center" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Divider -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#E0E0E0"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Buttons -->
-            <LinearLayout
-                android:id="@+id/buttonRow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:layout_marginBottom="16dp" />
-
-            <!-- Progress bars -->
-            <LinearLayout
-                android:id="@+id/progressArea"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
+                android:padding="16dp">
 
-                <!-- Line 1: correct (green) -->
-                <ProgressBar
-                    android:id="@+id/progressCorrect"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="6dp"
-                    android:progressBackgroundTint="#adb5bd"
-                    android:progressTint="#28a745"
-                    android:max="100" />
+                <!-- Badge placeholder — hidden; badge is now rendered inside cardContent header row -->
+                <TextView
+                    android:id="@+id/tvBadge"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
-                <!-- 2dp gap -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="2dp" />
-
-                <!-- Line 2: incorrect (red) -->
-                <ProgressBar
-                    android:id="@+id/progressIncorrect"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="6dp"
-                    android:progressBackgroundTint="#adb5bd"
-                    android:progressTint="#dc3545"
-                    android:max="100"
-                    android:layout_marginBottom="6dp" />
-
-                <LinearLayout
+                <!-- Card content area -->
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_marginBottom="16dp">
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:id="@+id/cardContent"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:id="@+id/tvCorrect"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textColor="#28a745"
-                            android:textStyle="bold"
-                            android:textSize="14sp" />
-                        <TextView
-                            android:id="@+id/tvIncorrect"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textColor="#dc3545"
-                            android:textStyle="bold"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-                    <TextView
-                        android:id="@+id/tvDone"
-                        android:layout_width="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="20dp"
+                        android:minHeight="160dp"
+                        android:gravity="center" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Sounds row (hidden when no sounds) -->
+                <LinearLayout
+                    android:id="@+id/soundsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"
+                    android:visibility="gone" />
+
+                <!-- Divider -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Study action buttons -->
+                <LinearLayout
+                    android:id="@+id/buttonRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Hint management button (shown only when answer revealed + types enabled) -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnHints"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="16dp"
+                    android:text="💡 Подсказки"
+                    android:visibility="gone"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                <!-- Progress bars — built entirely in code -->
+                <LinearLayout
+                    android:id="@+id/progressArea"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+                <!-- Big word display (unused standalone, kept for binding) -->
+                <LinearLayout
+                    android:id="@+id/bigWordArea"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <!-- Extra content (radicals, references, tones) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/extraCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone">
+                    <LinearLayout
+                        android:id="@+id/extraContent"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="14sp"
-                        android:textColor="#666666"
-                        android:gravity="end" />
-                </LinearLayout>
+                        android:orientation="vertical"
+                        android:padding="16dp" />
+                </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
+        </ScrollView>
 
-        </LinearLayout>
-    </ScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <ProgressBar
         android:id="@+id/loadingBar"

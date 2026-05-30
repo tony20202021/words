@@ -120,6 +120,18 @@ class BLSClient:
             resp = await client.get(f"{self.base_url}/auth/status/{token}")
             return resp.json() if resp.is_success else {"status": "error"}
 
+    async def get_user_first_name(self, user_id: str) -> str:
+        """Return user's first_name by user_id, or empty string if unavailable."""
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(f"{self.base_url}/admin/users/{user_id}",
+                                        params={"user_id": user_id})
+                if resp.is_success:
+                    return resp.json().get("first_name", "") or ""
+            except Exception:
+                pass
+        return ""
+
     async def mobile_create_token(self, user_id: str) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             resp = await client.post(f"{self.base_url}/auth/mobile/create",
