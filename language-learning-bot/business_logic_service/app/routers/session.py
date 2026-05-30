@@ -1,10 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException
+import asyncio
+from datetime import date
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
-from app.services import session_service
+from app.services import session_service, statistics_service
 from app.services.card_builder import build_card
 from app.api.client import get_api_client
+from app.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+async def _bg_update_daily(user_id: str, language_id: str, api_client) -> None:
+    """Update daily statistics in the background after a word is rated."""
+    try:
+        progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
+        await statistics_service.update_daily_statistics(
+            user_id, language_id, date.today(), progress, api_client)
+    except Exception as e:
+        logger.warning(f"bg daily stats update failed for {user_id}/{language_id}: {e}")
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -21,6 +36,10 @@ class RateRequest(BaseModel):
 
 def _card_response(session: Dict[str, Any]) -> Dict[str, Any]:
     word = session_service.get_current_word(session)
+    if word is None:
+        # No words left (empty batch or unresolvable user) — return card=None so
+        # clients display "all done" rather than crashing with AttributeError.
+        return {"session_id": session["session_id"], "card": None, "no_words": True}
     show_answer = session.get("show_answer", False)
     return {
         "session_id": session["session_id"],
@@ -56,13 +75,18 @@ async def show_answer(session_id: str, api_client=Depends(get_api_client)):
 
 
 @router.post("/{session_id}/rate")
-async def rate_word(session_id: str, req: RateRequest, api_client=Depends(get_api_client)):
+async def rate_word(session_id: str, req: RateRequest,
+                    background_tasks: BackgroundTasks,
+                    api_client=Depends(get_api_client)):
     if req.rating not in ("know", "dont_know", "skip"):
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid rating")
     session = session_service.get_session_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
+    user_id = session.get("user_id", "")
+    language_id = session.get("language_id", "")
     session = await session_service.rate_word(session, req.rating, api_client)
+    background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client)
     word = session_service.get_current_word(session)
     if word is None:
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}
@@ -89,11 +113,16 @@ async def next_batch(session_id: str, api_client=Depends(get_api_client)):
 
 
 @router.post("/{session_id}/know")
-async def know_word(session_id: str, api_client=Depends(get_api_client)):
+async def know_word(session_id: str,
+                    background_tasks: BackgroundTasks,
+                    api_client=Depends(get_api_client)):
     session = session_service.get_session_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
+    user_id = session.get("user_id", "")
+    language_id = session.get("language_id", "")
     session = await session_service.know_word(session, api_client)
+    background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client)
     return _card_response(session)
 
 

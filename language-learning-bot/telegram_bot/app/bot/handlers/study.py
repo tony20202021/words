@@ -62,6 +62,7 @@ async def _display_card(target: Message, card: dict, language_id: str, bls, edit
 
 @router.message(Command("study"))
 async def cmd_study(message: Message, state: FSMContext, bls_user_id: str) -> None:
+    """Continue current session (or start a new one if none exists)."""
     data = await state.get_data()
     language_id = data.get("language_id")
 
@@ -73,6 +74,29 @@ async def cmd_study(message: Message, state: FSMContext, bls_user_id: str) -> No
     resp = await bls.get_session(bls_user_id, language_id)
     if resp is None:
         resp = await bls.start_session(bls_user_id, language_id)
+
+    if resp is None or resp.get("card") is None:
+        await message.answer("На сегодня всё изучено! 🎉")
+        return
+
+    card = resp["card"]
+    await state.set_state(UserState.studying)
+    await _display_card(message, card, language_id, bls, edit_mode=False)
+
+
+@router.message(Command("restart"))
+async def cmd_restart(message: Message, state: FSMContext, bls_user_id: str) -> None:
+    """Reset session and start from the beginning."""
+    data = await state.get_data()
+    language_id = data.get("language_id")
+
+    if not language_id:
+        await message.answer("Сначала выберите язык — /language")
+        return
+
+    bls = get_bls_client()
+    await bls.end_session(bls_user_id, language_id)
+    resp = await bls.start_session(bls_user_id, language_id)
 
     if resp is None or resp.get("card") is None:
         await message.answer("На сегодня всё изучено! 🎉")
@@ -98,7 +122,20 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
 
     session_id = session_resp["session_id"]
 
-    if action == "know":
+    if action == "sound":
+        idx = int(parts[3]) if len(parts) > 3 else 0
+        sounds = (session_resp.get("card") or {}).get("sounds") or []
+        if idx >= len(sounds):
+            await callback.answer("Звук недоступен", show_alert=True)
+            return
+        sound_data = await bls.get_sound(sounds[idx])
+        if not sound_data:
+            await callback.answer("Звук недоступен", show_alert=True)
+            return
+        await callback.message.answer_audio(BufferedInputFile(sound_data, filename="sound.mp3"))
+        await callback.answer()
+        return
+    elif action == "know":
         resp = await bls.know_word(session_id)
     elif action == "show_answer":
         resp = await bls.show_answer(session_id)

@@ -21,6 +21,7 @@ def _make_callback(data=""):
     cb.from_user = MagicMock(id=111)
     cb.message = MagicMock()
     cb.message.edit_text = AsyncMock()
+    cb.message.answer = AsyncMock()
     cb.answer = AsyncMock()
     return cb
 
@@ -41,6 +42,11 @@ def _make_bls(languages=None):
     ])
     bls.get_session = AsyncMock(return_value=None)
     bls.start_session = AsyncMock(return_value=make_session_resp())
+    bls.get_statistics = AsyncMock(return_value={
+        "progress_percentage": 0.0, "total_words": 0,
+        "words_for_today": 0, "words_studied": 0,
+    })
+    bls.get_settings = AsyncMock(return_value={})
     return bls
 
 
@@ -54,8 +60,12 @@ async def test_cmd_start_shows_language_keyboard():
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await cmd_start(msg, state, bls_user_id="u1")
-    msg.answer.assert_called_once()
-    assert msg.answer.call_args.kwargs.get("reply_markup") is not None
+    # Sends multiple messages; the last one carries the navigation keyboard
+    msg.answer.assert_called()
+    assert any(
+        call.kwargs.get("reply_markup") is not None
+        for call in msg.answer.call_args_list
+    )
 
 
 @pytest.mark.asyncio
@@ -80,8 +90,11 @@ async def test_cmd_language_shows_keyboard():
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await cmd_language(msg, state, bls_user_id="u1")
-    msg.answer.assert_called_once()
-    assert msg.answer.call_args.kwargs.get("reply_markup") is not None
+    msg.answer.assert_called()
+    assert any(
+        call.kwargs.get("reply_markup") is not None
+        for call in msg.answer.call_args_list
+    )
 
 
 # ── /web ──────────────────────────────────────────────────────────────────────
@@ -102,56 +115,60 @@ async def test_cmd_web_sends_url():
 # ── lang: callback ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_select_language_starts_session_and_shows_card():
+async def test_select_language_shows_info_and_buttons():
+    """Выбор языка → несколько сообщений с инфо и кнопками действий."""
     from app.bot.handlers.start import select_language
     bls = _make_bls()
     cb = _make_callback("lang:lang1")
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await select_language(cb, state, bls_user_id="u1")
-    cb.message.edit_text.assert_called_once()
     cb.answer.assert_called_once()
+    cb.message.answer.assert_called()
+    # Последнее сообщение содержит кнопки действий
+    assert any(
+        call.kwargs.get("reply_markup") is not None
+        for call in cb.message.answer.call_args_list
+    )
 
 
 @pytest.mark.asyncio
-async def test_select_language_reuses_existing_session():
+async def test_select_language_no_session_management():
+    """select_language больше не управляет сессией — вызовы start_session не делается."""
     from app.bot.handlers.start import select_language
     bls = _make_bls()
-    bls.get_session = AsyncMock(return_value=make_session_resp())
     cb = _make_callback("lang:lang1")
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await select_language(cb, state, bls_user_id="u1")
     bls.start_session.assert_not_called()
-    cb.message.edit_text.assert_called_once()
+    bls.get_session.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_select_language_no_words_shows_alert():
+    """Совместимость: если языка нет в списке — всё равно не падает."""
     from app.bot.handlers.start import select_language
-    bls = _make_bls()
-    bls.get_session = AsyncMock(return_value=None)
-    bls.start_session = AsyncMock(return_value=None)
+    bls = _make_bls(languages=[{"id": "lang1", "name_ru": "Английский", "name_foreign": "English"}])
     cb = _make_callback("lang:lang1")
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await select_language(cb, state, bls_user_id="u1")
     cb.answer.assert_called_once()
-    assert cb.answer.call_args.kwargs.get("show_alert") is True
-    cb.message.edit_text.assert_not_called()
+    cb.message.answer.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_select_language_card_none_shows_alert():
+    """Совместимость: select_language не зависит от карточек сессии."""
     from app.bot.handlers.start import select_language
     bls = _make_bls()
-    bls.start_session = AsyncMock(return_value={"session_id": "s1", "card": None})
     cb = _make_callback("lang:lang1")
     state = _make_state()
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await select_language(cb, state, bls_user_id="u1")
     cb.answer.assert_called_once()
-    assert cb.answer.call_args.kwargs.get("show_alert") is True
+    cb.message.answer.assert_called()
 
 
 @pytest.mark.asyncio
@@ -163,5 +180,6 @@ async def test_select_language_stores_language_id_in_state():
     with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
         await select_language(cb, state, bls_user_id="u1")
     state.update_data.assert_called()
-    stored = state.update_data.call_args.kwargs
-    assert stored.get("language_id") == "lang2"
+    # Ищем вызов, где language_id передан как kwarg
+    all_kwargs = [c.kwargs for c in state.update_data.call_args_list]
+    assert any(kw.get("language_id") == "lang2" for kw in all_kwargs)

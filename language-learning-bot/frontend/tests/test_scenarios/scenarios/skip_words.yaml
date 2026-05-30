@@ -114,7 +114,7 @@ steps:
     name: start
     asserts:
       - type: message_contains
-        position: -4
+        position: -5
         text: "Здравствуйте"
       # - type: state_contains
       #   data: ["_state", None] # TODO Очистка состояния

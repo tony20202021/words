@@ -1,0 +1,72 @@
+{# Hint panel — loaded into #hints-area via HTMX #}
+<div class="card shadow-sm mt-2 mb-1" id="hints-panel">
+  <div class="card-body py-2 px-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong class="small">💡 Личные подсказки к слову</strong>
+      <button type="button" class="btn-close btn-sm"
+        aria-label="Закрыть"
+        onclick="document.getElementById('hints-area').innerHTML = ''"></button>
+    </div>
+
+    {% for ht, (icon, label) in hint_types.items() %}
+      {% set val = hints.get(ht, '') | trim %}
+      <div class="mb-2" id="hint-row-{{ ht }}">
+        <div class="small text-muted mb-1">{{ icon }} <strong>{{ label }}</strong></div>
+
+        {# Display area #}
+        <div id="hint-display-{{ ht }}">
+          {% if val %}
+            <div class="small mb-1 px-2 py-1 bg-light rounded" style="white-space:pre-wrap">{{ val }}</div>
+            <div class="d-flex gap-1">
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                onclick="showHintEdit('{{ ht }}')">✏️ Изменить</button>
+              <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2"
+                hx-delete="/study/{{ language_id }}/hints/{{ word_id }}/{{ ht }}"
+                hx-target="#hints-area" hx-swap="innerHTML">🗑</button>
+            </div>
+          {% else %}
+            <span class="text-muted small fst-italic">не задано</span>
+            <div class="mt-1">
+              <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                onclick="showHintEdit('{{ ht }}')">➕ Добавить</button>
+            </div>
+          {% endif %}
+        </div>
+
+        {# Edit form (hidden by default) #}
+        <div id="hint-edit-{{ ht }}" style="display:none">
+          <form hx-post="/study/{{ language_id }}/hints/{{ word_id }}/{{ ht }}"
+                hx-target="#hints-area" hx-swap="innerHTML">
+            <textarea name="text" class="form-control form-control-sm mb-1" rows="2"
+              placeholder="Введите подсказку...">{{ val }}</textarea>
+            <div class="d-flex gap-1">
+              <button type="submit" class="btn btn-sm btn-primary py-0 px-2">Сохранить</button>
+              <button type="button" class="btn btn-sm btn-secondary py-0 px-2"
+                onclick="hideHintEdit('{{ ht }}')">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% if not loop.last %}<hr class="my-1">{% endif %}
+    {% endfor %}
+
+  </div>
+</div>
+<script>
+(function() {
+  function showHintEdit(ht) {
+    document.getElementById('hint-display-' + ht).style.display = 'none';
+    document.getElementById('hint-edit-' + ht).style.display = 'block';
+    var ta = document.querySelector('#hint-edit-' + ht + ' textarea');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+  function hideHintEdit(ht) {
+    document.getElementById('hint-edit-' + ht).style.display = 'none';
+    document.getElementById('hint-display-' + ht).style.display = '';
+  }
+  // Expose to global scope so onclick attributes work after HTMX swap
+  window.showHintEdit = showHintEdit;
+  window.hideHintEdit = hideHintEdit;
+})();
+</script>

@@ -157,12 +157,16 @@ class TestAfterAnswer:
 # ── score / interval notices ──────────────────────────────────────────────────
 
 class TestNotices:
-    def test_interval_notice_after_know(self):
+    def test_new_interval_in_badge_after_know(self):
+        # Success notice removed — new interval now lives in score_badge.new_interval
         session = make_session(score_changed=True)
-        word = make_word(score=1, interval=7)
+        word = make_word(score=1, interval=7, next_check_date="2026-06-02")
         card = build_card(session, word, show_answer=True)
         notices = [i for i in card["content"] if i["type"] == "notice" and i["variant"] == "success"]
-        assert any("7" in n["text"] for n in notices)
+        assert notices == []
+        badge = card["meta"]["score_badge"]
+        assert badge.get("new_interval") == 7
+        assert badge.get("new_next_date") == "2026-06-02"
 
     def test_previous_interval_notice_when_already_known(self):
         session = make_session(score_changed=False)
@@ -294,6 +298,48 @@ class TestMeta:
         assert card["sounds"] == []
 
 
+# ── session_total ─────────────────────────────────────────────────────────────
+
+class TestSessionTotal:
+    def _session_with_batch(self, words_for_today=0, batch_size=2, processed=0):
+        """Session with a small batch (simulates multi-batch flow)."""
+        s = make_session(correct=processed)
+        s["words"] = [f"word_{i}" for i in range(batch_size)]
+        s["current_index"] = 0
+        if words_for_today:
+            s["words_for_today"] = words_for_today
+        return s
+
+    def test_uses_words_for_today_not_batch_size(self):
+        # Bug: session_total was showing batch size (2) instead of total (51)
+        session = self._session_with_batch(words_for_today=51, batch_size=2)
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["session_total"] == 51
+
+    def test_stable_mid_session(self):
+        # After processing 6 words, session_total must still reflect the full plan
+        session = self._session_with_batch(words_for_today=51, batch_size=2, processed=6)
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["session_total"] == 51
+        assert card["meta"]["session_pos"] == 7  # processed + 1
+
+    def test_fallback_to_batch_when_words_for_today_zero(self):
+        # words_for_today not set → fall back to batch calculation
+        session = self._session_with_batch(words_for_today=0, batch_size=5, processed=3)
+        card = build_card(session, make_word(), show_answer=False)
+        # batch calc: processed(3) + remaining(5-0=5) = 8
+        assert card["meta"]["session_total"] == 8
+
+    def test_fallback_when_words_for_today_missing(self):
+        # words_for_today key absent entirely
+        s = make_session(correct=2)
+        s["words"] = ["a", "b", "c"]
+        s["current_index"] = 1
+        card = build_card(s, make_word(), show_answer=False)
+        # batch calc: 2 + (3-1) = 4
+        assert card["meta"]["session_total"] == 4
+
+
 # ── pending_result ────────────────────────────────────────────────────────────
 
 class TestPendingResult:
@@ -336,3 +382,290 @@ class TestParseSoundUrls:
         inner = json.dumps({"1": "path/x.mp3"})
         word = {"sounds": json.dumps(inner)}
         assert _parse_sound_urls(word) == ["path/x.mp3"]
+
+
+# ── big_word ──────────────────────────────────────────────────────────────────
+
+class TestBigWord:
+    def test_returned_when_show_big_and_show_answer(self):
+        session = make_session(settings={"show_sounds": True, "show_big": True})
+        word = make_word(foreign="应当")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"] is not None
+        assert card["big_word"]["word"] == "应当"
+
+    def test_includes_transcription(self):
+        session = make_session(settings={"show_sounds": True, "show_big": True})
+        word = make_word(foreign="应当", transcription="yīngdāng")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"]["transcription"] == "yīngdāng"
+
+    def test_none_before_answer(self):
+        session = make_session(settings={"show_sounds": True, "show_big": True})
+        word = make_word(foreign="应当")
+        card = build_card(session, word, show_answer=False)
+        assert card["big_word"] is None
+
+    def test_none_when_show_big_false(self):
+        session = make_session(settings={"show_sounds": True, "show_big": False})
+        word = make_word(foreign="应当")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"] is None
+
+    def test_none_when_show_big_missing_from_settings(self):
+        session = make_session(settings={"show_sounds": True})
+        word = make_word(foreign="应当")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"] is None
+
+    def test_none_when_no_word_foreign(self):
+        session = make_session(settings={"show_sounds": True, "show_big": True})
+        word = make_word(foreign="")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"] is None
+
+    def test_empty_transcription_becomes_empty_string(self):
+        session = make_session(settings={"show_sounds": True, "show_big": True})
+        word = make_word(foreign="hello", transcription="")
+        card = build_card(session, word, show_answer=True)
+        assert card["big_word"] is not None
+        assert card["big_word"]["transcription"] == ""
+
+
+# ── extra_content groups ──────────────────────────────────────────────────────
+
+class TestExtraContentGroups:
+    def test_tones_items_have_group_tones(self):
+        session = make_session(settings={"show_sounds": True, "show_tones": True})
+        word = make_word()
+        word["tones"] = "1声 2声"
+        card = build_card(session, word, show_answer=True)
+        groups = {i.get("group") for i in card["extra_content"]}
+        assert "tones" in groups
+
+    def test_references_items_have_group_references(self):
+        session = make_session(settings={"show_sounds": True, "show_references": True})
+        word = make_word()
+        word["references"] = "[1] 应该"
+        card = build_card(session, word, show_answer=True)
+        groups = {i.get("group") for i in card["extra_content"]}
+        assert "references" in groups
+
+    def test_radicals_items_have_group_radicals(self):
+        session = make_session(settings={"show_sounds": True, "show_radicals": True})
+        word = make_word()
+        word["radicals"] = "[1] 木"
+        card = build_card(session, word, show_answer=True)
+        groups = {i.get("group") for i in card["extra_content"]}
+        assert "radicals" in groups
+
+    def test_all_items_in_group_have_group_field(self):
+        session = make_session(settings={"show_sounds": True, "show_tones": True, "show_references": True})
+        word = make_word()
+        word["tones"] = "tones data"
+        word["references"] = "refs data"
+        card = build_card(session, word, show_answer=True)
+        for item in card["extra_content"]:
+            assert "group" in item, f"item missing group: {item}"
+
+    def test_tones_absent_when_setting_off(self):
+        session = make_session(settings={"show_sounds": True, "show_tones": False})
+        word = make_word()
+        word["tones"] = "tones data"
+        card = build_card(session, word, show_answer=True)
+        groups = {i.get("group") for i in card["extra_content"]}
+        assert "tones" not in groups
+
+    def test_extra_content_empty_before_answer(self):
+        session = make_session(settings={"show_sounds": True, "show_tones": True})
+        word = make_word()
+        word["tones"] = "tones data"
+        card = build_card(session, word, show_answer=False)
+        assert card["extra_content"] == []
+
+    def test_extra_content_empty_when_word_field_blank(self):
+        session = make_session(settings={"show_sounds": True, "show_tones": True})
+        word = make_word()
+        word["tones"] = "   "
+        card = build_card(session, word, show_answer=True)
+        groups = {i.get("group") for i in card["extra_content"]}
+        assert "tones" not in groups
+
+
+# ── meta: language + word counts ──────────────────────────────────────────────
+
+class TestMetaLanguageFields:
+    def test_language_names_passed_through(self):
+        session = make_session()
+        session["language_name_ru"] = "Китайский"
+        session["language_name_foreign"] = "中文"
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["language_name_ru"] == "Китайский"
+        assert card["meta"]["language_name_foreign"] == "中文"
+
+    def test_language_names_default_empty(self):
+        card = build_card(make_session(), make_word(), show_answer=False)
+        assert card["meta"]["language_name_ru"] == ""
+        assert card["meta"]["language_name_foreign"] == ""
+
+    def test_words_studied_passed_through(self):
+        session = make_session()
+        session["words_studied"] = 42
+        session["total_words"] = 100
+        session["words_for_today"] = 10
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["words_studied"] == 42
+        assert card["meta"]["total_words"] == 100
+        assert card["meta"]["words_for_today"] == 10
+
+    def test_word_counts_default_zero(self):
+        card = build_card(make_session(), make_word(), show_answer=False)
+        assert card["meta"]["words_studied"] == 0
+        assert card["meta"]["total_words"] == 0
+        assert card["meta"]["words_for_today"] == 0
+
+    def test_result_history_passed_through(self):
+        session = make_session()
+        session["result_history"] = ["know", "dont_know", "know"]
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["result_history"] == ["know", "dont_know", "know"]
+
+
+# ── hint display + settings ───────────────────────────────────────────────────
+
+class TestHintDisplay:
+    def _make_word_with_hints(self):
+        w = make_word()
+        w["user_word_data"]["hint_meaning"]             = "ассоциация"
+        w["user_word_data"]["hint_phoneticsound"]       = "ни-хао"
+        w["user_word_data"]["hint_phoneticassociation"] = "фонетика"
+        w["user_word_data"]["hint_writing"]             = "написание"
+        return w
+
+    def test_hints_hidden_when_settings_off(self):
+        """All hint settings False → no hint items in content."""
+        session = make_session(settings={
+            "show_hint_meaning": False,
+            "show_hint_phoneticsound": False,
+            "show_hint_phoneticassociation": False,
+            "show_hint_writing": False,
+        })
+        card = build_card(session, self._make_word_with_hints(), show_answer=False)
+        assert not any(i["type"] == "hint" for i in card["content"])
+
+    def test_hint_meaning_shown_when_enabled(self):
+        session = make_session(settings={"show_hint_meaning": True})
+        card = build_card(session, self._make_word_with_hints(), show_answer=False)
+        hint_texts = [i["text"] for i in card["content"] if i["type"] == "hint"]
+        assert any("ассоциация" in t for t in hint_texts)
+
+    def test_only_enabled_hint_types_appear(self):
+        """Only phoneticsound enabled → only that hint in content."""
+        session = make_session(settings={"show_hint_phoneticsound": True})
+        card = build_card(session, self._make_word_with_hints(), show_answer=False)
+        hint_texts = [i["text"] for i in card["content"] if i["type"] == "hint"]
+        assert len(hint_texts) == 1
+        assert "ни-хао" in hint_texts[0]
+
+    def test_all_four_hint_types_shown_when_all_enabled(self):
+        session = make_session(settings={
+            "show_hint_meaning": True,
+            "show_hint_phoneticsound": True,
+            "show_hint_phoneticassociation": True,
+            "show_hint_writing": True,
+        })
+        card = build_card(session, self._make_word_with_hints(), show_answer=True)
+        hint_texts = [i["text"] for i in card["content"] if i["type"] == "hint"]
+        assert len(hint_texts) == 4
+
+    def test_hint_not_shown_when_value_empty(self):
+        """Setting enabled but no value → no hint item."""
+        w = make_word()  # no hints set in uwd
+        session = make_session(settings={"show_hint_meaning": True})
+        card = build_card(session, w, show_answer=False)
+        assert not any(i["type"] == "hint" for i in card["content"])
+
+    def test_hint_enabled_types_in_meta_empty_when_all_off(self):
+        session = make_session(settings={})
+        card = build_card(session, make_word(), show_answer=False)
+        assert card["meta"]["hint_enabled_types"] == []
+
+    def test_hint_enabled_types_in_meta_reflects_settings(self):
+        session = make_session(settings={
+            "show_hint_meaning": True,
+            "show_hint_writing": True,
+        })
+        card = build_card(session, make_word(), show_answer=False)
+        enabled = card["meta"]["hint_enabled_types"]
+        assert "meaning" in enabled
+        assert "writing" in enabled
+        assert "phoneticsound" not in enabled
+        assert "phoneticassociation" not in enabled
+
+    def test_word_level_hint_shown_when_no_uwd_hint(self):
+        """Word-level (admin) hint shown when user has no personal hint, if type enabled."""
+        w = make_word()
+        w["hint_meaning"] = "слово-подсказка"
+        session = make_session(settings={"show_hint_meaning": True})
+        card = build_card(session, w, show_answer=False)
+        hint_texts = [i["text"] for i in card["content"] if i["type"] == "hint"]
+        assert any("слово-подсказка" in t for t in hint_texts)
+
+    def test_uwd_hint_overrides_word_hint(self):
+        """User's personal hint takes precedence over admin word hint."""
+        w = make_word()
+        w["hint_meaning"] = "слово-подсказка"
+        w["user_word_data"]["hint_meaning"] = "личная"
+        session = make_session(settings={"show_hint_meaning": True})
+        card = build_card(session, w, show_answer=False)
+        hint_texts = [i["text"] for i in card["content"] if i["type"] == "hint"]
+        assert any("личная" in t for t in hint_texts)
+        assert not any("слово-подсказка" in t for t in hint_texts)
+
+
+# ── References filtering ──────────────────────────────────────────────────────
+
+class TestReferencesFiltering:
+    def _word_with_refs(self, refs: str):
+        w = make_word()
+        w["references"] = refs
+        return w
+
+    def test_refs_shown_unfiltered_when_words_studied_zero(self):
+        """words_studied=0 → no filtering, all refs shown."""
+        refs = "[#5]word5\n[#100]word100"
+        session = make_session(settings={"show_references": True})
+        card = build_card(session, self._word_with_refs(refs), show_answer=True)
+        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
+        assert any("word100" in t for t in extra_texts)
+
+    def test_refs_filtered_by_words_studied(self):
+        """Lines with [#N] > words_studied are hidden."""
+        refs = "[#5]word5\n[#100]word100\n[#20]word20"
+        session = make_session(settings={"show_references": True})
+        session["words_studied"] = 25
+        card = build_card(session, self._word_with_refs(refs), show_answer=True)
+        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
+        combined = "\n".join(extra_texts)
+        assert "word5" in combined
+        assert "word20" in combined
+        assert "word100" not in combined
+
+    def test_refs_fully_filtered_leave_no_extra_block(self):
+        """All ref lines filtered out → no 'references' block in extra_content."""
+        refs = "[#999]word999"
+        session = make_session(settings={"show_references": True})
+        session["words_studied"] = 10
+        card = build_card(session, self._word_with_refs(refs), show_answer=True)
+        assert not any(i.get("group") == "references" for i in card["extra_content"])
+
+    def test_refs_line_without_number_always_shown(self):
+        """Lines without [#N] marker are never filtered."""
+        refs = "generic reference line\n[#500]numbered"
+        session = make_session(settings={"show_references": True})
+        session["words_studied"] = 10
+        card = build_card(session, self._word_with_refs(refs), show_answer=True)
+        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
+        combined = "\n".join(extra_texts)
+        assert "generic reference line" in combined
+        assert "numbered" not in combined

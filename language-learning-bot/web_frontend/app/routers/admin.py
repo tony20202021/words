@@ -4,13 +4,12 @@ Web admin router. All endpoints require session user to have admin rights.
 
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 from pathlib import Path
 from typing import Optional
 from app.bls_client import get_bls_client
 
 router = APIRouter(prefix="/admin")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 MIME_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

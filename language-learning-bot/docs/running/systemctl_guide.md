@@ -2,15 +2,43 @@
 
 ## Содержание
 1. [Обзор](#обзор)
-2. [Создание сервисных файлов](#создание-сервисных-файлов)
+2. [Текущие запущенные сервисы](#текущие-запущенные-сервисы)
+3. [Создание сервисных файлов](#создание-сервисных-файлов)
    - [langbot-db.service](#langbot-dbservice)
    - [langbot-backend.service](#langbot-backendservice)
    - [langbot-frontend.service](#langbot-frontendservice)
-3. [Активация и запуск](#активация-и-запуск)
-4. [Управление сервисами](#управление-сервисами)
-5. [Просмотр логов](#просмотр-логов)
-6. [Устранение неполадок](#устранение-неполадок)
-7. [Удаление сервисов](#удаление-сервисов)
+4. [Активация и запуск](#активация-и-запуск)
+5. [Управление сервисами](#управление-сервисами)
+6. [Просмотр логов](#просмотр-логов)
+7. [Устранение неполадок](#устранение-неполадок)
+8. [Удаление сервисов](#удаление-сервисов)
+
+---
+
+## Текущие запущенные сервисы
+
+На сервере запущены следующие systemd-сервисы (файлы в `/etc/systemd/system/`):
+
+| Сервис | Порт | Автоперезапуск | Скрипт |
+|--------|------|---------------|--------|
+| `langbot-db` | 27027 | нет (mongod) | `start_1_db.sh` |
+| `langbot-backend` | 8500 | нет | `start_2_backend.sh` |
+| `langbot-bls` | 8700 | ✅ watchmedo `.py` | `start_bls_auto_reload.sh` |
+| `langbot-web` | 8800 | ✅ watchmedo `.py` + `.html` | `start_web_auto_reload.sh` |
+| `langbot-frontend` | — | ✅ watchmedo `.py` | `start_3_frontend_auto_reload.sh` |
+| `langbot-telegram` | — | ✅ watchmedo `.py` | `start_telegram_bot_auto_reload.sh` |
+
+Быстрые команды:
+```bash
+# Статус всех сервисов бота
+sudo systemctl status langbot-db langbot-backend langbot-bls langbot-web langbot-telegram
+
+# Перезапуск web + bls (после изменений)
+sudo systemctl restart langbot-bls langbot-web
+
+# Логи в реальном времени
+sudo journalctl -u langbot-web -u langbot-bls -f
+```
 
 ---
 

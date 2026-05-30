@@ -1,8 +1,16 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pydantic import BaseModel
 from app.services import auth_service
 from app.api.client import get_api_client
+
+# Brute-force protection for code activation
+_activate_rl = {"count": 0, "reset_at": 0.0}  # global rate limit: 20/min
+_ACTIVATE_LIMIT = 20
+_code_fails: dict = {}          # code → {"count": int, "blocked_until": float}
+_CODE_FAIL_LIMIT = 3
+_CODE_BLOCK_SECS = 60
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -102,13 +110,38 @@ async def mobile_create(body: dict):
 
 @router.post("/mobile/activate")
 async def mobile_activate(body: dict):
-    """Android app exchanges code for user_id. Single-use."""
+    """Android/Web exchanges code for user_id. Single-use with brute-force protection."""
+    now = time.time()
+
+    # Global rate limit
+    if now > _activate_rl["reset_at"]:
+        _activate_rl["count"] = 0
+        _activate_rl["reset_at"] = now + 60
+    _activate_rl["count"] += 1
+    if _activate_rl["count"] > _ACTIVATE_LIMIT:
+        raise HTTPException(status_code=429, detail="too many attempts, try later")
+
     code = (body.get("code") or "").strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail="code required")
+
+    # Per-code block check
+    entry = _code_fails.get(code)
+    if entry and now < entry["blocked_until"]:
+        retry = int(entry["blocked_until"] - now) + 1
+        raise HTTPException(status_code=429, detail=f"code blocked, retry in {retry}s")
+
     user_id = auth_service.activate_mobile_token(code)
     if not user_id:
+        # Record failed attempt
+        if code not in _code_fails:
+            _code_fails[code] = {"count": 0, "blocked_until": 0.0}
+        _code_fails[code]["count"] += 1
+        if _code_fails[code]["count"] >= _CODE_FAIL_LIMIT:
+            _code_fails[code]["blocked_until"] = now + _CODE_BLOCK_SECS
         raise HTTPException(status_code=404, detail="invalid or expired code")
+
+    _code_fails.pop(code, None)
     return {"user_id": user_id}
 
 

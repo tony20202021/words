@@ -120,6 +120,18 @@ class BLSClient:
             resp = await client.get(f"{self.base_url}/auth/status/{token}")
             return resp.json() if resp.is_success else {"status": "error"}
 
+    async def mobile_create_token(self, user_id: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(f"{self.base_url}/auth/mobile/create",
+                                     json={"user_id": user_id})
+            return resp.json() if resp.is_success else {}
+
+    async def mobile_activate_token(self, code: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(f"{self.base_url}/auth/mobile/activate",
+                                     json={"code": code})
+            return resp.json() if resp.is_success else {}
+
     # ── Admin ─────────────────────────────────────────────────────────────────
 
     async def admin_global_stats(self, user_id: str) -> Dict[str, Any]:
@@ -220,11 +232,40 @@ class BLSClient:
                                      params=params, files=files)
             return resp.json() if resp.is_success else {"ok": False, "error": resp.text}
 
+    # ── Hints ─────────────────────────────────────────────────────────────────
+
+    async def get_word_hints(self, user_id: str, word_id: str) -> Dict[str, str]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{self.base_url}/hints/{user_id}/{word_id}")
+            return resp.json() if resp.is_success else {}
+
+    async def set_word_hint(
+        self, user_id: str, word_id: str,
+        hint_type: str, text: str,
+        language_id: Optional[str] = None,
+    ) -> bool:
+        payload: Dict[str, Any] = {"hint_type": hint_type, "text": text}
+        if language_id:
+            payload["language_id"] = language_id
+        async with httpx.AsyncClient() as client:
+            resp = await client.put(f"{self.base_url}/hints/{user_id}/{word_id}", json=payload)
+            return bool((resp.json() or {}).get("ok")) if resp.is_success else False
+
+    async def delete_word_hint(self, user_id: str, word_id: str, hint_type: str) -> bool:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(f"{self.base_url}/hints/{user_id}/{word_id}/{hint_type}")
+            return bool((resp.json() or {}).get("ok")) if resp.is_success else False
+
     # ── Settings ─────────────────────────────────────────────────────────────
 
     async def get_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{self.base_url}/settings/{user_id}/{language_id}")
+            return resp.json() if resp.is_success else {}
+
+    async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, bool]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{self.base_url}/settings/{user_id}/{language_id}/hints")
             return resp.json() if resp.is_success else {}
 
     async def toggle_setting(self, user_id: str, language_id: str, key: str) -> Dict[str, Any]:

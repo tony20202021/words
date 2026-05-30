@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 from app.bls_client.client import BLSClient, get_bls_client
 from app.bot.keyboards import build_language_keyboard, build_welcome_keyboard
 
-from app.bot.handlers.help import HELP_TEXT
+from app.bls_client.client import get_bls_client as _get_bls_client
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 from common.version import __version__
@@ -36,8 +36,6 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
     await state.update_data(bls_user_id=bls_user_id)
 
     first_name = message.from_user.first_name or ""
-    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8800")
-    autologin_url = f"{web_url}/autologin?telegram_id={message.from_user.id}"
 
     # Сообщение 1 — приветствие
     await message.answer(
@@ -46,19 +44,14 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
         parse_mode="HTML",
     )
 
-    # Сообщение 2 — веб-версия
+    # Сообщение 2 — навигация
     await message.answer(
-        f"🌐 Веб-версия: {autologin_url}",
-        disable_web_page_preview=True,
-    )
-
-    # Сообщение 3 — андроид
-    await message.answer(
+        "🌐 Веб-версия: /web\n"
         "📱 Android-приложение: /android\n"
         "🔑 Войти в приложение: /connect_android",
     )
 
-    # Сообщение 4 — статистика по языкам (параллельно)
+    # Сообщение 3 — статистика по языкам (параллельно)
     stats_list = await asyncio.gather(*[bls.get_statistics(bls_user_id, l["id"]) for l in languages])
     stats_lines = [
         f"В системе доступно для изучения:\n{len(languages)} языков.",
@@ -73,7 +66,7 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
     stats_lines.append("📋 Используйте кнопки ниже для навигации:")
     await message.answer(
         "\n".join(stats_lines),
-        reply_markup=build_welcome_keyboard(web_url=autologin_url),
+        reply_markup=build_welcome_keyboard(),
     )
 
 
@@ -88,6 +81,7 @@ async def welcome_nav(callback: CallbackQuery, state: FSMContext, bls_user_id: s
         await cmd_stats(callback.message, bls_user_id)
     elif action == "android":
         await cmd_android(callback.message)
+
     elif action == "hints":
         await callback.message.answer(
             "💡 <b>О подсказках</b>\n\n"
@@ -100,14 +94,27 @@ async def welcome_nav(callback: CallbackQuery, state: FSMContext, bls_user_id: s
             parse_mode="HTML",
         )
     elif action == "help":
-        await callback.message.answer(HELP_TEXT, parse_mode="HTML")
+        from app.bot.handlers.help import cmd_help as _cmd_help
+        await _cmd_help(callback.message)
 
 
 @router.message(Command("web"))
-async def cmd_web(message: Message) -> None:
+async def cmd_web(message: Message, bls_user_id: str) -> None:
     web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8800")
-    url = f"{web_url}/autologin?telegram_id={message.from_user.id}"
-    await message.answer(f"🌐 Веб-версия:\n{url}", disable_web_page_preview=True)
+    bls = get_bls_client()
+    result = await bls.mobile_create_token(bls_user_id)
+    code = result.get("code") if result else None
+    if code:
+        url = f"{web_url}/login?code={code}"
+        text = (
+            f"🌐 <b>Веб-версия</b>\n\n"
+            f"Код: <code>{code}</code>\n\n"
+            f"{url}\n\n"
+            f"<i>Ссылка действует 10 минут и используется один раз.</i>"
+        )
+    else:
+        text = f"🌐 <b>Веб-версия</b>\n{web_url}"
+    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
 
 @router.message(Command("connect_android"))
@@ -138,18 +145,16 @@ async def cmd_android(message: Message) -> None:
     if not _APK_PATH.exists():
         await message.answer("APK не найден. Обратитесь к администратору.")
         return
-    apk = FSInputFile(_APK_PATH, filename=f"LangBot-v{__version__}.apk")
-    await message.answer_document(
-        apk,
-        caption=(
-            f"📱 <b>LangBot для Android</b> v{__version__}\n\n"
-            f"1. Нажмите на файл → <b>Открыть</b>\n"
-            f"2. Разрешите установку из Telegram (один раз)\n"
-            f"3. Установите приложение\n"
-            f"4. В приложении введите адрес BLS и код из /connect_android"
-        ),
+    await message.answer(
+        f"📱 <b>LangBot для Android</b> v{__version__}\n\n"
+        f"1. Нажмите на файл → <b>Открыть</b>\n"
+        f"2. Разрешите установку из Telegram (один раз)\n"
+        f"3. Установите приложение\n"
+        f"4. В приложении введите адрес BLS и код из /connect_android",
         parse_mode="HTML",
     )
+    apk = FSInputFile(_APK_PATH, filename=f"LangBot-v{__version__}.apk")
+    await message.answer_document(apk)
 
 
 async def _send_language_selection(target_message, bls_user_id: str, state: FSMContext) -> None:
@@ -258,7 +263,7 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         "⚙️ <b>Ваши настройки для этого языка:</b>",
         f"   • Короткие подписи: <b>{b(s.get('show_short_captions', True))}</b>",
         f"   • Начальное слово: <b>{s.get('start_word', 1)}</b>",
-        f"   • Исключённые слова: <b>{b(s.get('skip_marked', False))}</b>",
+        f"   • Пропускать исключённые слова: <b>{b(s.get('skip_marked', False))}</b>",
         "",
         "🖼️ <b>Настройки даты проверки:</b>",
         f"   • Период повторения: <b>{b(s.get('use_check_date', True))}</b>",
@@ -318,13 +323,13 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
     builder = InlineKeyboardBuilder()
-    builder.button(text="📚 Начать изучение", callback_data=f"study_start:{language_id}")
+    builder.button(text="📚 Начать заново",    callback_data=f"study_start:{language_id}")
     builder.button(text="⚙️ Настройки",       callback_data=f"nav:settings:{language_id}")
     builder.button(text="🌐 Другой язык",     callback_data="welcome:language")
-    builder.button(text="📊 Статистика",      callback_data="nav:stats")
+    builder.button(text="📊 Статистика",      callback_data=f"nav:stats:{language_id}")
     builder.adjust(2, 2)
     await callback.message.answer(
-        "Теперь вы можете:\n- Начать изучение: /study\n- Настроить процесс: /settings",
+        "Теперь вы можете:\n- Продолжить изучение: /study\n- Настроить процесс: /settings",
         reply_markup=builder.as_markup(),
     )
 
@@ -343,8 +348,12 @@ async def nav_callback(callback: CallbackQuery, state: FSMContext, bls_user_id: 
         from app.bot.handlers.settings import cmd_settings
         await cmd_settings(callback.message, state, bls_user_id)
     elif action == "stats":
-        from app.bot.handlers.stats import cmd_stats
-        await cmd_stats(callback.message, bls_user_id)
+        if lang_id:
+            from app.bot.handlers.stats import cmd_stats_language
+            await cmd_stats_language(callback.message, bls_user_id, lang_id)
+        else:
+            from app.bot.handlers.stats import cmd_stats
+            await cmd_stats(callback.message, bls_user_id)
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("study_start:"))

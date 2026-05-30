@@ -1,18 +1,28 @@
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 from pathlib import Path
 from typing import Optional
 from app.bls_client import get_bls_client
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
 @router.get("/login")
-async def login_page(request: Request):
+async def login_page(request: Request, code: Optional[str] = None):
     if request.session.get("user_id"):
         return RedirectResponse("/languages", status_code=302)
+    if code:
+        bls = get_bls_client()
+        result = await bls.mobile_activate_token(code)
+        user_id = result.get("user_id") if result else None
+        if user_id:
+            await _store_session(request, user_id)
+            return RedirectResponse("/languages", status_code=302)
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Код недействителен или истёк. Запросите новый в Telegram (/web) или в приложении.",
+        })
     return templates.TemplateResponse("login.html", {"request": request})
 
 
@@ -125,6 +135,24 @@ async def autologin(request: Request, telegram_id: int):
         await _store_session(request, result["user_id"], telegram_id, first_name=result.get("first_name", ""))
         return RedirectResponse("/languages", status_code=302)
     return _render_login(request, error="Пользователь не найден. Войдите вручную.")
+
+
+@router.get("/connect")
+async def connect_page(request: Request):
+    """Generate a code so another device can log in."""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=302)
+    bls = get_bls_client()
+    result = await bls.mobile_create_token(user_id)
+    code = result.get("code") if result else None
+    web_url = request.base_url
+    connect_url = f"{str(web_url).rstrip('/')}login?code={code}" if code else None
+    return templates.TemplateResponse("connect.html", {
+        "request": request,
+        "code": code,
+        "connect_url": connect_url,
+    })
 
 
 @router.get("/logout")

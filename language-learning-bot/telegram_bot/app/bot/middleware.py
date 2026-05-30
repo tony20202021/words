@@ -26,7 +26,7 @@ class UserMiddleware(BaseMiddleware):
                 tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name
             )
             data_obj = result.get("data") or {}
-            bls_id = data_obj.get("user_id") or (data_obj.get("user_data") or {}).get("id") or str(tg_user.id)
+            bls_id = data_obj.get("id") or data_obj.get("user_id") or (data_obj.get("user_data") or {}).get("id") or str(tg_user.id)
             self._cache[tg_user.id] = bls_id
 
         if tg_user:

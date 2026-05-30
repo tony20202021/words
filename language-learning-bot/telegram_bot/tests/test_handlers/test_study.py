@@ -12,6 +12,10 @@ def make_callback(data: str, user_id: int = 1) -> CallbackQuery:
     user.username = "testuser"
     msg = MagicMock(spec=Message)
     msg.edit_text = AsyncMock()
+    msg.answer = AsyncMock()
+    msg.answer_voice = AsyncMock()
+    msg.answer_audio = AsyncMock()
+    msg.answer_photo = AsyncMock()
     cb = MagicMock(spec=CallbackQuery)
     cb.data = data
     cb.from_user = user
@@ -99,7 +103,7 @@ async def test_know_callback_calls_bls_know(mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
     mock_bls.know_word.assert_called_once_with("sess-1")
-    cb.message.edit_text.assert_called_once()
+    cb.message.answer.assert_called_once()   # know → новое сообщение
     cb.answer.assert_called_once()
 
 
@@ -152,6 +156,51 @@ async def test_toggle_skip_callback(mock_bls):
     mock_bls.toggle_skip.assert_called_once_with("sess-1")
 
 
+# ── /restart command ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cmd_restart_no_language_set(mock_bls):
+    from app.bot.handlers.study import cmd_restart
+    msg = make_message()
+    state = make_state(language_id=None)
+    state.get_data = AsyncMock(return_value={})
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await cmd_restart(msg, state, bls_user_id="user-1")
+    msg.answer.assert_called_once()
+    assert "язык" in msg.answer.call_args[0][0].lower()
+    mock_bls.end_session.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cmd_restart_ends_and_restarts_session(mock_bls):
+    from app.bot.handlers.study import cmd_restart
+    mock_bls.end_session = AsyncMock(return_value=None)
+    mock_bls.start_session.return_value = make_session_resp()
+    msg = make_message()
+    state = make_state()
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await cmd_restart(msg, state, bls_user_id="user-1")
+    mock_bls.end_session.assert_called_once_with("user-1", "lang1")
+    mock_bls.start_session.assert_called_once_with("user-1", "lang1")
+    msg.answer.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cmd_restart_no_words_shows_done(mock_bls):
+    from app.bot.handlers.study import cmd_restart
+    mock_bls.end_session = AsyncMock(return_value=None)
+    mock_bls.start_session.return_value = None
+    msg = make_message()
+    state = make_state()
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await cmd_restart(msg, state, bls_user_id="user-1")
+    mock_bls.end_session.assert_called_once()
+    msg.answer.assert_called_once()
+    assert "🎉" in msg.answer.call_args[0][0]
+
+
+# ── callbacks ─────────────────────────────────────────────────────────────────
+
 @pytest.mark.asyncio
 async def test_session_not_found_shows_alert(mock_bls):
     from app.bot.handlers.study import handle_study_callback
@@ -182,7 +231,7 @@ async def test_batch_exhausted_loads_next_batch(mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
     mock_bls.next_batch.assert_called_once_with("sess-1")
-    cb.message.edit_text.assert_called_once()
+    cb.message.answer.assert_called_once()   # next batch loaded → новое сообщение
 
 
 @pytest.mark.asyncio
@@ -199,7 +248,7 @@ async def test_batch_exhausted_no_more_words_shows_completed(mock_bls):
     with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
-    call_args = cb.message.edit_text.call_args
+    call_args = cb.message.answer.call_args
     assert COMPLETED_TEXT in call_args.args[0]
 
 
@@ -214,7 +263,7 @@ async def test_reconsider_callback_updates_card(mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
     mock_bls.reconsider.assert_called_once_with("sess-1")
-    cb.message.edit_text.assert_called_once()
+    cb.message.answer.assert_called_once()   # reconsider → новое сообщение
 
 
 @pytest.mark.asyncio
@@ -231,7 +280,7 @@ async def test_reconsider_batch_exhausted_loads_next(mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
     mock_bls.next_batch.assert_called_once()
-    cb.message.edit_text.assert_called_once()
+    cb.message.answer.assert_called_once()   # batch loaded → новое сообщение
 
 
 @pytest.mark.asyncio
@@ -247,7 +296,7 @@ async def test_reconsider_batch_exhausted_no_more_shows_completed(mock_bls):
     with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
         await handle_study_callback(cb, state, bls_user_id="user-1")
 
-    assert COMPLETED_TEXT in cb.message.edit_text.call_args.args[0]
+    assert COMPLETED_TEXT in cb.message.answer.call_args.args[0]
 
 
 @pytest.mark.asyncio

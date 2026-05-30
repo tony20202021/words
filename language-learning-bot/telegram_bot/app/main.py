@@ -8,7 +8,7 @@ from aiogram.types import BotCommand
 
 from app.bls_client.client import get_bls_client
 from app.bot.middleware import UserMiddleware
-from app.bot.handlers import start, study, auth, help, stats, settings, admin as admin_handler
+from app.bot.handlers import start, study, auth, help, stats, settings, admin as admin_handler, hints
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +25,7 @@ async def main() -> None:
     dp.update.middleware(UserMiddleware(bls))
 
     dp.include_router(auth.router)
+    dp.include_router(hints.router)   # before study so hint: callbacks don't fall to study:
     dp.include_router(start.router)
     dp.include_router(study.router)
     dp.include_router(admin_handler.router)
@@ -35,11 +36,13 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_my_commands([
         BotCommand(command="start",           description="Главное меню"),
+        BotCommand(command="study",           description="Продолжить изучение"),
+        BotCommand(command="restart",         description="Начать заново (сброс сессии)"),
         BotCommand(command="language",        description="Сменить язык"),
+        BotCommand(command="stats",           description="Статистика"),
         BotCommand(command="web",             description="Открыть веб-версию"),
         BotCommand(command="android",         description="Скачать Android-приложение"),
         BotCommand(command="connect_android", description="Код для входа в Android-приложение"),
-        BotCommand(command="stats",           description="Статистика"),
         BotCommand(command="help",            description="Помощь"),
     ])
     logging.info("Bot started")

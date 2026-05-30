@@ -18,13 +18,18 @@
 <body class="bg-light">
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
     <a class="navbar-brand fw-bold" href="/">📚 LangBot</a>
-    <span class="text-secondary" style="font-size:0.7rem">v{{ app_version }}</span>
+    <span class="text-light opacity-50" style="font-size:0.75rem">v{{ app_version }}</span>
+    <div class="ms-2 d-flex gap-1">
+      <a href="{{ telegram_bot_url }}" target="_blank" class="btn btn-outline-light btn-sm px-2" title="Telegram-бот">🤖</a>
+      <a href="/download/android" class="btn btn-outline-light btn-sm px-2" title="Android APK">📱</a>
+    </div>
     <div class="ms-auto d-flex gap-2 align-items-center">
       {% if request.session.get('first_name') %}
         {% if request.session.get('is_admin') %}
           <a href="/admin" class="btn btn-outline-warning btn-sm">⚙ Админ</a>
         {% endif %}
         <a href="/stats" class="btn btn-outline-info btn-sm">📊 Статистика</a>
+        <a href="/connect" class="btn btn-outline-light btn-sm">Код для входа</a>
         <a href="/help" class="btn btn-outline-light btn-sm">? Помощь</a>
         <span class="text-light small">{{ request.session.get('first_name') }}</span>
         <a href="/logout" class="btn btn-outline-light btn-sm">Выйти</a>

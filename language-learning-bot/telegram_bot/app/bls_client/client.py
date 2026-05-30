@@ -38,6 +38,18 @@ class BLSClient:
             async with session.put(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
+    async def _patch(self, path: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+            async with session.patch(f"{self.base_url}{path}", json=payload or {}) as resp:
+                return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
+
+    async def _get_bytes(self, path: str) -> Optional[bytes]:
+        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+            async with session.get(f"{self.base_url}{path}") as resp:
+                if resp.status < 400:
+                    return await resp.read()
+                return None
+
     # ── User ──────────────────────────────────────────────────────────────────
 
     async def get_or_create_user(
@@ -161,6 +173,57 @@ class BLSClient:
             f"/admin/languages/{language_id}/words/by_number/{number}?user_id={user_id}")
         return result.get("data") or {}
 
+    async def admin_get_user_details(self, user_id: str, target_user_id: str) -> Dict[str, Any]:
+        result = await self._get(f"/admin/users/{target_user_id}?user_id={user_id}")
+        return result.get("data") or {}
+
+    async def admin_update_language(self, user_id: str, language_id: str,
+                                    name_ru: str, name_foreign: str) -> bool:
+        result = await self._put(f"/admin/languages/{language_id}?user_id={user_id}",
+                                 {"name_ru": name_ru, "name_foreign": name_foreign})
+        return bool((result.get("data") or {}).get("ok"))
+
+    async def admin_update_word(self, user_id: str, word_id: str, field: str, value: str) -> bool:
+        result = await self._patch(f"/admin/words/{word_id}?user_id={user_id}",
+                                   {"field": field, "value": value})
+        return bool((result.get("data") or {}).get("ok"))
+
+    async def admin_delete_word(self, user_id: str, word_id: str) -> bool:
+        result = await self._delete(f"/admin/words/{word_id}?user_id={user_id}")
+        return bool((result.get("data") or {}).get("ok"))
+
+    async def admin_export_words(self, user_id: str, language_id: str,
+                                 fmt: str = "xlsx",
+                                 start: int = None, end: int = None) -> Optional[bytes]:
+        params = f"user_id={user_id}&format={fmt}"
+        if start is not None:
+            params += f"&start={start}"
+        if end is not None:
+            params += f"&end={end}"
+        return await self._get_bytes(f"/admin/languages/{language_id}/export?{params}")
+
+    async def admin_import_words(
+        self, user_id: str, language_id: str,
+        file_data: bytes, filename: str,
+        clear_existing: bool = False,
+    ) -> Dict[str, Any]:
+        timeout = aiohttp.ClientTimeout(total=120)  # import may take a while
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            form = aiohttp.FormData()
+            form.add_field(
+                "file", file_data,
+                filename=filename,
+                content_type="application/octet-stream",
+            )
+            url = (
+                f"{self.base_url}/admin/languages/{language_id}/import"
+                f"?user_id={user_id}&clear_existing={str(clear_existing).lower()}"
+            )
+            async with session.post(url, data=form) as resp:
+                if resp.status < 400:
+                    return await resp.json()
+                return {"ok": False, "error": f"HTTP {resp.status}"}
+
     # ── Languages & Statistics ────────────────────────────────────────────────
 
     async def get_languages(self) -> list:
@@ -171,7 +234,38 @@ class BLSClient:
         result = await self._get(f"/statistics/{user_id}/{language_id}")
         return result.get("data") or {}
 
+    async def get_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
+        return await self._get_bytes(f"/statistics/{user_id}/{language_id}/chart/{chart_name}")
+
+    async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
+        return await self._get_bytes(f"/statistics/{user_id}/{language_id}/monthly-chart/{chart_name}")
+
+    # ── Hints ─────────────────────────────────────────────────────────────────
+
+    async def get_word_hints(self, user_id: str, word_id: str) -> Dict[str, str]:
+        result = await self._get(f"/hints/{user_id}/{word_id}")
+        return result.get("data") or {}
+
+    async def set_word_hint(
+        self, user_id: str, word_id: str,
+        hint_type: str, text: str,
+        language_id: Optional[str] = None,
+    ) -> bool:
+        payload: Dict[str, Any] = {"hint_type": hint_type, "text": text}
+        if language_id:
+            payload["language_id"] = language_id
+        result = await self._put(f"/hints/{user_id}/{word_id}", payload)
+        return bool((result.get("data") or {}).get("ok"))
+
+    async def delete_word_hint(self, user_id: str, word_id: str, hint_type: str) -> bool:
+        result = await self._delete(f"/hints/{user_id}/{word_id}/{hint_type}")
+        return bool((result.get("data") or {}).get("ok"))
+
     # ── Sounds ────────────────────────────────────────────────────────────────
+
+    async def get_help(self) -> Dict[str, Any]:
+        result = await self._get("/help")
+        return result.get("data") or {}
 
     async def mobile_create_token(self, user_id: str) -> Dict[str, Any]:
         async with aiohttp.ClientSession() as session:

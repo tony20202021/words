@@ -51,6 +51,12 @@ def make_mock_api(words: list = None, settings: dict = None) -> AsyncMock:
     api.create_user_word_data.return_value = {"success": True, "result": make_uwd(1)}
     api.update_user_word_data.return_value = {"success": True, "result": make_uwd(1)}
 
+    # progress info used when building initial session state
+    api.get_user_progress.return_value = {
+        "result": {"language_name_ru": "", "language_name_foreign": "",
+                   "words_studied": 5, "total_words": 10, "words_for_today": 3}
+    }
+
     return api
 
 

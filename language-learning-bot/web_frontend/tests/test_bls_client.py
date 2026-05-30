@@ -174,3 +174,63 @@ class TestChartMethods:
             mock_cls.return_value.__aenter__.return_value.get = AsyncMock(return_value=resp)
             result = await client.get_monthly_chart("u1", "lang1", "words_studied")
         assert result is None
+
+
+class TestWordHints:
+    @pytest.mark.asyncio
+    async def test_get_word_hints_returns_dict(self, client):
+        hints_data = {"meaning": "солнце = тепло", "writing": ""}
+        resp = make_response(200, hints_data)
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.get = AsyncMock(return_value=resp)
+            result = await client.get_word_hints("u1", "word-123")
+        assert result == hints_data
+
+    @pytest.mark.asyncio
+    async def test_get_word_hints_returns_empty_on_failure(self, client):
+        resp = make_response(500, {})
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.get = AsyncMock(return_value=resp)
+            result = await client.get_word_hints("u1", "word-123")
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_set_word_hint_returns_true_on_success(self, client):
+        resp = make_response(200, {"ok": True})
+        with patch("httpx.AsyncClient") as mock_cls:
+            put_mock = AsyncMock(return_value=resp)
+            mock_cls.return_value.__aenter__.return_value.put = put_mock
+            result = await client.set_word_hint("u1", "word-123", "meaning", "солнце = тепло",
+                                                language_id="lang1")
+        assert result is True
+        call_body = put_mock.call_args.kwargs["json"]
+        assert call_body["hint_type"] == "meaning"
+        assert call_body["text"] == "солнце = тепло"
+        assert call_body["language_id"] == "lang1"
+
+    @pytest.mark.asyncio
+    async def test_set_word_hint_returns_false_on_failure(self, client):
+        resp = make_response(500, {})
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.put = AsyncMock(return_value=resp)
+            result = await client.set_word_hint("u1", "word-123", "meaning", "text")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_delete_word_hint_returns_true_on_success(self, client):
+        resp = make_response(200, {"ok": True})
+        with patch("httpx.AsyncClient") as mock_cls:
+            delete_mock = AsyncMock(return_value=resp)
+            mock_cls.return_value.__aenter__.return_value.delete = delete_mock
+            result = await client.delete_word_hint("u1", "word-123", "meaning")
+        assert result is True
+        url = delete_mock.call_args.args[0]
+        assert "hints/u1/word-123/meaning" in url
+
+    @pytest.mark.asyncio
+    async def test_delete_word_hint_returns_false_on_failure(self, client):
+        resp = make_response(404, {})
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.delete = AsyncMock(return_value=resp)
+            result = await client.delete_word_hint("u1", "word-123", "meaning")
+        assert result is False

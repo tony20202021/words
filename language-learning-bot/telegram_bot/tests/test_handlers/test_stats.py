@@ -10,7 +10,7 @@ def _make_message():
     return msg
 
 
-def _make_bls(languages=None, stats_by_lang=None):
+def _make_bls(languages=None, stats_by_lang=None, chart_data=None):
     bls = AsyncMock()
     bls.get_languages = AsyncMock(return_value=languages if languages is not None else [
         {"id": "lang1", "name_ru": "Английский", "name_foreign": "English"},
@@ -27,6 +27,8 @@ def _make_bls(languages=None, stats_by_lang=None):
         return stats_by_lang.get(lang_id, default_stats)
 
     bls.get_statistics = get_statistics
+    # chart returns None by default (no charts available)
+    bls.get_chart = AsyncMock(return_value=chart_data)
     return bls
 
 
@@ -120,6 +122,46 @@ async def test_stats_shows_all_done_when_no_review():
         await cmd_stats(msg, bls_user_id="u1")
     text = msg.answer.call_args[0][0]
     assert "готово" in text.lower() or "✨" in text
+
+
+@pytest.mark.asyncio
+async def test_stats_does_not_send_charts():
+    """cmd_stats only sends text — charts are sent by select_language after language selection."""
+    from app.bot.handlers.stats import cmd_stats
+    bls = _make_bls(chart_data=b"\x89PNG fake image")
+    msg = _make_message()
+    msg.answer_photo = AsyncMock()
+    with patch("app.bot.handlers.stats.get_bls_client", return_value=bls):
+        await cmd_stats(msg, bls_user_id="u1")
+    msg.answer_photo.assert_not_called()
+    msg.answer.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_stats_no_charts_when_bls_returns_none():
+    """When BLS returns None for charts, answer_photo should NOT be called."""
+    from app.bot.handlers.stats import cmd_stats
+    bls = _make_bls(chart_data=None)
+    msg = _make_message()
+    msg.answer_photo = AsyncMock()
+    with patch("app.bot.handlers.stats.get_bls_client", return_value=bls):
+        await cmd_stats(msg, bls_user_id="u1")
+    msg.answer_photo.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stats_chart_error_doesnt_break_stats():
+    """Chart fetch exception must not prevent text stats from being sent."""
+    from app.bot.handlers.stats import cmd_stats
+    bls = _make_bls()
+    bls.get_chart = AsyncMock(side_effect=Exception("network error"))
+    msg = _make_message()
+    msg.answer_photo = AsyncMock()
+    with patch("app.bot.handlers.stats.get_bls_client", return_value=bls):
+        await cmd_stats(msg, bls_user_id="u1")
+    # text stats must have been sent
+    msg.answer.assert_called()
+    msg.answer_photo.assert_not_called()
 
 
 @pytest.mark.asyncio

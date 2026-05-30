@@ -7,7 +7,7 @@ from app.bls_client.client import get_bls_client
 router = Router()
 
 SETTING_LABELS = {
-    "skip_marked":                   "Исключённые слова",
+    "skip_marked":                   None,  # state-dependent label, see _build_settings_keyboard
     "use_check_date":                "Учитывать дату",
     "show_check_date":               "Показывать дату проверки",
     "show_hint_meaning":             "Ассоциация на русском",
@@ -42,9 +42,13 @@ def _build_settings_keyboard(settings: dict, language_id: str) -> InlineKeyboard
     buttons = []
     for key, label in SETTING_LABELS.items():
         val = settings.get(key, False)
-        icon = "✅" if val else "❌"
+        if key == "skip_marked":
+            btn_text = "✅ Пропускать исключённые слова" if val else "❌ Не пропускать исключённые слова"
+        else:
+            icon = "✅" if val else "❌"
+            btn_text = f"{icon} {label}"
         buttons.append([InlineKeyboardButton(
-            text=f"{icon} {label}",
+            text=btn_text,
             callback_data=f"settings:{language_id}:{key}",
         )])
     for key, (label, _min) in NUMERIC_LABELS.items():
@@ -55,6 +59,16 @@ def _build_settings_keyboard(settings: dict, language_id: str) -> InlineKeyboard
             InlineKeyboardButton(text="+", callback_data=f"set_num:{language_id}:{key}:1"),
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+async def _lang_name(bls, language_id: str) -> str:
+    """Resolve human-readable name for language_id via BLS. Fallback to id."""
+    try:
+        languages = await bls.get_languages()
+        lang = next((l for l in languages if l.get("id") == language_id), None)
+        return lang["name_ru"] if lang else language_id
+    except Exception:
+        return language_id
 
 
 def _format_settings_text(language_name: str) -> str:
@@ -71,7 +85,7 @@ async def cmd_settings(message: Message, state: FSMContext, bls_user_id: str) ->
         return
 
     bls = get_bls_client()
-    lang_name = data.get("language_name") or language_id
+    lang_name = data.get("language_name") or await _lang_name(bls, language_id)
     settings = await bls.get_settings(bls_user_id, language_id)
     keyboard = _build_settings_keyboard(settings, language_id)
 

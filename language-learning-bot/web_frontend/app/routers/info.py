@@ -1,53 +1,16 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
+import sys
 from pathlib import Path
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse, Response, FileResponse
+from app.templating import templates
 from app.bls_client import get_bls_client
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from common.help_text import HELP_TEXT
+
+_APK_PATH = Path(__file__).parent.parent.parent.parent / "android" / "LangBot.apk"
+
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
-
-HELP_TEXT = """📚 Справка по использованию бота
-
-Этот бот поможет вам эффективно изучать иностранные слова с использованием системы интервального повторения.
-
-🔹 Основные команды:
-/start - Начать работу с ботом
-/language - Выбрать язык для изучения
-/study - Начать изучение слов
-/settings - Настройки процесса обучения
-/stats - Показать статистику
-/hint - Информация о подсказках
-/cancel - Отмена текущего действия
-
-🔹 Процесс изучения:
-1. Выберите язык командой /language
-2. Настройте процесс обучения командой /settings
-3. Начните изучение командой /study
-4. Для каждого слова вы можете:
-   • Придумывать и использовать свои собственные подсказки
-   • Отметить слово как запомненое/неизвестное
-   • Пропустить слово
-
-🔹 Система интервального повторения:
-• Если вы отметили слово как запомненое, его интервал повторения увеличивается в 2 раза
-• Интервалы повторения: 1, 2, 4, 8, 16, 32 дня
-• Если вы не знаете слово, интервал сбрасывается до 1 дня
-• При просмотре подсказки интервал также сбрасывается
-
-🔹 Система подсказок:
-Подсказки придумываются самостоятельно самим пользователем.
-• Значение - ассоциация для слова на русском
-• Фонетическая ассоциация - связь с похожими по звучанию словами
-• Фонетика - разбиение слова на слоги
-• Написание - мнемонические приемы для запоминания
-• В настройках можно индивидуально включать/отключать типы подсказок
-
-Если у вас остались вопросы, обратитесь к администратору бота (@Anton_Mikhalev).
-
-Вызвать главное меню и начать обучение - можно по команде /start
-
-Более подробно узнать про подсказки - команда /hint"""
 
 
 def _require_user(request: Request):
@@ -55,6 +18,18 @@ def _require_user(request: Request):
     if not user_id:
         return None, RedirectResponse("/login", status_code=302)
     return user_id, None
+
+
+@router.get("/download/android")
+async def download_android():
+    if not _APK_PATH.exists():
+        return Response("APK не найден", status_code=404)
+    from common.version import __version__
+    return FileResponse(
+        path=str(_APK_PATH),
+        media_type="application/vnd.android.package-archive",
+        filename=f"LangBot-v{__version__}.apk",
+    )
 
 
 @router.get("/help")

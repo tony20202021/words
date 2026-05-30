@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Подключить устройство{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="/languages" class="btn btn-outline-secondary btn-sm">← Назад</a>
+  <h4 class="mb-0">Подключить устройство</h4>
+</div>
+
+{% if code %}
+<div class="card shadow-sm">
+  <div class="card-body text-center py-4">
+    <p class="text-muted small mb-2">Введите этот код в приложении или браузере:</p>
+    <div class="display-3 fw-bold font-monospace text-primary mb-1"
+         style="cursor:pointer; user-select:all" title="Нажмите, чтобы скопировать"
+         onclick="navigator.clipboard.writeText('{{ code }}').then(()=>this.style.opacity='0.5').catch(()=>{})">
+      {{ code }}
+    </div>
+    <p class="text-muted small">Действует 10 минут · одноразовый</p>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-danger">Не удалось создать код. Попробуйте позже.</div>
+{% endif %}
+{% endblock %}

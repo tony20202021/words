@@ -1,30 +1,32 @@
 """Unit tests for card → Telegram HTML renderer."""
 
 import pytest
-from app.bot.renderer import render_card_text, _render_footer
+from app.bot.renderer import render_card_text, render_extra_texts, _render_footer
 from tests.conftest import make_card
 
 
 class TestRenderCardText:
-    def test_foreign_rendered_as_code(self):
+    def test_foreign_rendered_bold(self):
         card = make_card(show_answer=False)
         text = render_card_text(card)
-        assert "<code>hello</code>" in text
+        assert "<b>hello</b>" in text
 
-    def test_translation_rendered_plain(self):
+    def test_translation_rendered_bold(self):
         card = make_card(show_answer=True)
         text = render_card_text(card)
-        assert "привет" in text
+        assert "<b>привет</b>" in text
 
-    def test_transcription_rendered_italic(self):
+    def test_transcription_rendered_bold(self):
         card = make_card(show_answer=True)
         text = render_card_text(card)
-        assert "<i>[hɛˈloʊ]</i>" in text
+        assert "<b>[hɛˈloʊ]</b>" in text
 
-    def test_label_rendered_bold(self):
+    def test_label_rendered_plain(self):
         card = make_card(show_answer=False)
         text = render_card_text(card)
-        assert "<b>" in text
+        # labels are plain text with newline, NOT wrapped in <b>
+        assert "<b>📝 Слово на иностранном:</b>" not in text
+        assert "📝 Слово на иностранном:" in text
 
     def test_notice_rendered_as_plain(self):
         card = make_card(show_answer=False)
@@ -39,59 +41,51 @@ class TestRenderCardText:
         assert "<i>💡 some hint</i>" in text
 
     def test_empty_card_no_crash(self):
-        card = {"content": [], "meta": {}}
+        card = {"content": [], "extra_content": [], "meta": {}}
         text = render_card_text(card)
         assert isinstance(text, str)
 
-    def test_footer_contains_word_number(self):
+    def test_header_contains_word_number(self):
         card = make_card(word_number=42)
         text = render_card_text(card)
         assert "42" in text
 
-    def test_footer_contains_counters(self):
+    def test_header_contains_counters(self):
         card = make_card(correct=3, incorrect=2)
-        # session_pos = 3+2+1 = 6, done = 5
         text = render_card_text(card)
-        assert "✓3" in text
-        assert "✗2" in text
+        assert "3" in text
+        assert "2" in text
 
     def test_no_footer_for_zero_progress(self):
-        card = {"content": [], "meta": {"word_number": None, "score_badge": {}, "session_pos": 1,
-                                         "correct_count": 0, "incorrect_count": 0}}
-        footer = _render_footer(card["meta"])
+        meta = {"word_number": None, "score_badge": {}, "session_pos": 1,
+                "correct_count": 0, "incorrect_count": 0}
+        footer = _render_footer(meta)
         assert footer == ""
 
     def test_unknown_item_type_skipped(self):
-        card = {"content": [{"type": "unknown_type", "text": "x"}], "meta": {}}
+        card = {"content": [{"type": "unknown_type", "text": "x"}], "extra_content": [], "meta": {}}
         text = render_card_text(card)
         assert "x" not in text
 
-
-    def test_extra_content_rendered_with_separator(self):
+    def test_extra_content_excluded_from_main_card(self):
         card = make_card(show_answer=True)
         card["extra_content"] = [
-            {"type": "label", "text": "Радикалы:"},
-            {"type": "extra", "text": "木 — дерево"},
+            {"type": "label", "text": "🎵 Тоны:", "group": "tones"},
+            {"type": "extra", "text": "1声 2声 3声", "group": "tones"},
         ]
         text = render_card_text(card)
-        assert "──────────" in text
-        assert "Радикалы:" in text
-        assert "木 — дерево" in text
+        assert "1声 2声 3声" not in text
+        assert "🎵 Тоны:" not in text
 
-    def test_extra_content_absent_no_separator(self):
+    def test_extra_absent_no_extra_leaked(self):
         card = make_card(show_answer=True)
         card["extra_content"] = []
         text = render_card_text(card)
         assert "──────────" not in text
 
-    def test_extra_item_type_rendered(self):
-        card = {"content": [], "extra_content": [{"type": "extra", "text": "raw html text"}], "meta": {}}
-        text = render_card_text(card)
-        assert "raw html text" in text
-
 
 class TestRenderFooter:
-    def test_score_badge_included(self):
+    def test_footer_always_empty(self):
         meta = {
             "word_number": 5,
             "score_badge": {"text": "✓ знал · 7д", "variant": "success", "next_date": "2026-05-27"},
@@ -100,6 +94,72 @@ class TestRenderFooter:
             "incorrect_count": 0,
         }
         footer = _render_footer(meta)
-        assert "5" in footer
-        assert "✓ знал · 7д" in footer
-        assert "✓3" in footer
+        assert footer == ""
+
+
+class TestRenderExtraTexts:
+    def test_empty_extra_returns_empty_list(self):
+        card = make_card(show_answer=True)
+        assert render_extra_texts(card) == []
+
+    def test_one_group_one_message(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "🎵 Тоны:", "group": "tones"},
+            {"type": "extra", "text": "1声 2声", "group": "tones"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) == 1
+        assert "🎵 Тоны:" in msgs[0]
+        assert "1声 2声" in msgs[0]
+
+    def test_two_groups_two_messages(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "🎵 Тоны:", "group": "tones"},
+            {"type": "extra", "text": "tones content", "group": "tones"},
+            {"type": "label", "text": "🔍 Ссылки:", "group": "references"},
+            {"type": "extra", "text": "refs content", "group": "references"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) == 2
+        assert "Тоны:" in msgs[0]
+        assert "Ссылки:" in msgs[1]
+
+    def test_three_groups_three_messages(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "🎵 Тоны:", "group": "tones"},
+            {"type": "extra", "text": "t", "group": "tones"},
+            {"type": "label", "text": "🔍 Ссылки:", "group": "references"},
+            {"type": "extra", "text": "r", "group": "references"},
+            {"type": "label", "text": "🔍 Радикалы:", "group": "radicals"},
+            {"type": "extra", "text": "rad", "group": "radicals"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) == 3
+
+    def test_long_content_split(self):
+        card = make_card(show_answer=True)
+        big_text = "x" * 4500
+        card["extra_content"] = [
+            {"type": "label", "text": "🔍 Ссылки:", "group": "references"},
+            {"type": "extra", "text": big_text, "group": "references"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) >= 2
+        assert all(len(m) <= 4000 for m in msgs)
+
+    def test_group_field_ignored_in_rendering(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "Радикалы:", "group": "radicals"},
+            {"type": "extra", "text": "木", "group": "radicals"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) == 1
+        assert "木" in msgs[0]
+
+    def test_no_extra_content_key(self):
+        card = {"content": [], "meta": {}}
+        assert render_extra_texts(card) == []

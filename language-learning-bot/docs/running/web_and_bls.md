@@ -94,11 +94,20 @@ sudo systemctl start langbot-web
 sudo systemctl enable langbot-bls langbot-web
 ```
 
-## Перезапуск при изменениях
+## Автоперезапуск при изменениях
 
-- **Шаблоны `.html`**: подхватываются без перезапуска
-- **Python-файлы `.py`**: требуют `kill + restart` сервиса
-- **Сессии BLS**: хранятся in-memory — после рестарта BLS нужно открыть страницу учёбы заново
+Web Frontend и BLS запускаются через `watchmedo auto-restart` — изменения применяются автоматически:
+
+| Файл | Web Frontend | BLS |
+|------|-------------|-----|
+| `.py` | ✅ перезапуск | ✅ перезапуск |
+| `.html` | ✅ перезапуск | — |
+
+Скрипты watchmedo:
+- Web: `start_web_auto_reload.sh` — наблюдает `app/**/*.py` и `app/**/*.html`
+- BLS: `start_bls_auto_reload.sh` — наблюдает `app/**/*.py`
+
+**Сессии BLS**: хранятся in-memory — после рестарта BLS нужно открыть страницу учёбы заново.
 
 ## Страница статистики (/stats)
 

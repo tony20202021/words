@@ -13,6 +13,10 @@ def make_card(
     word_number: int = 1,
     correct: int = 0,
     incorrect: int = 0,
+    language_name_ru: str = "",
+    words_studied: int = 0,
+    total_words: int = 0,
+    words_for_today: int = 0,
 ) -> dict:
     """Build a minimal card dict matching BLS card_builder output shape."""
     if not show_answer:
@@ -45,21 +49,32 @@ def make_card(
         ]
 
     badge_variant = "success" if score == 1 else ("danger" if score == 0 else "secondary")
+    done = correct + incorrect
     return {
         "show_answer": show_answer,
         "content": content,
+        "extra_content": [],
         "sounds": [],
         "buttons": buttons,
+        "big_word": None,
         "meta": {
             "word_number": word_number,
             "score": score,
             "interval": 0,
             "next_check_date": "",
             "is_skipped": is_skipped,
-            "session_pos": correct + incorrect + 1,
+            "session_pos": done + 1,
+            "session_total": done + 1,
             "correct_count": correct,
             "incorrect_count": incorrect,
+            "result_history": [],
+            "pending_result": None,
             "score_badge": {"text": "новое", "variant": badge_variant, "next_date": ""},
+            "language_name_ru": language_name_ru,
+            "language_name_foreign": "",
+            "words_studied": words_studied,
+            "total_words": total_words,
+            "words_for_today": words_for_today,
         },
     }
 

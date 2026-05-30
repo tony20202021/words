@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 from pathlib import Path
 from app.bls_client import get_bls_client
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 NUMERIC_LABELS = {
     "start_word":             "Начальное слово",
@@ -15,7 +14,7 @@ NUMERIC_LABELS = {
 }
 
 SETTING_LABELS = {
-    "skip_marked":                   "Исключённые слова",
+    "skip_marked":                   "Пропускать исключённые слова",
     "use_check_date":                "Учитывать дату",
     "show_check_date":               "Показывать дату проверки",
     "show_hint_meaning":             "Ассоциация на русском",

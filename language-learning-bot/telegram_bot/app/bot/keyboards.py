@@ -9,13 +9,30 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboardMarkup:
-    """Convert card.buttons list to InlineKeyboardMarkup, with optional sound buttons."""
+    """Convert card.buttons list to InlineKeyboardMarkup, with optional sound and hint buttons."""
     builder = InlineKeyboardBuilder()
     for btn in card.get("buttons", []):
         cb = _callback(btn, language_id)
         builder.button(text=btn["text"], callback_data=cb)
-    builder.adjust(2, repeat=True)
 
+    # Sound buttons only shown BEFORE answer — after reveal they've already been sent
+    # as individual audio messages and stay visible in the chat.
+    sounds = card.get("sounds") or []
+    if sounds and not card.get("show_answer"):
+        numbered = len(sounds) > 1
+        for i, _ in enumerate(sounds):
+            label = f"🔊 {i + 1}" if numbered else "🔊"
+            builder.button(text=label, callback_data=f"study:{language_id}:sound:{i}")
+
+    # Show hint management button only when answer is revealed, word_id is set,
+    # and at least one hint type is enabled in user settings.
+    meta = card.get("meta") or {}
+    word_id = meta.get("word_id", "")
+    hint_enabled = bool(meta.get("hint_enabled_types"))
+    if card.get("show_answer") and word_id and hint_enabled:
+        builder.button(text="💡 Подсказки", callback_data=f"hint:{language_id}:{word_id}:show")
+
+    builder.adjust(2, repeat=True)
     return builder.as_markup()
 
 
