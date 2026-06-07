@@ -869,6 +869,17 @@ class APIClient:
         endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
         return await self._make_request("PUT", endpoint, data=stats_update)
 
+    async def update_daily_last_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date,
+        stats_update: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update last-finish statistics (always overwrites — most recent session completion)."""
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-last-finish-stats/{date.isoformat()}"
+        return await self._make_request("PUT", endpoint, data=stats_update)
+
     async def get_all_monthly_first_finish_statistics(
         self,
         user_id: str,
@@ -891,6 +902,26 @@ class APIClient:
         Get monthly first finish statistics for a specific user and language.
         """
         endpoint = f"/users/{user_id}/languages/{language_id}/monthly-first-finish-stats/{date.isoformat()}"
+        return await self._make_request("GET", endpoint)
+
+    async def get_all_monthly_last_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """Get all-time monthly last-finish statistics."""
+        endpoint = f"/users/{user_id}/languages/{language_id}/all-monthly-last-finish-stats/{date.isoformat()}"
+        return await self._make_request("GET", endpoint)
+
+    async def get_monthly_last_finish_statistics(
+        self,
+        user_id: str,
+        language_id: str,
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """Get monthly last-finish statistics (recent 31 days)."""
+        endpoint = f"/users/{user_id}/languages/{language_id}/monthly-last-finish-stats/{date.isoformat()}"
         return await self._make_request("GET", endpoint)
 
     async def get_sound_file(self, sound_name: str) -> Dict[str, Any]:

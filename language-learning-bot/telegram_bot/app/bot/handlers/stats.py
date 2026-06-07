@@ -8,19 +8,21 @@ router = Router()
 
 _TODAY_CHART_NAMES = ["words_for_today", "words_unknown", "check_interval"]
 _MONTHLY_CHART_NAMES = ["words_studied", "words_new", "words_known",
-                        "words_unknown_before", "words_unknown_after", "words_for_today"]
+                        "words_unknown_before", "words_unknown_first_finish",
+                        "words_unknown_last_finish", "words_for_today"]
 
 _CAPTION_MAP = {
     # today
-    "words_for_today":      "📅 Слова на сегодня",
-    "words_unknown":        "❓ Неизвестные слова",
-    "check_interval":       "🔁 Интервалы повторения",
+    "words_for_today":              "📅 Слова на сегодня",
+    "words_unknown":                "❓ Неизвестные слова",
+    "check_interval":               "🔁 Интервалы повторения",
     # monthly
-    "words_studied":        "📈 Изучено слов",
-    "words_new":            "🆕 Новых слов в день",
-    "words_known":          "✅ Известных слов",
-    "words_unknown_before": "❌ Неизвестных (до завершения)",
-    "words_unknown_after":  "❌ Неизвестных (после завершения)",
+    "words_studied":                "📈 Изучено слов",
+    "words_new":                    "🆕 Новых слов в день",
+    "words_known":                  "✅ Известных слов",
+    "words_unknown_before":         "❌ Неизвестных (до завершения)",
+    "words_unknown_first_finish":   "❌ Неизвестных (1-й финиш за день)",
+    "words_unknown_last_finish":    "❌ Неизвестных (последний финиш)",
 }
 
 

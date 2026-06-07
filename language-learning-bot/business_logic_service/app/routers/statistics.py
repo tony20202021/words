@@ -68,13 +68,13 @@ async def get_monthly_chart(
     show_all: bool = Query(True),
     api_client=Depends(get_api_client),
 ):
-    all_days, first_finish = await statistics_service.get_monthly_statistics(
+    all_days, first_finish, last_finish = await statistics_service.get_monthly_statistics(
         user_id, language_id, date.today(), api_client, show_all=show_all
     )
     key = _cache_key("monthly", user_id, language_id, show_all)
     charts = await _get_charts_cached(
         key,
-        partial(statistics_service.generate_monthly_charts, all_days, first_finish, show_all=show_all)
+        partial(statistics_service.generate_monthly_charts, all_days, first_finish, last_finish, show_all=show_all)
     )
     if chart_name not in charts:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Chart '{chart_name}' not available")

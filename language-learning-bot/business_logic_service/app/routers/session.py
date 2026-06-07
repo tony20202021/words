@@ -30,11 +30,14 @@ async def _bg_update_daily(user_id: str, language_id: str, api_client, word_numb
 
 
 async def _bg_update_first_finish(user_id: str, language_id: str, api_client) -> None:
-    """Update first-finish statistics when session batch is exhausted."""
+    """Update first- and last-finish statistics when session batch is exhausted."""
     try:
         progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
+        today = date.today()
         await statistics_service.update_daily_first_finish_statistics(
-            user_id, language_id, date.today(), progress, api_client)
+            user_id, language_id, today, progress, api_client)
+        await statistics_service.update_daily_last_finish_statistics(
+            user_id, language_id, today, progress, api_client)
     except Exception as e:
         logger.warning(f"bg first_finish update failed for {user_id}/{language_id}: {e}")
 

@@ -3,6 +3,7 @@ Statistics business logic — no aiogram dependencies.
 Charts returned as bytes, not sent directly.
 """
 
+import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, date
 from app.logger import setup_logger
@@ -106,13 +107,33 @@ async def update_daily_first_finish_statistics(
     progress: Dict[str, Any],
     api_client,
 ) -> bool:
-    """Overwrite daily first-finish statistics record (called on session completion)."""
+    """Record first real session completion. Backend ignores if real data already exists."""
     update_response = await api_client.update_daily_first_finish_statistics(
-        user_id, language_id, action_date, progress
+        user_id, language_id, action_date, {**progress, "is_seeded": False}
     )
     if not update_response["success"]:
         logger.error(
             f"Failed to update first-finish statistics user={user_id} lang={language_id}: "
+            f"{update_response.get('error')}"
+        )
+        return False
+    return True
+
+
+async def update_daily_last_finish_statistics(
+    user_id: str,
+    language_id: str,
+    action_date: date,
+    progress: Dict[str, Any],
+    api_client,
+) -> bool:
+    """Always overwrites last-finish record with most recent session completion data."""
+    update_response = await api_client.update_daily_last_finish_statistics(
+        user_id, language_id, action_date, progress
+    )
+    if not update_response["success"]:
+        logger.error(
+            f"Failed to update last-finish statistics user={user_id} lang={language_id}: "
             f"{update_response.get('error')}"
         )
         return False
@@ -154,7 +175,7 @@ async def create_first_finish_if_missing(
         or response["result"] is None
     ):
         update_response = await api_client.update_daily_first_finish_statistics(
-            user_id, language_id, action_date, progress
+            user_id, language_id, action_date, {**progress, "is_seeded": True}
         )
         if not update_response["success"]:
             logger.error(
@@ -171,10 +192,10 @@ async def get_monthly_statistics(
     action_date: date,
     api_client,
     show_all: bool = False,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Fetch and annotate monthly statistics.
-    Returns (all_days_stats, first_finish_stats) with computed fields.
+    Returns (all_days_stats, first_finish_stats, last_finish_stats) with computed fields.
     """
     if show_all:
         response = await api_client.get_all_monthly_statistics(user_id, language_id, action_date)
@@ -183,7 +204,7 @@ async def get_monthly_statistics(
 
     if not response["success"] or response.get("status") == 404 or response["result"] is None:
         logger.error(f"No monthly statistics user={user_id} lang={language_id}")
-        return [], []
+        return [], [], []
 
     monthly = response["result"]
     all_days: List[Dict[str, Any]] = []
@@ -198,30 +219,33 @@ async def get_monthly_statistics(
         prev_studied = day["words_studied"]
         all_days.append(day)
 
+    def _annotate_finish(raw_response) -> List[Dict[str, Any]]:
+        if not raw_response["success"] or raw_response.get("status") == 404 or raw_response["result"] is None:
+            return []
+        result = []
+        for day in raw_response["result"].get("daily_stats", []):
+            day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
+            result.append(day)
+        return result
+
     if show_all:
-        ff_response = await api_client.get_all_monthly_first_finish_statistics(
-            user_id, language_id, action_date
+        ff_resp, lf_resp = await asyncio.gather(
+            api_client.get_all_monthly_first_finish_statistics(user_id, language_id, action_date),
+            api_client.get_all_monthly_last_finish_statistics(user_id, language_id, action_date),
         )
     else:
-        ff_response = await api_client.get_monthly_first_finish_statistics(
-            user_id, language_id, action_date
+        ff_resp, lf_resp = await asyncio.gather(
+            api_client.get_monthly_first_finish_statistics(user_id, language_id, action_date),
+            api_client.get_monthly_last_finish_statistics(user_id, language_id, action_date),
         )
 
-    if not ff_response["success"] or ff_response.get("status") == 404 or ff_response["result"] is None:
-        logger.error(f"No first-finish statistics user={user_id} lang={language_id}")
-        return all_days, []
-
-    first_finish: List[Dict[str, Any]] = []
-    for day in ff_response["result"].get("daily_stats", []):
-        day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
-        first_finish.append(day)
-
-    return all_days, first_finish
+    return all_days, _annotate_finish(ff_resp), _annotate_finish(lf_resp)
 
 
 def generate_monthly_charts(
     all_days_stats: List[Dict[str, Any]],
     first_finish_stats: List[Dict[str, Any]],
+    last_finish_stats: List[Dict[str, Any]],
     show_all: bool = False,
 ) -> Dict[str, bytes]:
     """Build monthly-view charts. Returns mapping of chart name → PNG bytes."""
@@ -233,13 +257,14 @@ def generate_monthly_charts(
     charts: Dict[str, bytes] = {}
 
     specs = [
-        (all_days_stats, "words_studied", "words_studied", "last"),
-        (all_days_stats, "words_new", "words_new", "max"),
-        (all_days_stats, "words_known", "words_known", "last"),
-        (all_days_stats, "words_unknown_before", "words_unknown", "max"),
-        (first_finish_stats, "words_unknown_after", "words_unknown", "max"),
-        (all_days_stats, "words_for_today", "words_for_today", "max"),
-        (all_days_stats, "max_word_number", "max_word_number", "max"),
+        (all_days_stats,    "words_studied",            "words_studied",   "last"),
+        (all_days_stats,    "words_new",                "words_new",       "max"),
+        (all_days_stats,    "words_known",              "words_known",     "last"),
+        (all_days_stats,    "words_unknown_before",     "words_unknown",   "max"),
+        (first_finish_stats,"words_unknown_first_finish","words_unknown",  "max"),
+        (last_finish_stats, "words_unknown_last_finish", "words_unknown",  "max"),
+        (all_days_stats,    "words_for_today",          "words_for_today", "max"),
+        (all_days_stats,    "max_word_number",          "max_word_number", "max"),
     ]
 
     for data, chart_key, field, title_value in specs:

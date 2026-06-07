@@ -17,6 +17,7 @@ from app.services.statistics_service import (
     create_first_finish_if_missing,
     update_daily_max_word_number,
     update_daily_first_finish_statistics,
+    update_daily_last_finish_statistics,
 )
 
 
@@ -46,6 +47,7 @@ def make_api(*, daily_exists=False, ff_exists=False):
     }
     api.update_daily_statistics.return_value = {"success": True, "result": {}}
     api.update_daily_first_finish_statistics.return_value = {"success": True, "result": {}}
+    api.update_daily_last_finish_statistics.return_value = {"success": True, "result": {}}
     return api
 
 
@@ -102,6 +104,15 @@ class TestCreateFirstFinishIfMissing:
         api.update_daily_first_finish_statistics.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_sends_is_seeded_true(self):
+        """Seeded snapshot must include is_seeded=True so backend can distinguish it from real data."""
+        api = make_api(ff_exists=False)
+        await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
+        call_args = api.update_daily_first_finish_statistics.call_args
+        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
+        assert payload.get("is_seeded") is True
+
+    @pytest.mark.asyncio
     async def test_returns_false_on_api_error(self):
         api = make_api(ff_exists=False)
         api.update_daily_first_finish_statistics.return_value = {"success": False, "error": "fail"}
@@ -150,14 +161,22 @@ class TestUpdateDailyMaxWordNumber:
 
 class TestUpdateDailyFirstFinishStatistics:
     @pytest.mark.asyncio
-    async def test_always_overwrites(self):
-        """Session completion always overwrites first_finish (no existence check)."""
+    async def test_calls_api_without_get_check(self):
+        """Session completion calls PUT directly — no GET check (backend guards duplicates)."""
         api = make_api(ff_exists=True)
         result = await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
         assert result is True
-        # PUT is called directly — no GET check
         api.get_daily_first_finish_statistics.assert_not_called()
         api.update_daily_first_finish_statistics.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sends_is_seeded_false(self):
+        """Payload must include is_seeded=False so backend can protect first real completion."""
+        api = make_api()
+        await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        call_args = api.update_daily_first_finish_statistics.call_args
+        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
+        assert payload.get("is_seeded") is False
 
     @pytest.mark.asyncio
     async def test_returns_false_on_api_error(self):
@@ -208,6 +227,27 @@ class TestBgUpdateDailyFlow:
             if (c.args[3] if c.args else {}).get("max_word_number") == 297
         ]
         assert len(max_wn_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_bg_update_first_finish_writes_both_first_and_last(self):
+        """_bg_update_first_finish must write both first_finish (protected) and last_finish (always)."""
+        api = make_api()
+
+        today = TODAY
+        await update_daily_first_finish_statistics("u1", "lang1", today, PROGRESS, api)
+        await update_daily_last_finish_statistics("u1", "lang1", today, PROGRESS, api)
+
+        api.update_daily_first_finish_statistics.assert_called_once()
+        api.update_daily_last_finish_statistics.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_last_finish_sends_no_is_seeded(self):
+        """last_finish must not include is_seeded so the backend always overwrites."""
+        api = make_api()
+        await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        call_args = api.update_daily_last_finish_statistics.call_args
+        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
+        assert "is_seeded" not in payload
 
     @pytest.mark.asyncio
     async def test_ff_not_overwritten_on_subsequent_words(self):
