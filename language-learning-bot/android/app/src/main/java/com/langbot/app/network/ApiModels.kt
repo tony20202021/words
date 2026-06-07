@@ -112,3 +112,5 @@ typealias SettingsMap = Map<String, Any>
 data class HelpResponse(val text: String)
 
 data class CreateMobileTokenResponse(val code: String, val ttl_seconds: Int = 600)
+
+data class VersionResponse(val version: String, val version_code: Int)

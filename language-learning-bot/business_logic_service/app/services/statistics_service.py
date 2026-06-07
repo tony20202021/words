@@ -106,7 +106,47 @@ async def update_daily_first_finish_statistics(
     progress: Dict[str, Any],
     api_client,
 ) -> bool:
-    """Upsert daily first-finish statistics record. Returns True on success."""
+    """Overwrite daily first-finish statistics record (called on session completion)."""
+    update_response = await api_client.update_daily_first_finish_statistics(
+        user_id, language_id, action_date, progress
+    )
+    if not update_response["success"]:
+        logger.error(
+            f"Failed to update first-finish statistics user={user_id} lang={language_id}: "
+            f"{update_response.get('error')}"
+        )
+        return False
+    return True
+
+
+async def update_daily_max_word_number(
+    user_id: str,
+    language_id: str,
+    action_date: date,
+    word_number: int,
+    api_client,
+) -> None:
+    """Update max_word_number in today's daily record (uses $max on backend — always safe to call)."""
+    if not word_number:
+        return
+    await api_client.update_daily_statistics(
+        user_id, language_id, action_date, {"max_word_number": word_number}
+    )
+    await api_client.update_daily_first_finish_statistics(
+        user_id, language_id, action_date, {"max_word_number": word_number}
+    )
+
+
+async def create_first_finish_if_missing(
+    user_id: str,
+    language_id: str,
+    action_date: date,
+    progress: Dict[str, Any],
+    api_client,
+) -> bool:
+    """Create first-finish record only if one doesn't exist yet today.
+    Called from _bg_update_daily so the chart always has a daily entry
+    even when the user never exhausts all session batches."""
     response = await api_client.get_daily_first_finish_statistics(user_id, language_id, action_date)
     if (
         not response["success"]
@@ -118,7 +158,7 @@ async def update_daily_first_finish_statistics(
         )
         if not update_response["success"]:
             logger.error(
-                f"Failed to update first-finish statistics user={user_id} lang={language_id}: "
+                f"Failed to create first-finish snapshot user={user_id} lang={language_id}: "
                 f"{update_response.get('error')}"
             )
             return False
@@ -199,6 +239,7 @@ def generate_monthly_charts(
         (all_days_stats, "words_unknown_before", "words_unknown", "max"),
         (first_finish_stats, "words_unknown_after", "words_unknown", "max"),
         (all_days_stats, "words_for_today", "words_for_today", "max"),
+        (all_days_stats, "max_word_number", "max_word_number", "max"),
     ]
 
     for data, chart_key, field, title_value in specs:

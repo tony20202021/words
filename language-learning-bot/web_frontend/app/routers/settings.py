@@ -15,6 +15,7 @@ NUMERIC_LABELS = {
 
 SETTING_LABELS = {
     "skip_marked":                   "Пропускать исключённые слова",
+    "show_skip_button":              "Показывать кнопку Пропускать",
     "use_check_date":                "Учитывать дату",
     "show_check_date":               "Показывать дату проверки",
     "show_hint_meaning":             "Ассоциация на русском",

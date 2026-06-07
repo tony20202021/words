@@ -104,6 +104,7 @@ class UserDailyStatsBase(BaseModel):
     words_known: int = Field(0, description="Number of words known")
     words_skipped: int = Field(0, description="Number of words skipped")
     words_for_today: int = Field(0, description="Number of words for today")
+    max_word_number: Optional[int] = Field(None, description="Max word_number processed this day")
 
 class UserDailyStatsCreate(UserDailyStatsBase):
     """Create model for user daily statistics."""
@@ -115,6 +116,7 @@ class UserDailyStatsUpdate(BaseModel):
     words_known: int = Field(0, description="Number of words known")
     words_skipped: int = Field(0, description="Number of words skipped")
     words_for_today: int = Field(0, description="Number of words for today")
+    max_word_number: Optional[int] = Field(None, description="Max word_number processed this day")
 
 class UserDailyStatsInDB(UserDailyStatsBase):
     """Database model for user daily statistics."""

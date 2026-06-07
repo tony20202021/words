@@ -26,31 +26,34 @@ _CAPTION_MAP = {
 
 async def _send_charts(message: Message, bls, user_id: str, lang_id: str, lang_name: str) -> None:
     """Fetch all available charts for a language and send them as photos."""
-    # Gather today-charts and monthly-charts concurrently
-    today_tasks  = [bls.get_chart(user_id, lang_id, n)         for n in _TODAY_CHART_NAMES]
-    monthly_tasks = [bls.get_monthly_chart(user_id, lang_id, n) for n in _MONTHLY_CHART_NAMES]
-    today_results, monthly_results = await asyncio.gather(
-        asyncio.gather(*today_tasks),
-        asyncio.gather(*monthly_tasks),
-    )
+    groups = [
+        ("📅 Распределение слов",    _TODAY_CHART_NAMES,   False, True),
+        ("📆 Прогресс за месяц",    _MONTHLY_CHART_NAMES, False, False),
+        ("📊 Прогресс за всё время", _MONTHLY_CHART_NAMES, True,  False),
+    ]
+    # (header, names, show_all, is_today)
 
-    charts: list[tuple[str, bytes]] = []
-    for name, img in zip(_TODAY_CHART_NAMES, today_results):
-        if img:
-            charts.append((name, img))
-    for name, img in zip(_MONTHLY_CHART_NAMES, monthly_results):
-        if img:
-            charts.append((name, img))
-
-    if not charts:
-        return
-
-    for chart_name, img in charts:
-        caption = f"{_CAPTION_MAP.get(chart_name, chart_name)} — {lang_name}"
-        await message.answer_photo(
-            BufferedInputFile(img, filename=f"{chart_name}.png"),
-            caption=caption,
+    any_sent = False
+    for header, names, show_all, is_today in groups:
+        results = await asyncio.gather(
+            *[bls.get_chart(user_id, lang_id, n) if is_today
+              else bls.get_monthly_chart(user_id, lang_id, n, show_all=show_all)
+              for n in names]
         )
+        group_imgs = [(n, img) for n, img in zip(names, results) if img]
+        if not group_imgs:
+            continue
+        await message.answer(f"<b>{header}</b> — {lang_name}", parse_mode="HTML")
+        for chart_name, img in group_imgs:
+            caption = _CAPTION_MAP.get(chart_name, chart_name)
+            await message.answer_photo(
+                BufferedInputFile(img, filename=f"{chart_name}.png"),
+                caption=caption,
+            )
+        any_sent = True
+
+    if not any_sent:
+        return
 
 
 @router.message(Command("stats"))

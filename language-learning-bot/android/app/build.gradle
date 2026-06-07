@@ -3,6 +3,17 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def versionFromPython = {
+    def f = rootProject.file("../common/version.py")
+    def m = (f.text =~ /__version__\s*=\s*["'](.+)["']/)
+    m.find() ? m.group(1) : { throw new GradleException("version not found in common/version.py") }()
+}()
+
+def versionCodeFromName = { String v ->
+    def p = v.split("\\.")
+    p[0].toInteger() * 10000 + p[1].toInteger() * 100 + p[2].toInteger()
+}
+
 def keystorePropsFile = rootProject.file("keystore.properties")
 def keystoreProps = new Properties()
 if (keystorePropsFile.exists()) {
@@ -26,11 +37,10 @@ android {
         applicationId "com.langbot.app"
         minSdk 26
         targetSdk 34
-        // versionName = project version (common/version.py) + patch для Android-изменений
+        // versionName и versionCode читаются из common/version.py
         // versionCode = major*10000 + minor*100 + patch  (e.g. 3.0.1 → 30001)
-        // ↑ инкрементировать patch при каждом изменении Android-кода
-        versionCode 30021
-        versionName "3.0.21"
+        versionName versionFromPython
+        versionCode versionCodeFromName(versionFromPython)
     }
 
     buildTypes {

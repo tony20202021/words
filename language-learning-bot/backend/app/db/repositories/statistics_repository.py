@@ -856,13 +856,18 @@ class StatisticsRepository:
         })
         
         if existing_stats:
-            # ✅ Запись существует - просто обновляем
+            # ✅ Запись существует - обновляем
             update_data = {k: v for k, v in stats_update.model_dump().items() if v is not None}
+            # max_word_number uses $max so we never overwrite a higher value
+            max_word_number = update_data.pop("max_word_number", None)
             update_data["updated_at"] = datetime.utcnow()
-            
+            update_ops: dict = {"$set": update_data}
+            if max_word_number is not None:
+                update_ops["$max"] = {"max_word_number": max_word_number}
+
             await self.daily_stats_collection.update_one(
                 {"_id": existing_stats["_id"]},
-                {"$set": update_data}
+                update_ops
             )
             
             # Получаем обновленную запись

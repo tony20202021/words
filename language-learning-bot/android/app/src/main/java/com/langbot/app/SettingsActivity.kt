@@ -21,6 +21,7 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         val TOGGLE_SETTINGS = linkedMapOf(
             "skip_marked"                   to "Пропускать исключённые слова",
+            "show_skip_button"              to "Показывать кнопку Пропускать",
             "use_check_date"                to "Учитывать дату проверки",
             "show_check_date"               to "Показывать дату проверки",
             "show_hint_meaning"             to "Подсказка: ассоциация (рус)",
@@ -60,6 +61,8 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
 
+        binding.swipeRefresh.setOnRefreshListener { loadSettings() }
+
         loadSettings()
     }
 
@@ -77,6 +80,7 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.makeText(this@SettingsActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 binding.progress.visibility = View.GONE
+                binding.swipeRefresh.isRefreshing = false
             }
         }
     }

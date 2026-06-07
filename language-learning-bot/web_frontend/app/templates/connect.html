@@ -9,13 +9,17 @@
 {% if code %}
 <div class="card shadow-sm">
   <div class="card-body text-center py-4">
-    <p class="text-muted small mb-2">Введите этот код в приложении или браузере:</p>
+    <p class="text-muted small mb-2">Введите этот код в приложении или отсканируйте QR:</p>
     <div class="display-3 fw-bold font-monospace text-primary mb-1"
          style="cursor:pointer; user-select:all" title="Нажмите, чтобы скопировать"
          onclick="navigator.clipboard.writeText('{{ code }}').then(()=>this.style.opacity='0.5').catch(()=>{})">
       {{ code }}
     </div>
-    <p class="text-muted small">Действует 10 минут · одноразовый</p>
+    <p class="text-muted small mb-3">Действует 10 минут · одноразовый</p>
+    {% if connect_url %}
+    <img src="/qr?url={{ connect_url | urlencode }}"
+         alt="QR-код" class="rounded" style="width:180px;height:180px">
+    {% endif %}
   </div>
 </div>
 {% else %}

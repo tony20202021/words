@@ -43,8 +43,9 @@ class BLSClient:
             async with session.patch(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
-    async def _get_bytes(self, path: str) -> Optional[bytes]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+    async def _get_bytes(self, path: str, timeout: int = 30) -> Optional[bytes]:
+        t = aiohttp.ClientTimeout(total=timeout)
+        async with aiohttp.ClientSession(timeout=t) as session:
             async with session.get(f"{self.base_url}{path}") as resp:
                 if resp.status < 400:
                     return await resp.read()
@@ -237,8 +238,11 @@ class BLSClient:
     async def get_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
         return await self._get_bytes(f"/statistics/{user_id}/{language_id}/chart/{chart_name}")
 
-    async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
-        return await self._get_bytes(f"/statistics/{user_id}/{language_id}/monthly-chart/{chart_name}")
+    async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str,
+                               show_all: bool = False) -> Optional[bytes]:
+        params = f"?show_all={'true' if show_all else 'false'}"
+        return await self._get_bytes(
+            f"/statistics/{user_id}/{language_id}/monthly-chart/{chart_name}{params}")
 
     # ── Hints ─────────────────────────────────────────────────────────────────
 
@@ -272,6 +276,9 @@ class BLSClient:
             async with session.post(f"{self.base_url}/auth/mobile/create",
                                     json={"user_id": user_id}) as resp:
                 return await resp.json() if resp.status == 200 else {}
+
+    async def get_qr_png(self, url: str) -> Optional[bytes]:
+        return await self._get_bytes(f"/qr?url={url}", timeout=15)
 
     async def get_sound(self, path: str) -> Optional[bytes]:
         encoded = quote(path, safe="").replace(".", "%2E")

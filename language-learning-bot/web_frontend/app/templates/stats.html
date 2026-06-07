@@ -104,16 +104,14 @@
         {# Charts section (collapsed by default) #}
         {% if studied > 0 %}
         <div class="collapse mt-3" id="charts-{{ lang_id }}">
-          <div id="charts-spinner-{{ lang_id }}" class="text-center py-3">
-            <div class="spinner-border text-secondary" role="status">
-              <span class="visually-hidden">Загрузка графиков…</span>
-            </div>
-          </div>
 
           {# Today charts #}
-          <div id="today-sec-{{ lang_id }}">
-            <p class="mb-2 fw-semibold">Распределение слов:</p>
-            <div class="row g-2 mb-3">
+          <div id="today-sec-{{ lang_id }}" class="chart-section">
+            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📅 Распределение слов</h6>
+            <div class="chart-sec-spinner text-center py-2">
+              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+            </div>
+            <div class="row g-2 mb-1">
               <div class="col-12 chart-wrap">
                 <img data-src="/stats/chart/{{ lang_id }}/words_for_today"
                      class="img-fluid rounded lazy-chart" alt="Слова к повторению"
@@ -132,10 +130,15 @@
             </div>
           </div>
 
+          <hr class="my-3">
+
           {# Monthly charts — last 30 days #}
-          <div id="monthly-recent-sec-{{ lang_id }}">
-            <p class="mb-2 fw-semibold">Прогресс по датам: за месяц</p>
-            <div class="row g-2 mb-3">
+          <div id="monthly-recent-sec-{{ lang_id }}" class="chart-section">
+            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📆 Прогресс за месяц</h6>
+            <div class="chart-sec-spinner text-center py-2">
+              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+            </div>
+            <div class="row g-2 mb-1">
               <div class="col-6 chart-wrap">
                 <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_studied"
                      class="img-fluid rounded lazy-chart" alt="Всего изучено"
@@ -169,9 +172,14 @@
             </div>
           </div>
 
+          <hr class="my-3">
+
           {# Monthly charts — all time #}
-          <div id="monthly-sec-{{ lang_id }}">
-            <p class="mb-2 fw-semibold">Прогресс по датам: за все время</p>
+          <div id="monthly-sec-{{ lang_id }}" class="chart-section">
+            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📊 Прогресс за всё время</h6>
+            <div class="chart-sec-spinner text-center py-2">
+              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+            </div>
             <div class="row g-2">
               <div class="col-6 chart-wrap">
                 <img data-src="/stats/monthly-chart/{{ lang_id }}/words_studied"
@@ -223,29 +231,39 @@ function checkSec(id) {
     sec.style.display = 'none';
   }
 }
-document.addEventListener('show.bs.collapse', function(e) {
-  if (!e.target.id || !e.target.id.startsWith('charts-')) return;
-  var collapseId = e.target.id;
-  var spinner = document.getElementById('charts-spinner-' + collapseId.replace('charts-', ''));
-  var imgs = e.target.querySelectorAll('img.lazy-chart[data-src]');
-  var pending = { count: 0 };
-  imgs.forEach(function(img) { if (!img.getAttribute('src')) pending.count++; });
-  function onImgDone() {
-    pending.count--;
-    if (pending.count <= 0 && spinner) spinner.style.display = 'none';
+
+function loadSectionImgs(sec, onDone) {
+  var spinner = sec.querySelector('.chart-sec-spinner');
+  var imgs = sec.querySelectorAll('img.lazy-chart[data-src]');
+  var pending = 0;
+  imgs.forEach(function(img) { if (!img.getAttribute('src')) pending++; });
+  if (pending === 0) { if (spinner) spinner.style.display = 'none'; onDone(); return; }
+  function imgDone() {
+    pending--;
+    if (pending <= 0) { if (spinner) spinner.style.display = 'none'; onDone(); }
   }
-  if (pending.count === 0 && spinner) { spinner.style.display = 'none'; }
   imgs.forEach(function(img) {
     if (!img.getAttribute('src')) {
-      img.onload = onImgDone;
+      img.onload = imgDone;
       img.onerror = function() {
         this.closest('.chart-wrap').style.display = 'none';
-        checkSec(this.closest('[id]') && this.closest('[id]').id);
-        onImgDone();
+        checkSec(sec.id);
+        imgDone();
       };
       img.setAttribute('src', img.getAttribute('data-src'));
     }
   });
+}
+
+document.addEventListener('show.bs.collapse', function(e) {
+  if (!e.target.id || !e.target.id.startsWith('charts-')) return;
+  var sections = Array.from(e.target.querySelectorAll('.chart-section'));
+  // Load sections sequentially: spinner shows in current section, moves to next when done
+  function loadNext(i) {
+    if (i >= sections.length) return;
+    loadSectionImgs(sections[i], function() { loadNext(i + 1); });
+  }
+  loadNext(0);
 });
 </script>
 {% endblock %}

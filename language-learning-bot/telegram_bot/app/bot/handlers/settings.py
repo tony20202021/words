@@ -8,6 +8,7 @@ router = Router()
 
 SETTING_LABELS = {
     "skip_marked":                   None,  # state-dependent label, see _build_settings_keyboard
+    "show_skip_button":              "Показывать кнопку Пропускать",
     "use_check_date":                "Учитывать дату",
     "show_check_date":               "Показывать дату проверки",
     "show_hint_meaning":             "Ассоциация на русском",

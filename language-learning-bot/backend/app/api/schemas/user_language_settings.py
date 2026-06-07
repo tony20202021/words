@@ -22,6 +22,7 @@ class UserLanguageSettingsBase(BaseModel):
     show_references: bool = Field(True, description="Whether to show references")
     show_tones: bool = Field(True, description="Whether to show tones")
     show_sounds: bool = Field(True, description="Whether to show sounds")
+    show_skip_button: bool = Field(True, description="Whether to show skip button")
     random_foreign: bool = Field(True, description="Whether to randomly show foreign words")
     random_transcription: bool = Field(True, description="Whether to randomly show transcriptions")
     random_sound: bool = Field(True, description="Whether to randomly show sound")
@@ -58,6 +59,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_references: Optional[bool] = None
     show_tones: Optional[bool] = None
     show_sounds: Optional[bool] = None
+    show_skip_button: Optional[bool] = None
     random_foreign: Optional[bool] = None
     random_transcription: Optional[bool] = None
     random_sound: Optional[bool] = None

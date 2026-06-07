@@ -106,15 +106,26 @@ async def cmd_web(message: Message, bls_user_id: str) -> None:
     code = result.get("code") if result else None
     if code:
         url = f"{web_url}/login?code={code}"
-        text = (
+        caption = (
             f"🌐 <b>Веб-версия</b>\n\n"
             f"Код: <code>{code}</code>\n\n"
             f"{url}\n\n"
             f"<i>Ссылка действует 10 минут и используется один раз.</i>"
         )
+        # Try to send QR code image with caption
+        qr_png = await bls.get_qr_png(url)
+        if qr_png:
+            from aiogram.types import BufferedInputFile
+            await message.answer_photo(
+                BufferedInputFile(qr_png, filename="web_qr.png"),
+                caption=caption,
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(caption, parse_mode="HTML", disable_web_page_preview=True)
     else:
-        text = f"🌐 <b>Веб-версия</b>\n{web_url}"
-    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+        await message.answer(f"🌐 <b>Веб-версия</b>\n{web_url}",
+                             parse_mode="HTML", disable_web_page_preview=True)
 
 
 @router.message(Command("connect_android"))
@@ -145,14 +156,27 @@ async def cmd_android(message: Message) -> None:
     if not _APK_PATH.exists():
         await message.answer("APK не найден. Обратитесь к администратору.")
         return
-    await message.answer(
+    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+    download_url = f"{web_url}/download/android"
+    text = (
         f"📱 <b>LangBot для Android</b> v{__version__}\n\n"
         f"1. Нажмите на файл → <b>Открыть</b>\n"
         f"2. Разрешите установку из Telegram (один раз)\n"
         f"3. Установите приложение\n"
-        f"4. В приложении введите адрес BLS и код из /connect_android",
-        parse_mode="HTML",
+        f"4. В приложении введите адрес BLS и код из /connect_android\n\n"
+        f"Или скачайте по ссылке:\n{download_url}"
     )
+    bls = get_bls_client()
+    qr_png = await bls.get_qr_png(download_url)
+    if qr_png:
+        from aiogram.types import BufferedInputFile
+        await message.answer_photo(
+            BufferedInputFile(qr_png, filename="android_qr.png"),
+            caption=text,
+            parse_mode="HTML",
+        )
+    else:
+        await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
     apk = FSInputFile(_APK_PATH, filename=f"LangBot-v{__version__}.apk")
     await message.answer_document(apk)
 

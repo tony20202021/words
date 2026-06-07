@@ -122,6 +122,12 @@ interface BLSApi {
     @GET("help")
     suspend fun getHelp(): Response<HelpResponse>
 
+    @GET("version")
+    suspend fun getVersion(): Response<VersionResponse>
+
+    @GET("qr")
+    suspend fun getQrCode(@Query("url") url: String): Response<ResponseBody>
+
     @PUT("settings/{user_id}/{language_id}/{key}")
     suspend fun setSetting(
         @Path("user_id") userId: String,

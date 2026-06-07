@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -38,6 +40,12 @@ class StudyActivity : AppCompatActivity() {
     // MediaPlayer instances for the current card's sounds
     private val players = mutableListOf<MediaPlayer>()
 
+    // Pinch-to-zoom state for big word
+    private var bigWordView: TextView? = null
+    private var bigWordBaseSp = 96f
+    private var bigWordCurrentSp = 96f
+    private lateinit var scaleDetector: ScaleGestureDetector
+
     companion object {
         private const val MENU_REFRESH = 1
         private const val MENU_STATS   = 2
@@ -52,6 +60,19 @@ class StudyActivity : AppCompatActivity() {
         userId = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
         val langName = intent.getStringExtra("language_name") ?: "Учёба"
+
+        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                bigWordCurrentSp = (bigWordCurrentSp * detector.scaleFactor).coerceIn(24f, 300f)
+                bigWordView?.textSize = bigWordCurrentSp
+                return true
+            }
+        })
+        binding.extraCard.setOnTouchListener { v, event ->
+            scaleDetector.onTouchEvent(event)
+            if (!scaleDetector.isInProgress) v.performClick()
+            true
+        }
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.title = langName
@@ -456,9 +477,12 @@ class StudyActivity : AppCompatActivity() {
 
             // Big word — at the TOP of the extra card
             if (hasBigWord) {
+                bigWordBaseSp = 96f
+                bigWordCurrentSp = 96f
                 val tvBig = TextView(this)
+                bigWordView = tvBig
                 tvBig.text = bw!!.word
-                tvBig.textSize = 96f
+                tvBig.textSize = bigWordCurrentSp
                 tvBig.setTypeface(null, android.graphics.Typeface.BOLD)
                 tvBig.gravity = Gravity.CENTER
                 tvBig.layoutParams = LinearLayout.LayoutParams(
@@ -521,6 +545,7 @@ class StudyActivity : AppCompatActivity() {
             }
         } else {
             binding.extraCard.visibility = View.GONE
+            bigWordView = null
         }
     }
 

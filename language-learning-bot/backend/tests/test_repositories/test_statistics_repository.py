@@ -3,15 +3,18 @@ Tests for StatisticsRepository.
 """
 
 import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime, date
+from unittest.mock import AsyncMock, MagicMock, call
 from bson import ObjectId
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from app.db.repositories.statistics_repository import StatisticsRepository
-from app.api.models.statistics import UserStatisticsCreate, UserStatisticsInDB
+from app.api.models.statistics import (
+    UserStatisticsCreate, UserStatisticsInDB,
+    UserDailyStatsUpdate,
+)
 
 
 STAT_ID = "507f1f77bcf86cd799439044"
@@ -130,3 +133,123 @@ class TestGetByUserId:
 
         result = await repo.get_by_user_id(USER_ID)
         assert result == []
+
+
+# ── create_or_update_daily_stats ──────────────────────────────────────────────
+
+TODAY = date(2026, 6, 7)
+TODAY_DT = datetime(2026, 6, 7, 0, 0, 0)
+
+
+def make_daily_doc(max_word_number=None):
+    doc = {
+        "_id": ObjectId(STAT_ID),
+        "user_id": USER_ID,
+        "language_id": LANG_ID,
+        "date": TODAY_DT,
+        "words_studied": 50,
+        "words_known": 40,
+        "words_skipped": 0,
+        "words_for_today": 20,
+        "type": "daily",
+        "created_at": datetime(2026, 6, 7),
+        "updated_at": datetime(2026, 6, 7),
+    }
+    if max_word_number is not None:
+        doc["max_word_number"] = max_word_number
+    return doc
+
+
+class TestCreateOrUpdateDailyStats:
+    @pytest.mark.asyncio
+    async def test_creates_new_record_when_none_exists(self, repo, mock_db):
+        mock_db.user_daily_statistics.find_one.return_value = None
+        insert_result = MagicMock()
+        insert_result.inserted_id = ObjectId(STAT_ID)
+        mock_db.user_daily_statistics.insert_one.return_value = insert_result
+        mock_db.user_daily_statistics.find_one.side_effect = [None, make_daily_doc()]
+
+        stats = UserDailyStatsUpdate(words_known=40, words_skipped=0, words_for_today=20)
+        result = await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        mock_db.user_daily_statistics.insert_one.assert_called_once()
+        assert result.words_known == 40
+
+    @pytest.mark.asyncio
+    async def test_updates_existing_record_with_set(self, repo, mock_db):
+        existing = make_daily_doc()
+        mock_db.user_daily_statistics.find_one.return_value = existing
+
+        stats = UserDailyStatsUpdate(words_known=45, words_skipped=0, words_for_today=15)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        update_call = mock_db.user_daily_statistics.update_one.call_args
+        update_ops = update_call.args[1]
+        assert "$set" in update_ops
+        assert update_ops["$set"].get("words_known") == 45
+
+    @pytest.mark.asyncio
+    async def test_max_word_number_uses_dollar_max_operator(self, repo, mock_db):
+        """$max ensures only a higher value overwrites the stored max_word_number."""
+        existing = make_daily_doc(max_word_number=300)
+        mock_db.user_daily_statistics.find_one.return_value = existing
+
+        stats = UserDailyStatsUpdate(
+            words_known=40, words_skipped=0, words_for_today=20,
+            max_word_number=750,
+        )
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        update_call = mock_db.user_daily_statistics.update_one.call_args
+        update_ops = update_call.args[1]
+        assert "$max" in update_ops
+        assert update_ops["$max"]["max_word_number"] == 750
+
+    @pytest.mark.asyncio
+    async def test_max_word_number_not_in_set_operator(self, repo, mock_db):
+        """max_word_number must not appear in $set — only in $max."""
+        existing = make_daily_doc(max_word_number=100)
+        mock_db.user_daily_statistics.find_one.return_value = existing
+
+        stats = UserDailyStatsUpdate(
+            words_known=40, words_skipped=0, words_for_today=20,
+            max_word_number=500,
+        )
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        update_call = mock_db.user_daily_statistics.update_one.call_args
+        update_ops = update_call.args[1]
+        assert "max_word_number" not in update_ops.get("$set", {})
+
+    @pytest.mark.asyncio
+    async def test_no_max_operator_when_max_word_number_is_none(self, repo, mock_db):
+        """When max_word_number is not provided, $max must not appear in update."""
+        existing = make_daily_doc()
+        mock_db.user_daily_statistics.find_one.return_value = existing
+
+        stats = UserDailyStatsUpdate(words_known=40, words_skipped=0, words_for_today=20)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        update_call = mock_db.user_daily_statistics.update_one.call_args
+        update_ops = update_call.args[1]
+        assert "$max" not in update_ops
+
+    @pytest.mark.asyncio
+    async def test_max_word_number_stored_on_new_record(self, repo, mock_db):
+        """When creating a new record, max_word_number is included in the document."""
+        mock_db.user_daily_statistics.find_one.side_effect = [
+            None,
+            make_daily_doc(max_word_number=450),
+        ]
+        insert_result = MagicMock()
+        insert_result.inserted_id = ObjectId(STAT_ID)
+        mock_db.user_daily_statistics.insert_one.return_value = insert_result
+
+        stats = UserDailyStatsUpdate(
+            words_known=40, words_skipped=0, words_for_today=20,
+            max_word_number=450,
+        )
+        result = await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+
+        inserted_doc = mock_db.user_daily_statistics.insert_one.call_args.args[0]
+        assert inserted_doc.get("max_word_number") == 450

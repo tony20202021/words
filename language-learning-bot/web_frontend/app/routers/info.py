@@ -91,6 +91,18 @@ async def stats_monthly_chart(language_id: str, chart_name: str, request: Reques
     return Response(content=data, media_type="image/png")
 
 
+@router.get("/qr")
+async def qr_code(url: str):
+    """Proxy: generate QR code via BLS and return PNG to browser."""
+    bls = get_bls_client()
+    import httpx
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(f"{bls.base_url}/qr", params={"url": url})
+        if resp.status_code == 200:
+            return Response(content=resp.content, media_type="image/png")
+    return Response(status_code=404)
+
+
 @router.get("/stats/monthly-chart-recent/{language_id}/{chart_name}")
 async def stats_monthly_chart_recent(language_id: str, chart_name: str, request: Request):
     user_id, redirect = _require_user(request)

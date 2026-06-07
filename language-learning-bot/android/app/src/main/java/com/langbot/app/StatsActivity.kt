@@ -40,6 +40,8 @@ class StatsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
 
+        binding.swipeRefresh.setOnRefreshListener { loadStats() }
+
         loadStats()
     }
 
@@ -59,6 +61,7 @@ class StatsActivity : AppCompatActivity() {
                 Toast.makeText(this@StatsActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 binding.progress.visibility = View.GONE
+                binding.swipeRefresh.isRefreshing = false
             }
         }
     }
@@ -93,71 +96,86 @@ class StatsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             var anyLoaded = false
 
-            fun sectionLabel(text: String) {
-                val tv = TextView(this@StatsActivity)
-                tv.text = text
-                tv.textSize = 12f
-                tv.setTextColor(android.graphics.Color.parseColor("#888888"))
-                tv.gravity = android.view.Gravity.CENTER
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.topMargin = 16; lp.bottomMargin = 4
-                tv.layoutParams = lp
-                binding.statsContainer.addView(tv)
-            }
-
-            fun addChartImage(bytes: ByteArray) {
-                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
-                val iv = ImageView(this@StatsActivity)
-                iv.setImageBitmap(bmp)
-                iv.adjustViewBounds = true
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.bottomMargin = 8
-                iv.layoutParams = lp
-                binding.statsContainer.addView(iv)
-            }
-
-            // Today charts
-            sectionLabel("Распределение слов")
-            for (name in TODAY_CHARTS) {
-                try {
-                    val resp = BLSClient.api.getChart(userId, languageId, name)
-                    if (resp.isSuccessful) {
-                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("StatsActivity", "today/$name: ${e.message}")
-                }
-            }
-
-            // Monthly charts (last 30 days)
-            sectionLabel("Прогресс за месяц")
-            for (name in MONTHLY_CHARTS) {
-                try {
-                    val resp = BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = false)
-                    if (resp.isSuccessful) {
-                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("StatsActivity", "monthly-recent/$name: ${e.message}")
-                }
-            }
-
-            // Monthly charts (all time)
-            sectionLabel("Прогресс за всё время")
-            for (name in MONTHLY_CHARTS) {
-                try {
-                    val resp = BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = true)
-                    if (resp.isSuccessful) {
-                        resp.body()?.bytes()?.let { addChartImage(it); anyLoaded = true }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("StatsActivity", "monthly/$name: ${e.message}")
-                }
-            }
-
+            // Remove the initial spinnerWrap — each section has its own
             binding.statsContainer.removeView(spinnerWrap)
+
+            data class ChartGroup(val title: String, val names: List<String>, val type: Int)
+            // type: 0=today, 1=monthly-recent, 2=monthly-all
+            val sections = listOf(
+                ChartGroup("📅 Распределение слов",    TODAY_CHARTS,   0),
+                ChartGroup("📆 Прогресс за месяц",    MONTHLY_CHARTS, 1),
+                ChartGroup("📊 Прогресс за всё время", MONTHLY_CHARTS, 2),
+            )
+
+            for ((i, section) in sections.withIndex()) {
+                val (title, names, type) = section
+                val showAll = type == 2
+
+                // Divider before sections 2 and 3
+                if (i > 0) {
+                    val div = View(this@StatsActivity)
+                    div.setBackgroundColor(android.graphics.Color.parseColor("#E0E0E0"))
+                    val divLp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
+                    divLp.topMargin = dpToPx(16); divLp.bottomMargin = dpToPx(16)
+                    div.layoutParams = divLp
+                    binding.statsContainer.addView(div)
+                }
+
+                // Section header
+                val tvTitle = TextView(this@StatsActivity)
+                tvTitle.text = title
+                tvTitle.textSize = 15f
+                tvTitle.setTypeface(null, android.graphics.Typeface.BOLD)
+                tvTitle.setTextColor(android.graphics.Color.parseColor("#555555"))
+                binding.statsContainer.addView(tvTitle)
+
+                // Per-section spinner
+                val secSpinner = ProgressBar(this@StatsActivity)
+                val ssLp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                ssLp.gravity = android.view.Gravity.CENTER_HORIZONTAL
+                ssLp.topMargin = dpToPx(8)
+                secSpinner.layoutParams = ssLp
+                val ssWrap = android.widget.LinearLayout(this@StatsActivity)
+                ssWrap.gravity = android.view.Gravity.CENTER_HORIZONTAL
+                ssWrap.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                ssWrap.addView(secSpinner)
+                binding.statsContainer.addView(ssWrap)
+
+                // Load charts for this section
+                for (name in names) {
+                    try {
+                        val resp = when (type) {
+                            0    -> BLSClient.api.getChart(userId, languageId, name)
+                            1    -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = false)
+                            else -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = true)
+                        }
+
+                        if (resp.isSuccessful) {
+                            val bytes = resp.body()?.bytes() ?: continue
+                            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: continue
+                            val iv = ImageView(this@StatsActivity)
+                            iv.setImageBitmap(bmp)
+                            iv.adjustViewBounds = true
+                            val lp = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT)
+                            lp.bottomMargin = dpToPx(6)
+                            iv.layoutParams = lp
+                            binding.statsContainer.addView(iv)
+                            anyLoaded = true
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("StatsActivity", "$title/$name: ${e.message}")
+                    }
+                }
+
+                // Hide section spinner when done
+                binding.statsContainer.removeView(ssWrap)
+            }
+
             if (!anyLoaded) {
                 val tv = TextView(this@StatsActivity)
                 tv.text = "Нет данных для графиков"
@@ -188,6 +206,9 @@ class StatsActivity : AppCompatActivity() {
             addStatRow(c, "Пропущено", s.words_skipped.toString(), "#ffc107")
         }
     }
+
+    private fun dpToPx(dp: Int): Int =
+        (dp * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun addStatRow(parent: LinearLayout, label: String, value: String, valueColor: String) {
         val row = LinearLayout(this)

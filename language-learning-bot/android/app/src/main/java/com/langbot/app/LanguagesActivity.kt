@@ -28,6 +28,7 @@ class LanguagesActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLanguagesBinding
     private val adapter = LanguageAdapter()
+    private var updateBanner: android.widget.TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +41,12 @@ class LanguagesActivity : AppCompatActivity() {
         binding.recycler.layoutManager = LinearLayoutManager(this)
         binding.recycler.adapter = adapter
 
+        binding.swipeRefresh.setOnRefreshListener {
+            loadLanguages()
+            checkForUpdate()
+        }
+
+        checkForUpdate()
         loadLanguages()
     }
 
@@ -61,6 +68,7 @@ class LanguagesActivity : AppCompatActivity() {
                 Toast.makeText(this@LanguagesActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 binding.progress.visibility = View.GONE
+                binding.swipeRefresh.isRefreshing = false
             }
         }
     }
@@ -111,6 +119,37 @@ class LanguagesActivity : AppCompatActivity() {
             }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun checkForUpdate() {
+        lifecycleScope.launch {
+            try {
+                val resp = BLSClient.api.getVersion()
+                val body = resp.body() ?: return@launch
+                val pkgInfo = packageManager.getPackageInfo(packageName, 0)
+                @Suppress("DEPRECATION")
+                val currentCode = pkgInfo.versionCode
+                val root = binding.root as android.widget.LinearLayout
+                updateBanner?.let { root.removeView(it) }
+                updateBanner = null
+                if (body.version_code > currentCode) {
+                    val newVer = body.version
+                    val banner = android.widget.TextView(this@LanguagesActivity)
+                    banner.text = "⬆ Доступна версия $newVer — нажмите для обновления"
+                    banner.textSize = 13f
+                    banner.setTextColor(android.graphics.Color.WHITE)
+                    banner.setBackgroundColor(android.graphics.Color.parseColor("#1565C0"))
+                    banner.setPadding(32, 16, 32, 16)
+                    banner.gravity = android.view.Gravity.CENTER
+                    banner.setOnClickListener {
+                        startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("$WEB_URL/download/android")))
+                    }
+                    root.addView(banner, 1)
+                    updateBanner = banner
+                }
+            } catch (_: Exception) { /* version check is optional */ }
+        }
     }
 
     private fun generateWebCode() {
@@ -179,6 +218,28 @@ class LanguagesActivity : AppCompatActivity() {
                 layout.addView(tvCodeHint)
                 layout.addView(tvNote)
                 layout.addView(tvUrl)
+
+                // Load QR code
+                try {
+                    val qrResp = BLSClient.api.getQrCode(webUrl)
+                    if (qrResp.isSuccessful) {
+                        val bytes = qrResp.body()?.bytes()
+                        if (bytes != null) {
+                            val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            if (bmp != null) {
+                                val ivQr = android.widget.ImageView(ctx)
+                                ivQr.setImageBitmap(bmp)
+                                val qrLp = android.widget.LinearLayout.LayoutParams(
+                                    (200 * resources.displayMetrics.density).toInt(),
+                                    (200 * resources.displayMetrics.density).toInt())
+                                qrLp.gravity = android.view.Gravity.CENTER_HORIZONTAL
+                                qrLp.topMargin = pad
+                                ivQr.layoutParams = qrLp
+                                layout.addView(ivQr)
+                            }
+                        }
+                    }
+                } catch (_: Exception) { /* QR is optional */ }
 
                 AlertDialog.Builder(ctx)
                     .setTitle("Код для входа в веб")

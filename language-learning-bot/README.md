@@ -1,7 +1,7 @@
 # Language Learning Bot
 
 Система для изучения иностранных слов с интервальным повторением.  
-Версия: **3.0.9** — единая для всех компонентов (`common/version.py`).
+Версия: **3.0.26** — единая для всех компонентов (`common/version.py`).
 
 ---
 
@@ -38,6 +38,7 @@ Android App  ──┘      (сессии, карточки,                    
 - Python 3.10+ (conda env `amikhalev_language_learning_bot`)
 - MongoDB 5.0+
 - JDK 8+ и Android SDK (для сборки APK)
+- `pip install "qrcode[pil]"` (для QR-кодов в BLS)
 
 ### Запуск сервисов
 
@@ -48,6 +49,8 @@ sudo systemctl start langbot-web       # порт 8800
 sudo systemctl start langbot-telegram  # Telegram-бот
 ```
 
+Сервисы автоматически перезапускаются при изменении `.py`/`.html` файлов в `app/` и `common/`.
+
 ### Переменные окружения (`.env`)
 
 ```env
@@ -55,21 +58,23 @@ MONGODB_URL=mongodb://localhost:27027
 MONGODB_DB_NAME=language_learning_bot
 BACKEND_URL=http://localhost:8500
 BLS_URL=http://localhost:8700
+BLS_PUBLIC_URL=http://<external-ip>:8700
+WEB_URL=http://<external-ip>:8800
 BOT_TOKEN=...
 SECRET_KEY=...
 TELEGRAM_BOT_URL=https://t.me/...
-BLS_PUBLIC_URL=http://<external-ip>:8700
 ```
 
-### Сборка Android APK
+### Сборка Android APK (release)
 
 ```bash
 cd android
 export ANDROID_SDK_ROOT=/home/tony/Android/Sdk
-./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
-cp app/build/outputs/apk/debug/app-debug.apk LangBot.apk
+./gradlew assembleRelease
+cp app/build/outputs/apk/release/app-release.apk LangBot.apk
 ```
+
+Требует `android/keystore.properties` с ключом подписи (не в git).
 
 ---
 
@@ -82,11 +87,24 @@ cp app/build/outputs/apk/debug/app-debug.apk LangBot.apk
 | `/restart` | Начать заново (сброс сессии) |
 | `/language` | Сменить язык |
 | `/settings` | Настройки процесса обучения |
-| `/stats` | Статистика по текущему языку |
-| `/web` | Открыть веб-версию |
-| `/android` | Скачать Android-приложение |
+| `/stats` | Статистика + графики |
+| `/web` | Веб-версия — код + QR для входа |
+| `/android` | Скачать APK + QR-код ссылки |
 | `/connect_android` | Код для входа в Android-приложение |
 | `/help` | Справка |
+
+---
+
+## Авторизация
+
+Все фронтенды используют единую систему одноразовых кодов:
+
+1. **Telegram `/web`** → генерирует код, ссылка вида `http://web/login?code=XXXXXX` + QR
+2. **Telegram `/connect_android`** → генерирует код для ввода в Android
+3. **Веб «Код для входа»** → генерирует код для подключения другого устройства
+4. **Android «Код для веб»** → генерирует код + QR для входа в браузере
+
+Коды одноразовые, действуют 10 минут. Защита от брутфорса: блокировка после 3 неверных попыток на 1 минуту.
 
 ---
 
@@ -96,12 +114,14 @@ cp app/build/outputs/apk/debug/app-debug.apk LangBot.apk
 language-learning-bot/
 ├── backend/                # REST API + MongoDB (порт 8500)
 ├── business_logic_service/ # BLS — логика и сессии (порт 8700)
+│   └── app/routers/info.py # GET /help, GET /version, GET /qr
 ├── telegram_bot/           # Telegram-фронтенд
 ├── web_frontend/           # Веб-фронтенд (порт 8800)
 ├── android/                # Android-приложение (Kotlin)
+│   └── langbot.jks         # Ключ подписи release APK (не в git)
 ├── common/                 # Общие модули
 │   ├── version.py          # Единая версия всего проекта
-│   └── help_text.py        # Текст справки (используется всеми платформами)
+│   └── help_text.py        # Текст справки
 └── docs/                   # Документация
 ```
 
@@ -110,8 +130,8 @@ language-learning-bot/
 ## Версионирование
 
 Единая версия для всех компонентов: `common/version.py`.  
-Android: `versionCode = major*10000 + minor*100 + patch` (напр. 3.0.9 → 30009).  
-При **любом изменении** кода любого компонента — инкрементировать patch и обновить оба файла.
+Android: `versionCode = major*10000 + minor*100 + patch` (напр. 3.0.26 → 30026).  
+При **любом изменении** кода — инкрементировать patch в обоих файлах.
 
 ---
 
@@ -134,8 +154,6 @@ cd web_frontend && python -m pytest tests/ -v
 
 - [Архитектура](docs/architecture.md)
 - [Команды бота](docs/functionality/bot_commands.md)
-- [Руководство по запуску](docs/running/running_guide.md)
-- [Установка](docs/installation/installation_guide.md)
 
 ---
 

@@ -16,3 +16,6 @@ templates.env.globals["telegram_bot_url"] = os.environ.get(
 templates.env.globals["web_url"] = os.environ.get(
     "WEB_URL", ""
 )
+templates.env.globals["bls_url"] = os.environ.get(
+    "BLS_PUBLIC_URL", os.environ.get("BLS_URL", "http://localhost:8700")
+)

@@ -48,16 +48,17 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
     words_studied = session.get("words_studied", 0)
 
+    show_skip = settings.get("show_skip_button", True)
     if not show_answer:
         _add_before_answer(content, word, show_mode)
         sounds = all_sounds if show_mode == "sound" else []
         _add_hints(content, word, uwd, settings)
-        buttons = _buttons_before(is_skipped)
+        buttons = _buttons_before(is_skipped, show_skip)
     else:
         _add_after_answer(content, word, settings, extra_content, words_studied)
         _add_hints(content, word, uwd, settings)
         sounds = all_sounds
-        buttons = _buttons_after(is_skipped, score_changed)
+        buttons = _buttons_after(is_skipped, score_changed, show_skip)
 
     big_word = None
     if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
@@ -172,32 +173,36 @@ def _add_hints(content: list, word: dict, uwd: dict, settings: dict) -> None:
 
 # ── buttons ───────────────────────────────────────────────────────────────────
 
-def _buttons_before(is_skipped: bool) -> List[Dict[str, Any]]:
-    return [
+def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
+    btns = [
         {"id": "know", "text": "✅ Знаю", "style": "success"},
         {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger"},
-        {"id": "toggle_skip",
-         "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
-         "style": "outline-secondary"},
     ]
+    if show_skip:
+        btns.append({"id": "toggle_skip",
+                     "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
+                     "style": "outline-secondary"})
+    return btns
 
 
-def _buttons_after(is_skipped: bool, score_changed: bool) -> List[Dict[str, Any]]:
+def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
     skip_btn = {
         "id": "toggle_skip",
         "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
         "style": "outline-secondary",
     }
     if score_changed:
-        return [
+        btns = [
             {"id": "rate", "text": "✅ К следующему слову", "style": "success", "rating": "know"},
             {"id": "reconsider", "text": "❌ Ой, все-таки не знаю", "style": "outline-danger"},
-            skip_btn,
         ]
-    return [
-        {"id": "rate", "text": "➡️ Дальше", "style": "success", "rating": "dont_know"},
-        skip_btn,
-    ]
+        if show_skip:
+            btns.append(skip_btn)
+        return btns
+    btns = [{"id": "rate", "text": "➡️ Дальше", "style": "success", "rating": "dont_know"}]
+    if show_skip:
+        btns.append(skip_btn)
+    return btns
 
 
 # ── badge ─────────────────────────────────────────────────────────────────────
