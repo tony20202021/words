@@ -87,17 +87,18 @@ POST /session/start → {session_id, card}
             ┌───────────────────┼────────────────────┐
             ▼                   ▼                    ▼
 POST /{sid}/know     POST /{sid}/show_answer   POST /{sid}/toggle_skip
-  + bg: daily stats             │
-                        POST /{sid}/rate {rating: know|dont_know}
+  + bg: daily stats    + bg: finish stats
+                        (first_finish + last_finish)
+                                │
+                        POST /{sid}/rate {rating: know|dont_know|skip}
                           + bg: daily stats
                                 │
                     batch_exhausted=True → POST /{sid}/next_batch
-                                            + bg: first_finish stats
                                             └── no_words=True → конец
 ```
 
-После `know`/`rate` BLS в фоне обновляет дневную статистику.  
-После исчерпания всех батчей — обновляет `first_finish`.
+После `know`/`rate`/`skip` BLS в фоне обновляет `daily` статистику.  
+При каждом "не знаю" (`show_answer`) — обновляет `first_finish` и `last_finish` из `incorrect_count` сессии.
 
 ---
 
@@ -148,8 +149,14 @@ android/app/src/main/java/com/langbot/app/
 ## Статистика и графики
 
 Типы дневной статистики в БД:
-- `daily` — обновляется после каждого ответа на слово (фоновая задача)
-- `first_finish` — снапшот при первом завершении всех слов за день
+- `daily` — обновляется после каждого ответа (фоновая задача `_bg_update_daily`)
+- `first_finish` — максимум ошибок за день; обновляется при каждом "не знаю" если новое значение больше сохранённого
+- `last_finish` — текущее количество ошибок; перезаписывается при каждом "не знаю"
+
+Поля `first_finish` / `last_finish`:
+- `words_unknown` — количество ошибок из сессии (`incorrect_count`), хранится напрямую
+- Триггер: `show_answer` endpoint → `_bg_update_finish_on_unknown`
+- Старые записи (до 3.0.37): `words_unknown` вычисляется из `words_studied - words_known - words_skipped`
 
 Три группы графиков:
 1. **Распределение слов** (today): words_for_today, words_unknown, check_interval

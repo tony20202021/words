@@ -141,24 +141,25 @@ TODAY = date(2026, 6, 7)
 TODAY_DT = datetime(2026, 6, 7, 0, 0, 0)
 
 
-def make_daily_doc(max_word_number=None, is_seeded=None):
+def make_daily_doc(max_word_number=None, words_studied=50, words_known=40, words_skipped=0,
+                   type="daily", words_unknown=None):
     doc = {
         "_id": ObjectId(STAT_ID),
         "user_id": USER_ID,
         "language_id": LANG_ID,
         "date": TODAY_DT,
-        "words_studied": 50,
-        "words_known": 40,
-        "words_skipped": 0,
+        "words_studied": words_studied,
+        "words_known": words_known,
+        "words_skipped": words_skipped,
         "words_for_today": 20,
-        "type": "daily",
+        "type": type,
         "created_at": datetime(2026, 6, 7),
         "updated_at": datetime(2026, 6, 7),
     }
     if max_word_number is not None:
         doc["max_word_number"] = max_word_number
-    if is_seeded is not None:
-        doc["is_seeded"] = is_seeded
+    if words_unknown is not None:
+        doc["words_unknown"] = words_unknown
     return doc
 
 
@@ -279,72 +280,129 @@ class TestCreateOrUpdateDailyStats:
         assert inserted_doc.get("max_word_number") == 450
 
 
-# ── is_seeded protection ───────────────────────────────────────────────────────
+# ── first_finish max-unknown comparison ───────────────────────────────────────
 
-class TestIsSeededProtection:
-    @pytest.mark.asyncio
-    async def test_first_real_completion_updates_seeded_record(self, repo, mock_db):
-        """is_seeded=False incoming on an is_seeded=True record → normal update allowed."""
-        existing = make_daily_doc(is_seeded=True)
-        mock_db.user_daily_statistics.find_one.return_value = existing
-
-        stats = UserDailyStatsUpdate(words_known=45, words_for_today=5, is_seeded=False)
-        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
-
-        # update_one called (not skipped)
-        mock_db.user_daily_statistics.update_one.assert_called_once()
+class TestFirstFinishMaxUnknown:
+    """first_finish stores the daily maximum unknown count via words_unknown field.
+    Backend only updates when incoming_unknown > existing_unknown."""
 
     @pytest.mark.asyncio
-    async def test_second_real_completion_is_skipped(self, repo, mock_db):
-        """is_seeded=False incoming on an is_seeded=False record → stats update skipped."""
-        existing = make_daily_doc(is_seeded=False)
-        locked_doc = make_daily_doc(is_seeded=False)
-        # find_one: first call returns existing, second (after skip) returns locked_doc
-        mock_db.user_daily_statistics.find_one.side_effect = [existing, locked_doc]
+    async def test_first_finish_updates_when_unknown_increases(self, repo, mock_db):
+        """Incoming words_unknown (20) > existing (10) → update proceeds."""
+        existing = make_daily_doc(type="first_finish", words_unknown=10)
+        updated = make_daily_doc(type="first_finish", words_unknown=20)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, updated]
 
-        stats = UserDailyStatsUpdate(words_known=0, words_for_today=0, is_seeded=False)
-        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
-
-        # update_one was NOT called with $set (no stats overwrite)
-        calls = mock_db.user_daily_statistics.update_one.call_args_list
-        for call_item in calls:
-            ops = call_item.args[1]
-            assert "$set" not in ops, "stats must not be overwritten in $set"
-
-    @pytest.mark.asyncio
-    async def test_second_real_completion_still_updates_max_word_number(self, repo, mock_db):
-        """Even when stats are locked, max_word_number still grows via $max."""
-        existing = make_daily_doc(is_seeded=False, max_word_number=500)
-        locked_doc = make_daily_doc(is_seeded=False, max_word_number=800)
-        mock_db.user_daily_statistics.find_one.side_effect = [existing, locked_doc]
-
-        stats = UserDailyStatsUpdate(words_known=0, words_for_today=0, is_seeded=False, max_word_number=800)
-        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
-
-        update_call = mock_db.user_daily_statistics.update_one.call_args
-        update_ops = update_call.args[1]
-        assert update_ops == {"$max": {"max_word_number": 800}}
-
-    @pytest.mark.asyncio
-    async def test_no_is_seeded_on_existing_treated_as_seeded(self, repo, mock_db):
-        """Old records without is_seeded field default to is_seeded=True (seeded).
-        A real completion (is_seeded=False incoming) is allowed to update them."""
-        existing = make_daily_doc()  # no is_seeded field
-        mock_db.user_daily_statistics.find_one.return_value = existing
-
-        stats = UserDailyStatsUpdate(words_known=45, words_for_today=0, is_seeded=False)
-        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
+        stats = UserDailyStatsUpdate(words_unknown=20)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
 
         mock_db.user_daily_statistics.update_one.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_max_word_number_only_update_not_blocked(self, repo, mock_db):
-        """max_word_number-only updates (is_seeded=None) are never blocked."""
-        existing = make_daily_doc(is_seeded=False)
+    async def test_first_finish_skipped_when_unknown_decreases(self, repo, mock_db):
+        """Incoming words_unknown (5) < existing (10) → update is skipped."""
+        existing = make_daily_doc(type="first_finish", words_unknown=10)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, {**existing, "_id": existing["_id"]}]
+
+        stats = UserDailyStatsUpdate(words_unknown=5)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
+
+        mock_db.user_daily_statistics.update_one.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_first_finish_skipped_when_unknown_equal(self, repo, mock_db):
+        """Incoming words_unknown == existing → skipped (strictly greater required)."""
+        existing = make_daily_doc(type="first_finish", words_unknown=10)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, {**existing, "_id": existing["_id"]}]
+
+        stats = UserDailyStatsUpdate(words_unknown=10)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
+
+        mock_db.user_daily_statistics.update_one.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_first_finish_created_when_no_record(self, repo, mock_db):
+        """No existing first_finish record → always insert with words_unknown."""
+        mock_db.user_daily_statistics.find_one.side_effect = [
+            None,
+            make_daily_doc(type="first_finish", words_unknown=7),
+        ]
+        insert_result = MagicMock()
+        insert_result.inserted_id = ObjectId(STAT_ID)
+        mock_db.user_daily_statistics.insert_one.return_value = insert_result
+
+        stats = UserDailyStatsUpdate(words_unknown=7)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
+
+        mock_db.user_daily_statistics.insert_one.assert_called_once()
+        inserted = mock_db.user_daily_statistics.insert_one.call_args.args[0]
+        assert inserted["words_unknown"] == 7
+
+    @pytest.mark.asyncio
+    async def test_first_finish_stores_words_unknown_directly(self, repo, mock_db):
+        """Update uses $set {words_unknown: N} — no other fields overwritten."""
+        existing = make_daily_doc(type="first_finish", words_unknown=10)
+        updated = make_daily_doc(type="first_finish", words_unknown=20)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, updated]
+
+        stats = UserDailyStatsUpdate(words_unknown=20)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
+
+        update_ops = mock_db.user_daily_statistics.update_one.call_args.args[1]
+        assert update_ops["$set"]["words_unknown"] == 20
+        assert "words_known" not in update_ops.get("$set", {})
+        assert "words_studied" not in update_ops.get("$set", {})
+
+    @pytest.mark.asyncio
+    async def test_first_finish_legacy_fallback_uses_computed_unknown(self, repo, mock_db):
+        """Legacy records without words_unknown field use studied-known-skipped computation."""
+        # existing has no words_unknown → computed = 50 - 40 - 0 = 10
+        existing = make_daily_doc(words_studied=50, words_known=40, words_skipped=0, type="first_finish")
+        updated = make_daily_doc(words_studied=50, words_known=40, words_skipped=0, type="first_finish",
+                                 words_unknown=20)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, updated]
+
+        # incoming unknown=20 via direct field
+        stats = UserDailyStatsUpdate(words_unknown=20)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="first_finish")
+
+        mock_db.user_daily_statistics.update_one.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_last_finish_always_updates(self, repo, mock_db):
+        """last_finish type always overwrites regardless of unknown count."""
+        existing = make_daily_doc(type="last_finish", words_unknown=20)
+        updated = make_daily_doc(type="last_finish", words_unknown=5)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, updated]
+
+        stats = UserDailyStatsUpdate(words_unknown=5)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="last_finish")
+
+        mock_db.user_daily_statistics.update_one.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_last_finish_stores_words_unknown_directly(self, repo, mock_db):
+        """last_finish $set stores words_unknown, no other fields overwritten."""
+        existing = make_daily_doc(type="last_finish", words_unknown=20)
+        updated = make_daily_doc(type="last_finish", words_unknown=5)
+        mock_db.user_daily_statistics.find_one.side_effect = [existing, updated]
+
+        stats = UserDailyStatsUpdate(words_unknown=5)
+        await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats, type="last_finish")
+
+        update_ops = mock_db.user_daily_statistics.update_one.call_args.args[1]
+        assert update_ops["$set"]["words_unknown"] == 5
+        assert "words_known" not in update_ops.get("$set", {})
+
+    @pytest.mark.asyncio
+    async def test_daily_type_uses_max_for_words_known(self, repo, mock_db):
+        """daily type uses $max for words_known (BLS restart race protection)."""
+        existing = make_daily_doc()
         mock_db.user_daily_statistics.find_one.return_value = existing
 
-        stats = UserDailyStatsUpdate(max_word_number=900)
+        stats = UserDailyStatsUpdate(words_known=30, words_for_today=5)
         await repo.create_or_update_daily_stats(USER_ID, LANG_ID, TODAY, stats)
 
-        # is_seeded=None → no blocking, normal update path executes
-        mock_db.user_daily_statistics.update_one.assert_called_once()
+        update_ops = mock_db.user_daily_statistics.update_one.call_args.args[1]
+        assert update_ops["$max"]["words_known"] == 30
+        assert "words_known" not in update_ops.get("$set", {})

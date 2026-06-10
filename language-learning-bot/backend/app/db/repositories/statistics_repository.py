@@ -857,41 +857,57 @@ class StatisticsRepository:
         
         if existing_stats:
             # ✅ Запись существует - обновляем
-            existing_is_seeded = existing_stats.get("is_seeded", True)
-            incoming_is_seeded = stats_update.is_seeded
 
-            if existing_is_seeded is False and incoming_is_seeded is False and type != "last_finish":
-                # First real session completion already recorded.
-                # Subsequent session completions must not overwrite it.
-                # Only max_word_number is still allowed to grow.
-                max_ops: dict = {}
-                if stats_update.max_word_number is not None:
-                    max_ops["max_word_number"] = stats_update.max_word_number
-                if max_ops:
-                    await self.daily_stats_collection.update_one(
-                        {"_id": existing_stats["_id"]}, {"$max": max_ops}
+            if type == "first_finish":
+                # first_finish stores the daily MAXIMUM unknown count.
+                # Only update when incoming unknown > existing unknown.
+                # Prefer words_unknown field if provided directly; fall back to computation.
+                if stats_update.words_unknown is not None:
+                    incoming_unknown = stats_update.words_unknown
+                else:
+                    incoming_unknown = (
+                        (stats_update.words_studied or 0)
+                        - (stats_update.words_known or 0)
+                        - (stats_update.words_skipped or 0)
                     )
-                result = await self.daily_stats_collection.find_one({"_id": existing_stats["_id"]})
-                result["id"] = str(result.pop("_id"))
-                return UserDailyStatsInDB(**result)
+                existing_wu = existing_stats.get("words_unknown")
+                if existing_wu is not None:
+                    existing_unknown = existing_wu
+                else:
+                    existing_unknown = (
+                        existing_stats.get("words_studied", 0)
+                        - existing_stats.get("words_known", 0)
+                        - existing_stats.get("words_skipped", 0)
+                    )
+                if incoming_unknown <= existing_unknown:
+                    result = await self.daily_stats_collection.find_one({"_id": existing_stats["_id"]})
+                    result["id"] = str(result.pop("_id"))
+                    return UserDailyStatsInDB(**result)
 
             update_data = {k: v for k, v in stats_update.model_dump().items() if v is not None}
-            # These fields use $max: they can only grow, never overwrite with a smaller/zero value.
-            # Protects against BLS restart races sending stale progress data (e.g. words_known=0).
             max_word_number = update_data.pop("max_word_number", None)
-            words_known = update_data.pop("words_known", None)
-            words_for_today = update_data.pop("words_for_today", None)
-            update_data["updated_at"] = datetime.utcnow()
-            update_ops: dict = {"$set": update_data}
-            max_ops_full: dict = {}
+            words_unknown_direct = update_data.pop("words_unknown", None)
+
+            if type in ("first_finish", "last_finish") and words_unknown_direct is not None:
+                # Clean path: only set words_unknown, leave other fields untouched.
+                update_ops: dict = {"$set": {"words_unknown": words_unknown_direct, "updated_at": datetime.utcnow()}}
+            else:
+                # daily type (or legacy finish update without words_unknown):
+                # $max protects words_known/words_for_today against BLS restart race conditions.
+                words_known = update_data.pop("words_known", None)
+                words_for_today = update_data.pop("words_for_today", None)
+                update_data["updated_at"] = datetime.utcnow()
+                update_ops = {"$set": update_data}
+                max_ops_full: dict = {}
+                if words_known is not None:
+                    max_ops_full["words_known"] = words_known
+                if words_for_today is not None:
+                    max_ops_full["words_for_today"] = words_for_today
+                if max_ops_full:
+                    update_ops["$max"] = max_ops_full
+
             if max_word_number is not None:
-                max_ops_full["max_word_number"] = max_word_number
-            if words_known is not None:
-                max_ops_full["words_known"] = words_known
-            if words_for_today is not None:
-                max_ops_full["words_for_today"] = words_for_today
-            if max_ops_full:
-                update_ops["$max"] = max_ops_full
+                update_ops.setdefault("$max", {})["max_word_number"] = max_word_number
 
             await self.daily_stats_collection.update_one(
                 {"_id": existing_stats["_id"]},

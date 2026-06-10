@@ -209,7 +209,13 @@ class ProgressChartGenerator:
 
         ax.set_xlabel('Дата')
         step = max(1, len(dates) // 10)
-        tick_indices = range(0, len(dates), step)
+        tick_indices = list(range(0, len(dates), step))
+        if dates and tick_indices[-1] != len(dates) - 1:
+            tick_indices.append(len(dates) - 1)
+            if len(tick_indices) >= 2:
+                min_gap = max(1, len(dates) // 20)
+                if tick_indices[-1] - tick_indices[-2] < min_gap:
+                    tick_indices.pop(-2)
         ax.set_xticks(tick_indices)
         ax.set_xticklabels([dates[i] for i in tick_indices], rotation=45, ha='right')
 

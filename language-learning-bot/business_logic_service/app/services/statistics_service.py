@@ -107,9 +107,9 @@ async def update_daily_first_finish_statistics(
     progress: Dict[str, Any],
     api_client,
 ) -> bool:
-    """Record first real session completion. Backend ignores if real data already exists."""
+    """Write first_finish if current unknown > stored max. Backend handles the comparison."""
     update_response = await api_client.update_daily_first_finish_statistics(
-        user_id, language_id, action_date, {**progress, "is_seeded": False}
+        user_id, language_id, action_date, progress
     )
     if not update_response["success"]:
         logger.error(
@@ -153,37 +153,8 @@ async def update_daily_max_word_number(
     await api_client.update_daily_statistics(
         user_id, language_id, action_date, {"max_word_number": word_number}
     )
-    await api_client.update_daily_first_finish_statistics(
-        user_id, language_id, action_date, {"max_word_number": word_number}
-    )
 
 
-async def create_first_finish_if_missing(
-    user_id: str,
-    language_id: str,
-    action_date: date,
-    progress: Dict[str, Any],
-    api_client,
-) -> bool:
-    """Create first-finish record only if one doesn't exist yet today.
-    Called from _bg_update_daily so the chart always has a daily entry
-    even when the user never exhausts all session batches."""
-    response = await api_client.get_daily_first_finish_statistics(user_id, language_id, action_date)
-    if (
-        not response["success"]
-        or response.get("status") == 404
-        or response["result"] is None
-    ):
-        update_response = await api_client.update_daily_first_finish_statistics(
-            user_id, language_id, action_date, {**progress, "is_seeded": True}
-        )
-        if not update_response["success"]:
-            logger.error(
-                f"Failed to create first-finish snapshot user={user_id} lang={language_id}: "
-                f"{update_response.get('error')}"
-            )
-            return False
-    return True
 
 
 async def get_monthly_statistics(
@@ -224,7 +195,9 @@ async def get_monthly_statistics(
             return []
         result = []
         for day in raw_response["result"].get("daily_stats", []):
-            day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
+            # New records store words_unknown directly; legacy records fall back to computation.
+            if day.get("words_unknown") is None:
+                day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
             result.append(day)
         return result
 

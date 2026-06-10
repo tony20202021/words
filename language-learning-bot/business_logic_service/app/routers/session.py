@@ -13,15 +13,11 @@ logger = setup_logger(__name__)
 
 
 async def _bg_update_daily(user_id: str, language_id: str, api_client, word_number: int = 0) -> None:
-    """Update daily statistics in the background after a word is rated.
-    Also seeds first-finish record if none exists yet today, so the chart
-    always has a data point even when the user doesn't exhaust all batches."""
+    """Update daily record and max_word_number after each word rating."""
     try:
         progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
         today = date.today()
         await statistics_service.update_daily_statistics(
-            user_id, language_id, today, progress, api_client)
-        await statistics_service.create_first_finish_if_missing(
             user_id, language_id, today, progress, api_client)
         await statistics_service.update_daily_max_word_number(
             user_id, language_id, today, word_number, api_client)
@@ -29,17 +25,19 @@ async def _bg_update_daily(user_id: str, language_id: str, api_client, word_numb
         logger.warning(f"bg daily stats update failed for {user_id}/{language_id}: {e}")
 
 
-async def _bg_update_first_finish(user_id: str, language_id: str, api_client) -> None:
-    """Update first- and last-finish statistics when session batch is exhausted."""
+async def _bg_update_finish_on_unknown(user_id: str, language_id: str, api_client, incorrect_count: int) -> None:
+    """Update finish stats on every 'don't know' answer.
+    Uses session incorrect_count as words_unknown (not DB aggregation).
+    first_finish keeps daily max; last_finish always overwrites."""
     try:
-        progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
         today = date.today()
+        progress = {"words_unknown": incorrect_count}
         await statistics_service.update_daily_first_finish_statistics(
             user_id, language_id, today, progress, api_client)
         await statistics_service.update_daily_last_finish_statistics(
             user_id, language_id, today, progress, api_client)
     except Exception as e:
-        logger.warning(f"bg first_finish update failed for {user_id}/{language_id}: {e}")
+        logger.warning(f"bg finish stats update failed for {user_id}/{language_id}: {e}")
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -86,11 +84,17 @@ async def get_session(user_id: str, language_id: str):
 
 
 @router.post("/{session_id}/show_answer")
-async def show_answer(session_id: str, api_client=Depends(get_api_client)):
+async def show_answer(session_id: str,
+                      background_tasks: BackgroundTasks,
+                      api_client=Depends(get_api_client)):
     session = session_service.get_session_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
     await session_service.show_answer_word(session, api_client)
+    user_id = session.get("user_id", "")
+    language_id = session.get("language_id", "")
+    incorrect_count = session.get("incorrect_count", 0)
+    background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     return _card_response(session)
 
 
@@ -109,6 +113,9 @@ async def rate_word(session_id: str, req: RateRequest,
     rated_wn = (rated_word or {}).get("word_number") or 0
     session = await session_service.rate_word(session, req.rating, api_client)
     background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client, rated_wn)
+    if req.rating == "dont_know":
+        incorrect_count = session.get("incorrect_count", 0)
+        background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     word = session_service.get_current_word(session)
     if word is None:
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}
@@ -124,17 +131,12 @@ async def get_progress(session_id: str):
 
 
 @router.post("/{session_id}/next_batch")
-async def next_batch(session_id: str,
-                     background_tasks: BackgroundTasks,
-                     api_client=Depends(get_api_client)):
+async def next_batch(session_id: str, api_client=Depends(get_api_client)):
     session = session_service.get_session_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
     loaded = await session_service.load_next_batch(session, api_client)
     if not loaded:
-        user_id = session.get("user_id", "")
-        language_id = session.get("language_id", "")
-        background_tasks.add_task(_bg_update_first_finish, user_id, language_id, api_client)
         return {"loaded": False, "session_id": session_id, "card": None}
     return {"loaded": True, **_card_response(session)}
 
@@ -156,12 +158,18 @@ async def know_word(session_id: str,
 
 
 @router.post("/{session_id}/reconsider")
-async def reconsider_word(session_id: str, api_client=Depends(get_api_client)):
+async def reconsider_word(session_id: str,
+                          background_tasks: BackgroundTasks,
+                          api_client=Depends(get_api_client)):
     session = session_service.get_session_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
+    user_id = session.get("user_id", "")
+    language_id = session.get("language_id", "")
     session = await session_service.reconsider_word(session, api_client)
     session = await session_service.rate_word(session, "dont_know", api_client)
+    incorrect_count = session.get("incorrect_count", 0)
+    background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     word = session_service.get_current_word(session)
     if word is None:
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}

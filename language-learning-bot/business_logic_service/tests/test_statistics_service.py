@@ -3,9 +3,10 @@ Unit tests for statistics_service — no I/O, no DB, pure logic with mocked api_
 
 Covers:
 - update_daily_statistics: create-if-missing snapshot
-- create_first_finish_if_missing: seeded at first word of day
-- update_daily_max_word_number: always updates both records
-- update_daily_first_finish_statistics: always overwrites (session completion)
+- update_daily_max_word_number: updates only daily record
+- update_daily_first_finish_statistics: backend decides whether to update (max-unknown guard)
+- update_daily_last_finish_statistics: always overwrites
+- _bg_update_daily / _bg_update_finish_on_unknown separation
 """
 
 import pytest
@@ -14,7 +15,6 @@ from unittest.mock import AsyncMock, call
 
 from app.services.statistics_service import (
     update_daily_statistics,
-    create_first_finish_if_missing,
     update_daily_max_word_number,
     update_daily_first_finish_statistics,
     update_daily_last_finish_statistics,
@@ -34,16 +34,12 @@ PROGRESS = {
 }
 
 
-def make_api(*, daily_exists=False, ff_exists=False):
+def make_api(*, daily_exists=False):
     """Return a mock api_client for statistics operations."""
     api = AsyncMock()
     api.get_daily_statistics.return_value = {
         "success": True,
         "result": {"words_studied": 100} if daily_exists else None,
-    }
-    api.get_daily_first_finish_statistics.return_value = {
-        "success": True,
-        "result": {"words_studied": 100} if ff_exists else None,
     }
     api.update_daily_statistics.return_value = {"success": True, "result": {}}
     api.update_daily_first_finish_statistics.return_value = {"success": True, "result": {}}
@@ -84,52 +80,16 @@ class TestUpdateDailyStatistics:
         api.update_daily_statistics.assert_called_once()
 
 
-# ── create_first_finish_if_missing ────────────────────────────────────────────
-
-class TestCreateFirstFinishIfMissing:
-    @pytest.mark.asyncio
-    async def test_creates_when_no_record(self):
-        """Seeds first_finish at the first word of the day."""
-        api = make_api(ff_exists=False)
-        result = await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is True
-        api.update_daily_first_finish_statistics.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_skips_when_record_already_exists(self):
-        """Does not overwrite existing first_finish snapshot."""
-        api = make_api(ff_exists=True)
-        result = await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is True
-        api.update_daily_first_finish_statistics.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_sends_is_seeded_true(self):
-        """Seeded snapshot must include is_seeded=True so backend can distinguish it from real data."""
-        api = make_api(ff_exists=False)
-        await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
-        call_args = api.update_daily_first_finish_statistics.call_args
-        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert payload.get("is_seeded") is True
-
-    @pytest.mark.asyncio
-    async def test_returns_false_on_api_error(self):
-        api = make_api(ff_exists=False)
-        api.update_daily_first_finish_statistics.return_value = {"success": False, "error": "fail"}
-        result = await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is False
-
-
 # ── update_daily_max_word_number ──────────────────────────────────────────────
 
 class TestUpdateDailyMaxWordNumber:
     @pytest.mark.asyncio
-    async def test_updates_both_daily_and_first_finish(self):
-        """max_word_number is written to both record types on every call."""
+    async def test_updates_only_daily_record(self):
+        """max_word_number is written to daily record only — not to first_finish."""
         api = make_api()
         await update_daily_max_word_number("u1", "lang1", TODAY, 450, api)
         api.update_daily_statistics.assert_called_once()
-        api.update_daily_first_finish_statistics.assert_called_once()
+        api.update_daily_first_finish_statistics.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_passes_max_word_number_in_payload(self):
@@ -145,11 +105,10 @@ class TestUpdateDailyMaxWordNumber:
         api = make_api()
         await update_daily_max_word_number("u1", "lang1", TODAY, 0, api)
         api.update_daily_statistics.assert_not_called()
-        api.update_daily_first_finish_statistics.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_updates_on_every_call(self):
-        """Unlike create_if_missing, max_word_number is sent on every word."""
+        """max_word_number is sent on every word — backend uses $max."""
         api = make_api()
         await update_daily_max_word_number("u1", "lang1", TODAY, 100, api)
         await update_daily_max_word_number("u1", "lang1", TODAY, 500, api)
@@ -162,21 +121,22 @@ class TestUpdateDailyMaxWordNumber:
 class TestUpdateDailyFirstFinishStatistics:
     @pytest.mark.asyncio
     async def test_calls_api_without_get_check(self):
-        """Session completion calls PUT directly — no GET check (backend guards duplicates)."""
-        api = make_api(ff_exists=True)
+        """Calls PUT directly — no GET check (backend performs max-unknown comparison)."""
+        api = make_api()
         result = await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
         assert result is True
-        api.get_daily_first_finish_statistics.assert_not_called()
+        api.get_daily_statistics.assert_not_called()
         api.update_daily_first_finish_statistics.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_sends_is_seeded_false(self):
-        """Payload must include is_seeded=False so backend can protect first real completion."""
+    async def test_passes_incorrect_count_as_words_unknown(self):
+        """incorrect_count is sent as words_unknown — field name matches semantic meaning."""
         api = make_api()
-        await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        progress = {"words_unknown": 7}  # incorrect_count=7
+        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
         call_args = api.update_daily_first_finish_statistics.call_args
         payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert payload.get("is_seeded") is False
+        assert payload.get("words_unknown") == 7
 
     @pytest.mark.asyncio
     async def test_returns_false_on_api_error(self):
@@ -185,90 +145,108 @@ class TestUpdateDailyFirstFinishStatistics:
         result = await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
         assert result is False
 
-
-# ── Integration: _bg_update_daily word_number flow ────────────────────────────
-
-class TestBgUpdateDailyFlow:
-    """Verifies that the full _bg_update_daily call sequence is correct."""
-
     @pytest.mark.asyncio
-    async def test_daily_and_ff_seeded_and_max_updated_on_first_word_of_day(self):
-        """
-        When the first word of the day is rated:
-        - daily record is created
-        - first_finish record is seeded (if missing)
-        - max_word_number is written
-        All three things happen in one bg task.
-        """
-        api = make_api(daily_exists=False, ff_exists=False)
-        api.get_user_progress = AsyncMock(return_value={"success": True, "result": PROGRESS})
-
-        # import here to avoid circular at module level
-        from app.services.statistics_service import (
-            update_daily_statistics,
-            create_first_finish_if_missing,
-            update_daily_max_word_number,
-        )
-
-        progress = PROGRESS.copy()
-        today = TODAY
-
-        await update_daily_statistics("u1", "lang1", today, progress, api)
-        await create_first_finish_if_missing("u1", "lang1", today, progress, api)
-        await update_daily_max_word_number("u1", "lang1", today, 297, api)
-
-        # daily created once
-        api.update_daily_statistics.assert_called()
-        # first_finish seeded once
-        api.update_daily_first_finish_statistics.assert_called()
-        # max_word_number 297 present in one of the calls
-        max_wn_calls = [
-            c for c in api.update_daily_statistics.call_args_list
-            if (c.args[3] if c.args else {}).get("max_word_number") == 297
-        ]
-        assert len(max_wn_calls) == 1
-
-    @pytest.mark.asyncio
-    async def test_bg_update_first_finish_writes_both_first_and_last(self):
-        """_bg_update_first_finish must write both first_finish (protected) and last_finish (always)."""
+    async def test_called_on_every_dont_know(self):
+        """Called on every 'don't know' answer — backend skips when unknown did not increase."""
         api = make_api()
+        for _ in range(5):
+            await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        assert api.update_daily_first_finish_statistics.call_count == 5
 
-        today = TODAY
-        await update_daily_first_finish_statistics("u1", "lang1", today, PROGRESS, api)
-        await update_daily_last_finish_statistics("u1", "lang1", today, PROGRESS, api)
+
+# ── update_daily_last_finish_statistics ───────────────────────────────────────
+
+class TestUpdateDailyLastFinishStatistics:
+    @pytest.mark.asyncio
+    async def test_calls_api_unconditionally(self):
+        """Always overwrites regardless of current vs stored unknown."""
+        api = make_api()
+        result = await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        assert result is True
+        api.update_daily_last_finish_statistics.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_false_on_api_error(self):
+        api = make_api()
+        api.update_daily_last_finish_statistics.return_value = {"success": False, "error": "fail"}
+        result = await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_called_on_every_dont_know(self):
+        api = make_api()
+        for _ in range(3):
+            await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        assert api.update_daily_last_finish_statistics.call_count == 3
+
+
+# ── Separation: _bg_update_daily vs _bg_update_finish_on_unknown ──────────────
+
+class TestBgTaskSeparation:
+    """
+    _bg_update_daily  fires on every word rating (know/skip/dont_know):
+      → update_daily_statistics + update_daily_max_word_number
+
+    _bg_update_finish_on_unknown  fires only on 'don't know' (show_answer):
+      → update_daily_first_finish_statistics + update_daily_last_finish_statistics
+    """
+
+    @pytest.mark.asyncio
+    async def test_bg_update_daily_does_not_touch_first_or_last_finish(self):
+        """Simulates _bg_update_daily: only daily and max_word_number are written."""
+        api = make_api(daily_exists=False)
+
+        await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api)
+        await update_daily_max_word_number("u1", "lang1", TODAY, 300, api)
+
+        api.update_daily_statistics.assert_called()
+        api.update_daily_first_finish_statistics.assert_not_called()
+        api.update_daily_last_finish_statistics.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bg_update_finish_writes_both_finish_records(self):
+        """Simulates _bg_update_finish_on_unknown: both finish types are written with words_unknown."""
+        api = make_api()
+        progress = {"words_unknown": 5}  # incorrect_count=5 passed as words_unknown
+
+        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
+        await update_daily_last_finish_statistics("u1", "lang1", TODAY, progress, api)
 
         api.update_daily_first_finish_statistics.assert_called_once()
         api.update_daily_last_finish_statistics.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_last_finish_sends_no_is_seeded(self):
-        """last_finish must not include is_seeded so the backend always overwrites."""
+    async def test_bg_update_finish_does_not_call_get_user_progress(self):
+        """_bg_update_finish_on_unknown uses session incorrect_count directly — no DB fetch."""
         api = make_api()
-        await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        call_args = api.update_daily_last_finish_statistics.call_args
-        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert "is_seeded" not in payload
+        progress = {"words_unknown": 5}
+
+        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
+        await update_daily_last_finish_statistics("u1", "lang1", TODAY, progress, api)
+
+        api.get_daily_statistics.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_ff_not_overwritten_on_subsequent_words(self):
-        """
-        On words 2+ of the day:
-        - update_daily_statistics does NOT call api.update_daily_statistics (record exists)
-        - create_first_finish_if_missing does NOT call api.update_daily_first_finish_statistics (record exists)
-        - update_daily_max_word_number DOES call both api methods (always runs)
-        """
-        api = make_api(daily_exists=True, ff_exists=True)
+    async def test_finish_records_not_updated_on_know_or_skip(self):
+        """On 'know' or 'skip', finish records must not be touched."""
+        api = make_api(daily_exists=True)
 
-        await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        # daily exists → no PUT call from update_daily_statistics itself
-        # (update_daily_max_word_number hasn't run yet)
-        api.update_daily_statistics.assert_not_called()
+        # Simulate two 'know' words and one 'skip' word — only bg_update_daily fires
+        for _ in range(3):
+            await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api)
+            await update_daily_max_word_number("u1", "lang1", TODAY, 100, api)
 
-        await create_first_finish_if_missing("u1", "lang1", TODAY, PROGRESS, api)
-        # ff exists → no PUT from create_if_missing
         api.update_daily_first_finish_statistics.assert_not_called()
+        api.update_daily_last_finish_statistics.assert_not_called()
 
-        await update_daily_max_word_number("u1", "lang1", TODAY, 400, api)
-        # max_word_number always fires both
-        api.update_daily_statistics.assert_called_once()
-        api.update_daily_first_finish_statistics.assert_called_once()
+    @pytest.mark.asyncio
+    async def test_finish_records_updated_on_each_dont_know(self):
+        """On 3 'don't know' answers, finish stats are updated 3 times."""
+        api = make_api()
+
+        for _ in range(3):
+            await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+            await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+
+        assert api.update_daily_first_finish_statistics.call_count == 3
+        assert api.update_daily_last_finish_statistics.call_count == 3
