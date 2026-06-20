@@ -337,3 +337,50 @@ async def test_sound_callback_unavailable_shows_alert(mock_bls):
     cb.answer.assert_called_once()
     assert cb.answer.call_args.kwargs.get("show_alert") is True
     cb.message.edit_text.assert_not_called()
+
+
+# ── restart_notice ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_display_card_sends_restart_notice_separately(mock_bls):
+    from app.bot.handlers.study import _display_card
+    notice = "⚠️ Ошибок в сессии: 15, лимит: 10. Рекомендуется перезапустить сессию."
+    card = make_card(restart_notice=notice)
+    msg = make_message()
+
+    await _display_card(msg, card, "lang1", mock_bls, edit_mode=False)
+
+    assert msg.answer.call_count == 2
+    assert msg.answer.call_args_list[0].args[0] == notice
+    assert "hello" in msg.answer.call_args_list[1].args[0] or "<b>hello</b>" in msg.answer.call_args_list[1].args[0]
+
+
+@pytest.mark.asyncio
+async def test_display_card_skips_restart_notice_in_edit_mode(mock_bls):
+    from app.bot.handlers.study import _display_card
+    notice = "⚠️ Ошибок в сессии: 15, лимит: 10. Рекомендуется перезапустить сессию."
+    card = make_card(restart_notice=notice, show_answer=True)
+    msg = make_message()
+    msg.edit_text = AsyncMock()
+
+    await _display_card(msg, card, "lang1", mock_bls, edit_mode=True)
+
+    msg.answer.assert_not_called()
+    msg.edit_text.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_display_card_sends_big_word_photo(mock_bls):
+    from app.bot.handlers.study import _display_card
+    card = make_card(
+        show_answer=True,
+        big_word={"word": "学", "transcription": "xué"},
+    )
+    msg = make_message()
+    msg.answer_photo = AsyncMock()
+
+    with patch("app.bot.handlers.study.generate_big_word_image", new=AsyncMock(return_value=b"png")):
+        await _display_card(msg, card, "lang1", mock_bls, edit_mode=False)
+
+    msg.answer_photo.assert_called_once()
+    msg.answer.assert_called_once()

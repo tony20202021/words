@@ -23,8 +23,8 @@ class HintsActivity : AppCompatActivity() {
     companion object {
         val ALL_HINT_TYPES = linkedMapOf(
             "meaning"             to ("🧠" to "Ассоциация (рус)"),
-            "phoneticsound"       to ("🎵" to "Звучание по слогам"),
             "phoneticassociation" to ("💡" to "Ассоциация фонетики"),
+            "phoneticsound"       to ("🎵" to "Звучание по слогам"),
             "writing"             to ("✍️" to "Написание"),
         )
     }

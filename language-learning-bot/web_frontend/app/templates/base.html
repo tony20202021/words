@@ -8,6 +8,8 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <style>
     .word-foreign { font-size: 3rem; font-weight: bold; }
+    .word-big { font-size: 6rem; font-weight: bold; line-height: 1.1; }
+    .word-big-transcription { font-size: 1.5rem; color: #666; }
     .word-transcription { font-size: 1.6rem; color: #666; }
     .word-translation { font-size: 1.4rem; }
     .card-word { min-height: 220px; }
@@ -20,8 +22,8 @@
     <a class="navbar-brand fw-bold" href="/">📚 LangBot</a>
     <span class="text-light opacity-50" style="font-size:0.75rem">v{{ app_version }}</span>
     <div class="ms-2 d-flex gap-1">
-      <a href="{{ telegram_bot_url }}" target="_blank" class="btn btn-outline-light btn-sm px-2" title="Telegram-бот">🤖</a>
-      <a href="/download/android" class="btn btn-outline-light btn-sm px-2" title="Android APK">📱</a>
+      <a href="{{ telegram_bot_url }}" target="_blank" class="btn btn-outline-light btn-sm px-2 d-inline-flex align-items-center" title="Telegram-бот"><img src="/static/telegram.svg" alt="Telegram" width="18" height="18"></a>
+      <a href="/download/android" class="btn btn-outline-light btn-sm px-2 d-inline-flex align-items-center" title="Android APK"><img src="/static/android.svg" alt="Android" width="18" height="18"></a>
     </div>
     <div class="ms-auto d-flex gap-2 align-items-center">
       {% if request.session.get('first_name') %}

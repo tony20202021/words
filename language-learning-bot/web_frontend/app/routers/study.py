@@ -1,22 +1,40 @@
 import asyncio
 import os
+import sys
+from pathlib import Path
 from urllib.parse import quote
 from fastapi import APIRouter, Request, Form, Query, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
 from app.templating import templates
-from pathlib import Path
 import httpx
 from app.bls_client import get_bls_client
 
-HINT_TYPES = {
-    "meaning":             ("🧠", "Ассоциация (рус)"),
-    "phoneticsound":       ("🎵", "Звучание по слогам"),
-    "phoneticassociation": ("💡", "Ассоциация фонетики"),
-    "writing":             ("✍️", "Написание"),
-}
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from common.hint_catalog import hint_types_ordered, setting_key_for
+
+HINT_TYPES = hint_types_ordered()
 
 # Desired display order for extra_content groups in the web UI
 _EXTRA_ORDER = ["radicals", "references", "tones"]
+
+
+def _group_extra_items(items: list) -> list:
+    """Split flat extra_content list into per-group blocks for separate UI cards."""
+    groups_list: list = []
+    current_group = None
+    current_items: list = []
+    for item in items:
+        g = item.get("group", "")
+        if g != current_group:
+            if current_items:
+                groups_list.append({"group": current_group, "items": current_items})
+            current_group = g
+            current_items = [item]
+        else:
+            current_items.append(item)
+    if current_items:
+        groups_list.append({"group": current_group, "items": current_items})
+    return groups_list
 
 
 def _prepare_card(card: dict) -> None:
@@ -24,6 +42,7 @@ def _prepare_card(card: dict) -> None:
     Reference filtering by word number is handled by the BLS card_builder."""
     extra = card.get("extra_content") or []
     if not extra:
+        card["extra_groups"] = []
         return
 
     # Group items preserving per-group insertion order
@@ -45,6 +64,7 @@ def _prepare_card(card: dict) -> None:
             sorted_items.extend(groups.pop(g))
 
     card["extra_content"] = sorted_items
+    card["extra_groups"] = _group_extra_items(sorted_items)
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8500")
 
@@ -96,16 +116,17 @@ async def study_page(request: Request, language_id: str, force: bool = Query(Fal
         await bls.end_session(user_id, language_id)
 
     resp = await bls.get_session(user_id, language_id)
+    session_stale = bool(resp and resp.get("session_stale"))
     new_session = resp is None
     if new_session:
-        settings = {"use_check_date": False, "skip_marked": False, "start_word": 1} if force else None
-        resp = await bls.start_session(user_id, language_id, settings=settings)
+        session_mode = "ignore_dates" if force else None
+        resp = await bls.start_session(user_id, language_id, session_mode=session_mode)
 
     if resp is None:
         return templates.TemplateResponse("study.html", {
             "request": request, "language_id": language_id,
             "card": None, "no_words": False, "error": "Не удалось запустить сессию.",
-            "lang": {}, "words_for_today": 0,
+            "lang": {}, "words_for_today": 0, "session_stale": False,
         })
 
     card = resp.get("card")
@@ -115,21 +136,14 @@ async def study_page(request: Request, language_id: str, force: bool = Query(Fal
         return templates.TemplateResponse("study.html", {
             "request": request, "language_id": language_id,
             "card": None, "no_words": True, "error": None,
-            "lang": {}, "words_for_today": stats.get("words_for_today", 0),
+            "lang": {}, "words_for_today": stats.get("words_for_today", 0), "session_stale": False,
         })
 
     ctx = await _page_ctx(bls, user_id, language_id)
-    wft_key = f"wft_{language_id}"
-    if new_session or force:
-        # Set words_for_today once at session start; preserve it across page refreshes
-        request.session[wft_key] = ctx["words_for_today"]
-    else:
-        ctx["words_for_today"] = request.session.get(wft_key, ctx["words_for_today"])
-
     _prepare_card(card)
     return templates.TemplateResponse("study.html", {
         "request": request, "language_id": language_id,
-        "card": card, "no_words": False, "error": None, **ctx,
+        "card": card, "no_words": False, "error": None, "session_stale": session_stale, **ctx,
     })
 
 
@@ -144,7 +158,6 @@ def _session_error(language_id: str) -> HTMLResponse:
 
 async def _card_partial(request, bls, user_id, language_id, resp):
     ctx = await _page_ctx(bls, user_id, language_id)
-    ctx["words_for_today"] = request.session.get(f"wft_{language_id}", ctx["words_for_today"])
     card = resp.get("card")
     if card:
         _prepare_card(card)
@@ -260,14 +273,8 @@ async def _hints_ctx(bls, user_id: str, language_id: str, word_id: str) -> dict:
         bls.get_hint_settings(user_id, language_id),
     )
     # hint_settings keys: show_hint_meaning, show_hint_phoneticsound, …
-    setting_key = {
-        "meaning":             "show_hint_meaning",
-        "phoneticsound":       "show_hint_phoneticsound",
-        "phoneticassociation": "show_hint_phoneticassociation",
-        "writing":             "show_hint_writing",
-    }
     enabled_types = {ht: v for ht, v in HINT_TYPES.items()
-                     if hint_settings.get(setting_key[ht], False)}
+                     if hint_settings.get(setting_key_for(ht), False)}
     return {"language_id": language_id, "word_id": word_id,
             "hints": hints, "hint_types": enabled_types}
 

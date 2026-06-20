@@ -314,9 +314,10 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         f"📤 Получать сообщения: <b>{b(s.get('receive_messages', True))}</b>",
         "",
         "🔄 <b>Сброс сессии:</b>",
-        f"   • дни: <b>{s.get('reset_session_days', 1)}</b>",
-        f"   • часы: <b>{s.get('reset_session_hours', 6)}</b>",
+        f"   • перерыв за день: <b>{s.get('reset_same_day_hours', 16)}</b> ч",
+        f"   • час после полуночи: <b>{s.get('reset_cross_midnight_hours', 6)}</b>",
         f"🔄 Лимит неизвестных слов: <b>{s.get('unknown_limit_new_words', 10)}</b>",
+        f"🔁 Макс. интервал: <b>{s.get('max_check_interval', 365)}</b> дн",
     ]
     await callback.message.answer("\n".join(settings_lines), parse_mode="HTML")
 

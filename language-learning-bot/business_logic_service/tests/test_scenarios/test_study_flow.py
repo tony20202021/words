@@ -5,11 +5,13 @@ No HTTP, no database — pure logic.
 """
 
 import pytest
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 from app.services import session_service
 from app.services.session_service import (
     start_session, know_word, show_answer_word, rate_word,
     toggle_word_skip, load_next_batch, get_current_word, get_progress,
+    is_session_expired, touch_session,
 )
 
 
@@ -382,3 +384,115 @@ async def test_reconsider_does_not_advance():
 
     session = await reconsider_word(session, api)
     assert session["current_index"] == idx_before
+
+
+# ── Task 4: session expiry — stale flag, not deletion ────────────────────────
+
+def test_session_not_expired_when_fresh():
+    """Session touched just now → never expired."""
+    session = {"last_activity_at": datetime.now().isoformat(), "settings": {}}
+    assert is_session_expired(session) is False
+
+
+def test_session_not_expired_same_day_short():
+    """1 hour ago, same calendar day → not expired (1 < default 16)."""
+    last = (datetime.now() - timedelta(hours=1)).isoformat()
+    session = {"last_activity_at": last, "settings": {}}
+    assert is_session_expired(session) is False
+
+
+def test_session_expired_same_day_threshold_zero():
+    """1 hour ago, same day, threshold=0 → expired (any elapsed >= 0)."""
+    last = (datetime.now() - timedelta(hours=1)).isoformat()
+    session = {"last_activity_at": last, "settings": {"reset_same_day_hours": 0}}
+    assert is_session_expired(session) is True
+
+
+def test_session_expired_crossed_midnight():
+    """Studied 24h ago (cal_days=1), midnight threshold=0 → expired (now.hour >= 0 always)."""
+    yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+    session = {"last_activity_at": yesterday, "settings": {"reset_cross_midnight_hours": 0}}
+    assert is_session_expired(session) is True
+
+
+def test_session_not_expired_crossed_midnight_high_threshold():
+    """Studied 24h ago (cal_days=1), threshold=24 → not expired (now.hour < 24 always)."""
+    yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+    session = {"last_activity_at": yesterday, "settings": {"reset_cross_midnight_hours": 24}}
+    assert is_session_expired(session) is False
+
+
+def test_session_expired_two_plus_days():
+    """2+ calendar days ago → always expired regardless of thresholds."""
+    old = (datetime.now() - timedelta(days=2)).isoformat()
+    session = {"last_activity_at": old, "settings": {"reset_same_day_hours": 999}}
+    assert is_session_expired(session) is True
+
+
+def test_touch_session_updates_last_activity():
+    before = (datetime.now() - timedelta(hours=10)).isoformat()
+    session = {"last_activity_at": before}
+    touch_session(session)
+    updated = datetime.fromisoformat(session["last_activity_at"])
+    assert (datetime.now() - updated).total_seconds() < 5
+
+
+@pytest.mark.asyncio
+async def test_session_stays_in_store_when_stale():
+    """Stale session must NOT be deleted by is_session_expired check."""
+    session, _ = await new_session()
+    session["last_activity_at"] = (datetime.now() - timedelta(days=2)).isoformat()
+
+    key = (session["user_id"], session["language_id"])
+    before = session_service._session_index.get(key)
+    assert before is not None  # session exists
+
+    _ = is_session_expired(session)   # check but do not end
+
+    after = session_service._session_index.get(key)
+    assert after is not None  # still in store
+
+
+# ── Task 6: max_check_interval per-user setting ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_max_check_interval_from_settings_honored():
+    """When max_check_interval=64, interval doubles past 32."""
+    api = make_mock_api(settings={"max_check_interval": 64})
+    # Simulate word already at interval=32
+    api.get_user_word_data.return_value = {
+        "success": True,
+        "result": {"score": 1, "check_interval": 32, "next_check_date": "2025-01-01",
+                   "is_skipped": False}
+    }
+    captured = {}
+    async def fake_update(user_id, word_id, data):
+        captured.update(data)
+        return {"success": True, "result": data}
+    api.update_user_word_data.side_effect = fake_update
+
+    session = await start_session("u1", "lang1", api)
+    await know_word(session, api)
+
+    assert captured.get("check_interval") == 64
+
+
+@pytest.mark.asyncio
+async def test_default_max_interval_caps_at_32():
+    """Without max_check_interval setting, interval stops at 32."""
+    api = make_mock_api(settings={})
+    api.get_user_word_data.return_value = {
+        "success": True,
+        "result": {"score": 1, "check_interval": 32, "next_check_date": "2025-01-01",
+                   "is_skipped": False}
+    }
+    captured = {}
+    async def fake_update(user_id, word_id, data):
+        captured.update(data)
+        return {"success": True, "result": data}
+    api.update_user_word_data.side_effect = fake_update
+
+    session = await start_session("u1", "lang1", api)
+    await know_word(session, api)
+
+    assert captured.get("check_interval") == 32

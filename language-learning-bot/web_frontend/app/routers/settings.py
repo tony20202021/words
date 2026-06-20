@@ -7,10 +7,11 @@ from app.bls_client import get_bls_client
 router = APIRouter()
 
 NUMERIC_LABELS = {
-    "start_word":             "Начальное слово",
-    "reset_session_days":     "Сброс сессии (дни)",
-    "reset_session_hours":    "Сброс сессии (часы)",
-    "unknown_limit_new_words": "Лимит неизвестных слов",
+    "start_word":                  "Начальное слово",
+    "reset_same_day_hours":        "Сброс сессии: перерыв за день (ч)",
+    "reset_cross_midnight_hours":  "Сброс сессии: час после полуночи",
+    "unknown_limit_new_words":     "Лимит неизвестных слов",
+    "max_check_interval":          "Макс. интервал повторения (дни)",
 }
 
 SETTING_LABELS = {

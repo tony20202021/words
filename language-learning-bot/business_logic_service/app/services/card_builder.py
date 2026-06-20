@@ -48,6 +48,16 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
     words_studied = session.get("words_studied", 0)
 
+    unknown_limit = int(settings.get("unknown_limit_new_words", 10))
+    word_number = (word or {}).get("word_number")
+    restart_notice = None
+    if (words_studied > 0 and word_number is not None and
+            word_number >= words_studied and
+            session.get("incorrect_count", 0) >= unknown_limit):
+        restart_notice = (f"⚠️ Ошибок в сессии: {session.get('incorrect_count', 0)}, "
+                          f"лимит: {unknown_limit}. "
+                          "Рекомендуется перезапустить сессию и повторить слова с начала.")
+
     show_skip = settings.get("show_skip_button", True)
     if not show_answer:
         _add_before_answer(content, word, show_mode)
@@ -69,8 +79,25 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
     hint_enabled_types = [ht for ht in HINT_ORDER if settings.get(HINT_SETTINGS_MAP[ht], False)]
 
+    session_pos = total_processed + 1
+    words_for_today_val = session.get("words_for_today", 0)
+    is_new_word = bool(
+        word_number is not None and words_studied > 0 and word_number > words_studied
+    )
+    show_session_counter = bool(
+        word_number is not None and words_studied > 0
+        and not is_new_word and words_for_today_val > 0
+    )
+    session_counter_text = ""
+    if show_session_counter:
+        if session_pos >= words_for_today_val:
+            session_counter_text = f"(завершающее в текущей сессии: {session_pos})"
+        else:
+            session_counter_text = f"(в сессии: {session_pos} из {session_total})"
+
     return {
         "show_answer": show_answer,
+        "restart_notice": restart_notice,
         "content": content,
         "extra_content": extra_content,
         "sounds": sounds,
@@ -84,8 +111,12 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
             "interval": interval,
             "next_check_date": next_check_date[:10] if next_check_date else "",
             "is_skipped": is_skipped,
-            "session_pos": total_processed + 1,
+            "session_pos": session_pos,
             "session_total": session_total,
+            "show_session_counter": show_session_counter,
+            "session_counter_text": session_counter_text,
+            "is_new_word": is_new_word,
+            "new_word_label": "(новое слово, изучается первый раз)" if is_new_word else "",
             "correct_count": session.get("correct_count", 0),
             "incorrect_count": session.get("incorrect_count", 0),
             "result_history": session.get("result_history", []),

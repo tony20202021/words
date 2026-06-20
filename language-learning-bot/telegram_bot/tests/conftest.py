@@ -17,6 +17,8 @@ def make_card(
     words_studied: int = 0,
     total_words: int = 0,
     words_for_today: int = 0,
+    restart_notice: str | None = None,
+    big_word: dict | None = None,
 ) -> dict:
     """Build a minimal card dict matching BLS card_builder output shape."""
     if not show_answer:
@@ -52,11 +54,12 @@ def make_card(
     done = correct + incorrect
     return {
         "show_answer": show_answer,
+        "restart_notice": restart_notice,
         "content": content,
         "extra_content": [],
         "sounds": [],
         "buttons": buttons,
-        "big_word": None,
+        "big_word": big_word,
         "meta": {
             "word_number": word_number,
             "score": score,
@@ -75,6 +78,10 @@ def make_card(
             "words_studied": words_studied,
             "total_words": total_words,
             "words_for_today": words_for_today,
+            "show_session_counter": False,
+            "session_counter_text": "",
+            "is_new_word": False,
+            "new_word_label": "",
         },
     }
 

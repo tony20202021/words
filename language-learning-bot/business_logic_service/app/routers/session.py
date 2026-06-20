@@ -46,6 +46,7 @@ class StartSessionRequest(BaseModel):
     user_id: str
     language_id: str
     settings: Optional[Dict[str, Any]] = None
+    session_mode: Optional[str] = None  # "normal" | "ignore_dates"
 
 
 class RateRequest(BaseModel):
@@ -68,7 +69,7 @@ def _card_response(session: Dict[str, Any]) -> Dict[str, Any]:
 @router.post("/start")
 async def start_session(req: StartSessionRequest, api_client=Depends(get_api_client)):
     session = await session_service.start_session(
-        req.user_id, req.language_id, api_client, req.settings
+        req.user_id, req.language_id, api_client, req.settings, req.session_mode
     )
     if session is None:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Failed to start session")
@@ -80,7 +81,11 @@ async def get_session(user_id: str, language_id: str):
     session = session_service.get_session(user_id, language_id)
     if session is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No active session")
-    return _card_response(session)
+    resp = _card_response(session)
+    if session_service.is_session_expired(session):
+        logger.info(f"Session stale for user={user_id} lang={language_id}")
+        resp["session_stale"] = True
+    return resp
 
 
 @router.post("/{session_id}/show_answer")
@@ -112,6 +117,7 @@ async def rate_word(session_id: str, req: RateRequest,
     rated_word = session_service.get_current_word(session)
     rated_wn = (rated_word or {}).get("word_number") or 0
     session = await session_service.rate_word(session, req.rating, api_client)
+    session_service.touch_session(session)
     background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client, rated_wn)
     if req.rating == "dont_know":
         incorrect_count = session.get("incorrect_count", 0)
@@ -153,6 +159,7 @@ async def know_word(session_id: str,
     current_word = session_service.get_current_word(session)
     word_number = (current_word or {}).get("word_number") or 0
     session = await session_service.know_word(session, api_client)
+    session_service.touch_session(session)
     background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client, word_number)
     return _card_response(session)
 

@@ -36,9 +36,10 @@ class UserLanguageSettingsBase(BaseModel):
 
     receive_messages: bool = Field(True, description="Whether to receive messages")
 
-    reset_session_days: int = Field(1, description="Number of days to reset session")
-    reset_session_hours: int = Field(6, description="Number of hours to reset session")
+    reset_same_day_hours: int = Field(16, description="Hours of inactivity within same day before session reset")
+    reset_cross_midnight_hours: int = Field(6, description="Hour of day (0-23) after midnight crossing before session reset")
     unknown_limit_new_words: int = Field(10, description="Number of unknown words to learn per day")
+    max_check_interval: int = Field(32, description="Maximum spaced-repetition interval in days")
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
     """Model for creating user language settings."""
@@ -72,10 +73,11 @@ class UserLanguageSettingsUpdate(BaseModel):
     
     show_short_captions: Optional[bool] = None
     receive_messages: Optional[bool] = None
-    reset_session_days: Optional[int] = None
-    reset_session_hours: Optional[int] = None
+    reset_same_day_hours: Optional[int] = None
+    reset_cross_midnight_hours: Optional[int] = None
     unknown_limit_new_words: Optional[int] = None
-    
+    max_check_interval: Optional[int] = None
+
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):
     """Model for user language settings as stored in the database."""
     id: str

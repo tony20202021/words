@@ -3,10 +3,21 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <a href="/languages" class="btn btn-outline-secondary btn-sm">← Языки</a>
-  <form method="post" action="/study/{{ language_id }}/restart">
-    <button class="btn btn-outline-danger btn-sm" type="submit">Начать заново</button>
-  </form>
+  <div class="d-flex gap-2">
+    <a href="/settings/{{ language_id }}" class="btn btn-outline-secondary btn-sm">⚙ Настройки</a>
+    <a href="/stats?lang_id={{ language_id }}" class="btn btn-outline-info btn-sm">📊 Статистика</a>
+    <form method="post" action="/study/{{ language_id }}/restart">
+      <button class="btn btn-outline-danger btn-sm" type="submit">Начать заново</button>
+    </form>
+  </div>
 </div>
+
+{% if session_stale %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+  ⏰ Вы давно не занимались. Сессия устарела — можно продолжить или нажать «Начать заново».
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
 
 {% if error %}
   <div class="alert alert-warning">{{ error }}</div>

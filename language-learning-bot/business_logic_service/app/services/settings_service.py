@@ -30,9 +30,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "random_transcription": True,
     "random_sound": False,
     "receive_messages": True,
-    "reset_session_days": 1,
-    "reset_session_hours": 6,
+    "reset_same_day_hours": 16,
+    "reset_cross_midnight_hours": 6,
     "unknown_limit_new_words": 10,
+    "max_check_interval": 32,
 }
 
 DEFAULT_HINT_SETTINGS: Dict[str, bool] = {

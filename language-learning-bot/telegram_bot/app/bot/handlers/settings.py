@@ -32,10 +32,11 @@ SETTING_LABELS = {
 
 # (label, min_value)
 NUMERIC_LABELS = {
-    "start_word":              ("Начальное слово",        1),
-    "reset_session_days":      ("Сброс сессии (дни)",     0),
-    "reset_session_hours":     ("Сброс сессии (часы)",    0),
-    "unknown_limit_new_words": ("Лимит неизвестных слов", 0),
+    "start_word":                 ("Начальное слово",              1),
+    "reset_same_day_hours":       ("Сброс: перерыв за день (ч)",   0),
+    "reset_cross_midnight_hours": ("Сброс: час после полуночи",    0),
+    "unknown_limit_new_words":    ("Лимит неизвестных слов",       0),
+    "max_check_interval":         ("Макс. интервал повторения",    1),
 }
 
 

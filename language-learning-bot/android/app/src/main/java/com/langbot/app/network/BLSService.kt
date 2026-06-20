@@ -68,6 +68,9 @@ interface BLSApi {
         @Path("language_id") languageId: String,
     ): Response<Statistics>
 
+    @GET("statistics/chart_manifest")
+    suspend fun getChartManifest(): Response<ChartManifestResponse>
+
     @GET("statistics/{user_id}/{language_id}/chart/{chart_name}")
     suspend fun getChart(
         @Path("user_id") userId: String,

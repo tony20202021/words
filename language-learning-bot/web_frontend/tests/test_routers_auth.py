@@ -23,10 +23,11 @@ class TestLoginPage:
         assert resp.status_code == 200
         assert "Вход" in resp.text
 
-    def test_logged_in_user_redirected(self, client):
-        with client.session_transaction() as sess:
-            sess["user_id"] = "u1"
-        resp = client.get("/login", follow_redirects=False)
+    def test_logged_in_user_redirected(self, client, mock_bls):
+        mock_bls.auth_lookup.return_value = {"found": True, "user_id": "u1", "first_name": "Test"}
+        with patch("app.routers.auth.get_bls_client", return_value=mock_bls):
+            client.post("/login", data={"mode": "name", "name": "Test"}, follow_redirects=True)
+            resp = client.get("/login", follow_redirects=False)
         assert resp.status_code == 302
         assert resp.headers["location"] == "/languages"
 

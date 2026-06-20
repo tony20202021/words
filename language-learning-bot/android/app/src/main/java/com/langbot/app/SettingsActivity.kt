@@ -40,10 +40,11 @@ class SettingsActivity : AppCompatActivity() {
         )
 
         val NUMERIC_SETTINGS = linkedMapOf(
-            "start_word"              to "Начальное слово",
-            "reset_session_days"      to "Сброс сессии (дни)",
-            "reset_session_hours"     to "Сброс сессии (часы)",
-            "unknown_limit_new_words" to "Лимит неизвестных слов",
+            "start_word"                 to "Начальное слово",
+            "reset_same_day_hours"       to "Сброс: перерыв за день (ч)",
+            "reset_cross_midnight_hours" to "Сброс: час после полуночи",
+            "unknown_limit_new_words"    to "Лимит неизвестных слов",
+            "max_check_interval"         to "Макс. интервал повторения (дни)",
         )
     }
 

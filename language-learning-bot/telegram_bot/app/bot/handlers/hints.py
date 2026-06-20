@@ -16,17 +16,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from app.bls_client.client import get_bls_client
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
+from common.hint_catalog import hint_types_ordered, setting_key_for
+
 router = Router()
 
-# All possible hint types — filtered to enabled ones before displaying menus.
-ALL_HINT_TYPES = {
-    "meaning":             ("🧠", "Ассоциация (рус)"),
-    "phoneticsound":       ("🎵", "Звучание по слогам"),
-    "phoneticassociation": ("💡", "Ассоциация фонетики"),
-    "writing":             ("✍️", "Написание"),
-}
-
-# Kept for backward compatibility in places that iterate over all types.
+ALL_HINT_TYPES = hint_types_ordered()
 HINT_TYPES = ALL_HINT_TYPES
 
 
@@ -36,12 +34,7 @@ async def _get_enabled_hint_types(bls, bls_user_id: str, language_id: str) -> di
         settings = await bls.get_hint_settings(bls_user_id, language_id)
     except Exception:
         settings = {}
-    setting_key = {
-        "meaning":             "show_hint_meaning",
-        "phoneticsound":       "show_hint_phoneticsound",
-        "phoneticassociation": "show_hint_phoneticassociation",
-        "writing":             "show_hint_writing",
-    }
+    setting_key = {ht: setting_key_for(ht) for ht in ALL_HINT_TYPES}
     return {ht: label for ht, label in ALL_HINT_TYPES.items()
             if settings.get(setting_key[ht], False)}
 

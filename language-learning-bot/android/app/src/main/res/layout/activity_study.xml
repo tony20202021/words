@@ -35,6 +35,30 @@
                     android:layout_height="0dp"
                     android:visibility="gone" />
 
+                <!-- Restart recommendation notice (shown above card when error limit reached) -->
+                <TextView
+                    android:id="@+id/tvRestartNotice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:background="#FFF3CD"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    android:textColor="#856404"
+                    android:visibility="gone" />
+
+                <!-- Stale session notice -->
+                <TextView
+                    android:id="@+id/tvStaleSession"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:background="#CCE5FF"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    android:textColor="#004085"
+                    android:visibility="gone" />
+
                 <!-- Card content area -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -105,20 +129,14 @@
                     android:layout_marginTop="8dp"
                     android:visibility="gone" />
 
-                <!-- Extra content (radicals, references, tones) -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/extraCard"
+                <!-- Extra content blocks (radicals, references, tones — one card each) -->
+                <LinearLayout
+                    android:id="@+id/extraCardsArea"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="vertical"
                     android:layout_marginTop="8dp"
-                    android:visibility="gone">
-                    <LinearLayout
-                        android:id="@+id/extraContent"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="16dp" />
-                </com.google.android.material.card.MaterialCardView>
+                    android:visibility="gone" />
 
             </LinearLayout>
         </ScrollView>

@@ -48,6 +48,7 @@ async def update_word_score(
     score: int,
     word: Dict[str, Any],
     is_skipped: bool = False,
+    max_interval: int = MAX_INTERVAL_DAYS,
 ) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Apply score to a word using spaced-repetition algorithm. Returns (success, result_data)."""
     logger.info(f"update_word_score user={user_id} word={word_id} score={score}")
@@ -58,12 +59,13 @@ async def update_word_score(
         return False, None
 
     word_data: Dict[str, Any] = response["result"] or {}
-    update_data = _calculate_update(word_data, score, is_skipped)
+    update_data = _calculate_update(word_data, score, is_skipped, max_interval)
 
     return await ensure_user_word_data(api_client, user_id, word_id, update_data, word)
 
 
-def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool) -> Dict[str, Any]:
+def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
+                      max_interval: int = MAX_INTERVAL_DAYS) -> Dict[str, Any]:
     update: Dict[str, Any] = {"score": score, "is_skipped": is_skipped}
 
     if score == 1:
@@ -80,7 +82,7 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool) -
                 logger.warning(f"Could not parse check date: {current_check_date_str}")
 
         if should_update or current_score == 0:
-            new_interval = max(1, min(current_interval * 2 if current_interval > 0 else 1, MAX_INTERVAL_DAYS))
+            new_interval = max(1, min(current_interval * 2 if current_interval > 0 else 1, max_interval))
             new_check_date = (datetime.now() + timedelta(days=new_interval)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             ).isoformat()

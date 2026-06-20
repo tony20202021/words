@@ -6,9 +6,10 @@ Replace the _sessions store with Redis for multi-process deployments.
 
 import uuid
 import random
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from app.logger import setup_logger
-from app.services.word_service import update_word_score
+from app.services.word_service import update_word_score, MAX_INTERVAL_DAYS
 from app.services.settings_service import get_settings
 
 logger = setup_logger(__name__)
@@ -42,6 +43,7 @@ async def start_session(
     language_id: str,
     api_client,
     settings: Optional[Dict[str, Any]] = None,
+    session_mode: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Load words from backend and create a new study session.
@@ -49,6 +51,10 @@ async def start_session(
     """
     if settings is None:
         settings = await get_settings(user_id, language_id, api_client)
+
+    if session_mode == "ignore_dates":
+        settings = dict(settings)
+        settings.update({"use_check_date": False, "skip_marked": False, "start_word": 1})
 
     start_shift = settings.get("start_word", 1)
     words, actual_shift = await _load_words_with_slide(api_client, user_id, language_id, settings, shift=start_shift)
@@ -83,6 +89,7 @@ async def start_session(
         "words_for_today": progress.get("words_for_today", 0),
     }
 
+    session["last_activity_at"] = datetime.now().isoformat()
     _sessions[session_id] = session
     _session_index[_session_key(user_id, language_id)] = session_id
     logger.info(f"Session started: {session_id} user={user_id} lang={language_id} words={len(words)}")
@@ -97,6 +104,43 @@ def get_session(user_id: str, language_id: str) -> Optional[Dict[str, Any]]:
 
 def get_session_by_id(session_id: str) -> Optional[Dict[str, Any]]:
     return _sessions.get(session_id)
+
+
+def is_session_expired(session: Dict[str, Any]) -> bool:
+    """Return True if the session should be reset.
+
+    Three-case logic based on calendar days elapsed:
+      cal_days == 0: expired if total elapsed hours >= reset_same_day_hours (default 16)
+      cal_days == 1: expired if current hour >= reset_cross_midnight_hours (default 6)
+      cal_days >= 2: always expired
+
+    Examples (defaults: same_day=16, midnight=6):
+      same day, 4h elapsed                → not expired ✓
+      same day, 17h elapsed               → expired ✓
+      crossed midnight, now 02:00         → not expired ✓
+      crossed midnight, now 06:00         → expired ✓
+      2+ calendar days ago                → always expired ✓
+    """
+    last_activity = session.get("last_activity_at")
+    if not last_activity:
+        return False
+    settings = session.get("settings", {})
+    same_day_hours = int(settings.get("reset_same_day_hours", 16))
+    midnight_hours = int(settings.get("reset_cross_midnight_hours", 6))
+    last_dt = datetime.fromisoformat(last_activity)
+    now = datetime.now()
+    cal_days = (now.date() - last_dt.date()).days
+    if cal_days == 0:
+        total_hours = (now - last_dt).total_seconds() / 3600
+        return total_hours >= same_day_hours
+    if cal_days == 1:
+        return now.hour >= midnight_hours
+    return True  # cal_days >= 2: always expired
+
+
+def touch_session(session: Dict[str, Any]) -> None:
+    """Update last_activity_at to now."""
+    session["last_activity_at"] = datetime.now().isoformat()
 
 
 def get_current_word(session: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -125,14 +169,15 @@ async def rate_word(
     word_id = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
 
     if not session.get("word_processed"):
+        max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
         if rating == "know":
-            await update_word_score(api_client, user_id, word_id, score=1, word=word, is_skipped=False)
+            await update_word_score(api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval)
             session["correct_count"] = session.get("correct_count", 0) + 1
         elif rating == "dont_know":
-            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=False)
+            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval)
             session["incorrect_count"] = session.get("incorrect_count", 0) + 1
         elif rating == "skip":
-            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=True)
+            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=True, max_interval=max_interval)
         session["word_processed"] = True
 
     session.setdefault("result_history", []).append(rating)
@@ -198,8 +243,9 @@ async def know_word(session: Dict[str, Any], api_client) -> Dict[str, Any]:
     session["prev_interval"] = uwd.get("check_interval", 0)
     session["prev_next_check_date"] = uwd.get("next_check_date", "")
 
+    max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=1, word=word, is_skipped=False
+        api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval
     )
     if success and result:
         if "user_word_data" not in word:
@@ -236,8 +282,9 @@ async def show_answer_word(session: Dict[str, Any], api_client) -> Dict[str, Any
     session["prev_interval"] = uwd.get("check_interval", 0)
     session["prev_next_check_date"] = uwd.get("next_check_date", "")
 
+    max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=0, word=word, is_skipped=False
+        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval
     )
     if success and result:
         if "user_word_data" not in word:
@@ -267,8 +314,9 @@ async def reconsider_word(session: Dict[str, Any], api_client) -> Dict[str, Any]
     user_id = session["user_id"]
     word_id = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
 
+    max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=0, word=word, is_skipped=False
+        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval
     )
     if success and result:
         if "user_word_data" not in word:

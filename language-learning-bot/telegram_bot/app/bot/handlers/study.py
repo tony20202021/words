@@ -16,12 +16,18 @@ COMPLETED_TEXT = (
     "Используйте /study чтобы начать снова."
 )
 
+SESSION_STALE_TEXT = (
+    "⏰ <b>Сессия устарела</b> — вы давно не занимались.\n"
+    "Можно продолжить или /restart чтобы начать заново."
+)
+
 
 async def _display_card(target: Message, card: dict, language_id: str, bls, edit_mode: bool = False) -> None:
     """
     Display a card like the old bot:
       - sounds as voice messages (first)
       - extra content (radicals/refs/tones) as separate messages
+      - restart_notice as a separate warning message (when set)
       - main card text + keyboard last
     edit_mode=True: edits the existing message when there are no sounds/extras.
     edit_mode=False: always sends new messages.
@@ -31,6 +37,7 @@ async def _display_card(target: Message, card: dict, language_id: str, bls, edit
     main_text = render_card_text(card)
     keyboard = build_card_keyboard(card, language_id)
     big_word = card.get("big_word")
+    restart_notice = card.get("restart_notice")
 
     has_extras = bool(sounds or extras or big_word)
 
@@ -39,7 +46,7 @@ async def _display_card(target: Message, card: dict, language_id: str, bls, edit
         await target.edit_text(main_text, reply_markup=keyboard, parse_mode="HTML")
         return
 
-    # Send new messages: sounds → extras → big word image → main card+keyboard (last)
+    # Send new messages: sounds → extras → big word image → restart notice → main card+keyboard (last)
     for url in sounds:
         sound_data = await bls.get_sound(url)
         if sound_data:
@@ -56,6 +63,9 @@ async def _display_card(target: Message, card: dict, language_id: str, bls, edit
             await target.answer_photo(BufferedInputFile(img_bytes, filename="word.png"))
         except Exception:
             pass  # image generation failure must not block the card
+
+    if restart_notice and not edit_mode:
+        await target.answer(restart_notice)
 
     await target.answer(main_text, reply_markup=keyboard, parse_mode="HTML")
 
@@ -81,6 +91,8 @@ async def cmd_study(message: Message, state: FSMContext, bls_user_id: str) -> No
 
     card = resp["card"]
     await state.set_state(UserState.studying)
+    if resp.get("session_stale"):
+        await message.answer(SESSION_STALE_TEXT, parse_mode="HTML")
     await _display_card(message, card, language_id, bls, edit_mode=False)
 
 

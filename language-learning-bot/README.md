@@ -65,16 +65,18 @@ SECRET_KEY=...
 TELEGRAM_BOT_URL=https://t.me/...
 ```
 
-### Сборка Android APK (release)
+### Сборка Android APK
 
 ```bash
 cd android
 export ANDROID_SDK_ROOT=/home/tony/Android/Sdk
-./gradlew assembleRelease
-cp app/build/outputs/apk/release/app-release.apk LangBot.apk
+./gradlew assembleDebug   # debug (без keystore)
+# или
+./gradlew assembleRelease  # release, требует keystore.properties
+cp app/build/outputs/apk/debug/app-debug.apk LangBot.apk
 ```
 
-Требует `android/keystore.properties` с ключом подписи (не в git).
+Подробнее: [docs/development/android_build.md](docs/development/android_build.md)
 
 ---
 

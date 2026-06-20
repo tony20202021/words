@@ -1,42 +1,27 @@
+import sys
+from pathlib import Path
+from urllib.parse import quote
 import asyncio
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, BufferedInputFile
 from app.bls_client.client import get_bls_client
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
+from common.chart_manifest import CHART_SECTIONS, CHART_CAPTIONS
+
 router = Router()
-
-_TODAY_CHART_NAMES = ["words_for_today", "words_unknown", "check_interval"]
-_MONTHLY_CHART_NAMES = ["words_studied", "words_new", "words_known",
-                        "words_unknown_before", "words_unknown_first_finish",
-                        "words_unknown_last_finish", "words_for_today"]
-
-_CAPTION_MAP = {
-    # today
-    "words_for_today":              "📅 Слова на сегодня",
-    "words_unknown":                "❓ Неизвестные слова",
-    "check_interval":               "🔁 Интервалы повторения",
-    # monthly
-    "words_studied":                "📈 Изучено слов",
-    "words_new":                    "🆕 Новых слов в день",
-    "words_known":                  "✅ Известных слов",
-    "words_unknown_before":         "❌ Неизвестных (до завершения)",
-    "words_unknown_first_finish":   "❌ Неизвестных (1-й финиш за день)",
-    "words_unknown_last_finish":    "❌ Неизвестных (последний финиш)",
-}
 
 
 async def _send_charts(message: Message, bls, user_id: str, lang_id: str, lang_name: str) -> None:
     """Fetch all available charts for a language and send them as photos."""
-    groups = [
-        ("📅 Распределение слов",    _TODAY_CHART_NAMES,   False, True),
-        ("📆 Прогресс за месяц",    _MONTHLY_CHART_NAMES, False, False),
-        ("📊 Прогресс за всё время", _MONTHLY_CHART_NAMES, True,  False),
-    ]
-    # (header, names, show_all, is_today)
-
     any_sent = False
-    for header, names, show_all, is_today in groups:
+    for section in CHART_SECTIONS:
+        header = section["header"]
+        names = section["charts"]
+        chart_type = section["type"]
+        show_all = chart_type == "monthly_all"
+        is_today = chart_type == "today"
         results = await asyncio.gather(
             *[bls.get_chart(user_id, lang_id, n) if is_today
               else bls.get_monthly_chart(user_id, lang_id, n, show_all=show_all)
@@ -47,7 +32,7 @@ async def _send_charts(message: Message, bls, user_id: str, lang_id: str, lang_n
             continue
         await message.answer(f"<b>{header}</b> — {lang_name}", parse_mode="HTML")
         for chart_name, img in group_imgs:
-            caption = _CAPTION_MAP.get(chart_name, chart_name)
+            caption = CHART_CAPTIONS.get(chart_name, chart_name)
             await message.answer_photo(
                 BufferedInputFile(img, filename=f"{chart_name}.png"),
                 caption=caption,

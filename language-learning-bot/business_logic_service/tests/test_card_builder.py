@@ -623,6 +623,67 @@ class TestHintDisplay:
         assert not any("слово-подсказка" in t for t in hint_texts)
 
 
+# ── Task 5: restart recommendation notice ────────────────────────────────────
+
+class TestRestartNotice:
+    def _session_at_limit(self, word_number=10, words_studied=9, incorrect=12, limit=10):
+        s = make_session(incorrect=incorrect, settings={"unknown_limit_new_words": limit})
+        s["words_studied"] = words_studied
+        return s
+
+    def _word_at_boundary(self, word_number=10):
+        w = make_word()
+        w["word_number"] = word_number
+        return w
+
+    def test_notice_shown_when_at_boundary_and_over_limit(self):
+        """word_number >= words_studied AND incorrect >= limit → restart_notice set."""
+        session = self._session_at_limit(word_number=10, words_studied=9, incorrect=12, limit=10)
+        card = build_card(session, self._word_at_boundary(10), show_answer=False)
+        assert card["restart_notice"] is not None
+        assert "Рекомендуется" in card["restart_notice"]
+
+    def test_no_notice_when_below_error_limit(self):
+        session = self._session_at_limit(incorrect=5, limit=10)
+        card = build_card(session, self._word_at_boundary(10), show_answer=False)
+        assert card["restart_notice"] is None
+
+    def test_no_notice_when_word_below_studied_boundary(self):
+        """word_number < words_studied → still studying old words, no notice."""
+        session = self._session_at_limit(words_studied=50, incorrect=15, limit=10)
+        card = build_card(session, self._word_at_boundary(word_number=5), show_answer=False)
+        assert card["restart_notice"] is None
+
+    def test_notice_also_shown_after_answer(self):
+        """Notice shown both before and after answer."""
+        session = self._session_at_limit(words_studied=9, incorrect=12, limit=10)
+        card = build_card(session, self._word_at_boundary(10), show_answer=True)
+        assert card["restart_notice"] is not None
+        assert "Рекомендуется" in card["restart_notice"]
+
+    def test_no_notice_when_words_studied_zero(self):
+        """words_studied=0 means fresh start, boundary check skipped."""
+        s = make_session(incorrect=15, settings={"unknown_limit_new_words": 5})
+        s["words_studied"] = 0
+        w = make_word()
+        w["word_number"] = 1
+        card = build_card(s, w, show_answer=False)
+        assert card["restart_notice"] is None
+
+    def test_notice_text_contains_counts(self):
+        session = self._session_at_limit(incorrect=15, limit=10)
+        card = build_card(session, self._word_at_boundary(10), show_answer=False)
+        assert "15" in card["restart_notice"]
+        assert "10" in card["restart_notice"]
+
+    def test_notice_not_in_content_list(self):
+        """restart_notice must not pollute content[] — it has its own top-level field."""
+        session = self._session_at_limit(incorrect=12, limit=10)
+        card = build_card(session, self._word_at_boundary(10), show_answer=False)
+        warnings_in_content = [c for c in card["content"] if c.get("variant") == "warning"]
+        assert warnings_in_content == []
+
+
 # ── References filtering ──────────────────────────────────────────────────────
 
 class TestReferencesFiltering:
@@ -669,3 +730,26 @@ class TestReferencesFiltering:
         combined = "\n".join(extra_texts)
         assert "generic reference line" in combined
         assert "numbered" not in combined
+
+
+class TestSessionCounterMeta:
+    def test_new_word_flag(self):
+        session = make_session()
+        session["words_studied"] = 10
+        w = make_word()
+        w["word_number"] = 15
+        card = build_card(session, w, show_answer=False)
+        assert card["meta"]["is_new_word"] is True
+        assert card["meta"]["show_session_counter"] is False
+        assert "первый раз" in card["meta"]["new_word_label"]
+
+    def test_session_counter_for_review_word(self):
+        session = make_session()
+        session["words_studied"] = 50
+        session["words_for_today"] = 10
+        w = make_word()
+        w["word_number"] = 5
+        card = build_card(session, w, show_answer=False)
+        assert card["meta"]["is_new_word"] is False
+        assert card["meta"]["show_session_counter"] is True
+        assert "в сессии" in card["meta"]["session_counter_text"]

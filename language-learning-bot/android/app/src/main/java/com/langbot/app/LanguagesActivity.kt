@@ -87,9 +87,22 @@ class LanguagesActivity : AppCompatActivity() {
         menu.add(0, MENU_HELP,     0, "? Помощь")
         menu.add(0, MENU_WEB,      1, "🌐 Веб-версия")
         menu.add(0, MENU_CONNECT,  2, "🔗 Код для веб")
-        menu.add(0, MENU_TELEGRAM, 3, "🤖 Telegram-бот")
+        menu.add(0, MENU_TELEGRAM, 3, "Telegram-бот")
+            .setIcon(R.drawable.ic_telegram)
         menu.add(0, MENU_LOGOUT,   4, "Выйти")
         return true
+    }
+
+    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+        if (menu.javaClass.simpleName == "MenuBuilder") {
+            try {
+                val method = menu.javaClass.getDeclaredMethod(
+                    "setOptionalIconsVisible", Boolean::class.javaPrimitiveType)
+                method.isAccessible = true
+                method.invoke(menu, true)
+            } catch (_: Exception) { }
+        }
+        return super.onMenuOpened(featureId, menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

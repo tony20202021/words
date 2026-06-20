@@ -9,8 +9,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.langbot.app.databinding.ActivityStudyBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.network.Card
@@ -40,12 +39,6 @@ class StudyActivity : AppCompatActivity() {
     // MediaPlayer instances for the current card's sounds
     private val players = mutableListOf<MediaPlayer>()
 
-    // Pinch-to-zoom state for big word
-    private var bigWordView: TextView? = null
-    private var bigWordBaseSp = 96f
-    private var bigWordCurrentSp = 96f
-    private lateinit var scaleDetector: ScaleGestureDetector
-
     companion object {
         private const val MENU_REFRESH = 1
         private const val MENU_STATS   = 2
@@ -60,19 +53,6 @@ class StudyActivity : AppCompatActivity() {
         userId = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
         val langName = intent.getStringExtra("language_name") ?: "Учёба"
-
-        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                bigWordCurrentSp = (bigWordCurrentSp * detector.scaleFactor).coerceIn(24f, 300f)
-                bigWordView?.textSize = bigWordCurrentSp
-                return true
-            }
-        })
-        binding.extraCard.setOnTouchListener { v, event ->
-            scaleDetector.onTouchEvent(event)
-            if (!scaleDetector.isInProgress) v.performClick()
-            true
-        }
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.title = langName
@@ -155,6 +135,13 @@ class StudyActivity : AppCompatActivity() {
     private fun handleResponse(resp: SessionResponse?) {
         if (resp == null) { showError("Нет ответа от сервера"); return }
         sessionId = resp.session_id
+        if (resp.session_stale) {
+            binding.tvStaleSession.text =
+                "⏰ Сессия устарела — вы давно не занимались. Можно продолжить или начать заново."
+            binding.tvStaleSession.visibility = View.VISIBLE
+        } else {
+            binding.tvStaleSession.visibility = View.GONE
+        }
         val card = resp.card
         if (card == null) {
             showAllDone()
@@ -169,6 +156,14 @@ class StudyActivity : AppCompatActivity() {
         val meta = card.meta
         val barTotal = meta.session_total?.takeIf { it > 0 }
         binding.tvBadge.visibility = View.GONE  // badge now lives inside cardContent
+
+        // Restart notice above card
+        if (!card.restart_notice.isNullOrEmpty()) {
+            binding.tvRestartNotice.text = card.restart_notice
+            binding.tvRestartNotice.visibility = View.VISIBLE
+        } else {
+            binding.tvRestartNotice.visibility = View.GONE
+        }
 
         // Main content — header row (word number + badge) then content items
         binding.cardContent.removeAllViews()
@@ -202,11 +197,22 @@ class StudyActivity : AppCompatActivity() {
             tvNum.setTextColor(Color.parseColor("#888888"))
             leftCol.addView(tvNum)
 
-            val tvSess = TextView(this)
-            tvSess.text = "(в сессии: ${meta.session_pos} из ${meta.session_total ?: "?"})"
-            tvSess.textSize = 14f
-            tvSess.setTextColor(Color.parseColor("#aaaaaa"))
-            leftCol.addView(tvSess)
+            when {
+                meta.is_new_word && meta.new_word_label.isNotEmpty() -> {
+                    val tvNew = TextView(this)
+                    tvNew.text = meta.new_word_label
+                    tvNew.textSize = 14f
+                    tvNew.setTextColor(Color.parseColor("#aaaaaa"))
+                    leftCol.addView(tvNew)
+                }
+                meta.show_session_counter && meta.session_counter_text.isNotEmpty() -> {
+                    val tvSess = TextView(this)
+                    tvSess.text = meta.session_counter_text
+                    tvSess.textSize = 14f
+                    tvSess.setTextColor(Color.parseColor("#aaaaaa"))
+                    leftCol.addView(tvSess)
+                }
+            }
             headerHasContent = true
         }
         headerRow.addView(leftCol)
@@ -456,12 +462,12 @@ class StudyActivity : AppCompatActivity() {
             binding.progressArea.visibility = View.GONE
         }
 
-        // bigWordArea is no longer standalone — big_word is shown inside extraCard
+        // bigWordArea is no longer standalone — big_word is shown in extraCardsArea
         binding.bigWordArea.visibility = View.GONE
 
-        // Extra content — web order: radicals → references → tones
-        // big_word is appended at the bottom of the extra card
-        binding.extraContent.removeAllViews()
+        // Extra content — web order: radicals → references → tones; one card per group
+        // big_word gets its own card at the top
+        binding.extraCardsArea.removeAllViews()
         val extraOrdered = run {
             val groupOrder = listOf("radicals", "references", "tones")
             val byGroup = card.extra_content.groupBy { it.group ?: "" }
@@ -471,57 +477,56 @@ class StudyActivity : AppCompatActivity() {
         }
         val bw = card.big_word
         val hasBigWord = bw != null && bw.word.isNotEmpty()
-        if (extraOrdered.isNotEmpty() || hasBigWord) {
-            binding.extraCard.visibility = View.VISIBLE
-            var firstGroup = !hasBigWord  // if big_word is first, next label gets no divider above it
 
-            // Big word — at the TOP of the extra card
-            if (hasBigWord) {
-                bigWordBaseSp = 96f
-                bigWordCurrentSp = 96f
-                val tvBig = TextView(this)
-                bigWordView = tvBig
-                tvBig.text = bw!!.word
-                tvBig.textSize = bigWordCurrentSp
-                tvBig.setTypeface(null, android.graphics.Typeface.BOLD)
-                tvBig.gravity = Gravity.CENTER
-                tvBig.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                binding.extraContent.addView(tvBig)
-                if (bw.transcription.isNotEmpty()) {
-                    val tvTr = TextView(this)
-                    tvTr.text = "[${bw.transcription}]"
-                    tvTr.textSize = 24f
-                    tvTr.setTextColor(Color.parseColor("#666666"))
-                    tvTr.gravity = Gravity.CENTER
-                    tvTr.layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    binding.extraContent.addView(tvTr)
-                }
+        if (hasBigWord) {
+            val cardView = MaterialCardView(this)
+            cardView.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dpToPx(8) }
+            val inner = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
             }
+            val tvBig = TextView(this)
+            tvBig.text = bw!!.word
+            tvBig.textSize = 96f
+            tvBig.setTypeface(null, android.graphics.Typeface.BOLD)
+            tvBig.gravity = Gravity.CENTER
+            inner.addView(tvBig)
+            if (bw.transcription.isNotEmpty()) {
+                val tvTr = TextView(this)
+                tvTr.text = "[${bw.transcription}]"
+                tvTr.textSize = 24f
+                tvTr.setTextColor(Color.parseColor("#666666"))
+                tvTr.gravity = Gravity.CENTER
+                inner.addView(tvTr)
+            }
+            cardView.addView(inner)
+            binding.extraCardsArea.addView(cardView)
+        }
 
-            for (item in extraOrdered) {
+        val grouped = linkedMapOf<String, MutableList<com.langbot.app.network.ExtraContentItem>>()
+        for (item in extraOrdered) {
+            val g = item.group ?: ""
+            grouped.getOrPut(g) { mutableListOf() }.add(item)
+        }
+        for ((_, items) in grouped) {
+            val cardView = MaterialCardView(this)
+            cardView.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dpToPx(8) }
+            val inner = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            }
+            for (item in items) {
                 when (item.type) {
                     "label" -> {
-                        if (!firstGroup) {
-                            val div = View(this)
-                            div.setBackgroundColor(Color.parseColor("#E0E0E0"))
-                            val divLp = LinearLayout.LayoutParams(
-                                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
-                            divLp.topMargin = dpToPx(8)
-                            divLp.bottomMargin = dpToPx(8)
-                            div.layoutParams = divLp
-                            binding.extraContent.addView(div)
-                        }
                         val tv = TextView(this)
                         tv.text = item.text
                         tv.textSize = 12f
                         tv.setTextColor(Color.parseColor("#888888"))
-                        tv.layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT)
-                        binding.extraContent.addView(tv)
-                        firstGroup = false
+                        inner.addView(tv)
                     }
                     "extra" -> {
                         val tv = TextView(this)
@@ -537,16 +542,18 @@ class StudyActivity : AppCompatActivity() {
                         val lp = LinearLayout.LayoutParams(
                             LinearLayout.LayoutParams.MATCH_PARENT,
                             LinearLayout.LayoutParams.WRAP_CONTENT)
-                        lp.bottomMargin = dpToPx(4)
+                        lp.topMargin = dpToPx(4)
                         tv.layoutParams = lp
-                        binding.extraContent.addView(tv)
+                        inner.addView(tv)
                     }
                 }
             }
-        } else {
-            binding.extraCard.visibility = View.GONE
-            bigWordView = null
+            cardView.addView(inner)
+            binding.extraCardsArea.addView(cardView)
         }
+
+        binding.extraCardsArea.visibility =
+            if (binding.extraCardsArea.childCount > 0) View.VISIBLE else View.GONE
     }
 
     // ── Button click handler ────────────────────────────────────────────────────
@@ -635,7 +642,7 @@ class StudyActivity : AppCompatActivity() {
         binding.bigWordArea.visibility = View.GONE
         binding.soundsRow.visibility = View.GONE
         binding.btnHints.visibility = View.GONE
-        binding.extraCard.visibility = View.GONE
+        binding.extraCardsArea.visibility = View.GONE
         binding.buttonRow.removeAllViews()
         binding.cardContent.removeAllViews()
         addText("✅", 48f, false, Gravity.CENTER)

@@ -33,8 +33,8 @@ def _make_bls(settings=None):
     ])
     bls.get_settings = AsyncMock(return_value=settings or {
         "use_check_date": True, "show_sounds": False, "start_word": 1,
-        "reset_session_days": 0, "reset_session_hours": 0,
-        "unknown_limit_new_words": 5,
+        "reset_same_day_hours": 16, "reset_cross_midnight_hours": 6,
+        "unknown_limit_new_words": 5, "max_check_interval": 365,
     })
     bls.toggle_setting = AsyncMock(return_value={"use_check_date": False})
     bls.set_setting = AsyncMock(return_value={})
@@ -102,8 +102,8 @@ async def test_toggle_setting_updates_keyboard():
     bls = _make_bls()
     bls.toggle_setting = AsyncMock(return_value={
         "use_check_date": False, "show_sounds": True, "start_word": 1,
-        "reset_session_days": 0, "reset_session_hours": 0,
-        "unknown_limit_new_words": 5,
+        "reset_same_day_hours": 16, "reset_cross_midnight_hours": 6,
+        "unknown_limit_new_words": 5, "max_check_interval": 365,
     })
     cb = _make_callback("settings:lang1:use_check_date")
     state = _make_state()
@@ -117,8 +117,8 @@ async def test_toggle_setting_updates_keyboard():
 @pytest.mark.asyncio
 async def test_change_numeric_increment():
     from app.bot.handlers.settings import change_numeric_setting
-    bls = _make_bls(settings={"start_word": 3, "reset_session_days": 0,
-                               "reset_session_hours": 0, "unknown_limit_new_words": 0})
+    bls = _make_bls(settings={"start_word": 3, "reset_same_day_hours": 16,
+                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -129,8 +129,8 @@ async def test_change_numeric_increment():
 @pytest.mark.asyncio
 async def test_change_numeric_decrement():
     from app.bot.handlers.settings import change_numeric_setting
-    bls = _make_bls(settings={"start_word": 5, "reset_session_days": 0,
-                               "reset_session_hours": 0, "unknown_limit_new_words": 0})
+    bls = _make_bls(settings={"start_word": 5, "reset_same_day_hours": 16,
+                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -141,8 +141,8 @@ async def test_change_numeric_decrement():
 async def test_change_numeric_clamped_at_min():
     from app.bot.handlers.settings import change_numeric_setting
     # start_word min is 1, decrementing from 1 should stay at 1
-    bls = _make_bls(settings={"start_word": 1, "reset_session_days": 0,
-                               "reset_session_hours": 0, "unknown_limit_new_words": 0})
+    bls = _make_bls(settings={"start_word": 1, "reset_same_day_hours": 16,
+                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -150,15 +150,14 @@ async def test_change_numeric_clamped_at_min():
 
 
 @pytest.mark.asyncio
-async def test_change_numeric_zero_clamped_for_reset_days():
+async def test_change_numeric_zero_clamped_for_reset_same_day_hours():
     from app.bot.handlers.settings import change_numeric_setting
-    # reset_session_days min is 0
-    bls = _make_bls(settings={"start_word": 1, "reset_session_days": 0,
-                               "reset_session_hours": 0, "unknown_limit_new_words": 0})
-    cb = _make_callback("set_num:lang1:reset_session_days:-1")
+    bls = _make_bls(settings={"start_word": 1, "reset_same_day_hours": 0,
+                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
+    cb = _make_callback("set_num:lang1:reset_same_day_hours:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
-    bls.set_setting.assert_called_once_with("u1", "lang1", "reset_session_days", 0)
+    bls.set_setting.assert_called_once_with("u1", "lang1", "reset_same_day_hours", 0)
 
 
 # ── noop callback ─────────────────────────────────────────────────────────────
@@ -176,8 +175,9 @@ async def test_noop_just_answers():
 
 def test_settings_keyboard_contains_numeric_rows():
     from app.bot.handlers.settings import _build_settings_keyboard
-    settings = {"start_word": 3, "reset_session_days": 1,
-                "reset_session_hours": 0, "unknown_limit_new_words": 10}
+    settings = {"start_word": 3, "reset_same_day_hours": 16,
+                "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 10,
+                "max_check_interval": 365}
     kb = _build_settings_keyboard(settings, "lang1")
     all_texts = [b.text for row in kb.inline_keyboard for b in row]
     # Display buttons show current values

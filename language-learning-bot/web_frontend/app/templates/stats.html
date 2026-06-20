@@ -105,124 +105,30 @@
         {% if studied > 0 %}
         <div class="collapse mt-3" id="charts-{{ lang_id }}">
 
-          {# Today charts #}
-          <div id="today-sec-{{ lang_id }}" class="chart-section">
-            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📅 Распределение слов</h6>
+          {% for section in chart_sections %}
+          {% if not loop.first %}<hr class="my-3">{% endif %}
+          {% set sec_id = section.type ~ '-sec-' ~ lang_id %}
+          <div id="{{ sec_id }}" class="chart-section">
+            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">{{ section.header }}</h6>
             <div class="chart-sec-spinner text-center py-2">
               <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
             </div>
             <div class="row g-2 mb-1">
-              <div class="col-12 chart-wrap">
-                <img data-src="/stats/chart/{{ lang_id }}/words_for_today"
-                     class="img-fluid rounded lazy-chart" alt="Слова к повторению"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
+              {% for chart_name in section.charts %}
+              {% set col = 'col-12' if section.type == 'today' else 'col-6' %}
+              {% set chart_url = '/stats/chart/' ~ lang_id ~ '/' ~ chart_name if section.type == 'today'
+                  else ('/stats/monthly-chart-recent/' ~ lang_id ~ '/' ~ chart_name if section.type == 'monthly_recent'
+                  else '/stats/monthly-chart/' ~ lang_id ~ '/' ~ chart_name) %}
+              <div class="{{ col }} chart-wrap">
+                <img data-src="{{ chart_url }}"
+                     class="img-fluid rounded lazy-chart"
+                     alt="{{ chart_captions.get(chart_name, chart_name) }}"
+                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('{{ sec_id }}')">
               </div>
-              <div class="col-12 chart-wrap">
-                <img data-src="/stats/chart/{{ lang_id }}/words_unknown"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные слова"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-12 chart-wrap">
-                <img data-src="/stats/chart/{{ lang_id }}/check_interval"
-                     class="img-fluid rounded lazy-chart" alt="Интервалы"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('today-sec-{{ lang_id }}')">
-              </div>
+              {% endfor %}
             </div>
           </div>
-
-          <hr class="my-3">
-
-          {# Monthly charts — last 30 days #}
-          <div id="monthly-recent-sec-{{ lang_id }}" class="chart-section">
-            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📆 Прогресс за месяц</h6>
-            <div class="chart-sec-spinner text-center py-2">
-              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-            </div>
-            <div class="row g-2 mb-1">
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_studied"
-                     class="img-fluid rounded lazy-chart" alt="Всего изучено"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_new"
-                     class="img-fluid rounded lazy-chart" alt="Новые слова"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_known"
-                     class="img-fluid rounded lazy-chart" alt="Известные слова"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_unknown_before"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (до)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_unknown_first_finish"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (1-й финиш)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_unknown_last_finish"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (последний финиш)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart-recent/{{ lang_id }}/words_for_today"
-                     class="img-fluid rounded lazy-chart" alt="К повторению"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-recent-sec-{{ lang_id }}')">
-              </div>
-            </div>
-          </div>
-
-          <hr class="my-3">
-
-          {# Monthly charts — all time #}
-          <div id="monthly-sec-{{ lang_id }}" class="chart-section">
-            <h6 class="fw-bold text-secondary border-bottom pb-1 mb-2">📊 Прогресс за всё время</h6>
-            <div class="chart-sec-spinner text-center py-2">
-              <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-            </div>
-            <div class="row g-2">
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_studied"
-                     class="img-fluid rounded lazy-chart" alt="Всего изучено"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_new"
-                     class="img-fluid rounded lazy-chart" alt="Новые слова"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_known"
-                     class="img-fluid rounded lazy-chart" alt="Известные слова"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_unknown_before"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (до)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_unknown_first_finish"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (1-й финиш)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_unknown_last_finish"
-                     class="img-fluid rounded lazy-chart" alt="Неизвестные (последний финиш)"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-              <div class="col-6 chart-wrap">
-                <img data-src="/stats/monthly-chart/{{ lang_id }}/words_for_today"
-                     class="img-fluid rounded lazy-chart" alt="К повторению"
-                     onerror="this.closest('.chart-wrap').style.display='none';checkSec('monthly-sec-{{ lang_id }}')">
-              </div>
-            </div>
-          </div>
+          {% endfor %}
 
         </div>
         {% endif %}
@@ -268,12 +174,23 @@ function loadSectionImgs(sec, onDone) {
 document.addEventListener('show.bs.collapse', function(e) {
   if (!e.target.id || !e.target.id.startsWith('charts-')) return;
   var sections = Array.from(e.target.querySelectorAll('.chart-section'));
-  // Load sections sequentially: spinner shows in current section, moves to next when done
   function loadNext(i) {
     if (i >= sections.length) return;
     loadSectionImgs(sections[i], function() { loadNext(i + 1); });
   }
   loadNext(0);
 });
+
+{% if target_lang_id %}
+document.addEventListener('DOMContentLoaded', function() {
+  var collapse = document.getElementById('charts-{{ target_lang_id }}');
+  if (!collapse) return;
+  var bsCollapse = new bootstrap.Collapse(collapse, {toggle: false});
+  bsCollapse.show();
+  collapse.addEventListener('shown.bs.collapse', function() {
+    collapse.closest('.card').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }, {once: true});
+});
+{% endif %}
 </script>
 {% endblock %}

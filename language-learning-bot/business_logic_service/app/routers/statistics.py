@@ -10,6 +10,11 @@ from app.api.client import get_api_client
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from common.chart_manifest import CHART_SECTIONS, CHART_CAPTIONS
+
 # ── chart cache (TTL=60s, anti-stampede per key) ──────────────────────────────
 _chart_cache: Dict[str, Any] = {}   # key → {"ts": float, "data": dict}
 _chart_locks: Dict[str, asyncio.Lock] = {}
@@ -37,6 +42,11 @@ async def _get_charts_cached(key: str, generator):
         data = await loop.run_in_executor(None, generator)
         _chart_cache[key] = {"ts": time.monotonic(), "data": data}
         return data
+
+
+@router.get("/chart_manifest")
+async def get_chart_manifest():
+    return {"sections": CHART_SECTIONS, "captions": CHART_CAPTIONS}
 
 
 @router.get("/{user_id}/{language_id}")

@@ -33,11 +33,15 @@ class BLSClient:
     # ── Session — all return {session_id, card} ───────────────────────────────
 
     async def start_session(
-        self, user_id: str, language_id: str, settings: Optional[Dict[str, Any]] = None
+        self, user_id: str, language_id: str,
+        settings: Optional[Dict[str, Any]] = None,
+        session_mode: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         payload: Dict[str, Any] = {"user_id": user_id, "language_id": language_id}
         if settings:
             payload["settings"] = settings
+        if session_mode:
+            payload["session_mode"] = session_mode
         async with httpx.AsyncClient() as client:
             resp = await client.post(f"{self.base_url}/session/start", json=payload)
             return resp.json() if resp.is_success else None
@@ -303,6 +307,11 @@ class BLSClient:
     async def get_statistics(self, user_id: str, language_id: str) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{self.base_url}/statistics/{user_id}/{language_id}")
+            return resp.json() if resp.is_success else {}
+
+    async def get_chart_manifest(self) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{self.base_url}/statistics/chart_manifest")
             return resp.json() if resp.is_success else {}
 
     async def get_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:

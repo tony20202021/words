@@ -41,11 +41,19 @@ class TestPrepareCardSorting:
         card = {"extra_content": []}
         _prepare_card(card)
         assert card["extra_content"] == []
+        assert card["extra_groups"] == []
 
     def test_no_extra_content_key_no_error(self):
         card = {}
         _prepare_card(card)
-        # function returns without modifying card when no extra_content
+        assert card["extra_groups"] == []
+
+    def test_extra_groups_split_by_group(self):
+        card = self._make_card(["radicals", "references", "tones"])
+        _prepare_card(card)
+        assert len(card["extra_groups"]) == 3
+        assert [g["group"] for g in card["extra_groups"]] == ["radicals", "references", "tones"]
+        assert len(card["extra_groups"][0]["items"]) == 2
 
     def test_references_text_not_modified_by_prepare_card(self):
         """_prepare_card no longer filters references — BLS handles that."""

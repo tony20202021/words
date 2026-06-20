@@ -103,13 +103,17 @@ async def test_cmd_language_shows_keyboard():
 async def test_cmd_web_sends_url():
     from app.bot.handlers.start import cmd_web
     msg = _make_message()
-    msg.from_user.id = 42
+    msg.answer_photo = AsyncMock()
+    bls = AsyncMock()
+    bls.mobile_create_token = AsyncMock(return_value={"code": "ABC123"})
+    bls.get_qr_png = AsyncMock(return_value=None)
     with patch.dict(os.environ, {"WEB_URL": "http://example.com:8800"}):
-        await cmd_web(msg)
+        with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
+            await cmd_web(msg, bls_user_id="u1")
     msg.answer.assert_called_once()
     text = msg.answer.call_args[0][0]
-    assert "http://example.com:8800" in text
-    assert "42" in text
+    assert "http://example.com:8800/login?code=ABC123" in text
+    assert "ABC123" in text
 
 
 # ── lang: callback ────────────────────────────────────────────────────────────

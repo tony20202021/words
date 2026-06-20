@@ -24,10 +24,12 @@ data class SessionResponse(
     val no_words: Boolean = false,
     val batch_exhausted: Boolean = false,
     val loaded: Boolean = false,
+    val session_stale: Boolean = false,
 )
 
 data class Card(
     val show_answer: Boolean,
+    val restart_notice: String? = null,
     val content: List<CardItem>,
     val buttons: List<CardButton>,
     val meta: CardMeta,
@@ -75,6 +77,10 @@ data class CardMeta(
     val words_studied: Int = 0,
     val total_words: Int = 0,
     val words_for_today: Int = 0,
+    val show_session_counter: Boolean = false,
+    val session_counter_text: String = "",
+    val is_new_word: Boolean = false,
+    val new_word_label: String = "",
 )
 
 data class ScoreBadge(
@@ -90,6 +96,7 @@ data class Statistics(
     val words_studied: Int = 0,
     val words_known: Int = 0,
     val words_skipped: Int = 0,
+    val words_unknown: Int = 0,
     val total_words: Int = 0,
     val words_for_today: Int = 0,
     val progress_percentage: Double = 0.0,
@@ -114,3 +121,14 @@ data class HelpResponse(val text: String)
 data class CreateMobileTokenResponse(val code: String, val ttl_seconds: Int = 600)
 
 data class VersionResponse(val version: String, val version_code: Int)
+
+data class ChartManifestSection(
+    val header: String,
+    val charts: List<String>,
+    val type: String,
+)
+
+data class ChartManifestResponse(
+    val sections: List<ChartManifestSection>,
+    val captions: Map<String, String>,
+)

@@ -88,8 +88,6 @@ def _render_header(meta: Dict[str, Any]) -> str:
     word_number = meta.get("word_number")
     words_studied = meta.get("words_studied", 0)
     total_words = meta.get("total_words", 0)
-    session_pos = meta.get("session_pos", 1)
-    words_for_today = meta.get("words_for_today", 0)
 
     if not name_ru and not word_number:
         return ""
@@ -102,19 +100,16 @@ def _render_header(meta: Dict[str, Any]) -> str:
 
     if word_number:
         lines.append(f"\nСлово номер: <b>{word_number}</b> / <b>{words_studied}</b> / <b>{total_words}</b>")
-        if word_number > words_studied:
-            lines.append("(новое слово, изучается первый раз)")
+        if meta.get("is_new_word") and meta.get("new_word_label"):
+            lines.append(meta["new_word_label"])
 
     correct = meta.get("correct_count", 0)
     incorrect = meta.get("incorrect_count", 0)
-    done = (meta.get("session_pos", 1) - 1)
 
-    # Use words_for_today (total due today) — like web and old bot, not session batch size
-    if words_for_today and word_number and word_number <= words_studied:
-        if session_pos >= words_for_today:
-            lines.append(f"(завершающее в текущей сессии: <b>{session_pos}</b>)")
-        else:
-            lines.append(f"(изучается в текущей сессии: <b>{session_pos}</b> из <b>{words_for_today}</b>)")
+    if meta.get("show_session_counter") and meta.get("session_counter_text"):
+        lines.append(meta["session_counter_text"])
+
+    done = (meta.get("session_pos", 1) - 1)
 
     if done > 0 or correct > 0 or incorrect > 0:
         lines.append(f"(правильных: {correct}, ошибок: {incorrect})")

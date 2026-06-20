@@ -7,6 +7,7 @@ from app.bls_client import get_bls_client
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from common.help_text import HELP_TEXT
+from common.chart_manifest import CHART_SECTIONS, CHART_CAPTIONS
 
 _APK_PATH = Path(__file__).parent.parent.parent.parent / "android" / "LangBot.apk"
 
@@ -41,7 +42,7 @@ async def help_page(request: Request):
 
 
 @router.get("/stats")
-async def stats_page(request: Request):
+async def stats_page(request: Request, lang_id: str = None):
     user_id, redirect = _require_user(request)
     if redirect:
         return redirect
@@ -64,6 +65,9 @@ async def stats_page(request: Request):
     return templates.TemplateResponse("stats.html", {
         "request": request,
         "stats_list": stats_list,
+        "target_lang_id": lang_id,
+        "chart_sections": CHART_SECTIONS,
+        "chart_captions": CHART_CAPTIONS,
     })
 
 

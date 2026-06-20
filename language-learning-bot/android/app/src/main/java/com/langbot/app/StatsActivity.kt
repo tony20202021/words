@@ -21,9 +21,13 @@ class StatsActivity : AppCompatActivity() {
     private lateinit var languageId: String
 
     companion object {
-        private val TODAY_CHARTS   = listOf("words_for_today", "words_unknown", "check_interval")
-        private val MONTHLY_CHARTS = listOf("words_studied", "words_new", "words_known",
-                                            "words_unknown_before", "words_unknown_after", "words_for_today")
+        private val FALLBACK_SECTIONS = listOf(
+            Triple("📅 Распределение слов", listOf("words_for_today", "words_unknown", "check_interval"), "today"),
+            Triple("📆 Прогресс за месяц", listOf("words_studied", "words_new", "words_known",
+                "words_unknown_before", "words_unknown_first_finish", "words_unknown_last_finish", "words_for_today"), "monthly_recent"),
+            Triple("📊 Прогресс за всё время", listOf("words_studied", "words_new", "words_known",
+                "words_unknown_before", "words_unknown_first_finish", "words_unknown_last_finish", "words_for_today"), "monthly_all"),
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,17 +103,22 @@ class StatsActivity : AppCompatActivity() {
             // Remove the initial spinnerWrap — each section has its own
             binding.statsContainer.removeView(spinnerWrap)
 
-            data class ChartGroup(val title: String, val names: List<String>, val type: Int)
-            // type: 0=today, 1=monthly-recent, 2=monthly-all
-            val sections = listOf(
-                ChartGroup("📅 Распределение слов",    TODAY_CHARTS,   0),
-                ChartGroup("📆 Прогресс за месяц",    MONTHLY_CHARTS, 1),
-                ChartGroup("📊 Прогресс за всё время", MONTHLY_CHARTS, 2),
-            )
+            val manifest = try {
+                BLSClient.api.getChartManifest().body()
+            } catch (_: Exception) { null }
+
+            val sections = manifest?.sections?.map {
+                Triple(it.header, it.charts, it.type)
+            } ?: FALLBACK_SECTIONS
 
             for ((i, section) in sections.withIndex()) {
-                val (title, names, type) = section
-                val showAll = type == 2
+                val (title, names, chartType) = section
+                val type = when (chartType) {
+                    "today" -> 0
+                    "monthly_recent" -> 1
+                    else -> 2
+                }
+                val showAll = chartType == "monthly_all"
 
                 // Divider before sections 2 and 3
                 if (i > 0) {
@@ -201,6 +210,9 @@ class StatsActivity : AppCompatActivity() {
         if (s.words_known > 0 && s.words_studied > 0) {
             val pctKnown = s.words_known * 100.0 / s.words_studied
             addStatRow(c, "Прогресс (знаю / изучено)", "%.1f%%".format(pctKnown), "#007bff")
+        }
+        if (s.words_unknown > 0) {
+            addStatRow(c, "Неизвестно", s.words_unknown.toString(), "#dc3545")
         }
         if (s.words_skipped > 0) {
             addStatRow(c, "Пропущено", s.words_skipped.toString(), "#ffc107")

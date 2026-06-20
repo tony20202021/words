@@ -7,6 +7,7 @@ from fastapi.responses import Response
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from common.help_text import HELP_TEXT
 from common.version import __version__
+from common.hint_catalog import HINT_ORDER, HINT_UI
 
 router = APIRouter(tags=["info"])
 
@@ -32,6 +33,16 @@ async def make_qr(url: str):
 @router.get("/help")
 async def get_help():
     return {"text": HELP_TEXT}
+
+
+@router.get("/hints/schema")
+async def get_hints_schema():
+    return {
+        "types": [
+            {"type": ht, "icon": HINT_UI[ht][0], "label": HINT_UI[ht][1], "setting_key": HINT_UI[ht][2]}
+            for ht in HINT_ORDER
+        ]
+    }
 
 
 @router.get("/version")
