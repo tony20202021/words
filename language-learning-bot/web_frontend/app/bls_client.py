@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any, Optional
 import httpx
 
-BLS_URL = os.environ.get("BLS_URL", "http://localhost:8700")
+BLS_URL = os.environ.get("BLS_URL", "http://localhost:8531")
 
 
 class BLSClient:
@@ -86,6 +86,30 @@ class BLSClient:
         async with httpx.AsyncClient() as client:
             resp = await client.post(f"{self.base_url}/session/{session_id}/next_batch", json={})
             return resp.json() if resp.is_success else {"loaded": False}
+
+    async def pick_answer(self, session_id: str, selected_word_id: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.base_url}/session/{session_id}/pick_answer",
+                json={"selected_word_id": selected_word_id},
+            )
+            return resp.json() if resp.is_success else {}
+
+    async def add_forbidden_pair(self, session_id: str, bad_word_id: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.base_url}/session/{session_id}/add_forbidden_pair",
+                json={"bad_word_id": bad_word_id},
+            )
+            return resp.json() if resp.is_success else {}
+
+    async def clear_forbidden_pairs(self, session_id: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.base_url}/session/{session_id}/clear_forbidden_pairs",
+                json={},
+            )
+            return resp.json() if resp.is_success else {}
 
     async def end_session(self, user_id: str, language_id: str) -> None:
         async with httpx.AsyncClient() as client:

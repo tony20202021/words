@@ -76,14 +76,14 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
 
         if current_score == 1 and current_check_date_str:
             try:
-                check_date = datetime.fromisoformat(current_check_date_str.replace("Z", "+00:00"))
-                should_update = (datetime.now() - check_date).days >= 0
+                check_date = datetime.fromisoformat(current_check_date_str.replace("Z", ""))
+                should_update = (datetime.utcnow() - check_date).days >= 0
             except (ValueError, TypeError):
                 logger.warning(f"Could not parse check date: {current_check_date_str}")
 
         if should_update or current_score == 0:
             new_interval = max(1, min(current_interval * 2 if current_interval > 0 else 1, max_interval))
-            new_check_date = (datetime.now() + timedelta(days=new_interval)).replace(
+            new_check_date = (datetime.utcnow() + timedelta(days=new_interval)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             ).isoformat()
             update["check_interval"] = new_interval
@@ -93,7 +93,7 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
             update["next_check_date"] = current_check_date_str
     else:
         update["check_interval"] = 0
-        update["next_check_date"] = datetime.now().replace(
+        update["next_check_date"] = datetime.utcnow().replace(
             hour=0, minute=0, second=0, microsecond=0
         ).isoformat()
 

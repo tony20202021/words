@@ -136,7 +136,7 @@ pip install pynvml>=11.5.0 gpustat>=1.1.0
 sudo apt-get install -y mongodb
 
 # Или через Docker
-docker run -d -p 27017:27017 --name mongodb mongo:5.0
+docker run -d -p 8527:8527 --name mongodb mongo:5.0
 ```
 
 ### 🔥 Writing Service Configuration
@@ -277,7 +277,7 @@ chmod -R 755 writing_service/cache/
 # Проверка занятых портов
 lsof -i :8600  # Writing Service
 lsof -i :8500  # Backend
-lsof -i :27017 # MongoDB
+lsof -i :8527 # MongoDB
 ```
 
 ## Performance Optimization

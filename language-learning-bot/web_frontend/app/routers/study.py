@@ -66,7 +66,7 @@ def _prepare_card(card: dict) -> None:
     card["extra_content"] = sorted_items
     card["extra_groups"] = _group_extra_items(sorted_items)
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8500")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8573")
 
 router = APIRouter()
 
@@ -251,6 +251,54 @@ async def reconsider_word(request: Request, language_id: str):
                 "request": request, "language_id": language_id, "progress": progress,
             })
 
+    return await _card_partial(request, bls, user_id, language_id, resp)
+
+
+@router.post("/study/{language_id}/pick_answer")
+async def pick_answer(request: Request, language_id: str, selected_word_id: str = Form(...)):
+    user_id, redirect = _require_user(request)
+    if redirect:
+        return redirect
+    bls = get_bls_client()
+    session_resp = await bls.get_session(user_id, language_id)
+    if not session_resp:
+        return _session_error(language_id)
+    resp = await bls.pick_answer(session_resp["session_id"], selected_word_id)
+    if resp.get("batch_exhausted"):
+        batch_resp = await bls.next_batch(resp["session_id"])
+        if batch_resp.get("loaded"):
+            resp = batch_resp
+        else:
+            progress = await bls.get_progress(resp["session_id"])
+            return templates.TemplateResponse("partials/completed.html", {
+                "request": request, "language_id": language_id, "progress": progress,
+            })
+    return await _card_partial(request, bls, user_id, language_id, resp)
+
+
+@router.post("/study/{language_id}/add_forbidden_pair")
+async def add_forbidden_pair(request: Request, language_id: str, bad_word_id: str = Form(...)):
+    user_id, redirect = _require_user(request)
+    if redirect:
+        return redirect
+    bls = get_bls_client()
+    session_resp = await bls.get_session(user_id, language_id)
+    if not session_resp:
+        return _session_error(language_id)
+    resp = await bls.add_forbidden_pair(session_resp["session_id"], bad_word_id)
+    return await _card_partial(request, bls, user_id, language_id, resp)
+
+
+@router.post("/study/{language_id}/clear_forbidden_pairs")
+async def clear_forbidden_pairs(request: Request, language_id: str):
+    user_id, redirect = _require_user(request)
+    if redirect:
+        return redirect
+    bls = get_bls_client()
+    session_resp = await bls.get_session(user_id, language_id)
+    if not session_resp:
+        return _session_error(language_id)
+    resp = await bls.clear_forbidden_pairs(session_resp["session_id"])
     return await _card_partial(request, bls, user_id, language_id, resp)
 
 

@@ -12,6 +12,7 @@ NUMERIC_LABELS = {
     "reset_cross_midnight_hours":  "Сброс сессии: час после полуночи",
     "unknown_limit_new_words":     "Лимит неизвестных слов",
     "max_check_interval":          "Макс. интервал повторения (дни)",
+    "quiz_options_count":          "Кол-во вариантов в режиме выбора",
 }
 
 SETTING_LABELS = {
@@ -29,9 +30,9 @@ SETTING_LABELS = {
     "show_references":               "Показывать ссылки",
     "show_tones":                    "Показывать тоны",
     "show_sounds":                   "Показывать звуки",
-    "random_foreign":                "Рандомно начинать с иностранных слов",
-    "random_transcription":          "Рандомно начинать с транскрипций",
-    "random_sound":                  "Рандомно начинать со звуков",
+    "random_transcription":          "Дополнительно использовать транскрипцию",
+    "random_sound":                  "Дополнительно использовать звук",
+    "random_pick_mode":              "Режим выбора (pick mode)",
     "show_charts":                   "Показывать графики",
     "show_short_captions":           "Короткие подписи",
     "receive_messages":              "Получать сообщения",

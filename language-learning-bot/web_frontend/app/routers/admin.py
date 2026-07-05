@@ -343,11 +343,10 @@ async def diagnostics(request: Request):
     await _asyncio.sleep(0.3)        # let the counter accumulate
 
     _PORT_SERVICE = {
-        "8500": "Backend API",
-        "8700": "BLS",
-        "8800": "Web Frontend",
-        "27017": "MongoDB",
-        "27027": "MongoDB",
+        "8573": "Backend API",
+        "8531": "BLS",
+        "8548": "Web Frontend",
+        "8527": "MongoDB",
     }
 
     def _proc_info(p):
@@ -472,9 +471,9 @@ async def diagnostics(request: Request):
     services = []
     for name, url, disabled in [
         ("MongoDB",                                    None,                               False),
-        ("Backend API",                                "http://localhost:8500/api/health", False),
-        ("BLS (Business Logic Service)",               "http://localhost:8700/health",     False),
-        ("Web Frontend",                               "http://localhost:8800/health",     False),
+        ("Backend API",                                "http://localhost:8573/api/health", False),
+        ("BLS (Business Logic Service)",               "http://localhost:8531/health",     False),
+        ("Web Frontend",                               "http://localhost:8548/health",     False),
         ("Telegram Bot (новый)",                       None,                               False),
         ("Telegram Bot (старый)",                      None,                               False),
         ("Генерация картинок",                         None,                               True),
@@ -484,7 +483,7 @@ async def diagnostics(request: Request):
             continue
         if url is None:
             if name == "MongoDB":
-                ok = _port_open(27027)
+                ok = _port_open(8527)
             elif "новый" in name:
                 ok = _proc_running("telegram_bot", "app.main")
             elif "старый" in name:

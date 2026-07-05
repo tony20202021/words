@@ -1,6 +1,6 @@
 """
 Business Logic Service — FastAPI application.
-Port: 8700
+Port: 8531
 """
 
 import os
@@ -15,7 +15,7 @@ logger = setup_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8500")
+    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8573")
     init_api_client(backend_url)
     logger.info(f"BLS started. Backend: {backend_url}")
     yield

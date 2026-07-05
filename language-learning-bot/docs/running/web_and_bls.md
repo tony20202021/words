@@ -10,7 +10,7 @@
 5. Telegram Bot (start_6_telegram_bot.sh или start_3_frontend_auto_reload.sh)
 ```
 
-## BLS (Business Logic Service) — порт 8700
+## BLS (Business Logic Service) — порт 8531
 
 ```bash
 # Запуск вручную:
@@ -18,23 +18,23 @@
 
 # Или напрямую:
 cd business_logic_service
-BACKEND_URL=http://localhost:8500 \
+BACKEND_URL=http://localhost:8573 \
 TELEGRAM_BOT_TOKEN=<token> \
 conda run -n amikhalev_language_learning_bot \
-    uvicorn app.main:app --host 0.0.0.0 --port 8700
+    uvicorn app.main:app --host 0.0.0.0 --port 8531
 
 # Проверка:
-curl http://localhost:8700/health
+curl http://localhost:8531/health
 ```
 
 **Переменные окружения:**
 
 | Переменная | По умолчанию | Описание |
 |-----------|-------------|----------|
-| `BACKEND_URL` | `http://localhost:8500` | URL Backend API |
+| `BACKEND_URL` | `http://localhost:8573` | URL Backend API |
 | `TELEGRAM_BOT_TOKEN` | пусто | Для отправки auth-сообщений в Telegram |
 
-## Web Frontend — порт 8800
+## Web Frontend — порт 8548
 
 ```bash
 # Запуск вручную:
@@ -42,24 +42,24 @@ curl http://localhost:8700/health
 
 # Или напрямую:
 cd web_frontend
-BLS_URL=http://localhost:8700 \
+BLS_URL=http://localhost:8531 \
 SECRET_KEY=<секретный_ключ> \
-WEB_URL=http://136.244.102.39:8800 \
+WEB_URL=http://136.244.102.39:8548 \
 conda run -n amikhalev_language_learning_bot \
-    uvicorn app.main:app --host 0.0.0.0 --port 8800
+    uvicorn app.main:app --host 0.0.0.0 --port 8548
 
 # Проверка:
-curl http://localhost:8800/health
+curl http://localhost:8548/health
 ```
 
 **Переменные окружения:**
 
 | Переменная | По умолчанию | Описание |
 |-----------|-------------|----------|
-| `BLS_URL` | `http://localhost:8700` | URL BLS |
-| `BACKEND_URL` | `http://localhost:8500` | URL Backend (для proxy звуков) |
+| `BLS_URL` | `http://localhost:8531` | URL BLS |
+| `BACKEND_URL` | `http://localhost:8573` | URL Backend (для proxy звуков) |
 | `SECRET_KEY` | `change-me-in-production-please` | Ключ подписи сессионных cookie |
-| `WEB_URL` | `http://localhost:8800` | Публичный URL сайта (для ссылок из бота) |
+| `WEB_URL` | `http://localhost:8548` | Публичный URL сайта (для ссылок из бота) |
 
 ## Новый Telegram Bot — порт не нужен
 
@@ -68,7 +68,7 @@ curl http://localhost:8800/health
 
 # Переменные:
 BOT_TOKEN=<токен_бота>
-BLS_URL=http://localhost:8700
+BLS_URL=http://localhost:8531
 ```
 
 ## systemd-сервисы (без авто-запуска)
@@ -149,8 +149,8 @@ Web Frontend и BLS запускаются через `watchmedo auto-restart` �
 
 ```bash
 # Здоровье всех сервисов:
-curl http://localhost:8700/health   # BLS
-curl http://localhost:8800/health   # Web
+curl http://localhost:8531/health   # BLS
+curl http://localhost:8548/health   # Web
 
 # Тесты:
 cd business_logic_service

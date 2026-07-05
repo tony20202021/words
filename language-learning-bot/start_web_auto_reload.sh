@@ -9,4 +9,4 @@ exec /home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/watchmedo au
     --pattern="*.py;*.html" \
     --recursive \
     -- /home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/uvicorn \
-        app.main:app --host 0.0.0.0 --port 8800
+        app.main:app --host 0.0.0.0 --port 8548

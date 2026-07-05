@@ -183,6 +183,30 @@ class WordRepository:
             logger.error(f"Error getting words for language: {e}", exc_info=True)
             return []  
 
+    async def get_by_language_and_numbers(
+        self,
+        language_id: str,
+        word_numbers: List[int],
+    ) -> List[WordInDB]:
+        """Get multiple words by language ID and a list of word numbers (batch fetch)."""
+        if not word_numbers:
+            return []
+        try:
+            cursor = self.collection.find({
+                "language_id": ObjectId(language_id),
+                "word_number": {"$in": word_numbers},
+            })
+            words = []
+            async for word in cursor:
+                word["id"] = str(word.pop("_id"))
+                if "language_id" in word and isinstance(word["language_id"], ObjectId):
+                    word["language_id"] = str(word["language_id"])
+                words.append(WordInDB(**word))
+            return words
+        except Exception as e:
+            logger.error(f"Error in get_by_language_and_numbers: {e}", exc_info=True)
+            return []
+
     async def get_by_language_and_word_number(
         self, 
         language_id: str, 

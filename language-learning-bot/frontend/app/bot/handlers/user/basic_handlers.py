@@ -137,7 +137,7 @@ async def handle_start_command(
     _base_url = (
         _cfg.bot.web_url
         if _cfg and hasattr(_cfg, "bot") and hasattr(_cfg.bot, "web_url")
-        else os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+        else os.environ.get("WEB_URL", "http://136.244.102.39:8548")
     )
     web_url = f"{_base_url}/autologin?telegram_id={message.from_user.id}"
     await message.answer(f"🌐 Веб-версия: {web_url}", disable_web_page_preview=True)
@@ -212,7 +212,7 @@ async def cmd_web(message: Message):
     _base_url = (
         cfg.bot.web_url
         if cfg and hasattr(cfg, "bot") and hasattr(cfg.bot, "web_url")
-        else os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+        else os.environ.get("WEB_URL", "http://136.244.102.39:8548")
     )
     web_url = f"{_base_url}/autologin?telegram_id={message.from_user.id}"
     await message.answer(

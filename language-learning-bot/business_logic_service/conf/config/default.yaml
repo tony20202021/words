@@ -1,9 +1,9 @@
 server:
   host: "0.0.0.0"
-  port: 8700
+  port: 8531
 
 backend:
-  url: "http://localhost:8500"
+  url: "http://localhost:8573"
 
 writing_images:
   url: "http://localhost:8600"

@@ -4,7 +4,7 @@ This client is used by the frontend to communicate with the backend API,
 not directly with the database.
 """
 
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from urllib.parse import quote
 
@@ -384,6 +384,18 @@ class APIClient:
         return await self._make_request("PUT", f"/users/{user_id}/word_data/{word_id}", data=word_data)
         # TODO проверить бэкенд - не сохраняется дата None
     
+    async def get_words_by_numbers_for_quiz(
+        self, language_id: str, word_numbers: List[int]
+    ) -> Optional[Dict]:
+        """Batch-fetch words by a list of word numbers for quiz distractor generation."""
+        if not word_numbers:
+            return {"success": True, "result": []}
+        numbers_str = ",".join(str(n) for n in word_numbers)
+        return await self._make_request(
+            "GET", f"/languages/{language_id}/words/by-numbers",
+            params={"numbers": numbers_str}
+        )
+
     # Study words
 
     async def get_study_words(self, user_id: str, language_id: str, params: Dict, limit: int = 100) -> Optional[Dict]:
@@ -987,6 +999,6 @@ def init_api_client(base_url: str) -> None:
 
 def get_api_client() -> APIClient:
     if _client is None:
-        base_url = os.environ.get("BACKEND_URL", "http://localhost:8500")
+        base_url = os.environ.get("BACKEND_URL", "http://localhost:8573")
         init_api_client(base_url)
     return _client

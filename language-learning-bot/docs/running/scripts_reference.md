@@ -49,7 +49,7 @@ chmod +x start_1_db.sh
 ```
 
 **Результаты работы**:
-- Запущенный сервер MongoDB на порту 27017
+- Запущенный сервер MongoDB на порту 8527
 - Сообщение о статусе запуска
 
 ---
@@ -298,12 +298,12 @@ source ./run_export_env.sh
 ps aux | grep -e "mongod" -e "--process-name=backend" -e "--process-name=frontend" -e "--process-name=writing_images_service"
 
 # Проверка портов
-lsof -i :27017  # MongoDB
+lsof -i :8527  # MongoDB
 lsof -i :8500   # Backend
 lsof -i :8600   # Writing Service
 
 # Проверка API
-curl http://localhost:8500/api/health      # Backend health
+curl http://localhost:8573/api/health      # Backend health
 curl http://localhost:8600/health          # Writing Service health
 curl http://localhost:8600/api/docs        # Writing Service docs
 ```

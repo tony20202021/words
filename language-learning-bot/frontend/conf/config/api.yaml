@@ -2,7 +2,7 @@
 # Этот файл должен быть сохранен как frontend/conf/config/api.yaml
 
 # Базовый URL бэкенда
-base_url: "http://localhost:8500"
+base_url: "http://localhost:8573"
 
 # Префикс API для запросов
 prefix: "/api"

@@ -23,6 +23,7 @@ import com.langbot.app.databinding.ActivityStudyBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.network.Card
 import com.langbot.app.network.CardButton
+import com.langbot.app.network.PickOption
 import com.langbot.app.network.RateRequest
 import com.langbot.app.network.SessionResponse
 import com.langbot.app.network.StartSessionRequest
@@ -38,6 +39,9 @@ class StudyActivity : AppCompatActivity() {
 
     // MediaPlayer instances for the current card's sounds
     private val players = mutableListOf<MediaPlayer>()
+
+    // Last pick-mode answer result: true=correct, false=wrong/dont_know, null=not a pick answer
+    private var lastPickAnswerResult: Boolean? = null
 
     companion object {
         private const val MENU_REFRESH = 1
@@ -125,7 +129,7 @@ class StudyActivity : AppCompatActivity() {
                 }
                 handleResponse(resp.body())
             } catch (e: Exception) {
-                Toast.makeText(this@StudyActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 setLoading(false)
             }
@@ -361,9 +365,44 @@ class StudyActivity : AppCompatActivity() {
             binding.soundsRow.visibility = View.GONE
         }
 
-        // Action buttons — 2 rows when 3+ buttons: first 2 on top, rest below
+        // Action buttons / pick mode options
         binding.buttonRow.removeAllViews()
-        if (card.buttons.size >= 3) {
+        val pickOptions = card.pick_options
+        if (pickOptions != null && !card.show_answer) {
+            // Pick mode: show option buttons vertically
+            binding.buttonRow.orientation = LinearLayout.VERTICAL
+            val targetModality = pickOptions.target_modality
+            pickOptions.options.forEachIndexed { i, opt ->
+                val btnText = if (targetModality == "sound") "🔊 Вариант ${i + 1}" else opt.target_text
+                val b = MaterialButton(this)
+                b.text = btnText
+                b.textSize = 17f
+                b.isSingleLine = false
+                b.maxLines = 4
+                b.setPadding(16, 20, 16, 20)
+                b.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white))
+                b.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
+                b.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
+                b.strokeWidth = 2
+                b.setOnClickListener { onPickAnswer(opt.word_id) }
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.bottomMargin = dpToPx(4)
+                b.layoutParams = lp
+                binding.buttonRow.addView(b)
+            }
+            // "Don't know" button
+            val dontKnowBtn = MaterialButton(this)
+            dontKnowBtn.text = "❓ Не знаю"
+            dontKnowBtn.textSize = 13f
+            dontKnowBtn.setPadding(8, 14, 8, 14)
+            dontKnowBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.transparent))
+            dontKnowBtn.setTextColor(ContextCompat.getColor(this, R.color.btnSecondary))
+            dontKnowBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnSecondary)
+            dontKnowBtn.strokeWidth = 2
+            dontKnowBtn.setOnClickListener { onPickAnswer("dont_know") }
+            binding.buttonRow.addView(dontKnowBtn)
+        } else if (card.buttons.size >= 3) {
             binding.buttonRow.orientation = LinearLayout.VERTICAL
             val row1 = buildButtonRow(card.buttons.take(2))
             val row2 = buildButtonRow(card.buttons.drop(2))
@@ -375,7 +414,7 @@ class StudyActivity : AppCompatActivity() {
             binding.buttonRow.addView(row2)
         } else {
             binding.buttonRow.orientation = LinearLayout.HORIZONTAL
-            val weight = 1f / card.buttons.size
+            val weight = 1f / card.buttons.size.coerceAtLeast(1)
             for (btn in card.buttons) {
                 val b = makeCardButton(btn)
                 val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
@@ -401,6 +440,41 @@ class StudyActivity : AppCompatActivity() {
             }
         } else {
             binding.btnHints.visibility = View.GONE
+        }
+
+        // "Ban this distractor" button after wrong pick-mode answer — placed below main buttons
+        val lastWrongId = card.last_wrong_distractor_id
+        binding.banButtonRow.removeAllViews()
+        if (!lastWrongId.isNullOrEmpty()) {
+            val banBtn = MaterialButton(this)
+            banBtn.text = "🚫 Не показывать такую комбинацию"
+            banBtn.textSize = 13f
+            banBtn.setPadding(16, 14, 16, 14)
+            banBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.transparent))
+            banBtn.setTextColor(Color.parseColor("#e6a817"))
+            banBtn.strokeColor = android.content.res.ColorStateList.valueOf(Color.parseColor("#e6a817"))
+            banBtn.strokeWidth = 2
+            banBtn.setOnClickListener { onAddForbiddenPair(lastWrongId) }
+            banBtn.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            binding.banButtonRow.addView(banBtn)
+            binding.banButtonRow.visibility = View.VISIBLE
+        } else {
+            binding.banButtonRow.visibility = View.GONE
+        }
+
+        // Pick mode result banner
+        val pickResult = lastPickAnswerResult
+        if (card.show_answer && pickResult != null) {
+            binding.tvPickResult.text = if (pickResult) "✓  Правильно!" else "✗  Неверно"
+            val bgColor = if (pickResult) Color.parseColor("#E8F5E9") else Color.parseColor("#FFEBEE")
+            val textColor = if (pickResult) Color.parseColor("#2E7D32") else Color.parseColor("#C62828")
+            binding.tvPickResult.setBackgroundColor(bgColor)
+            binding.tvPickResult.setTextColor(textColor)
+            binding.tvPickResult.visibility = View.VISIBLE
+        } else {
+            binding.tvPickResult.visibility = View.GONE
+            if (!card.show_answer) lastPickAnswerResult = null
         }
 
         // Segmented progress bars (like web: two thin rows of segments per word)
@@ -560,6 +634,7 @@ class StudyActivity : AppCompatActivity() {
 
     private fun onButtonClick(btnId: String, rating: String?) {
         val sid = sessionId ?: return
+        lastPickAnswerResult = null
         setLoading(true)
         lifecycleScope.launch {
             try {
@@ -586,7 +661,54 @@ class StudyActivity : AppCompatActivity() {
                 }
                 handleResponse(body)
             } catch (e: Exception) {
-                Toast.makeText(this@StudyActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    private fun onPickAnswer(selectedWordId: String) {
+        val sid = sessionId ?: return
+        setLoading(true)
+        lifecycleScope.launch {
+            try {
+                val resp = BLSClient.api.pickAnswer(sid, mapOf("selected_word_id" to selectedWordId))
+                val body = resp.body() ?: return@launch
+                if (body.batch_exhausted) {
+                    lastPickAnswerResult = null
+                    val batchSid = body.session_id ?: sid
+                    val batch = BLSClient.api.nextBatch(batchSid)
+                    val batchBody = batch.body()
+                    if (batchBody?.loaded == true || batchBody?.card != null) {
+                        handleResponse(batchBody); return@launch
+                    }
+                    handleResponse(batchBody ?: body); return@launch
+                }
+                lastPickAnswerResult = when {
+                    selectedWordId == "dont_know" -> false
+                    body.card?.last_wrong_distractor_id != null -> false
+                    else -> true
+                }
+                handleResponse(body)
+            } catch (e: Exception) {
+                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    private fun onAddForbiddenPair(badWordId: String) {
+        val sid = sessionId ?: return
+        setLoading(true)
+        lifecycleScope.launch {
+            try {
+                val resp = BLSClient.api.addForbiddenPair(sid, mapOf("bad_word_id" to badWordId))
+                val body = resp.body() ?: return@launch
+                handleResponse(body)
+            } catch (e: Exception) {
+                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 setLoading(false)
             }

@@ -147,6 +147,36 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         await callback.message.answer_audio(BufferedInputFile(sound_data, filename="sound.mp3"))
         await callback.answer()
         return
+    elif action == "pick_sound":
+        idx = int(parts[3]) if len(parts) > 3 else 0
+        card = session_resp.get("card") or {}
+        pick_options = card.get("pick_options") or {}
+        options = pick_options.get("options", [])
+        if idx >= len(options):
+            await callback.answer("Звук недоступен", show_alert=True)
+            return
+        sound_url = options[idx].get("target_text", "")
+        sound_data = await bls.get_sound(sound_url) if sound_url else None
+        if not sound_data:
+            await callback.answer("Звук недоступен", show_alert=True)
+            return
+        await callback.message.answer_audio(BufferedInputFile(sound_data, filename="sound.mp3"))
+        await callback.answer()
+        return
+    elif action == "pick_answer":
+        selected_word_id = parts[3] if len(parts) > 3 else "dont_know"
+        resp = await bls.pick_answer(session_id, selected_word_id)
+        if resp.get("batch_exhausted"):
+            batch = await bls.next_batch(session_id)
+            if batch.get("loaded"):
+                resp = batch
+            else:
+                await callback.answer()
+                await callback.message.answer(COMPLETED_TEXT, parse_mode="HTML")
+                return
+    elif action == "add_forbidden_pair":
+        bad_word_id = parts[3] if len(parts) > 3 else ""
+        resp = await bls.add_forbidden_pair(session_id, bad_word_id)
     elif action == "know":
         resp = await bls.know_word(session_id)
     elif action == "show_answer":
@@ -189,8 +219,13 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
     await callback.answer()
 
     # Actions that advance to next word → always new message (like old bot)
-    # Actions on the same word (show_answer, toggle_skip) → try to edit
+    # Actions on the same word (show_answer, toggle_skip, pick_answer wrong) → try to edit
     next_word_actions = {"rate", "know", "reconsider"}
-    edit_mode = action not in next_word_actions
+    # pick_answer advances word only when correct (show_answer=False in next card); for wrong answer it shows the answer
+    if action == "pick_answer":
+        next_card_shows_answer = (resp.get("card") or {}).get("show_answer", False)
+        edit_mode = next_card_shows_answer  # wrong → edit in place; correct → new message
+    else:
+        edit_mode = action not in next_word_actions
 
     await _display_card(callback.message, card, language_id, bls, edit_mode=edit_mode)

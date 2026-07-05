@@ -21,10 +21,10 @@
 
 | Сервис | Порт | Автоперезапуск | Скрипт |
 |--------|------|---------------|--------|
-| `langbot-db` | 27027 | нет (mongod) | `start_1_db.sh` |
-| `langbot-backend` | 8500 | нет | `start_2_backend.sh` |
-| `langbot-bls` | 8700 | ✅ watchmedo `.py` | `start_bls_auto_reload.sh` |
-| `langbot-web` | 8800 | ✅ watchmedo `.py` + `.html` | `start_web_auto_reload.sh` |
+| `langbot-db` | 8527 | нет (mongod) | `start_1_db.sh` |
+| `langbot-backend` | 8573 | нет | `start_2_backend.sh` |
+| `langbot-bls` | 8531 | ✅ watchmedo `.py` | `start_bls_auto_reload.sh` |
+| `langbot-web` | 8548 | ✅ watchmedo `.py` + `.html` | `start_web_auto_reload.sh` |
 | `langbot-frontend` | — | ✅ watchmedo `.py` | `start_3_frontend_auto_reload.sh` |
 | `langbot-telegram` | — | ✅ watchmedo `.py` | `start_telegram_bot_auto_reload.sh` |
 
@@ -292,7 +292,7 @@ sudo -u tony bash -c 'cd /home/tony/repos/words/language-learning-bot && \
 cat ~/mongodb/log/mongod.log
 
 # Проверить, не занят ли порт
-lsof -i :27017
+lsof -i :8527
 
 # Проверить, что директории существуют
 ls -la ~/mongodb/data ~/mongodb/log
@@ -302,7 +302,7 @@ ls -la ~/mongodb/data ~/mongodb/log
 
 Возможные причины:
 - MongoDB ещё не успела подняться — увеличьте `RestartSec` в `langbot-backend.service` до 15 секунд
-- Порт 8500 уже занят: `lsof -i :8500`
+- Порт 8573 уже занят: `lsof -i :8573`
 - Ошибка в конфигурации Hydra: `cat backend/logs/backend.log`
 
 ### Фронтенд завершается с ошибкой "Conflict: terminated by other getUpdates"

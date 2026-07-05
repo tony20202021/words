@@ -73,7 +73,7 @@ cp .env.example .env
 ```
 # MongoDB
 MONGODB_HOST=localhost      # Хост MongoDB
-MONGODB_PORT=27017          # Порт MongoDB
+MONGODB_PORT=8527          # Порт MongoDB
 MONGODB_DB_NAME=language_learning_bot  # Имя базы данных
 
 # Telegram
@@ -145,7 +145,7 @@ commands:
 
 ```yaml
 # Конфигурация API-клиента
-base_url: "http://localhost:8500"  # URL бэкенда
+base_url: "http://localhost:8573"  # URL бэкенда
 prefix: "/api"                     # Префикс API
 timeout: 5                         # Таймаут запросов в секундах
 retry_count: 3                     # Число повторных попыток
@@ -161,10 +161,10 @@ type: "mongodb"  # Тип базы данных
 
 # Настройки MongoDB
 mongodb:
-  url: "mongodb://localhost:27017"  # URL подключения
+  url: "mongodb://localhost:8527"  # URL подключения
   db_name: "language_learning_bot"  # Имя базы данных
   host: "localhost"                 # Хост MongoDB
-  port: 27017                       # Порт MongoDB
+  port: 8527                       # Порт MongoDB
 ```
 
 ## Настройки для разработки

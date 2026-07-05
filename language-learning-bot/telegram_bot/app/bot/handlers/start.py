@@ -100,7 +100,7 @@ async def welcome_nav(callback: CallbackQuery, state: FSMContext, bls_user_id: s
 
 @router.message(Command("web"))
 async def cmd_web(message: Message, bls_user_id: str) -> None:
-    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8548")
     bls = get_bls_client()
     result = await bls.mobile_create_token(bls_user_id)
     code = result.get("code") if result else None
@@ -137,7 +137,7 @@ async def cmd_connect_android(message: Message, bls_user_id: str) -> None:
         await message.answer("Не удалось создать код. Попробуйте позже.")
         return
     code = result["code"]
-    bls_url = os.environ.get("BLS_PUBLIC_URL") or os.environ.get("BLS_URL", "http://localhost:8700")
+    bls_url = os.environ.get("BLS_PUBLIC_URL") or os.environ.get("BLS_URL", "http://localhost:8531")
     await message.answer(
         f"📱 <b>Подключение Android-приложения</b>\n\n"
         f"Адрес сервера:\n<code>{bls_url}</code>\n\n"
@@ -156,7 +156,7 @@ async def cmd_android(message: Message) -> None:
     if not _APK_PATH.exists():
         await message.answer("APK не найден. Обратитесь к администратору.")
         return
-    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8800")
+    web_url = os.environ.get("WEB_URL", "http://136.244.102.39:8548")
     download_url = f"{web_url}/download/android"
     text = (
         f"📱 <b>LangBot для Android</b> v{__version__}\n\n"
@@ -306,9 +306,9 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         f"   • Ссылки: <b>{b(s.get('show_references', True))}</b>",
         f"   • Тоны: <b>{b(s.get('show_tones', True))}</b>",
         f"   • Звуки: <b>{b(s.get('show_sounds', True))}</b>",
-        f"   • Рандомно начинать с иностранных слов: <b>{b(s.get('random_foreign', True))}</b>",
-        f"   • Рандомно начинать с транскрипций: <b>{b(s.get('random_transcription', True))}</b>",
-        f"   • Рандомно начинать со звуков: <b>{b(s.get('random_sound', True))}</b>",
+        f"   • Доп. транскрипция: <b>{b(s.get('random_transcription', True))}</b>",
+        f"   • Доп. звук: <b>{b(s.get('random_sound', True))}</b>",
+        f"   • Pick mode: <b>{b(s.get('random_pick_mode', False))}</b> (вариантов: {s.get('quiz_options_count', 3)})",
         "",
         f"📊 Графики: <b>{b(s.get('show_charts', False))}</b>",
         f"📤 Получать сообщения: <b>{b(s.get('receive_messages', True))}</b>",

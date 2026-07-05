@@ -38,7 +38,7 @@ def get_mongodb_config():
         tuple: (mongodb_url, mongodb_db_name, connection_options)
     """
     # Значения по умолчанию
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:8527")
     mongodb_db_name = os.getenv("MONGODB_DB_NAME", "language_learning_bot")
     connection_options = {}
     

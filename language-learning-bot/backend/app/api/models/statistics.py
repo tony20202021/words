@@ -19,6 +19,7 @@ class UserStatisticsBase(BaseModel):
     is_skipped: bool = Field(False, description="Is word skipped")
     next_check_date: Optional[datetime] = Field(None, description="Next check date")
     check_interval: int = Field(0, description="Check interval in days")
+    forbidden_quiz_pairs: List[str] = Field(default_factory=list, description="Word IDs forbidden as quiz distractors for this word")
 
 class UserStatisticsCreate(BaseModel):
     """Create model for user statistics."""
@@ -43,6 +44,7 @@ class UserStatisticsUpdate(BaseModel):
     is_skipped: Optional[bool] = Field(None, description="Is word skipped")
     check_interval: Optional[int] = Field(None, description="Check interval in days")
     next_check_date: Optional[datetime] = Field(None, description="Next check date")
+    forbidden_quiz_pairs: Optional[List[str]] = Field(None, description="Word IDs forbidden as quiz distractors")
 
 class UserStatisticsInDB(UserStatisticsBase):
     """Database model for user statistics."""

@@ -10,10 +10,10 @@
 | Платформа | Технологии | Адрес / запуск |
 |-----------|-----------|----------------|
 | **Telegram-бот** | Python + aiogram 3.x | [@language_learning_words_bot](https://t.me/language_learning_words_bot) |
-| **Веб-приложение** | FastAPI + Jinja2 + HTMX | порт 8800 |
+| **Веб-приложение** | FastAPI + Jinja2 + HTMX | порт 8548 |
 | **Android** | Kotlin + Retrofit | `android/LangBot.apk` |
-| **BLS** | FastAPI (логика) | порт 8700 |
-| **Backend** | FastAPI + MongoDB | порт 8500 |
+| **BLS** | FastAPI (логика) | порт 8531 |
+| **Backend** | FastAPI + MongoDB | порт 8573 |
 
 Все фронтенды stateless — вся логика и состояние сессий в BLS.
 
@@ -23,8 +23,8 @@
 
 ```
 Telegram Bot ──┐
-Web Frontend   ├──► BLS (порт 8700) ──► Backend (порт 8500) ──► MongoDB
-Android App  ──┘      (сессии, карточки,                       (порт 27017)
+Web Frontend   ├──► BLS (порт 8531) ──► Backend (порт 8573) ──► MongoDB
+Android App  ──┘      (сессии, карточки,                       (порт 8527)
                         статистика, подсказки)
 ```
 
@@ -43,9 +43,9 @@ Android App  ──┘      (сессии, карточки,                    
 ### Запуск сервисов
 
 ```bash
-sudo systemctl start langbot-backend   # порт 8500
-sudo systemctl start langbot-bls       # порт 8700
-sudo systemctl start langbot-web       # порт 8800
+sudo systemctl start langbot-backend   # порт 8573
+sudo systemctl start langbot-bls       # порт 8531
+sudo systemctl start langbot-web       # порт 8548
 sudo systemctl start langbot-telegram  # Telegram-бот
 ```
 
@@ -54,12 +54,12 @@ sudo systemctl start langbot-telegram  # Telegram-бот
 ### Переменные окружения (`.env`)
 
 ```env
-MONGODB_URL=mongodb://localhost:27027
+MONGODB_URL=mongodb://localhost:8527
 MONGODB_DB_NAME=language_learning_bot
-BACKEND_URL=http://localhost:8500
-BLS_URL=http://localhost:8700
-BLS_PUBLIC_URL=http://<external-ip>:8700
-WEB_URL=http://<external-ip>:8800
+BACKEND_URL=http://localhost:8573
+BLS_URL=http://localhost:8531
+BLS_PUBLIC_URL=http://<external-ip>:8531
+WEB_URL=http://<external-ip>:8548
 BOT_TOKEN=...
 SECRET_KEY=...
 TELEGRAM_BOT_URL=https://t.me/...
@@ -114,11 +114,11 @@ cp app/build/outputs/apk/debug/app-debug.apk LangBot.apk
 
 ```
 language-learning-bot/
-├── backend/                # REST API + MongoDB (порт 8500)
-├── business_logic_service/ # BLS — логика и сессии (порт 8700)
+├── backend/                # REST API + MongoDB (порт 8573)
+├── business_logic_service/ # BLS — логика и сессии (порт 8531)
 │   └── app/routers/info.py # GET /help, GET /version, GET /qr
 ├── telegram_bot/           # Telegram-фронтенд
-├── web_frontend/           # Веб-фронтенд (порт 8800)
+├── web_frontend/           # Веб-фронтенд (порт 8548)
 ├── android/                # Android-приложение (Kotlin)
 │   └── langbot.jks         # Ключ подписи release APK (не в git)
 ├── common/                 # Общие модули

@@ -299,10 +299,10 @@ multitail ~/mongodb/log/mongod.log \
 
 ```bash
 # Проверка доступности API
-curl http://localhost:8500/api/health
+curl http://localhost:8573/api/health
 
 # Проверка списка языков
-curl http://localhost:8500/api/languages
+curl http://localhost:8573/api/languages
 ```
 
 ### 🆕 Проверка Writing Service
@@ -427,7 +427,7 @@ sleep 5
 ./start_3_frontend.sh
 
 # Проверка запуска всех сервисов
-curl http://localhost:8500/api/health
+curl http://localhost:8573/api/health
 curl http://localhost:8600/health
 ```
 
@@ -454,7 +454,7 @@ python scripts/seed_data.py  # опционально
 ./start_4_writing_service.sh  # 🆕 Новый сервис
 
 # 5. Проверка работоспособности
-curl http://localhost:8500/api/health  # Backend
+curl http://localhost:8573/api/health  # Backend
 curl http://localhost:8600/health      # Writing Service
 # Отправьте /start боту в Telegram
 ```

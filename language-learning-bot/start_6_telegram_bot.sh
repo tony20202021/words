@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")/telegram_bot"
 
 export BOT_TOKEN="${BOT_TOKEN:-}"
-export BLS_URL="${BLS_URL:-http://localhost:8700}"
+export BLS_URL="${BLS_URL:-http://localhost:8531}"
 
 if [ -z "$BOT_TOKEN" ]; then
     echo "ERROR: BOT_TOKEN env var is not set"

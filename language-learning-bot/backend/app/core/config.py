@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     cors_origins: List[str] = Field(["*"], env="CORS_ORIGINS")
     
     # MongoDB settings
-    mongodb_url: str = Field("mongodb://localhost:27017", env="MONGODB_URL")
+    mongodb_url: str = Field("mongodb://localhost:8527", env="MONGODB_URL")
     mongodb_db_name: str = Field("language_learning_bot", env="MONGODB_DB_NAME")
     mongodb_max_pool_size: int = Field(10, env="MONGODB_MAX_POOL_SIZE")
     mongodb_min_pool_size: int = Field(1, env="MONGODB_MIN_POOL_SIZE")

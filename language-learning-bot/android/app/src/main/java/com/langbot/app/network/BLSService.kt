@@ -3,6 +3,7 @@ package com.langbot.app.network
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
+import java.util.concurrent.TimeUnit
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -54,6 +55,21 @@ interface BLSApi {
         @Path("session_id") sessionId: String,
         @Body body: Map<String, String> = emptyMap(),
     ): Response<SessionResponse>
+
+    @POST("session/{session_id}/pick_answer")
+    suspend fun pickAnswer(
+        @Path("session_id") sessionId: String,
+        @Body body: Map<String, String>,
+    ): Response<SessionResponse>
+
+    @POST("session/{session_id}/add_forbidden_pair")
+    suspend fun addForbiddenPair(
+        @Path("session_id") sessionId: String,
+        @Body body: Map<String, String>,
+    ): Response<SessionResponse>
+
+    @POST("session/{session_id}/clear_forbidden_pairs")
+    suspend fun clearForbiddenPairs(@Path("session_id") sessionId: String): Response<SessionResponse>
 
     @DELETE("session/{user_id}/{language_id}")
     suspend fun endSession(
@@ -150,7 +166,13 @@ object BLSClient {
     fun init(baseUrl: String) {
         rawBaseUrl = baseUrl.trimEnd('/')
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val okhttp = OkHttpClient.Builder().addInterceptor(logging).build()
+        val okhttp = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
         _api = Retrofit.Builder()
             .baseUrl("$rawBaseUrl/")
             .client(okhttp)

@@ -7,7 +7,7 @@ if [ -f "./run_export_env.sh" ]; then
 else
     echo "Скрипт exprun_export_envort_env.sh не найден. Используются значения по умолчанию."
     export MONGODB_HOST="localhost"
-    export MONGODB_PORT="27027"
+    export MONGODB_PORT="8527"
 fi
 
 # Выводим информацию о настройках MongoDB

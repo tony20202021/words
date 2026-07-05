@@ -34,6 +34,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "reset_cross_midnight_hours": 6,
     "unknown_limit_new_words": 10,
     "max_check_interval": 32,
+    "random_pick_mode": False,
+    "quiz_options_count": 3,
 }
 
 DEFAULT_HINT_SETTINGS: Dict[str, bool] = {

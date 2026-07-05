@@ -635,7 +635,7 @@ API клиент автоматически повторяет запросы п
 
 ```python
 api_client = APIClient(
-    base_url="http://localhost:8500",
+    base_url="http://localhost:8573",
     timeout=5,
     retry_count=3,
     retry_delay=1

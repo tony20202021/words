@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 class MongoDBExplorer:
     """Класс для исследования структуры MongoDB."""
     
-    def __init__(self, mongodb_url: str = "mongodb://localhost:27027"):
+    def __init__(self, mongodb_url: str = "mongodb://localhost:8527"):
         self.client = AsyncIOMotorClient(mongodb_url)
     
     async def list_all_databases(self):
@@ -340,7 +340,7 @@ class MongoDBExplorer:
         self.client.close()
 
 # Функции для быстрого использования
-async def show_all_databases(mongodb_url: str = "mongodb://localhost:27027"):
+async def show_all_databases(mongodb_url: str = "mongodb://localhost:8527"):
     """Показать все базы данных."""
     explorer = MongoDBExplorer(mongodb_url)
     try:
@@ -348,7 +348,7 @@ async def show_all_databases(mongodb_url: str = "mongodb://localhost:27027"):
     finally:
         await explorer.close()
 
-async def explore_specific_database(db_name: str, mongodb_url: str = "mongodb://localhost:27027", show_fields: bool = True):
+async def explore_specific_database(db_name: str, mongodb_url: str = "mongodb://localhost:8527", show_fields: bool = True):
     """Исследовать конкретную базу данных."""
     explorer = MongoDBExplorer(mongodb_url)
     try:
@@ -356,7 +356,7 @@ async def explore_specific_database(db_name: str, mongodb_url: str = "mongodb://
     finally:
         await explorer.close()
 
-async def analyze_collection(db_name: str, collection_name: str, mongodb_url: str = "mongodb://localhost:27027", sample_size: int = 500):
+async def analyze_collection(db_name: str, collection_name: str, mongodb_url: str = "mongodb://localhost:8527", sample_size: int = 500):
     """Детальный анализ конкретной коллекции."""
     explorer = MongoDBExplorer(mongodb_url)
     try:
@@ -364,7 +364,7 @@ async def analyze_collection(db_name: str, collection_name: str, mongodb_url: st
     finally:
         await explorer.close()
 
-async def show_database_sizes(mongodb_url: str = "mongodb://localhost:27027"):
+async def show_database_sizes(mongodb_url: str = "mongodb://localhost:8527"):
     """Показать размеры баз данных."""
     explorer = MongoDBExplorer(mongodb_url)
     try:

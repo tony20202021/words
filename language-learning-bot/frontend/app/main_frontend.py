@@ -461,7 +461,7 @@ async def main() -> None:
         logger.info("✅ Bot and dispatcher instances created")
                 
         # Initialize API client из конфигурации Hydra
-        api_base_url = cfg.api.base_url if hasattr(cfg, "api") and hasattr(cfg.api, "base_url") else "http://localhost:8500"
+        api_base_url = cfg.api.base_url if hasattr(cfg, "api") and hasattr(cfg.api, "base_url") else "http://localhost:8573"
         api_timeout = int(cfg.api.timeout) if hasattr(cfg, "api") and hasattr(cfg.api, "timeout") else 5
         api_retry_count = int(cfg.api.retry_count) if hasattr(cfg, "api") and hasattr(cfg.api, "retry_count") else 3
         api_prefix = cfg.api.prefix if hasattr(cfg, "api") and hasattr(cfg.api, "prefix") else "/api"

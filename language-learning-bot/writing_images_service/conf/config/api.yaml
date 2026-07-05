@@ -9,7 +9,7 @@ prefix: "/api"
 # Настройки CORS
 cors_origins: "*"
 # В продакшене указать конкретные домены:
-# cors_origins: "http://localhost:8500,http://localhost:3000"
+# cors_origins: "http://localhost:8573,http://localhost:3000"
 
 # Настройки отладки (debug) - ВКЛЮЧЕН для auto-reload
 debug: true
@@ -25,7 +25,7 @@ rate_limit_period: 60  # Период в секундах
 # Настройки для продакшена
 production:
   debug: false
-  cors_origins: "http://localhost:8500"  # Только основной бэкенд
+  cors_origins: "http://localhost:8573"  # Только основной бэкенд
   enable_rate_limit: true
   rate_limit_requests: 30  # Более строгое ограничение
   

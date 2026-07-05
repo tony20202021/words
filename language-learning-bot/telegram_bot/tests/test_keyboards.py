@@ -106,6 +106,79 @@ class TestBuildCardKeyboard:
         assert "study:lang1:sound:1" in cbs
 
 
+class TestPickModeKeyboard:
+    def _pick_card(self, show_answer=False, modality="translation"):
+        card = {
+            "show_answer": show_answer,
+            "pick_options": {
+                "target_modality": modality,
+                "options": [
+                    {"word_id": "w1", "target_text": "привет", "is_correct": True},
+                    {"word_id": "w2", "target_text": "мир", "is_correct": False},
+                    {"word_id": "w3", "target_text": "кот", "is_correct": False},
+                ],
+            },
+            "buttons": [{"id": "know", "text": "✅ Знаю", "style": "success"}],
+            "meta": {},
+        }
+        return card
+
+    def test_pick_mode_shows_option_texts(self):
+        card = self._pick_card()
+        kb = build_card_keyboard(card, "lang1")
+        txts = texts(kb)
+        assert "привет" in txts
+        assert "мир" in txts
+
+    def test_pick_mode_callbacks_contain_word_ids(self):
+        card = self._pick_card()
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert "study:lang1:pick_answer:w1" in cbs
+        assert "study:lang1:pick_answer:w2" in cbs
+
+    def test_pick_mode_has_dont_know_button(self):
+        card = self._pick_card()
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert "study:lang1:pick_answer:dont_know" in cbs
+
+    def test_pick_mode_hides_normal_buttons(self):
+        card = self._pick_card()
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert "study:lang1:know" not in cbs
+        assert "study:lang1:show_answer" not in cbs
+
+    def test_pick_mode_sound_modality_shows_numbered_buttons(self):
+        card = self._pick_card(modality="sound")
+        kb = build_card_keyboard(card, "lang1")
+        txts = texts(kb)
+        assert "▶ 1" in txts
+        assert "Выбрать 1" in txts
+
+    def test_pick_mode_inactive_after_answer(self):
+        card = self._pick_card(show_answer=True)
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        # After answer, normal buttons shown even if pick_options is present
+        assert "study:lang1:know" in cbs or any("rate" in c for c in cbs)
+
+    def test_ban_distractor_button_shown(self):
+        card = make_card(show_answer=True)
+        card["last_wrong_distractor_id"] = "bad-word-id"
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert "study:lang1:add_forbidden_pair:bad-word-id" in cbs
+
+    def test_ban_distractor_button_absent_without_id(self):
+        card = make_card(show_answer=True)
+        card["last_wrong_distractor_id"] = None
+        kb = build_card_keyboard(card, "lang1")
+        cbs = callbacks(kb)
+        assert not any("add_forbidden_pair" in c for c in cbs)
+
+
 class TestBuildLanguageKeyboard:
     def test_one_button_per_language(self):
         langs = [

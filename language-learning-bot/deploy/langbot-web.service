@@ -1,17 +1,17 @@
 [Unit]
-Description=Language Learning Bot — Web Frontend (port 8800)
+Description=Language Learning Bot — Web Frontend (port 8548)
 After=network.target langbot-bls.service
 
 [Service]
 Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot/web_frontend
-Environment="BLS_URL=http://localhost:8700"
-Environment="BACKEND_URL=http://localhost:8500"
-Environment="WEB_URL=http://136.244.102.39:8800"
+Environment="BLS_URL=http://localhost:8531"
+Environment="BACKEND_URL=http://localhost:8573"
+Environment="WEB_URL=http://136.244.102.39:8548"
 EnvironmentFile=-/home/tony/repos/words/language-learning-bot/.env
 ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/uvicorn \
-    app.main:app --host 0.0.0.0 --port 8800
+    app.main:app --host 0.0.0.0 --port 8548
 Restart=on-failure
 RestartSec=5
 

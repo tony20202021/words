@@ -34,9 +34,9 @@ class SettingsActivity : AppCompatActivity() {
             "show_references"               to "Показывать ссылки",
             "show_tones"                    to "Показывать тоны",
             "show_sounds"                   to "Показывать звуки",
-            "random_foreign"                to "Случайно начинать с иностр. слова",
-            "random_transcription"          to "Случайно начинать с транскрипции",
-            "random_sound"                  to "Случайно начинать со звука",
+            "random_transcription"          to "Доп. использовать транскрипцию",
+            "random_sound"                  to "Доп. использовать звук",
+            "random_pick_mode"              to "Режим выбора (pick mode)",
         )
 
         val NUMERIC_SETTINGS = linkedMapOf(
@@ -45,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
             "reset_cross_midnight_hours" to "Сброс: час после полуночи",
             "unknown_limit_new_words"    to "Лимит неизвестных слов",
             "max_check_interval"         to "Макс. интервал повторения (дни)",
+            "quiz_options_count"         to "Вариантов в режиме выбора",
         )
     }
 
@@ -215,9 +216,13 @@ class SettingsActivity : AppCompatActivity() {
     private fun saveNumericSetting(key: String, value: Int) {
         lifecycleScope.launch {
             try {
-                BLSClient.api.setSetting(userId, languageId, key, mapOf("value" to value))
+                val resp = BLSClient.api.setSetting(userId, languageId, key, mapOf("value" to value))
+                if (!resp.isSuccessful) {
+                    Toast.makeText(this@SettingsActivity, "Ошибка сохранения (${resp.code()})", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
                 Toast.makeText(this@SettingsActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
                 loadSettings()
             }
         }

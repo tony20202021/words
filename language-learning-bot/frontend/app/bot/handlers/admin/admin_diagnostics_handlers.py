@@ -30,7 +30,7 @@ _BOT_START_TIME = time.monotonic()
 
 # TCP/HTTP checks: (name, host, port, http_path_or_None)
 _SERVICES = [
-    ("MongoDB",               "localhost", 27027, None),
+    ("MongoDB",               "localhost", 8527, None),
     ("Backend API",           "localhost", 8500,  "/api/health"),
     ("Writing Images Service","localhost", 8600,  "/health"),
 ]

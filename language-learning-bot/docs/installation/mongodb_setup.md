@@ -67,7 +67,7 @@ sudo systemctl enable mongod
 
 ```bash
 # Запуск MongoDB в контейнере
-docker run --name mongodb -d -p 27017:27017 -v ~/mongodb/data:/data/db mongo:7.0.5
+docker run --name mongodb -d -p 8527:27017 -v ~/mongodb/data:/data/db mongo:7.0.5
 ```
 
 ## Настройка MongoDB для проекта
@@ -86,7 +86,7 @@ systemLog:
   logAppend: true
 net:
   bindIp: 127.0.0.1
-  port: 27027
+  port: 8527
 EOL
 ```
 
@@ -102,7 +102,7 @@ EOL
 2. Отредактируйте файл, добавив или проверив настройки MongoDB:
    ```
    MONGODB_HOST=localhost
-   MONGODB_PORT=27027
+   MONGODB_PORT=8527
    MONGODB_DB_NAME=language_learning_bot
    ```
 
@@ -337,7 +337,7 @@ mkdir -p backup
 
 4. Занятость порта MongoDB:
    ```bash
-   lsof -i :27027
+   lsof -i :8527
    ```
 
 ### Ошибки соединения
@@ -356,12 +356,12 @@ mkdir -p backup
 
 3. Проверьте доступность порта MongoDB:
    ```bash
-   telnet localhost 27027
+   telnet localhost 8527
    ```
 
 4. Проверьте настройки брандмауэра:
    ```bash
-   sudo iptables -L | grep 27027
+   sudo iptables -L | grep 8527
    ```
 
 ### Сбои при инициализации базы данных

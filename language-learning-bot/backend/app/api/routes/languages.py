@@ -482,6 +482,22 @@ async def upload_words_file(
         )
 
 
+@router.get("/{language_id}/words/by-numbers", response_model=List[WordResponse])
+async def get_words_by_numbers(
+    language_id: str,
+    numbers: str = Query(..., description="Comma-separated word numbers, e.g. '1,5,42'"),
+    language_service: LanguageService = Depends(get_language_service),
+):
+    """Batch fetch words by a list of word numbers — used for quiz distractor generation."""
+    try:
+        word_numbers = [int(n.strip()) for n in numbers.split(",") if n.strip().isdigit()]
+    except ValueError:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Invalid numbers format")
+    if not word_numbers:
+        return []
+    return await language_service.get_words_by_numbers(language_id, word_numbers)
+
+
 @router.get("/{language_id}/count")
 async def get_language_word_count(
     language_id: str,

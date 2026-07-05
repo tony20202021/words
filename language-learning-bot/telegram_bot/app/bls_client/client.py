@@ -1,5 +1,5 @@
 """
-HTTP client for the Business Logic Service (:8700).
+HTTP client for the Business Logic Service (:8531).
 Thin wrapper — all business logic lives in BLS.
 All session endpoints return {session_id, card}.
 """
@@ -9,8 +9,8 @@ from typing import Dict, Any, Optional
 from urllib.parse import quote
 import aiohttp
 
-BLS_URL = os.environ.get("BLS_URL", "http://localhost:8700")
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8500")
+BLS_URL = os.environ.get("BLS_URL", "http://localhost:8531")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8573")
 
 
 class BLSClient:
@@ -130,6 +130,18 @@ class BLSClient:
 
     async def get_progress(self, session_id: str) -> Dict[str, Any]:
         result = await self._get(f"/session/{session_id}/progress")
+        return result.get("data") or {}
+
+    async def pick_answer(self, session_id: str, selected_word_id: str) -> Dict[str, Any]:
+        result = await self._post(f"/session/{session_id}/pick_answer", {"selected_word_id": selected_word_id})
+        return result.get("data") or {}
+
+    async def add_forbidden_pair(self, session_id: str, bad_word_id: str) -> Dict[str, Any]:
+        result = await self._post(f"/session/{session_id}/add_forbidden_pair", {"bad_word_id": bad_word_id})
+        return result.get("data") or {}
+
+    async def clear_forbidden_pairs(self, session_id: str) -> Dict[str, Any]:
+        result = await self._post(f"/session/{session_id}/clear_forbidden_pairs")
         return result.get("data") or {}
 
     async def end_session(self, user_id: str, language_id: str) -> None:
@@ -296,5 +308,5 @@ _client: Optional[BLSClient] = None
 def get_bls_client() -> BLSClient:
     global _client
     if _client is None:
-        _client = BLSClient(os.environ.get("BLS_URL", "http://localhost:8700"))
+        _client = BLSClient(os.environ.get("BLS_URL", "http://localhost:8531"))
     return _client

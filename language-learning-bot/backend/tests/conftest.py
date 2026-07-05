@@ -148,7 +148,7 @@ def mock_db():
 @pytest.fixture
 def app():
     with patch.dict(os.environ, {
-        "MONGODB_URL": "mongodb://localhost:27017",
+        "MONGODB_URL": "mongodb://localhost:8527",
         "MONGODB_DB_NAME": "test_db",
     }), patch("app.db.database.hydra_available", False), \
        patch("app.db.database.db", MagicMock()), \

@@ -9,7 +9,7 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "Файл .env не найден. Используются значения по умолчанию."
     # Устанавливаем значения по умолчанию
     export MONGODB_HOST="localhost"
-    export MONGODB_PORT="27027"
+    export MONGODB_PORT="8527"
     export MONGODB_DB_NAME="language_learning_bot"
     exit 0
 fi
@@ -38,8 +38,8 @@ if [ -z "$MONGODB_HOST" ]; then
 fi
 
 if [ -z "$MONGODB_PORT" ]; then
-    export MONGODB_PORT="27027"
-    echo "MONGODB_PORT не задан, используется значение по умолчанию: 27027"
+    export MONGODB_PORT="8527"
+    echo "MONGODB_PORT не задан, используется значение по умолчанию: 8527"
 fi
 
 if [ -z "$MONGODB_DB_NAME" ]; then

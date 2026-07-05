@@ -62,7 +62,7 @@
    Минимальное содержимое `.env` файла:
    ```
    MONGODB_HOST=localhost
-   MONGODB_PORT=27017
+   MONGODB_PORT=8527
    MONGODB_DB_NAME=language_learning_bot
    TELEGRAM_BOT_TOKEN=your_bot_token_here
    ```
@@ -100,7 +100,7 @@
      ```
    - `api.yaml` - настройте подключение к бэкенду:
      ```yaml
-     base_url: "http://localhost:8500"
+     base_url: "http://localhost:8573"
      ```
 
 2. **Бэкенд** - отредактируйте файлы в директории `backend/conf/config/`:
@@ -113,7 +113,7 @@
      ```yaml
      mongodb:
        host: "localhost"
-       port: 27017
+       port: 8527
        db_name: "language_learning_bot"
      ```
 
@@ -279,12 +279,12 @@ top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- 
 1. **MongoDB не запускается**:
    - Проверьте логи: `cat ~/mongodb/log/mongod.log`
    - Убедитесь, что директория данных существует: `ls -la ~/mongodb/data`
-   - Проверьте, не занят ли порт: `lsof -i :27017`
+   - Проверьте, не занят ли порт: `lsof -i :8527`
 
 2. **Ошибки подключения к MongoDB**:
    - Проверьте, запущен ли сервер: `pgrep -f mongod`
    - Проверьте настройки подключения в `.env` и `database.yaml`
-   - Попробуйте подключиться вручную: `~/mongodb/bin/mongosh --host localhost --port 27017`
+   - Попробуйте подключиться вручную: `~/mongodb/bin/mongosh --host localhost --port 8527`
 
 ### Проблемы с бэкендом
 
@@ -295,7 +295,7 @@ top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- 
 
 2. **API не отвечает**:
    - Проверьте, запущен ли процесс: `ps aux | grep -e "--process-name=backend"`
-   - Проверьте доступность API: `curl http://localhost:8500/api/health`
+   - Проверьте доступность API: `curl http://localhost:8573/api/health`
    - Проверьте логи на наличие ошибок
 
 ### Проблемы с фронтендом

@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # MongoDB connection settings
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:8527")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "language_learning_bot")
 
 async def init_db():

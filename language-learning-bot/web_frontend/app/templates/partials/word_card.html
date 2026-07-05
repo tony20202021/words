@@ -111,7 +111,39 @@
       </div>
     </div>
 
+    {# ── Pick options (multiple-choice before answer) ────────────────────── #}
+    {% if card.pick_options and not card.show_answer %}
+    <hr class="my-2">
+    <div class="text-muted small mb-2">Выберите правильный вариант:</div>
+    <div class="d-flex flex-column gap-2 mb-2">
+      {% for opt in card.pick_options.options %}
+        {% if card.pick_options.target_modality == 'sound' %}
+          <div class="d-flex gap-2 align-items-center">
+            <audio id="opt-snd-{{ loop.index }}" src="/sound/{{ opt.target_text }}" preload="auto"></audio>
+            <button type="button" class="btn btn-outline-secondary"
+              onclick="document.getElementById('opt-snd-{{ loop.index }}').play()">🔊 {{ loop.index }}</button>
+            <button class="btn btn-outline-primary btn-lg flex-grow-1 btn-rate"
+              hx-post="/study/{{ language_id }}/pick_answer"
+              hx-vals='{"selected_word_id": "{{ opt.word_id }}"}'
+              hx-target="#word-area" hx-swap="outerHTML">Выбрать {{ loop.index }}</button>
+          </div>
+        {% else %}
+          <button class="btn btn-outline-primary btn-lg text-start btn-rate"
+            style="white-space: normal; word-break: break-word; font-size: 1.4rem;"
+            hx-post="/study/{{ language_id }}/pick_answer"
+            hx-vals='{"selected_word_id": "{{ opt.word_id }}"}'
+            hx-target="#word-area" hx-swap="outerHTML">{{ opt.target_text }}</button>
+        {% endif %}
+      {% endfor %}
+      <button class="btn btn-outline-secondary btn-rate"
+        hx-post="/study/{{ language_id }}/pick_answer"
+        hx-vals='{"selected_word_id": "dont_know"}'
+        hx-target="#word-area" hx-swap="outerHTML">❓ Не знаю</button>
+    </div>
+    {% endif %}
+
     {# ── Buttons ──────────────────────────────────────────────────────────── #}
+    {% if not card.pick_options or card.show_answer %}
     <hr class="my-3">
     <div class="d-flex gap-2 justify-content-center flex-wrap mt-2 mb-2">
       {% for btn in card.buttons %}
@@ -147,11 +179,31 @@
           💡 Подсказки
         </button>
       {% endif %}
+      {# ── "Clear forbidden pairs" button — shown when any pairs are banned ── #}
+      {% for item in card.extra_content or [] %}
+        {% if item.type == 'forbidden_quiz_pairs' and item.word_ids %}
+          <button class="btn btn-outline-secondary btn-sm btn-rate"
+            hx-post="/study/{{ language_id }}/clear_forbidden_pairs"
+            hx-target="#word-area" hx-swap="outerHTML">
+            🚫 Очистить запрещённые ({{ item.word_ids | length }})
+          </button>
+        {% endif %}
+      {% endfor %}
+      {# ── "Ban this distractor" button — shown after wrong pick-mode answer ── #}
+      {% if card.last_wrong_distractor_id %}
+        <button class="btn btn-outline-warning btn-sm"
+          hx-post="/study/{{ language_id }}/add_forbidden_pair"
+          hx-vals='{"bad_word_id": "{{ card.last_wrong_distractor_id }}"}'
+          hx-target="#word-area" hx-swap="outerHTML">
+          🚫 Не показывать такую комбинацию
+        </button>
+      {% endif %}
     </div>
 
     {# ── Hints panel — populated by HTMX ─────────────────────────────────── #}
     <div id="hints-area"></div>
 
+    {% endif %}{# /if not pick_options or show_answer #}
   </div>
 </div>
 
@@ -213,10 +265,10 @@
   </div>
 </div>
 {% endif %}
-{% for group in card.extra_groups or [] %}
+{% for extra_group in card.extra_groups or [] %}
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 px-4">
-    {% for item in group.items %}
+    {% for item in extra_group['items'] %}
       {% if item.type == 'label' %}
         <div class="text-muted small mb-1">{{ item.text }}</div>
       {% elif item.type == 'extra' %}
@@ -225,6 +277,17 @@
     {% endfor %}
   </div>
 </div>
+{% endfor %}
+
+{# ── Forbidden quiz pairs count (button is in the main buttons block above) ── #}
+{% for item in card.extra_content or [] %}
+  {% if item.type == 'forbidden_quiz_pairs' and item.word_ids %}
+  <div class="card shadow-sm mb-3 border-warning">
+    <div class="card-body py-2 px-4">
+      <div class="text-muted small">🚫 Запрещённые варианты в режиме выбора: {{ item.word_ids | length }}</div>
+    </div>
+  </div>
+  {% endif %}
 {% endfor %}
 
 </div>

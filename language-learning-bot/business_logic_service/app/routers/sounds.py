@@ -12,7 +12,7 @@ from fastapi.responses import Response
 
 router = APIRouter(prefix="/sounds", tags=["sounds"])
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8500")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8573")
 
 
 @router.get("/{sound_path:path}")

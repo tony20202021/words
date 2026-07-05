@@ -145,6 +145,10 @@ class LanguageService:
             word_number=word_number
         )
     
+    async def get_words_by_numbers(self, language_id: str, word_numbers: List[int]) -> List[WordInDB]:
+        """Get multiple words by a list of word numbers (batch fetch for quiz distractors)."""
+        return await self.word_repository.get_by_language_and_numbers(language_id, word_numbers)
+
     async def get_language_with_word_count(self, language_id: str) -> Optional[Language]:
         """
         Get a language by ID with word count.

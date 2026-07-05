@@ -24,7 +24,7 @@ from frontend.app.api.client import APIClient
 load_dotenv()
 
 # Получаем параметры подключения к API из переменных окружения
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8500")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8573")
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "10"))
 
 async def find_user_by_telegram_id(api_client, telegram_id):

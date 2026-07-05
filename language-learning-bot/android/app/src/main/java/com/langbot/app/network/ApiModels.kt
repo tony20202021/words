@@ -36,6 +36,19 @@ data class Card(
     val sounds: List<String> = emptyList(),
     val extra_content: List<ExtraContentItem> = emptyList(),
     val big_word: BigWord? = null,
+    val pick_options: PickOptions? = null,
+    val last_wrong_distractor_id: String? = null,
+)
+
+data class PickOptions(
+    val target_modality: String,
+    val options: List<PickOption>,
+)
+
+data class PickOption(
+    val word_id: String,
+    val target_text: String,
+    val is_correct: Boolean,
 )
 
 data class CardItem(

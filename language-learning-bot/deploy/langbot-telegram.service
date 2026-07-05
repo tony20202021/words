@@ -1,12 +1,12 @@
 [Unit]
-Description=Language Learning Bot — Telegram Bot (новый, порт BLS 8700)
+Description=Language Learning Bot — Telegram Bot (новый, порт BLS 8531)
 After=network.target langbot-bls.service
 
 [Service]
 Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot/telegram_bot
-Environment="BLS_URL=http://localhost:8700"
+Environment="BLS_URL=http://localhost:8531"
 EnvironmentFile=-/home/tony/repos/words/language-learning-bot/.env
 ExecStart=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/python \
     -m app.main

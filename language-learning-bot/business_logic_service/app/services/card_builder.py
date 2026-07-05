@@ -68,7 +68,8 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         _add_after_answer(content, word, settings, extra_content, words_studied)
         _add_hints(content, word, uwd, settings)
         sounds = all_sounds
-        buttons = _buttons_after(is_skipped, score_changed, show_skip)
+        pick_answer_was_used = session.get("pick_answer_was_used", False)
+        buttons = _buttons_after(is_skipped, score_changed, show_skip, pick_answer_was_used)
 
     big_word = None
     if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
@@ -95,6 +96,29 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         else:
             session_counter_text = f"(в сессии: {session_pos} из {session_total})"
 
+    quiz_options = session.get("quiz_options")
+    pick_mode_active = session.get("pick_mode_active", False)
+
+    # Show pick options only before the answer; after answer — show normal card
+    pick_options = None
+    if pick_mode_active and not show_answer and quiz_options:
+        pick_options = {
+            "target_modality": quiz_options.get("target_modality", "foreign"),
+            "options": quiz_options.get("options", []),
+        }
+
+    # Forbidden quiz pairs for this word — shown in extra_content after answer
+    if show_answer:
+        forbidden = ((word or {}).get("user_word_data") or {}).get("forbidden_quiz_pairs") or []
+        if forbidden:
+            extra_content.append({
+                "type": "forbidden_quiz_pairs",
+                "word_ids": forbidden,
+                "group": "forbidden_quiz_pairs",
+            })
+
+    last_wrong_distractor_id = session.get("last_wrong_distractor_id") if show_answer else None
+
     return {
         "show_answer": show_answer,
         "restart_notice": restart_notice,
@@ -103,6 +127,8 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         "sounds": sounds,
         "buttons": buttons,
         "big_word": big_word,
+        "pick_options": pick_options,
+        "last_wrong_distractor_id": last_wrong_distractor_id,
         "meta": {
             "word_id": str((word or {}).get("_id") or (word or {}).get("id") or (word or {}).get("word_id") or ""),
             "hint_enabled_types": hint_enabled_types,
@@ -216,17 +242,17 @@ def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, 
     return btns
 
 
-def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
+def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True,
+                   pick_mode: bool = False) -> List[Dict[str, Any]]:
     skip_btn = {
         "id": "toggle_skip",
         "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
         "style": "outline-secondary",
     }
     if score_changed:
-        btns = [
-            {"id": "rate", "text": "✅ К следующему слову", "style": "success", "rating": "know"},
-            {"id": "reconsider", "text": "❌ Ой, все-таки не знаю", "style": "outline-danger"},
-        ]
+        btns = [{"id": "rate", "text": "✅ К следующему слову", "style": "success", "rating": "know"}]
+        if not pick_mode:
+            btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю", "style": "outline-danger"})
         if show_skip:
             btns.append(skip_btn)
         return btns

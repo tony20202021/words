@@ -61,7 +61,7 @@ class TestMain:
             mock_cfg.bot.skip_updates = True
             
             mock_cfg.api = MagicMock()
-            mock_cfg.api.base_url = "http://localhost:8500"
+            mock_cfg.api.base_url = "http://localhost:8573"
             mock_cfg.api.timeout = 5
             mock_cfg.api.retry_count = 3
             mock_cfg.api.prefix = "/api"
@@ -232,7 +232,7 @@ class TestMain:
         mock_cfg = MagicMock()
         mock_cfg.bot.token = "fake_token"
         mock_cfg.bot.skip_updates = False
-        mock_cfg.api.base_url = "http://localhost:8500"
+        mock_cfg.api.base_url = "http://localhost:8573"
         mock_cfg.api.timeout = 5
         mock_cfg.api.retry_count = 3
         mock_cfg.api.prefix = "/api"

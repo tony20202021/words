@@ -1,0 +1,220 @@
+"""
+Quiz (pick-mode) service.
+
+Generates multiple-choice options for the current word.
+The user sees a "source" (determined by show_mode) and must pick the correct
+"target" from N+1 options (1 correct + N distractors).
+
+Probability weighting:
+  p(word_number) ∝ 1/word_number, with a floor so the ratio between the
+  most-probable and least-probable word never exceeds PROB_MAX_RATIO.
+  This makes high-frequency words (low numbers) more likely as distractors
+  while still keeping lower-frequency words reachable.
+
+  Boost: words the user answered incorrectly (score=0 in user_word_data) get
+  a probability boost equal to the maximum weight (i.e. weight of word #1).
+  NOTE: boost applies only for words already in the session batch (whose
+  user_word_data is loaded). Cross-batch boost is a future improvement.
+"""
+
+import random
+import math
+import json
+from typing import Any, Dict, List, Optional, Tuple
+from app.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+PROB_MAX_RATIO = 20  # max(weight) / min(weight) cap
+
+# Modalities that can be used as quiz source / target
+MODALITIES = ["translation", "foreign", "transcription", "sound"]
+
+
+def _weighted_sample(word_numbers: List[int], count: int, exclude: int) -> List[int]:
+    """
+    Sample `count` unique word numbers from `word_numbers` (excluding `exclude`),
+    using weights inversely proportional to word number (capped at PROB_MAX_RATIO spread).
+    """
+    pool = [n for n in word_numbers if n != exclude]
+    if not pool:
+        return []
+    count = min(count, len(pool))
+
+    raw = [1.0 / n for n in pool]
+    max_w = max(raw)
+    floor_w = max_w / PROB_MAX_RATIO
+    weights = [max(w, floor_w) for w in raw]
+
+    # random.choices allows repeats — use without-replacement loop
+    chosen: List[int] = []
+    remaining = list(zip(pool, weights))
+    for _ in range(count):
+        if not remaining:
+            break
+        nums, wts = zip(*remaining)
+        idx = random.choices(range(len(nums)), weights=wts, k=1)[0]
+        chosen.append(nums[idx])
+        remaining = [r for i, r in enumerate(remaining) if i != idx]
+    return chosen
+
+
+def _get_text_for_modality(word: Dict[str, Any], modality: str) -> Optional[str]:
+    """Extract the display text for a given modality from a word dict."""
+    if modality == "translation":
+        return (word.get("translation") or "").strip() or None
+    if modality == "foreign":
+        return (word.get("word_foreign") or "").strip() or None
+    if modality == "transcription":
+        t = (word.get("transcription") or "").strip()
+        return f"[{t}]" if t else None
+    if modality == "sound":
+        raw = word.get("sounds")
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            if isinstance(data, str):
+                data = json.loads(data)
+            urls = [data[k] for k in sorted(data.keys()) if data[k]]
+            return urls[0] if urls else None
+        except Exception:
+            return None
+    return None
+
+
+def _choose_target_modality(show_mode: str, settings: Dict[str, Any]) -> str:
+    """
+    Pick a target modality different from show_mode, from the enabled pool.
+    Pool: always [translation, foreign]; add transcription / sound when enabled.
+    """
+    pool = ["translation", "foreign"]
+    if settings.get("random_transcription", True):
+        pool.append("transcription")
+    if settings.get("random_sound", True) and settings.get("show_sounds", True):
+        pool.append("sound")
+
+    candidates = [m for m in pool if m != show_mode]
+    if not candidates:
+        # fallback: use something different from show_mode
+        candidates = [m for m in MODALITIES if m != show_mode]
+    return random.choice(candidates)
+
+
+async def generate_quiz_options(
+    session: Dict[str, Any],
+    word: Dict[str, Any],
+    api_client,
+) -> Optional[Dict[str, Any]]:
+    """
+    Generate quiz options for the current word.
+
+    Returns a dict:
+      {
+        "target_modality": str,
+        "options": [
+          {"word_id": str, "target_text": str, "is_correct": bool},
+          ...
+        ]
+      }
+    or None if quiz mode is not possible (not enough words, no valid target text, etc.).
+    """
+    settings = session.get("settings", {})
+    words_studied = session.get("words_studied", 0)
+    n_distractors = int(settings.get("quiz_options_count", 3))
+    language_id = session.get("language_id", "")
+    show_mode = session.get("show_mode", "foreign")
+    current_word_number = (word or {}).get("word_number", 0)
+
+    # Need at least 1 distractor
+    if words_studied < 2:
+        logger.info("quiz: not enough studied words, skipping pick mode")
+        return None
+
+    target_modality = _choose_target_modality(show_mode, settings)
+
+    # Correct answer text
+    correct_text = _get_text_for_modality(word, target_modality)
+    if not correct_text:
+        logger.info(f"quiz: no text for target_modality={target_modality} on current word")
+        return None
+
+    correct_id = str(word.get("_id") or word.get("id") or word.get("word_id") or "")
+    forbidden_ids = set((word.get("user_word_data") or {}).get("forbidden_quiz_pairs") or [])
+
+    # When source is foreign or transcription, distractors must match the word
+    # count of the correct answer — otherwise trivial to guess by counting words.
+    apply_word_count_filter = show_mode in ("foreign", "transcription")
+    correct_word_count = len(correct_text.split()) if apply_word_count_filter else 0
+
+    # Boost: words in the current session batch that have score=0 get high weight
+    session_words = session.get("words", [])
+    boosted_numbers = {
+        w.get("word_number")
+        for w in session_words
+        if w.get("word_number") and
+        ((w.get("user_word_data") or {}).get("score") == 0)
+    }
+
+    # Generate candidate word numbers using weighted sampling.
+    # Fetch extra candidates when word-count filter is active to compensate for stricter filtering.
+    fetch_multiplier = 8 if apply_word_count_filter else 4
+    fetch_n = min(n_distractors * fetch_multiplier, words_studied - 1)
+    fetch_n = max(fetch_n, n_distractors + 1)
+
+    all_numbers = list(range(1, words_studied + 1))
+    # Apply boost: duplicate boosted numbers proportionally (simple approach)
+    boosted_pool = all_numbers + [n for n in boosted_numbers if 1 <= n <= words_studied] * (PROB_MAX_RATIO - 1)
+    candidate_numbers = _weighted_sample(boosted_pool, fetch_n, current_word_number)
+
+    if not candidate_numbers:
+        return None
+
+    # Batch-fetch candidate words from backend
+    resp = await api_client.get_words_by_numbers_for_quiz(language_id, candidate_numbers)
+    if not resp or not resp.get("success") or not resp.get("result"):
+        logger.warning("quiz: failed to fetch distractor words")
+        return None
+
+    candidates = resp["result"]
+
+    # Filter: must have target text, not in forbidden pairs, and (when active)
+    # same word count as correct answer to prevent trivial guessing.
+    distractors = []
+    for c in candidates:
+        cid = str(c.get("_id") or c.get("id") or "")
+        if cid == correct_id:
+            continue
+        if cid in forbidden_ids:
+            continue
+        text = _get_text_for_modality(c, target_modality)
+        if not text or text == correct_text:
+            continue
+        if apply_word_count_filter and len(text.split()) != correct_word_count:
+            continue
+        distractors.append({"word_id": cid, "target_text": text, "is_correct": False})
+        if len(distractors) >= n_distractors:
+            break
+
+    # If word-count filter left too few distractors, retry without it.
+    if apply_word_count_filter and len(distractors) < max(1, n_distractors // 2):
+        logger.info(f"quiz: word-count filter yielded only {len(distractors)} distractors, retrying without")
+        distractors = []
+        for c in candidates:
+            cid = str(c.get("_id") or c.get("id") or "")
+            if cid == correct_id or cid in forbidden_ids:
+                continue
+            text = _get_text_for_modality(c, target_modality)
+            if text and text != correct_text:
+                distractors.append({"word_id": cid, "target_text": text, "is_correct": False})
+            if len(distractors) >= n_distractors:
+                break
+
+    if not distractors:
+        logger.info("quiz: no valid distractors found")
+        return None
+
+    options = [{"word_id": correct_id, "target_text": correct_text, "is_correct": True}] + distractors
+    random.shuffle(options)
+
+    return {"target_modality": target_modality, "options": options}

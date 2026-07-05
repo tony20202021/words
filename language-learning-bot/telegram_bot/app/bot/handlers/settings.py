@@ -21,9 +21,9 @@ SETTING_LABELS = {
     "show_references":               "Показывать ссылки",
     "show_tones":                    "Показывать тоны",
     "show_sounds":                   "Показывать звуки",
-    "random_foreign":                "Рандомно начинать с иностранных слов",
-    "random_transcription":          "Рандомно начинать с транскрипций",
-    "random_sound":                  "Рандомно начинать со звуков",
+    "random_transcription":          "Дополнительно использовать транскрипцию",
+    "random_sound":                  "Дополнительно использовать звук",
+    "random_pick_mode":              "Режим выбора (pick mode)",
     "show_charts":                   "Показывать графики",
     "show_short_captions":           "Короткие подписи",
     "receive_messages":              "Получать сообщения",
@@ -37,6 +37,7 @@ NUMERIC_LABELS = {
     "reset_cross_midnight_hours": ("Сброс: час после полуночи",    0),
     "unknown_limit_new_words":    ("Лимит неизвестных слов",       0),
     "max_check_interval":         ("Макс. интервал повторения",    1),
+    "quiz_options_count":         ("Вариантов в режиме выбора",    2),
 }
 
 
@@ -55,9 +56,10 @@ def _build_settings_keyboard(settings: dict, language_id: str) -> InlineKeyboard
         )])
     for key, (label, _min) in NUMERIC_LABELS.items():
         val = settings.get(key, 0)
+        buttons.append([InlineKeyboardButton(text=f"· {label} ·", callback_data="noop")])
         buttons.append([
             InlineKeyboardButton(text="−", callback_data=f"set_num:{language_id}:{key}:-1"),
-            InlineKeyboardButton(text=f"{label}: {val}", callback_data="noop"),
+            InlineKeyboardButton(text=str(val), callback_data="noop"),
             InlineKeyboardButton(text="+", callback_data=f"set_num:{language_id}:{key}:1"),
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

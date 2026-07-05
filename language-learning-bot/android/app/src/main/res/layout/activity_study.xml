@@ -91,6 +91,18 @@
                     android:background="#E0E0E0"
                     android:layout_marginBottom="12dp" />
 
+                <!-- Pick mode answer result banner -->
+                <TextView
+                    android:id="@+id/tvPickResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:padding="14dp"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:visibility="gone" />
+
                 <!-- Study action buttons -->
                 <LinearLayout
                     android:id="@+id/buttonRow"
@@ -99,6 +111,15 @@
                     android:orientation="horizontal"
                     android:gravity="center"
                     android:layout_marginBottom="8dp" />
+
+                <!-- "Don't show this combo" ban button — shown after wrong pick-mode answer -->
+                <LinearLayout
+                    android:id="@+id/banButtonRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="8dp"
+                    android:visibility="gone" />
 
                 <!-- Hint management button (shown only when answer revealed + types enabled) -->
                 <com.google.android.material.button.MaterialButton

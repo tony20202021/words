@@ -390,58 +390,59 @@ async def test_reconsider_does_not_advance():
 
 def test_session_not_expired_when_fresh():
     """Session touched just now → never expired."""
-    session = {"last_activity_at": datetime.now().isoformat(), "settings": {}}
+    from datetime import timezone
+    session = {"last_activity_at": datetime.utcnow().isoformat(), "settings": {}}
     assert is_session_expired(session) is False
 
 
 def test_session_not_expired_same_day_short():
     """1 hour ago, same calendar day → not expired (1 < default 16)."""
-    last = (datetime.now() - timedelta(hours=1)).isoformat()
+    last = (datetime.utcnow() - timedelta(hours=1)).isoformat()
     session = {"last_activity_at": last, "settings": {}}
     assert is_session_expired(session) is False
 
 
 def test_session_expired_same_day_threshold_zero():
     """1 hour ago, same day, threshold=0 → expired (any elapsed >= 0)."""
-    last = (datetime.now() - timedelta(hours=1)).isoformat()
+    last = (datetime.utcnow() - timedelta(hours=1)).isoformat()
     session = {"last_activity_at": last, "settings": {"reset_same_day_hours": 0}}
     assert is_session_expired(session) is True
 
 
 def test_session_expired_crossed_midnight():
     """Studied 24h ago (cal_days=1), midnight threshold=0 → expired (now.hour >= 0 always)."""
-    yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+    yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
     session = {"last_activity_at": yesterday, "settings": {"reset_cross_midnight_hours": 0}}
     assert is_session_expired(session) is True
 
 
 def test_session_not_expired_crossed_midnight_high_threshold():
     """Studied 24h ago (cal_days=1), threshold=24 → not expired (now.hour < 24 always)."""
-    yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+    yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
     session = {"last_activity_at": yesterday, "settings": {"reset_cross_midnight_hours": 24}}
     assert is_session_expired(session) is False
 
 
 def test_session_expired_two_plus_days():
     """2+ calendar days ago → always expired regardless of thresholds."""
-    old = (datetime.now() - timedelta(days=2)).isoformat()
+    old = (datetime.utcnow() - timedelta(days=2)).isoformat()
     session = {"last_activity_at": old, "settings": {"reset_same_day_hours": 999}}
     assert is_session_expired(session) is True
 
 
 def test_touch_session_updates_last_activity():
-    before = (datetime.now() - timedelta(hours=10)).isoformat()
+    before = (datetime.utcnow() - timedelta(hours=10)).isoformat()
     session = {"last_activity_at": before}
     touch_session(session)
     updated = datetime.fromisoformat(session["last_activity_at"])
-    assert (datetime.now() - updated).total_seconds() < 5
+    assert (datetime.utcnow() - updated).total_seconds() < 5
 
 
 @pytest.mark.asyncio
 async def test_session_stays_in_store_when_stale():
     """Stale session must NOT be deleted by is_session_expired check."""
     session, _ = await new_session()
-    session["last_activity_at"] = (datetime.now() - timedelta(days=2)).isoformat()
+    session["last_activity_at"] = (datetime.utcnow() - timedelta(days=2)).isoformat()
 
     key = (session["user_id"], session["language_id"])
     before = session_service._session_index.get(key)

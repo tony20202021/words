@@ -5,23 +5,23 @@
 ```
 Telegram Bot (frontend/, старый)   ──HTTP──┐
                                            │
-Telegram Bot (telegram_bot/, новый) ──HTTP─┤──► Business Logic Service (BLS, :8700)
+Telegram Bot (telegram_bot/, новый) ──HTTP─┤──► Business Logic Service (BLS, :8531)
                                            │              │
-Web Frontend (:8800) ──────────────HTTP────┘              ▼
+Web Frontend (:8548) ──────────────HTTP────┘              ▼
                                                    Backend API (:8500)
                                                           │
                                                           ▼
-                                                     MongoDB (:27027)
+                                                     MongoDB (:8527)
 ```
 
 ## Сервисы
 
 | Сервис | Порт | Директория | Запуск |
 |--------|------|------------|--------|
-| MongoDB | 27027 | — | `start_1_db.sh` |
+| MongoDB | 8527 | — | `start_1_db.sh` |
 | Backend API | 8500 | `backend/` | `start_2_backend.sh` |
-| Business Logic Service | 8700 | `business_logic_service/` | `start_4_bls.sh` |
-| Web Frontend | 8800 | `web_frontend/` | `start_5_web.sh` |
+| Business Logic Service | 8531 | `business_logic_service/` | `start_4_bls.sh` |
+| Web Frontend | 8548 | `web_frontend/` | `start_5_web.sh` |
 | Telegram Bot (старый) | — | `frontend/` | `start_3_frontend_auto_reload.sh` |
 | Telegram Bot (новый) | — | `telegram_bot/` | `start_6_telegram_bot.sh` |
 
@@ -104,7 +104,7 @@ Web: POST /auth/lookup {name}
 
 ### Прямая ссылка из бота
 ```
-Бот отправляет: http://<host>:8800/autologin?telegram_id=<id>
+Бот отправляет: http://<host>:8548/autologin?telegram_id=<id>
 Web: GET /autologin → lookup → login → redirect /languages
 ```
 

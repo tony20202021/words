@@ -28,14 +28,17 @@ def _session_key(user_id: str, language_id: str) -> tuple:
 
 def _pick_show_mode(settings: Dict[str, Any]) -> str:
     """Randomly pick what to show before the answer, based on user settings."""
-    options = ["translation"]
-    if settings.get("random_foreign", True):
-        options.append("foreign")
+    options = ["translation", "foreign"]  # always included
     if settings.get("random_transcription", True):
         options.append("transcription")
     if settings.get("random_sound", True) and settings.get("show_sounds", True):
         options.append("sound")
     return random.choice(options)
+
+
+def _pick_quiz_mode(settings: Dict[str, Any]) -> bool:
+    """Return True if this word should use pick mode (multiple-choice)."""
+    return bool(settings.get("random_pick_mode", False)) and random.random() < 0.5
 
 
 async def start_session(
@@ -82,6 +85,8 @@ async def start_session(
         "score_changed": False,
         "settings": settings,
         "show_mode": _pick_show_mode(settings),
+        "pick_mode_active": _pick_quiz_mode(settings),
+        "quiz_options": None,
         "language_name_ru": progress.get("language_name_ru", ""),
         "language_name_foreign": progress.get("language_name_foreign", ""),
         "words_studied": progress.get("words_studied", 0),
@@ -89,7 +94,7 @@ async def start_session(
         "words_for_today": progress.get("words_for_today", 0),
     }
 
-    session["last_activity_at"] = datetime.now().isoformat()
+    session["last_activity_at"] = datetime.utcnow().isoformat()
     _sessions[session_id] = session
     _session_index[_session_key(user_id, language_id)] = session_id
     logger.info(f"Session started: {session_id} user={user_id} lang={language_id} words={len(words)}")
@@ -128,7 +133,7 @@ def is_session_expired(session: Dict[str, Any]) -> bool:
     same_day_hours = int(settings.get("reset_same_day_hours", 16))
     midnight_hours = int(settings.get("reset_cross_midnight_hours", 6))
     last_dt = datetime.fromisoformat(last_activity)
-    now = datetime.now()
+    now = datetime.utcnow()
     cal_days = (now.date() - last_dt.date()).days
     if cal_days == 0:
         total_hours = (now - last_dt).total_seconds() / 3600
@@ -140,7 +145,7 @@ def is_session_expired(session: Dict[str, Any]) -> bool:
 
 def touch_session(session: Dict[str, Any]) -> None:
     """Update last_activity_at to now."""
-    session["last_activity_at"] = datetime.now().isoformat()
+    session["last_activity_at"] = datetime.utcnow().isoformat()
 
 
 def get_current_word(session: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -370,6 +375,7 @@ def end_session(user_id: str, language_id: str) -> None:
 # ── internals ─────────────────────────────────────────────────────────────────
 
 def _advance(session: Dict[str, Any]) -> None:
+    settings = session.get("settings", {})
     session["current_index"] += 1
     session["total_words_processed"] += 1
     session["word_processed"] = False
@@ -377,7 +383,10 @@ def _advance(session: Dict[str, Any]) -> None:
     session["show_answer"] = False
     session["active_hints"] = []
     session["used_hints"] = []
-    session["show_mode"] = _pick_show_mode(session.get("settings", {}))
+    session["show_mode"] = _pick_show_mode(settings)
+    session["pick_mode_active"] = _pick_quiz_mode(settings)
+    session["quiz_options"] = None
+    session["pick_answer_was_used"] = False
 
 
 async def _load_words_with_slide(

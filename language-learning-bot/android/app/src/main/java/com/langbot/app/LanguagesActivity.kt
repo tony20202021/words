@@ -29,6 +29,7 @@ class LanguagesActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLanguagesBinding
     private val adapter = LanguageAdapter()
     private var updateBanner: android.widget.TextView? = null
+    private var connectionFailures = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,16 +62,36 @@ class LanguagesActivity : AppCompatActivity() {
             try {
                 val resp = BLSClient.api.getLanguages()
                 if (resp.isSuccessful) {
+                    connectionFailures = 0
                     adapter.items = resp.body() ?: emptyList()
                     adapter.notifyDataSetChanged()
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@LanguagesActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
+                connectionFailures++
+                Toast.makeText(this@LanguagesActivity, "getLanguages: [${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
+                if (connectionFailures >= 2) {
+                    showReloginSuggestion()
+                }
             } finally {
                 binding.progress.visibility = View.GONE
                 binding.swipeRefresh.isRefreshing = false
             }
         }
+    }
+
+    private fun showReloginSuggestion() {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("Проблема с подключением")
+            .setMessage("Не удалось подключиться к серверу несколько раз.\n\nВозможно, изменился адрес сервера — попробуйте выйти и войти заново.")
+            .setPositiveButton("Выйти и войти") { _, _ ->
+                UserPrefs.clear(this)
+                startActivity(Intent(this, LoginActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                })
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     companion object {
@@ -79,7 +100,7 @@ class LanguagesActivity : AppCompatActivity() {
         private const val MENU_CONNECT   = 3
         private const val MENU_TELEGRAM  = 4
         private const val MENU_LOGOUT    = 5
-        private const val WEB_URL        = "http://136.244.102.39:8800"
+        private const val WEB_URL        = "http://136.244.102.39:8548"
         private const val TELEGRAM_URL   = "https://t.me/language_learning_words_bot"
     }
 
@@ -265,7 +286,7 @@ class LanguagesActivity : AppCompatActivity() {
                     .setNegativeButton("Закрыть", null)
                     .show()
             } catch (e: Exception) {
-                Toast.makeText(this@LanguagesActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@LanguagesActivity, "generateWebCode: [${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }

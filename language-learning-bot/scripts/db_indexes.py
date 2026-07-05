@@ -402,7 +402,7 @@ class DatabaseIndexOptimizer:
         await self.client.close()
 
 # Функция для быстрого запуска анализа
-async def analyze_database_indexes(mongodb_url: str = "mongodb://localhost:27027", 
+async def analyze_database_indexes(mongodb_url: str = "mongodb://localhost:8527", 
                                  database_name: str = "language_learning_bot"):
     """Быстрая функция для анализа текущих индексов."""
     
@@ -436,7 +436,7 @@ async def analyze_database_indexes(mongodb_url: str = "mongodb://localhost:27027
         await optimizer.close()
 
 # Функция для создания оптимальных индексов
-async def optimize_database_indexes(mongodb_url: str = "mongodb://localhost:27027",
+async def optimize_database_indexes(mongodb_url: str = "mongodb://localhost:8527",
                                   database_name: str = "language_learning_bot"):
     """Создание всех оптимальных индексов."""
     

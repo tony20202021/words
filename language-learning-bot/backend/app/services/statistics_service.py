@@ -366,7 +366,7 @@ class StatisticsService:
         
         # В противном случае, применяем фильтрацию
         filtered_words = []
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         
         # Apply filters
         for word in words:
