@@ -54,6 +54,14 @@
     {"id": "know|show_answer|rate|reconsider|toggle_skip", "text": "...", "style": "...", "rating": "know|dont_know|null"}
   ],
   "big_word": {"word": "学", "transcription": "xué"},
+  "pick_options": {
+    "target_modality": "translation|foreign|transcription",
+    "options": [
+      {"word_id": "...", "target_text": "перевод/иероглиф/транскрипция", "is_correct": true},
+      {"word_id": "...", "target_text": "...", "is_correct": false}
+    ]
+  },
+  "last_wrong_distractor_id": null,
   "meta": {
     "word_number": 42, "session_pos": 3, "session_total": 10,
     "words_studied": 42, "total_words": 500, "words_for_today": 10,
@@ -70,6 +78,10 @@
   }
 }
 ```
+
+**Поля пик-режима:**
+- `pick_options` — присутствует когда `show_answer=false` и активен пик-режим; содержит варианты ответа
+- `last_wrong_distractor_id` — `word_id` выбранного неверного варианта (non-null = ошибка), `null` = правильный ответ или ещё не отвечено
 
 Кнопка `toggle_skip` не включается если настройка `show_skip_button=False`.
 
@@ -95,6 +107,18 @@ POST /{sid}/know     POST /{sid}/show_answer   POST /{sid}/toggle_skip
                                 │
                     batch_exhausted=True → POST /{sid}/next_batch
                                             └── no_words=True → конец
+
+── Пик-режим (pick_mode_active=True) ──────────────────────────────────────────
+POST /session/start → card с pick_options (если pick_mode_active)
+    │
+    └── POST /{sid}/pick_answer {selected_word_id}
+            ├── correct:    know_word() → last_wrong_distractor_id=null
+            ├── wrong:      show_answer_word() → last_wrong_distractor_id=word_id
+            └── dont_know:  show_answer_word() → last_wrong_distractor_id=null
+                └── далее: POST /{sid}/rate ... → следующее слово
+
+POST /{sid}/add_forbidden_pair {bad_word_id}  — запретить пару слов в пик-режиме
+POST /{sid}/clear_forbidden_pairs             — снять все запреты для слова
 ```
 
 После `know`/`rate`/`skip` BLS в фоне обновляет `daily` статистику.  
@@ -128,21 +152,71 @@ QR генерируется для:
 
 ---
 
+## BLS — пик-режим (quiz_service)
+
+### Генерация вариантов
+
+- `generate_quiz_options(session, word, api_client)` — возвращает `{target_modality, options[]}` или `None`
+- `target_modality` выбирается случайно из `[translation, foreign, transcription, sound]` кроме `show_mode`
+
+### Отбор дистракторов
+
+Слова выбираются взвешенным сэмплингом по обратно-логарифмической шкале:
+
+```
+вес(n) = 1 / (log₁₀(n) + 1)
+```
+
+| Номер слова | Вес | Относительная вероятность |
+|-------------|-----|--------------------------|
+| #1          | 1.0 | 1x (базовая)             |
+| #10         | 0.5 | 2x реже                  |
+| #100        | 0.33| 3x реже                  |
+| #1000       | 0.25| 4x реже                  |
+
+### Фильтр по количеству единиц
+
+Когда `show_mode ∈ {foreign, transcription}`, все варианты должны иметь одинаковое число единиц с правильным ответом (иначе можно угадать подсчётом).
+
+`_unit_count(text)`:
+- **CJK-текст** (Chinese/Japanese/Korean — нет пробелов): считает **иероглифы** (`len(text)`)
+- **Остальной текст**: считает **слова** (`len(text.split())`)
+
+Примеры: `"结构"→2`, `"金"→1`, `"[jié gòu]"→2`, `"[jīn]"→1`
+
+Если после фильтра меньше половины нужных дистракторов — повтор без фильтра (fallback).
+
+---
+
 ## Android — структура
 
 ```
 android/app/src/main/java/com/langbot/app/
 ├── LoginActivity.kt        — ввод BLS URL + кода авторизации
 ├── LanguagesActivity.kt    — список языков; проверка обновлений; «Код для веб» с QR
+│                             после 2+ ошибок подключения — диалог «выйти и войти заново»
 ├── StudyActivity.kt        — карточка слова; pull-to-refresh
+│                             pick-режим: варианты ответа + баннер результата
+│                             после неверного ответа — кнопка «Не показывать комбинацию»
 ├── StatsActivity.kt        — статистика + 3 группы графиков; pull-to-refresh
 ├── SettingsActivity.kt     — настройки; pull-to-refresh
+│                             числовые настройки сохраняются через PUT /settings/…/{key}
 ├── HintsActivity.kt        — управление подсказками
 ├── HelpActivity.kt         — справка (GET /help)
 └── network/
     ├── BLSService.kt       — Retrofit API
     └── ApiModels.kt        — data-классы
 ```
+
+### StudyActivity — пик-режим
+
+| Состояние | Что показывается |
+|-----------|-----------------|
+| `show_answer=false`, `pick_options≠null` | Кнопки вариантов вертикально + «Не знаю» |
+| После ответа (`show_answer=true`) | Слово раскрыто + **цветной баннер результата** |
+| Правильный ответ | Зелёный баннер «✓ Правильно!» |
+| Неверный / «Не знаю» | Красный баннер «✗ Неверно» |
+| После неверного | Доп. кнопка «🚫 Не показывать такую комбинацию» |
 
 ---
 
@@ -169,7 +243,7 @@ android/app/src/main/java/com/langbot/app/
 
 | Файл | Назначение |
 |------|-----------|
-| `common/version.py` | Единая версия (`"3.0.26"`); `versionCode = major*10000 + minor*100 + patch` |
+| `common/version.py` | Единая версия (`"3.0.60"`); `versionCode = major*10000 + minor*100 + patch` |
 | `common/help_text.py` | Текст справки — единый для всех платформ |
 
 При любом изменении кода — инкрементировать patch в `common/version.py` и `android/app/build.gradle`.

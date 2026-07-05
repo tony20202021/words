@@ -38,10 +38,10 @@ export ANDROID_SDK_ROOT=/home/tony/Android/Sdk
 
 ```python
 # common/version.py
-__version__ = "3.0.47"
+__version__ = "3.0.60"
 ```
 
-`versionCode` считается автоматически: `major*10000 + minor*100 + patch` (например, 3.0.47 → 30047).
+`versionCode` считается автоматически: `major*10000 + minor*100 + patch` (например, 3.0.60 → 30060).
 
 ### 2. Собрать
 

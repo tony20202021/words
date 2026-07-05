@@ -297,3 +297,128 @@ class TestFinishStatsTrigger:
         client.post(f"/session/{sid}/rate", json={"rating": "dont_know"})
         assert api.update_daily_first_finish_statistics.call_count == 2
         assert api.update_daily_last_finish_statistics.call_count == 2
+
+
+# ── Pick answer endpoint ──────────────────────────────────────────────────────
+
+class TestPickAnswerEndpoint:
+    """
+    Android uses last_wrong_distractor_id from pick_answer response to show a
+    result banner: null = correct answer, non-null = wrong answer.
+    These tests verify the BLS sets that field correctly for all answer types,
+    which is the contract the Android banner logic relies on.
+    """
+
+    def _start_with_quiz(self, client):
+        """Start a session and inject quiz options directly into session state."""
+        resp = client.post("/session/start", json={"user_id": "u1", "language_id": "lang1"})
+        assert resp.status_code == 200
+        sid = resp.json()["session_id"]
+        from app.services import session_service
+        session = session_service.get_session_by_id(sid)
+        session["pick_mode_active"] = True
+        session["quiz_options"] = {
+            "options": [
+                {"word_id": "word-1", "is_correct": True,  "target_text": "слово1"},
+                {"word_id": "word-2", "is_correct": False, "target_text": "слово2"},
+                {"word_id": "word-3", "is_correct": False, "target_text": "слово3"},
+            ]
+        }
+        return sid
+
+    def test_correct_answer_returns_200(self, client, api):
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "word-1"})
+        assert resp.status_code == 200
+
+    def test_correct_answer_sets_last_wrong_distractor_to_null(self, client, api):
+        """Correct pick: last_wrong_distractor_id is null → Android shows green banner."""
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "word-1"})
+        card = resp.json()["card"]
+        assert card["last_wrong_distractor_id"] is None
+
+    def test_wrong_answer_sets_last_wrong_distractor_id(self, client, api):
+        """Wrong pick: last_wrong_distractor_id equals the selected word_id → Android shows red banner."""
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "word-2"})
+        card = resp.json()["card"]
+        assert card["last_wrong_distractor_id"] == "word-2"
+
+    def test_dont_know_sets_last_wrong_distractor_to_null(self, client, api):
+        """dont_know: distractor id is null (Android uses selectedWordId == 'dont_know' to show red banner)."""
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "dont_know"})
+        assert resp.status_code == 200
+        card = resp.json()["card"]
+        assert card["last_wrong_distractor_id"] is None
+
+    def test_pick_answer_reveals_word(self, client, api):
+        """After any pick answer the word is revealed (show_answer = true)."""
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "word-1"})
+        assert resp.json()["card"]["show_answer"] is True
+
+    def test_second_wrong_distractor_is_tracked_independently(self, client, api):
+        """Wrong pick with word-3 records word-3, not word-2."""
+        sid = self._start_with_quiz(client)
+        resp = client.post(f"/session/{sid}/pick_answer", json={"selected_word_id": "word-3"})
+        assert resp.json()["card"]["last_wrong_distractor_id"] == "word-3"
+
+
+# ── Set setting endpoint ──────────────────────────────────────────────────────
+
+class TestSetSettingEndpoint:
+    """
+    Android saveNumericSetting calls PUT /settings/{user}/{lang}/{key} with {"value": N}.
+    Tests verify the endpoint returns 200 (so resp.isSuccessful is true in Android)
+    and reflects the new value in the response body (so loadSettings() shows
+    the correct value after the save).
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_settings_mock(self, api):
+        api.get_user_language_settings.return_value = {
+            "success": True,
+            "result": {
+                "quiz_options_count": 3,
+                "start_word": 1,
+                "skip_marked": True,
+                "use_check_date": True,
+            },
+        }
+        api.update_user_language_settings.return_value = {"success": True, "result": {}}
+
+    def test_set_numeric_setting_returns_200(self, client):
+        resp = client.put(
+            "/settings/user-1/lang-1/quiz_options_count",
+            json={"value": 5},
+        )
+        assert resp.status_code == 200
+
+    def test_set_numeric_setting_updates_value_in_response(self, client):
+        """Response includes the new value so Android loadSettings() shows it immediately."""
+        resp = client.put(
+            "/settings/user-1/lang-1/quiz_options_count",
+            json={"value": 5},
+        )
+        assert resp.json()["quiz_options_count"] == 5
+
+    def test_set_numeric_setting_calls_backend_save(self, client, api):
+        """update_user_language_settings must be called with the updated value."""
+        client.put(
+            "/settings/user-1/lang-1/quiz_options_count",
+            json={"value": 5},
+        )
+        api.update_user_language_settings.assert_called_once()
+        _, _, saved = api.update_user_language_settings.call_args[0]
+        assert saved["quiz_options_count"] == 5
+
+    def test_set_different_numeric_key(self, client):
+        """The same endpoint handles any numeric key (start_word, max_check_interval, etc.)."""
+        resp = client.put(
+            "/settings/user-1/lang-1/start_word",
+            json={"value": 100},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["start_word"] == 100

@@ -31,17 +31,30 @@ PROB_MAX_RATIO = 20  # max(weight) / min(weight) cap
 MODALITIES = ["translation", "foreign", "transcription", "sound"]
 
 
+def _unit_count(text: str) -> int:
+    """
+    Count the meaningful units in a text for word-count filtering.
+    For CJK text (Chinese characters, no spaces) each character is one syllable,
+    so we count characters. For all other text we count whitespace-separated words.
+    """
+    if any('一' <= c <= '鿿' for c in text):
+        return len(text)
+    return len(text.split())
+
+
 def _weighted_sample(word_numbers: List[int], count: int, exclude: int) -> List[int]:
     """
     Sample `count` unique word numbers from `word_numbers` (excluding `exclude`),
-    using weights inversely proportional to word number (capped at PROB_MAX_RATIO spread).
+    using weights inversely proportional to log10(word_number).
+    Ratio between word #1 and word #1000 is ~4x (log10 scale:
+    1→×1, 10→×2, 100→×3, 1000→×4), much flatter than the old 1/n formula.
     """
     pool = [n for n in word_numbers if n != exclude]
     if not pool:
         return []
     count = min(count, len(pool))
 
-    raw = [1.0 / n for n in pool]
+    raw = [1.0 / (math.log10(n) + 1) for n in pool]
     max_w = max(raw)
     floor_w = max_w / PROB_MAX_RATIO
     weights = [max(w, floor_w) for w in raw]
@@ -145,7 +158,7 @@ async def generate_quiz_options(
     # When source is foreign or transcription, distractors must match the word
     # count of the correct answer — otherwise trivial to guess by counting words.
     apply_word_count_filter = show_mode in ("foreign", "transcription")
-    correct_word_count = len(correct_text.split()) if apply_word_count_filter else 0
+    correct_word_count = _unit_count(correct_text) if apply_word_count_filter else 0
 
     # Boost: words in the current session batch that have score=0 get high weight
     session_words = session.get("words", [])
@@ -190,7 +203,7 @@ async def generate_quiz_options(
         text = _get_text_for_modality(c, target_modality)
         if not text or text == correct_text:
             continue
-        if apply_word_count_filter and len(text.split()) != correct_word_count:
+        if apply_word_count_filter and _unit_count(text) != correct_word_count:
             continue
         distractors.append({"word_id": cid, "target_text": text, "is_correct": False})
         if len(distractors) >= n_distractors:
