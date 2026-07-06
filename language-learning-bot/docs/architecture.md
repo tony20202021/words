@@ -62,6 +62,7 @@
     ]
   },
   "last_wrong_distractor_id": null,
+  "pick_answer_result": "correct|wrong|null",
   "meta": {
     "word_number": 42, "session_pos": 3, "session_total": 10,
     "words_studied": 42, "total_words": 500, "words_for_today": 10,
@@ -81,7 +82,8 @@
 
 **Поля пик-режима:**
 - `pick_options` — присутствует когда `show_answer=false` и активен пик-режим; содержит варианты ответа
-- `last_wrong_distractor_id` — `word_id` выбранного неверного варианта (non-null = ошибка), `null` = правильный ответ или ещё не отвечено
+- `last_wrong_distractor_id` — `word_id` выбранного неверного варианта (non-null = ошибка), `null` = правильный ответ или ещё не отвечено; сбрасывается при переходе к следующему слову
+- `pick_answer_result` — `"correct"` / `"wrong"` / `null`; присутствует в карточке когда `show_answer=true` после пик-ответа; используется для отображения баннера результата (веб, Telegram)
 
 Кнопка `toggle_skip` не включается если настройка `show_skip_button=False`.
 
@@ -196,7 +198,7 @@ android/app/src/main/java/com/langbot/app/
 ├── LanguagesActivity.kt    — список языков; проверка обновлений; «Код для веб» с QR
 │                             после 2+ ошибок подключения — диалог «выйти и войти заново»
 ├── StudyActivity.kt        — карточка слова; pull-to-refresh
-│                             pick-режим: варианты ответа + баннер результата
+│                             pick-режим: варианты ответа + баннер результата (Android)
 │                             после неверного ответа — кнопка «Не показывать комбинацию»
 ├── StatsActivity.kt        — статистика + 3 группы графиков; pull-to-refresh
 ├── SettingsActivity.kt     — настройки; pull-to-refresh
@@ -243,7 +245,7 @@ android/app/src/main/java/com/langbot/app/
 
 | Файл | Назначение |
 |------|-----------|
-| `common/version.py` | Единая версия (`"3.0.60"`); `versionCode = major*10000 + minor*100 + patch` |
+| `common/version.py` | Единая версия (`"3.0.61"`); `versionCode = major*10000 + minor*100 + patch` |
 | `common/help_text.py` | Текст справки — единый для всех платформ |
 
 При любом изменении кода — инкрементировать patch в `common/version.py` и `android/app/build.gradle`.

@@ -118,6 +118,7 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
             })
 
     last_wrong_distractor_id = session.get("last_wrong_distractor_id") if show_answer else None
+    pick_answer_result = session.get("pick_answer_result") if show_answer else None
 
     return {
         "show_answer": show_answer,
@@ -129,6 +130,7 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         "big_word": big_word,
         "pick_options": pick_options,
         "last_wrong_distractor_id": last_wrong_distractor_id,
+        "pick_answer_result": pick_answer_result,
         "meta": {
             "word_id": str((word or {}).get("_id") or (word or {}).get("id") or (word or {}).get("word_id") or ""),
             "hint_enabled_types": hint_enabled_types,

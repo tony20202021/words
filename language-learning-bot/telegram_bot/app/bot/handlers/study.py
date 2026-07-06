@@ -225,6 +225,11 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
     if action == "pick_answer":
         next_card_shows_answer = (resp.get("card") or {}).get("show_answer", False)
         edit_mode = next_card_shows_answer  # wrong → edit in place; correct → new message
+        pick_result = (resp.get("card") or {}).get("pick_answer_result")
+        if pick_result == "correct":
+            await callback.message.answer("✓ Правильно!")
+        elif pick_result == "wrong":
+            await callback.message.answer("✗ Неверно")
     else:
         edit_mode = action not in next_word_actions
 

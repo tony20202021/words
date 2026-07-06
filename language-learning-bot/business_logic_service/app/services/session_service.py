@@ -87,6 +87,9 @@ async def start_session(
         "show_mode": _pick_show_mode(settings),
         "pick_mode_active": _pick_quiz_mode(settings),
         "quiz_options": None,
+        "pick_answer_was_used": False,
+        "pick_answer_result": None,
+        "last_wrong_distractor_id": None,
         "language_name_ru": progress.get("language_name_ru", ""),
         "language_name_foreign": progress.get("language_name_foreign", ""),
         "words_studied": progress.get("words_studied", 0),
@@ -387,6 +390,8 @@ def _advance(session: Dict[str, Any]) -> None:
     session["pick_mode_active"] = _pick_quiz_mode(settings)
     session["quiz_options"] = None
     session["pick_answer_was_used"] = False
+    session["pick_answer_result"] = None
+    session["last_wrong_distractor_id"] = None
 
 
 async def _load_words_with_slide(

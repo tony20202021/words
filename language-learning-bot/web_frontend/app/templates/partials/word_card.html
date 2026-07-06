@@ -142,6 +142,15 @@
     </div>
     {% endif %}
 
+    {# ── Pick mode result banner ─────────────────────────────────────────── #}
+    {% if card.show_answer and card.pick_answer_result %}
+      {% if card.pick_answer_result == 'correct' %}
+        <div class="alert mb-2 py-2 text-center fw-bold" style="background:#E8F5E9; color:#2E7D32; border:none;">✓ Правильно!</div>
+      {% else %}
+        <div class="alert mb-2 py-2 text-center fw-bold" style="background:#FFEBEE; color:#C62828; border:none;">✗ Неверно</div>
+      {% endif %}
+    {% endif %}
+
     {# ── Buttons ──────────────────────────────────────────────────────────── #}
     {% if not card.pick_options or card.show_answer %}
     <hr class="my-3">

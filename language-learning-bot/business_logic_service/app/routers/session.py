@@ -221,6 +221,7 @@ async def pick_answer(session_id: str, req: PickAnswerRequest,
         await session_service.show_answer_word(session, api_client)
         incorrect_count = session.get("incorrect_count", 0)
         background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
+        session["pick_answer_result"] = "wrong"
     else:
         # Determine correctness from stored quiz options
         quiz_opts = session.get("quiz_options") or {}
@@ -233,12 +234,14 @@ async def pick_answer(session_id: str, req: PickAnswerRequest,
             background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client, word_number)
             session["last_wrong_distractor_id"] = None
             session["pick_answer_was_used"] = True
+            session["pick_answer_result"] = "correct"
         else:
             await session_service.show_answer_word(session, api_client)
             incorrect_count = session.get("incorrect_count", 0)
             background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
             # Store selected wrong distractor so card can show "ban this pair" button
             session["last_wrong_distractor_id"] = req.selected_word_id
+            session["pick_answer_result"] = "wrong"
 
     session_service.touch_session(session)
     return await _card_response(session, api_client)
