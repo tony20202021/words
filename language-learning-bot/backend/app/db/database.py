@@ -109,7 +109,12 @@ async def connect_to_mongo():
         # Создаем клиента MongoDB с настройками
         client = AsyncIOMotorClient(mongodb_url, **connection_options)
         db = client[mongodb_db_name]
-        
+
+        # Ensure indexes for unit count queries
+        from app.db.repositories.word_repository import WordRepository
+        word_repo = WordRepository(db)
+        await word_repo.ensure_indexes()
+
         logger.info("Successfully connected to MongoDB")
     except Exception as e:
         logger.error(f"Could not connect to MongoDB: {e}", exc_info=True)

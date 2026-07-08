@@ -20,7 +20,8 @@ Probability weighting:
 import random
 import math
 import json
-from typing import Any, Dict, List, Optional, Tuple
+import unicodedata
+from typing import Any, Dict, List, Optional, Set, Tuple
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -40,6 +41,82 @@ def _unit_count(text: str) -> int:
     if any('一' <= c <= '鿿' for c in text):
         return len(text)
     return len(text.split())
+
+
+def _strip_tones(text: str) -> str:
+    """Remove combining diacritical marks (tone marks) from pinyin/transcription text."""
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
+def _shared_unit_set(correct_text: str, target_modality: str) -> Set[str]:
+    """
+    Returns the set of 'units' from the correct answer used to boost distractors
+    that share parts with the correct answer (making the question harder).
+    - foreign + CJK: individual characters (e.g. {'结', '构'} for '结构')
+    - transcription: tone-stripped syllables (e.g. {'jie', 'gou'} for '[jié gòu]')
+    - other modalities: empty set (no boost)
+    """
+    if target_modality == "foreign":
+        if any('一' <= c <= '鿿' for c in correct_text):
+            return set(correct_text)
+    elif target_modality == "transcription":
+        stripped = _strip_tones(correct_text.lower())
+        cleaned = stripped.replace('[', '').replace(']', '').strip()
+        return {s for s in cleaned.split() if s}
+    return set()
+
+
+def _shares_units(text: str, correct_units: Set[str], target_modality: str) -> bool:
+    """True if text shares at least one unit (char or syllable) with correct_units."""
+    if not correct_units:
+        return False
+    if target_modality == "foreign":
+        return any(c in correct_units for c in text)
+    if target_modality == "transcription":
+        stripped = _strip_tones(text.lower())
+        cleaned = stripped.replace('[', '').replace(']', '').strip()
+        return bool({s for s in cleaned.split() if s} & correct_units)
+    return False
+
+
+def _collect_distractors(
+    candidates: List[Dict],
+    correct_id: str,
+    correct_text: str,
+    forbidden_ids: Set[str],
+    n: int,
+    target_modality: str,
+    correct_units: Set[str],
+    unit_count_filter: Optional[int] = None,
+) -> List[Dict]:
+    """
+    Collect up to n distractors from candidates, preferring those that share
+    units (chars/syllables) with the correct answer to produce harder questions.
+    Shared-unit candidates appear first; others fill remaining slots.
+    Optionally filters by unit count.
+    """
+    shared: List[Dict] = []
+    other: List[Dict] = []
+    for c in candidates:
+        cid = str(c.get("_id") or c.get("id") or "")
+        if cid == correct_id or cid in forbidden_ids:
+            continue
+        text = _get_text_for_modality(c, target_modality)
+        if not text or text == correct_text:
+            continue
+        if unit_count_filter is not None and _unit_count(text) != unit_count_filter:
+            continue
+        entry = {"word_id": cid, "target_text": text, "is_correct": False}
+        if _shares_units(text, correct_units, target_modality):
+            shared.append(entry)
+        else:
+            other.append(entry)
+        if len(shared) + len(other) >= n * 4:
+            break
+    return (shared + other)[:n]
 
 
 def _weighted_sample(word_numbers: List[int], count: int, exclude: int) -> List[int]:
@@ -160,6 +237,10 @@ async def generate_quiz_options(
     apply_word_count_filter = show_mode in ("foreign", "transcription")
     correct_word_count = _unit_count(correct_text) if apply_word_count_filter else 0
 
+    # Shared-unit boost: prefer distractors sharing chars (CJK) or syllables (transcription)
+    # with the correct answer — produces harder, more plausible questions.
+    correct_units = _shared_unit_set(correct_text, target_modality)
+
     # Boost: words in the current session batch that have score=0 get high weight
     session_words = session.get("words", [])
     boosted_numbers = {
@@ -170,8 +251,9 @@ async def generate_quiz_options(
     }
 
     # Generate candidate word numbers using weighted sampling.
-    # Fetch extra candidates when word-count filter is active to compensate for stricter filtering.
-    fetch_multiplier = 8 if apply_word_count_filter else 4
+    # Fetch more candidates when unit-count filter or shared-unit boost is active.
+    has_strict_filter = apply_word_count_filter or bool(correct_units)
+    fetch_multiplier = 12 if has_strict_filter else 4
     fetch_n = min(n_distractors * fetch_multiplier, words_studied - 1)
     fetch_n = max(fetch_n, n_distractors + 1)
 
@@ -191,37 +273,37 @@ async def generate_quiz_options(
 
     candidates = resp["result"]
 
-    # Filter: must have target text, not in forbidden pairs, and (when active)
-    # same word count as correct answer to prevent trivial guessing.
-    distractors = []
-    for c in candidates:
-        cid = str(c.get("_id") or c.get("id") or "")
-        if cid == correct_id:
-            continue
-        if cid in forbidden_ids:
-            continue
-        text = _get_text_for_modality(c, target_modality)
-        if not text or text == correct_text:
-            continue
-        if apply_word_count_filter and _unit_count(text) != correct_word_count:
-            continue
-        distractors.append({"word_id": cid, "target_text": text, "is_correct": False})
-        if len(distractors) >= n_distractors:
-            break
+    # Augment with targeted same-unit-count candidates from backend index.
+    # This guarantees same-count distractors even for rare multi-char words.
+    if apply_word_count_filter and target_modality in ("foreign", "transcription"):
+        unit_resp = await api_client.get_words_by_unit_count(
+            language_id, target_modality, correct_word_count, words_studied,
+            limit=n_distractors * 4,
+        )
+        if unit_resp and unit_resp.get("success") and unit_resp.get("result"):
+            seen_ids = {str(c.get("_id") or c.get("id") or "") for c in candidates}
+            for w in unit_resp["result"]:
+                wid = str(w.get("_id") or w.get("id") or w.get("word_id") or "")
+                if wid not in seen_ids:
+                    candidates.append(w)
+                    seen_ids.add(wid)
 
-    # If word-count filter left too few distractors, retry without it.
+    # Collect distractors: shared-unit candidates first, others fill remaining slots.
+    # Apply unit-count filter to avoid trivially-guessable options by word length.
+    distractors = _collect_distractors(
+        candidates, correct_id, correct_text, forbidden_ids,
+        n_distractors, target_modality, correct_units,
+        unit_count_filter=correct_word_count if apply_word_count_filter else None,
+    )
+
+    # If unit-count filter left too few distractors, retry without it.
     if apply_word_count_filter and len(distractors) < max(1, n_distractors // 2):
-        logger.info(f"quiz: word-count filter yielded only {len(distractors)} distractors, retrying without")
-        distractors = []
-        for c in candidates:
-            cid = str(c.get("_id") or c.get("id") or "")
-            if cid == correct_id or cid in forbidden_ids:
-                continue
-            text = _get_text_for_modality(c, target_modality)
-            if text and text != correct_text:
-                distractors.append({"word_id": cid, "target_text": text, "is_correct": False})
-            if len(distractors) >= n_distractors:
-                break
+        logger.info(f"quiz: unit-count filter yielded only {len(distractors)} distractors, retrying without")
+        distractors = _collect_distractors(
+            candidates, correct_id, correct_text, forbidden_ids,
+            n_distractors, target_modality, correct_units,
+            unit_count_filter=None,
+        )
 
     if not distractors:
         logger.info("quiz: no valid distractors found")

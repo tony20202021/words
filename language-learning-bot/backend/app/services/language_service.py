@@ -149,6 +149,12 @@ class LanguageService:
         """Get multiple words by a list of word numbers (batch fetch for quiz distractors)."""
         return await self.word_repository.get_by_language_and_numbers(language_id, word_numbers)
 
+    async def get_words_by_unit_count(
+        self, language_id: str, modality: str, unit_count: int, max_word_number: int, limit: int = 30
+    ) -> List[WordInDB]:
+        """Get random sample of words by unit count for quiz distractor generation."""
+        return await self.word_repository.get_by_unit_count(language_id, modality, unit_count, max_word_number, limit)
+
     async def get_language_with_word_count(self, language_id: str) -> Optional[Language]:
         """
         Get a language by ID with word count.

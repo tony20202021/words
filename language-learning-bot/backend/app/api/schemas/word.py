@@ -18,6 +18,8 @@ class WordBase(BaseModel):
     references: Optional[str] = Field(None, description="References to the word")
     tones: Optional[str] = Field(None, description="Tones of the word")
     sounds: Optional[str] = Field(None, description="List of sounds files")
+    word_foreign_unit_count: Optional[int] = Field(None, description="Unit count of word_foreign (CJK: char count, other: word count)")
+    transcription_unit_count: Optional[int] = Field(None, description="Syllable count in transcription")
 
 
 class WordCreate(WordBase):

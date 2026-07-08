@@ -14,6 +14,19 @@ from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+
+def _compute_unit_count(text: Optional[str]) -> Optional[int]:
+    """Compute unit count for a word text. CJK: character count, other: word count."""
+    if not text:
+        return None
+    text = text.strip()
+    if not text:
+        return None
+    if any('一' <= c <= '鿿' for c in text):
+        return len(text)
+    return len(text.split())
+
+
 class WordRepository:
     """Repository for word operations."""
     
@@ -45,7 +58,10 @@ class WordRepository:
         
         word_dict["created_at"] = datetime.utcnow()
         word_dict["updated_at"] = word_dict["created_at"]
-        
+
+        word_dict["word_foreign_unit_count"] = _compute_unit_count(word_dict.get("word_foreign"))
+        word_dict["transcription_unit_count"] = _compute_unit_count(word_dict.get("transcription"))
+
         result = await self.collection.insert_one(word_dict)
         
         created_word = await self.collection.find_one({"_id": result.inserted_id})
@@ -281,7 +297,12 @@ class WordRepository:
             return await self.get_by_id(id)
         
         word_dict["updated_at"] = datetime.utcnow()
-        
+
+        if "word_foreign" in word_dict:
+            word_dict["word_foreign_unit_count"] = _compute_unit_count(word_dict["word_foreign"])
+        if "transcription" in word_dict:
+            word_dict["transcription_unit_count"] = _compute_unit_count(word_dict["transcription"])
+
         try:
             await self.collection.update_one(
                 {"_id": ObjectId(id)},
@@ -505,3 +526,46 @@ class WordRepository:
             return words
         except Exception:
             return []
+
+    async def get_by_unit_count(
+        self,
+        language_id: str,
+        modality: str,
+        unit_count: int,
+        max_word_number: int,
+        limit: int = 30,
+    ) -> List[WordInDB]:
+        """Random sample of words with given unit count, for quiz distractor generation."""
+        field = "word_foreign_unit_count" if modality == "foreign" else "transcription_unit_count"
+        try:
+            pipeline = [
+                {"$match": {
+                    "language_id": ObjectId(language_id),
+                    field: unit_count,
+                    "word_number": {"$lte": max_word_number},
+                }},
+                {"$sample": {"size": limit}},
+            ]
+            words = []
+            async for word in self.collection.aggregate(pipeline):
+                word["id"] = str(word.pop("_id"))
+                if "language_id" in word and isinstance(word["language_id"], ObjectId):
+                    word["language_id"] = str(word["language_id"])
+                words.append(WordInDB(**word))
+            return words
+        except Exception as e:
+            logger.error(f"Error in get_by_unit_count: {e}", exc_info=True)
+            return []
+
+    async def ensure_indexes(self):
+        """Create indexes for unit count queries."""
+        await self.collection.create_index(
+            [("language_id", 1), ("word_foreign_unit_count", 1), ("word_number", 1)],
+            name="lang_foreign_unit_count_idx",
+            background=True,
+        )
+        await self.collection.create_index(
+            [("language_id", 1), ("transcription_unit_count", 1), ("word_number", 1)],
+            name="lang_transcription_unit_count_idx",
+            background=True,
+        )

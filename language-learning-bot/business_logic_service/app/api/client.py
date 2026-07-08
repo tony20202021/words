@@ -396,6 +396,15 @@ class APIClient:
             params={"numbers": numbers_str}
         )
 
+    async def get_words_by_unit_count(
+        self, language_id: str, modality: str, unit_count: int, max_word_number: int, limit: int = 30
+    ) -> Optional[Dict]:
+        """Fetch words by unit count for targeted quiz distractor generation."""
+        return await self._make_request(
+            "GET", f"/languages/{language_id}/words/by-unit-count",
+            params={"modality": modality, "unit_count": unit_count, "max_word_number": max_word_number, "limit": limit}
+        )
+
     # Study words
 
     async def get_study_words(self, user_id: str, language_id: str, params: Dict, limit: int = 100) -> Optional[Dict]:

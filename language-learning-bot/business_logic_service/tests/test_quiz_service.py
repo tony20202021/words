@@ -128,10 +128,13 @@ def make_session(words_studied=5, show_mode="foreign", settings=None, session_wo
     }
 
 
-def make_api_client(distractor_words):
+def make_api_client(distractor_words, unit_count_words=None):
     client = MagicMock()
     client.get_words_by_numbers_for_quiz = AsyncMock(
         return_value={"success": True, "result": distractor_words}
+    )
+    client.get_words_by_unit_count = AsyncMock(
+        return_value={"success": True, "result": unit_count_words or []}
     )
     return client
 
@@ -193,6 +196,7 @@ async def test_generate_quiz_options_api_failure():
     session = make_session(words_studied=5)
     api = MagicMock()
     api.get_words_by_numbers_for_quiz = AsyncMock(return_value=None)
+    api.get_words_by_unit_count = AsyncMock(return_value={"success": True, "result": []})
 
     result = await generate_quiz_options(session, current, api)
     assert result is None

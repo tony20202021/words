@@ -498,6 +498,21 @@ async def get_words_by_numbers(
     return await language_service.get_words_by_numbers(language_id, word_numbers)
 
 
+@router.get("/{language_id}/words/by-unit-count", response_model=List[WordResponse])
+async def get_words_by_unit_count(
+    language_id: str,
+    modality: str = Query(..., description="'foreign' or 'transcription'"),
+    unit_count: int = Query(..., description="Required unit count"),
+    max_word_number: int = Query(..., description="Only include words with word_number <= this"),
+    limit: int = Query(30, description="Max words to return"),
+    language_service: LanguageService = Depends(get_language_service),
+):
+    """Random sample of words by unit count — for quiz distractor generation."""
+    if modality not in ("foreign", "transcription"):
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="modality must be 'foreign' or 'transcription'")
+    return await language_service.get_words_by_unit_count(language_id, modality, unit_count, max_word_number, limit)
+
+
 @router.get("/{language_id}/count")
 async def get_language_word_count(
     language_id: str,
