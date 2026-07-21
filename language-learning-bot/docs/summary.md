@@ -30,6 +30,7 @@
 - **functionality/bot_commands.md** - Команды и действия бота
 - **functionality/admin_tools.md** - Инструменты администрирования
 - **functionality/learning_system.md** - Система изучения слов
+- **functionality/word_sounds.md** - Озвучка слов: хранение, формат `sounds`, генерация (китайский, иврит)
 
 ## Разработка и тестирование
 - **development/testing_guide.md** - Руководство по тестированию
