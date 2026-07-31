@@ -350,7 +350,7 @@ class StudyActivity : AppCompatActivity() {
                             return
                         }
                         val p = players[idx]
-                        p.setOnCompletionListener { playAt(idx + 1) }
+                        p.setOnCompletionListener { allBtn.postDelayed({ playAt(idx + 1) }, 350) }
                         try { p.seekTo(0); p.start() } catch (_: Exception) {}
                     }
                     playAt(0)
@@ -373,23 +373,64 @@ class StudyActivity : AppCompatActivity() {
             binding.buttonRow.orientation = LinearLayout.VERTICAL
             val targetModality = pickOptions.target_modality
             pickOptions.options.forEachIndexed { i, opt ->
-                val btnText = if (targetModality == "sound") "🔊 Вариант ${i + 1}" else opt.target_text
-                val b = MaterialButton(this)
-                b.text = btnText
-                b.textSize = 17f
-                b.isSingleLine = false
-                b.maxLines = 4
-                b.setPadding(16, 20, 16, 20)
-                b.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white))
-                b.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
-                b.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
-                b.strokeWidth = 2
-                b.setOnClickListener { onPickAnswer(opt.word_id) }
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.bottomMargin = dpToPx(4)
-                b.layoutParams = lp
-                binding.buttonRow.addView(b)
+                if (targetModality == "sound") {
+                    // Separate "listen" (plays all sound variants) from "select"
+                    val row = LinearLayout(this)
+                    row.orientation = LinearLayout.HORIZONTAL
+
+                    val listenBtn = MaterialButton(this)
+                    listenBtn.text = "🔊 ▶ ${i + 1}"
+                    listenBtn.textSize = 15f
+                    listenBtn.setPadding(16, 20, 16, 20)
+                    listenBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white))
+                    listenBtn.setTextColor(ContextCompat.getColor(this, R.color.btnSecondary))
+                    listenBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnSecondary)
+                    listenBtn.strokeWidth = 2
+                    val soundPaths = opt.target_text.split("|").filter { it.isNotBlank() }
+                    listenBtn.setOnClickListener { playSoundSequence(soundPaths) }
+                    val listenLp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    listenLp.marginEnd = dpToPx(4)
+                    listenBtn.layoutParams = listenLp
+                    row.addView(listenBtn)
+
+                    val selectBtn = MaterialButton(this)
+                    selectBtn.text = "Выбрать ${i + 1}"
+                    selectBtn.textSize = 17f
+                    selectBtn.setPadding(16, 20, 16, 20)
+                    selectBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white))
+                    selectBtn.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
+                    selectBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
+                    selectBtn.strokeWidth = 2
+                    selectBtn.setOnClickListener { onPickAnswer(opt.word_id) }
+                    val selectLp = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    selectBtn.layoutParams = selectLp
+                    row.addView(selectBtn)
+
+                    val rowLp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    rowLp.bottomMargin = dpToPx(4)
+                    row.layoutParams = rowLp
+                    binding.buttonRow.addView(row)
+                } else {
+                    val b = MaterialButton(this)
+                    b.text = opt.target_text
+                    b.textSize = 17f
+                    b.isSingleLine = false
+                    b.maxLines = 4
+                    b.setPadding(16, 20, 16, 20)
+                    b.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white))
+                    b.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
+                    b.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
+                    b.strokeWidth = 2
+                    b.setOnClickListener { onPickAnswer(opt.word_id) }
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.bottomMargin = dpToPx(4)
+                    b.layoutParams = lp
+                    binding.buttonRow.addView(b)
+                }
             }
             // "Don't know" button
             val dontKnowBtn = MaterialButton(this)
@@ -666,6 +707,27 @@ class StudyActivity : AppCompatActivity() {
                 setLoading(false)
             }
         }
+    }
+
+    /** Play a list of sound paths sequentially, with a short pause between them. */
+    private fun playSoundSequence(paths: List<String>) {
+        if (paths.isEmpty()) return
+        var idx = 0
+        fun playNext() {
+            if (idx >= paths.size) return
+            val url = BLSClient.soundUrl(paths[idx]); idx++
+            val mp = MediaPlayer()
+            try {
+                mp.setDataSource(url)
+                mp.setOnPreparedListener { it.start() }
+                mp.setOnCompletionListener { it.release(); binding.root.postDelayed({ playNext() }, 350) }
+                mp.setOnErrorListener { p, _, _ -> p.release(); binding.root.postDelayed({ playNext() }, 350); true }
+                mp.prepareAsync()
+            } catch (_: Exception) {
+                mp.release(); playNext()
+            }
+        }
+        playNext()
     }
 
     private fun onPickAnswer(selectedWordId: String) {

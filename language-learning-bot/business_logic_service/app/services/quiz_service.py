@@ -31,6 +31,10 @@ PROB_MAX_RATIO = 20  # max(weight) / min(weight) cap
 # Modalities that can be used as quiz source / target
 MODALITIES = ["translation", "foreign", "transcription", "sound"]
 
+# Combinations that make the answer trivially obvious (the sound IS the transcription),
+# so they are never generated as a (show_mode, target_modality) pair — in either direction.
+FORBIDDEN_QUIZ_PAIRS = {("sound", "transcription"), ("transcription", "sound")}
+
 
 def _unit_count(text: str) -> int:
     """
@@ -167,7 +171,10 @@ def _get_text_for_modality(word: Dict[str, Any], modality: str) -> Optional[str]
             if isinstance(data, str):
                 data = json.loads(data)
             urls = [data[k] for k in sorted(data.keys()) if data[k]]
-            return urls[0] if urls else None
+            # Return ALL sound variants (pipe-separated) so the quiz option can
+            # offer a single "play all" button. Options are matched by word_id,
+            # not by this text, so joining is safe.
+            return "|".join(urls) if urls else None
         except Exception:
             return None
     return None
@@ -184,9 +191,15 @@ def _choose_target_modality(show_mode: str, settings: Dict[str, Any]) -> str:
     if settings.get("random_sound", True) and settings.get("show_sounds", True):
         pool.append("sound")
 
-    candidates = [m for m in pool if m != show_mode]
+    def _ok(m: str) -> bool:
+        return m != show_mode and (show_mode, m) not in FORBIDDEN_QUIZ_PAIRS
+
+    candidates = [m for m in pool if _ok(m)]
     if not candidates:
-        # fallback: use something different from show_mode
+        # fallback: any modality that's allowed and different from show_mode
+        candidates = [m for m in MODALITIES if _ok(m)]
+    if not candidates:
+        # last resort: anything different from show_mode (should never happen)
         candidates = [m for m in MODALITIES if m != show_mode]
     return random.choice(candidates)
 

@@ -2,9 +2,14 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from app.bls_client.client import get_bls_client
 
 router = Router()
+
+
+class SettingsState(StatesGroup):
+    waiting_number = State()   # data: {num_language_id, num_key}
 
 SETTING_LABELS = {
     "skip_marked":                   None,  # state-dependent label, see _build_settings_keyboard
@@ -59,7 +64,7 @@ def _build_settings_keyboard(settings: dict, language_id: str) -> InlineKeyboard
         buttons.append([InlineKeyboardButton(text=f"· {label} ·", callback_data="noop")])
         buttons.append([
             InlineKeyboardButton(text="−", callback_data=f"set_num:{language_id}:{key}:-1"),
-            InlineKeyboardButton(text=str(val), callback_data="noop"),
+            InlineKeyboardButton(text=f"✏️ {val}", callback_data=f"num_input:{language_id}:{key}"),
             InlineKeyboardButton(text="+", callback_data=f"set_num:{language_id}:{key}:1"),
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -141,6 +146,57 @@ async def change_numeric_setting(callback: CallbackQuery, bls_user_id: str) -> N
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("num_input:"))
+async def prompt_numeric_input(callback: CallbackQuery, state: FSMContext) -> None:
+    _, language_id, key = callback.data.split(":", 2)
+    label, min_val = NUMERIC_LABELS.get(key, (key, 0))
+    await state.update_data(num_language_id=language_id, num_key=key)
+    await state.set_state(SettingsState.waiting_number)
+    await callback.message.answer(
+        f"Введите число для «{label}» (минимум {min_val}).\nОтмена — /cancel"
+    )
+    await callback.answer()
+
+
+@router.message(SettingsState.waiting_number, Command("cancel"))
+async def cancel_numeric_input(message: Message, state: FSMContext) -> None:
+    await state.set_state(None)
+    await message.answer("Отменено.")
+
+
+@router.message(SettingsState.waiting_number)
+async def process_numeric_input(message: Message, state: FSMContext, bls_user_id: str) -> None:
+    data = await state.get_data()
+    language_id = data.get("num_language_id")
+    key = data.get("num_key")
+    if not language_id or not key:
+        await state.set_state(None)
+        await message.answer("Что-то пошло не так, откройте /settings заново.")
+        return
+    label, min_val = NUMERIC_LABELS.get(key, (key, 0))
+    text = (message.text or "").strip()
+    try:
+        value = int(text)
+    except ValueError:
+        await message.answer(f"Нужно целое число (минимум {min_val}). Попробуйте ещё раз или /cancel.")
+        return
+    if value < min_val:
+        value = min_val
+
+    bls = get_bls_client()
+    await bls.set_setting(bls_user_id, language_id, key, value)
+    await state.set_state(None)
+
+    updated = await bls.get_settings(bls_user_id, language_id)
+    lang_name = await _lang_name(bls, language_id)
+    keyboard = _build_settings_keyboard(updated, language_id)
+    await message.answer(
+        f"✅ «{label}» → <b>{value}</b>\n\n" + _format_settings_text(lang_name),
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "noop")

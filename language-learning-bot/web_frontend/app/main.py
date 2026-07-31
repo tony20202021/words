@@ -22,6 +22,17 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 BASE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
+
+@app.middleware("http")
+async def no_store_dynamic_pages(request: Request, call_next):
+    """Prevent browsers from caching dynamic pages (e.g. /stats, /languages) so
+    freshly added languages/progress always show. Static assets stay cacheable."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.include_router(auth.router)
 app.include_router(languages.router)
 app.include_router(study.router)

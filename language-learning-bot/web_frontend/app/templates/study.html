@@ -6,7 +6,8 @@
   <div class="d-flex gap-2">
     <a href="/settings/{{ language_id }}" class="btn btn-outline-secondary btn-sm">⚙ Настройки</a>
     <a href="/stats?lang_id={{ language_id }}" class="btn btn-outline-info btn-sm">📊 Статистика</a>
-    <form method="post" action="/study/{{ language_id }}/restart">
+    <form method="post" action="/study/{{ language_id }}/restart"
+          onsubmit="return confirm('Начать заново? Текущая сессия будет сброшена.');">
       <button class="btn btn-outline-danger btn-sm" type="submit">Начать заново</button>
     </form>
   </div>

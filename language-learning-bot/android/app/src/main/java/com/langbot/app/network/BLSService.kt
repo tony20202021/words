@@ -152,7 +152,7 @@ interface BLSApi {
         @Path("user_id") userId: String,
         @Path("language_id") languageId: String,
         @Path("key") key: String,
-        @Body body: Map<String, Any>,
+        @Body body: @JvmSuppressWildcards Map<String, Any>,
     ): Response<Map<String, Any>>
 }
 
