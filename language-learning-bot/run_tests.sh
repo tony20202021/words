@@ -21,7 +21,7 @@ COMPONENT_DIRS = {
     "backend": PROJECT_ROOT / "backend",
     "common": PROJECT_ROOT / "common",
     "frontend": PROJECT_ROOT / "frontend",
-    "writing_service": PROJECT_ROOT / "writing_service",
+    "writing_service": PROJECT_ROOT / "writing_images_service",
 }
 
 def setup_parser():

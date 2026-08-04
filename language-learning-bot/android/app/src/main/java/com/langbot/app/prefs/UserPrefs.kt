@@ -16,7 +16,7 @@ object UserPrefs {
 
     fun getBlsUrl(ctx: Context): String =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_BLS_URL, "http://77.81.226.56:8531") ?: "http://77.81.226.56:8531"
+            .getString(KEY_BLS_URL, "https://77.81.226.56:8443") ?: "https://77.81.226.56:8443"
 
     fun saveBlsUrl(ctx: Context, url: String) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
