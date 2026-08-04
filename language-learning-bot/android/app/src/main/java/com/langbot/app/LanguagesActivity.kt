@@ -100,7 +100,7 @@ class LanguagesActivity : AppCompatActivity() {
         private const val MENU_CONNECT   = 3
         private const val MENU_TELEGRAM  = 4
         private const val MENU_LOGOUT    = 5
-        private const val WEB_URL        = "http://136.244.102.39:8548"
+        private const val WEB_URL        = "http://77.81.226.56:8548"
         private const val TELEGRAM_URL   = "https://t.me/language_learning_words_bot"
     }
 

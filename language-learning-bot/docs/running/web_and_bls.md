@@ -44,7 +44,7 @@ curl http://localhost:8531/health
 cd web_frontend
 BLS_URL=http://localhost:8531 \
 SECRET_KEY=<секретный_ключ> \
-WEB_URL=http://136.244.102.39:8548 \
+WEB_URL=http://77.81.226.56:8548 \
 conda run -n amikhalev_language_learning_bot \
     uvicorn app.main:app --host 0.0.0.0 --port 8548
 
