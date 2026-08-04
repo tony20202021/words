@@ -5,5 +5,3 @@ server:
 backend:
   url: "http://localhost:8573"
 
-writing_images:
-  url: "http://localhost:8600"

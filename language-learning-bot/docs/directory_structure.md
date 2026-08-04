@@ -16,12 +16,10 @@ language-learning-bot/
 ├── start_2_backend.sh
 ├── start_3_frontend.sh
 ├── start_3_frontend_auto_reload.sh
-├── start_4_writing_images_service.sh
 ├── create_project_structure.py
 ├── docs/
 ├── frontend/
 ├── backend/
-├── writing_images_service/
 ├── common/
 └── scripts/
 ```
@@ -55,7 +53,6 @@ docs/
 ├── api/
 │   ├── api_reference.md
 │   ├── backend_api.md
-│   └── api_writing_image_service.md
 │
 ├── development/
 │   ├── testing_guide.md
@@ -69,8 +66,7 @@ docs/
 └── functionality/
     ├── bot_commands.md
     ├── admin_tools.md
-    ├── learning_system.md
-    └── ai_image_generation.md
+    └── learning_system.md
 ```
 
 ## Backend (REST API)
@@ -183,13 +179,11 @@ frontend/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── client.py
-│   │   ├── writing_image_client.py
 │   │   └── models/
 │   │       ├── __init__.py
 │   │       ├── language.py
 │   │       ├── user.py
 │   │       ├── word.py
-│   │       └── writing_image.py
 │   ├── bot/
 │   │   ├── __init__.py
 │   │   ├── bot.py
@@ -275,7 +269,6 @@ frontend/
 │       ├── voice_recognition.py
 │       ├── voice_utils.py
 │       ├── word_data_utils.py
-│       └── writing_image_utils.py
 ├── conf/
 │   ├── __init__.py
 │   └── config/
@@ -362,92 +355,6 @@ frontend/
     ├── test_bot.py
     ├── test_bot_commands.py
     └── test_main.py
-```
-
-## Writing Images Service (AI микросервис генерации изображений)
-
-```
-writing_images_service/
-├── app/
-│   ├── main_writing_service.py
-│   ├── api/
-│   │   ├── dependencies.py
-│   │   └── routes/
-│   │       ├── health.py
-│   │       ├── writing_images.py
-│   │       ├── models/
-│   │       │   ├── requests.py
-│   │       │   └── responses.py
-│   │       └── services/
-│   │           ├── validation_service.py
-│   │           └── writing_image_service.py
-│   ├── ai/
-│   │   ├── __init__.py
-│   │   ├── ai_image_generator.py
-│   │   ├── multi_controlnet_pipeline.py
-│   │   ├── controlnet_union_test_multi_control.py
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   ├── conditioning_manager.py
-│   │   │   ├── generation_config.py
-│   │   │   ├── generation_result.py
-│   │   │   ├── image_processor.py
-│   │   │   ├── model_manager.py
-│   │   │   ├── prompt_manager.py
-│   │   │   └── translation_manager.py
-│   │   ├── services/
-│   │   │   └── translation_service.py
-│   │   ├── conditioning/
-│   │   │   ├── __init__.py
-│   │   │   ├── base_conditioning.py
-│   │   │   ├── canny_conditioning.py
-│   │   │   ├── depth_conditioning.py
-│   │   │   ├── scribble_conditioning.py
-│   │   │   └── segmentation_conditioning.py
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── controlnet_union.py
-│   │   │   ├── gpu_manager.py
-│   │   │   ├── model_loader.py
-│   │   │   └── translation_model.py
-│   │   ├── pipeline/
-│   │   │   └── pipeline_controlnet_union_sd_xl.py
-│   │   └── prompt/
-│   │       ├── __init__.py
-│   │       ├── prompt_builder.py
-│   │       └── style_definitions.py
-│   ├── core/
-│   │   └── exceptions.py
-│   └── utils/
-│       ├── config_holder.py
-│       ├── image_utils.py
-│       └── logger.py
-├── conf/
-│   └── config/
-│       ├── ai_generation.yaml
-│       ├── api.yaml
-│       ├── default.yaml
-│       ├── generation.yaml
-│       ├── logging.yaml
-│       └── translation.yaml
-├── fonts/
-│   └── NotoSansSC-Regular/
-│       └── NotoSansSC-Regular.otf
-├── requirements_cpu.txt
-├── requirements_gpu.txt
-├── environment_cpu.yml
-├── environment_gpu.yml
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_api/
-    │   ├── __init__.py
-    │   ├── test_health.py
-    │   └── test_writing_images.py
-    └── test_services/
-        ├── __init__.py
-        ├── test_validation_service.py
-        └── test_writing_image_service.py
 ```
 
 ## Общие модули (Common)

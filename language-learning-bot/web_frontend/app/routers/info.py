@@ -21,15 +21,41 @@ def _require_user(request: Request):
     return user_id, None
 
 
+def apk_version(apk_path: Path) -> str:
+    """
+    versionName read out of the APK itself, falling back to common.version.
+
+    The download name used to come straight from common/version.py while the
+    served bytes are a separate artifact, so any gap between bumping the version
+    and redeploying the APK handed users a file called v3.0.72 containing 3.0.71.
+    Reading it from the binary makes that mismatch impossible.
+    """
+    import re
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(apk_path) as z:
+            # Binary AndroidManifest keeps its string pool in UTF-16LE; the
+            # versionName literal survives a naive decode, which is enough here.
+            manifest = z.read("AndroidManifest.xml").decode("utf-16-le", errors="ignore")
+        found = sorted(set(re.findall(r"\d+\.\d+\.\d+", manifest)))
+        if len(found) == 1:
+            return found[0]
+    except Exception:
+        pass
+
+    from common.version import __version__
+    return __version__
+
+
 @router.get("/download/android")
 async def download_android():
     if not _APK_PATH.exists():
         return Response("APK не найден", status_code=404)
-    from common.version import __version__
     return FileResponse(
         path=str(_APK_PATH),
         media_type="application/vnd.android.package-archive",
-        filename=f"LangBot-v{__version__}.apk",
+        filename=f"LangBot-v{apk_version(_APK_PATH)}.apk",
     )
 
 

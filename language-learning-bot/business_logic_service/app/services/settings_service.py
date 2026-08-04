@@ -20,7 +20,6 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "show_hint_writing": False,
     "show_big": True,
     "show_short_captions": True,
-    "show_writing_images": False,
     "show_radicals": True,
     "show_references": True,
     "show_tones": True,

@@ -231,6 +231,23 @@ class OfflineCacheRobolectricTest {
     }
 
     @Test
+    fun resetting_the_cursor_makes_the_engine_start_over() {
+        // What "🔄 Начать заново" must do while offline: rewind to the first word.
+        // Previously restart fell through to enterOfflineFromStore(), which positions
+        // at lastWordId, so the user stayed on the same word.
+        OfflineCache.saveBundle(StoredBundle(u, l, listOf(word("w1", 1), word("w2", 2), word("w3", 3))))
+        OfflineEngine(OfflineCache.loadBundle(u, l)!!).apply { advance(); advance() }
+        assertEquals("w3", OfflineEngine.fromStore(u, l)!!.currentWordId())
+
+        OfflineCache.saveCursor(u, l, 0)
+
+        val restarted = OfflineEngine.fromStore(u, l)
+        assertNotNull(restarted)
+        assertEquals("w1", restarted!!.currentWordId())
+        assertTrue(restarted.hasCurrent())
+    }
+
+    @Test
     fun engine_advance_persists_the_cursor_so_a_restart_resumes() {
         OfflineCache.saveBundle(StoredBundle(u, l, listOf(word("w1", 1), word("w2", 2), word("w3", 3))))
         OfflineEngine(OfflineCache.loadBundle(u, l)!!).apply { advance(); advance() }

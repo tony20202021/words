@@ -17,7 +17,6 @@ class UserLanguageSettingsBase(BaseModel):
     show_debug: bool = Field(False, description="Whether to show debug information")
     show_charts: bool = Field(False, description="Whether to show chart")    
     show_big: bool = Field(False, description="Whether to show big word")
-    show_writing_images: bool = Field(True, description="Whether to show writing images")
     show_radicals: bool = Field(True, description="Whether to show radicals")
     show_references: bool = Field(True, description="Whether to show references")
     show_tones: bool = Field(True, description="Whether to show tones")
@@ -57,7 +56,6 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_debug: Optional[bool] = None
     show_charts: Optional[bool] = None
     show_big: Optional[bool] = None
-    show_writing_images: Optional[bool] = None
     show_radicals: Optional[bool] = None
     show_references: Optional[bool] = None
     show_tones: Optional[bool] = None

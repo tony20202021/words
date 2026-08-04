@@ -29,7 +29,6 @@ class SettingsActivity : AppCompatActivity() {
             "show_hint_phoneticassociation" to "Подсказка: ассоциация фонетики",
             "show_hint_writing"             to "Подсказка: написание",
             "show_big"                      to "Крупное написание",
-            "show_writing_images"           to "Показывать картинки написания",
             "show_radicals"                 to "Показывать радикалы",
             "show_references"               to "Показывать ссылки",
             "show_tones"                    to "Показывать тоны",

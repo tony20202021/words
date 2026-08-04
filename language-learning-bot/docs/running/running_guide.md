@@ -5,7 +5,6 @@
 2. [Последовательность запуска](#последовательность-запуска)
 3. [Запуск MongoDB](#запуск-mongodb)
 4. [Запуск бэкенда](#запуск-бэкенда)
-5. [Запуск Writing Service](#запуск-writing-service)
 6. [Запуск фронтенда](#запуск-фронтенда)
 7. [Режим автоматического перезапуска](#режим-автоматического-перезапуска)
 8. [Управление запущенными процессами](#управление-запущенными-процессами)
@@ -19,7 +18,6 @@ Language Learning Bot состоит из четырех основных ком
 
 1. **MongoDB** - база данных для хранения информации о языках, словах и пользователях
 2. **Бэкенд (REST API)** - сервер, обрабатывающий запросы и взаимодействующий с базой данных (порт 8500)
-3. **Writing Service** - микросервис генерации картинок написания (порт 8600)
 4. **Фронтенд (Telegram-бот)** - интерфейс взаимодействия с пользователем через Telegram
 
 Для правильной работы всех компонентов требуется:
@@ -33,7 +31,6 @@ Language Learning Bot состоит из четырех основных ком
 
 1. MongoDB (база данных)
 2. Бэкенд (REST API)
-3. Writing Service (генерация картинок)
 4. Фронтенд (Telegram-бот)
 
 Ниже будет подробно рассмотрен процесс запуска каждого компонента.
@@ -102,64 +99,28 @@ PORT=8501 ./start_2_backend.sh
 ./start_2_backend.sh --port=8501
 ```
 
-## Запуск Writing Service
-
-### 🆕 Использование скрипта start_4_writing_service.sh
-
-**Writing Service** - новый микросервис для генерации картинок написания:
-
-```bash
 # Сделать скрипт исполняемым (если еще не сделано)
-chmod +x start_4_writing_service.sh
 
-# Запустить Writing Service
-./start_4_writing_service.sh
 ```
 
 Скрипт автоматически:
-- Проверяет, запущен ли уже Writing Service
-- Завершает конфликтующие процессы на порту 8600
-- Запускает микросервис с параметром `--process-name=writing_service`
-- Сохраняет PID процесса в файл `.writing_service.pid`
 
-### Запуск Writing Service на альтернативном порту
-
-```bash
 # С указанием альтернативного порта
-./start_4_writing_service.sh --port=8601
 
 # С использованием переменной окружения
-WRITING_SERVICE_PORT=8601 ./start_4_writing_service.sh
 ```
 
-### Проверка Writing Service
-
-После запуска проверьте работоспособность сервиса:
-
-```bash
 # Базовая проверка здоровья
-curl http://localhost:8600/health
 
 # Проверка API статуса
-curl http://localhost:8600/api/writing/status
 
 # Открыть документацию API в браузере
-open http://localhost:8600/api/docs  # macOS
 # или
-xdg-open http://localhost:8600/api/docs  # Linux
 ```
 
-### Ручной запуск Writing Service
-
-Альтернативный способ запуска Writing Service:
-
-```bash
 # Активация окружения (если используется Conda)
 conda activate language-learning-bot
 
-# Запуск Writing Service
-cd writing_service
-python -m app.main_writing_service --process-name=writing_service --port=8600
 ```
 
 ## Запуск фронтенда
@@ -230,18 +191,15 @@ chmod +x start_3_frontend_auto_reload.sh
 ```bash
 # Показать PID всех сервисов из файлов
 cat .backend.pid
-cat .writing_service.pid  # 🆕 Новый сервис
 cat .frontend.pid
 
 # Проверка процессов по PID
 ps -p $(cat .backend.pid)
-ps -p $(cat .writing_service.pid)  # 🆕
 ps -p $(cat .frontend.pid)
 
 # Поиск процессов по идентификатору
 ps aux | grep -e "--process-name=frontend"
 ps aux | grep -e "--process-name=backend"
-ps aux | grep -e "--process-name=writing_service"  # 🆕
 ps aux | grep mongod
 ```
 
@@ -250,18 +208,15 @@ ps aux | grep mongod
 ```bash
 # Корректное завершение всех сервисов
 kill $(cat .backend.pid)
-kill $(cat .writing_service.pid)  # 🆕
 kill $(cat .frontend.pid)
 
 # Принудительное завершение в случае зависания
 kill -9 $(cat .backend.pid)
-kill -9 $(cat .writing_service.pid)  # 🆕
 kill -9 $(cat .frontend.pid)
 
 # Завершение по идентификатору процесса
 pkill -f -- "--process-name=frontend"
 pkill -f -- "--process-name=backend"
-pkill -f -- "--process-name=writing_service"  # 🆕
 pkill -f mongod
 ```
 
@@ -276,8 +231,6 @@ tail -f ~/mongodb/log/mongod.log
 # Просмотр логов бэкенда
 tail -f backend/logs/backend.log
 
-# Просмотр логов Writing Service (🆕)
-tail -f writing_service/logs/writing_service.log
 
 # Просмотр логов фронтенда
 tail -f frontend/logs/app.log
@@ -289,7 +242,6 @@ tail -f frontend/logs/app.log
 # Использование multitail (требуется установка)
 multitail ~/mongodb/log/mongod.log \
           backend/logs/backend.log \
-          writing_service/logs/writing_service.log \
           frontend/logs/app.log
 ```
 
@@ -305,20 +257,13 @@ curl http://localhost:8573/api/health
 curl http://localhost:8573/api/languages
 ```
 
-### 🆕 Проверка Writing Service
-
-```bash
 # Проверка базового health check
-curl http://localhost:8600/health
 
 # Проверка детального health check
-curl http://localhost:8600/health/detailed
 
 # Проверка API статуса
-curl http://localhost:8600/api/writing/status
 
 # Тестирование генерации изображения
-curl -X POST http://localhost:8600/api/writing/generate-writing-image \
   -H "Content-Type: application/json" \
   -d '{"word": "test", "language": "english", "style": "print"}'
 ```
@@ -337,70 +282,27 @@ curl -X POST http://localhost:8600/api/writing/generate-writing-image \
 ps -o pid,cmd,%cpu,%mem -p \
   $(pgrep -f mongod) \
   $(pgrep -f -- "--process-name=backend") \
-  $(pgrep -f -- "--process-name=writing_service") \
   $(pgrep -f -- "--process-name=frontend")
 
 # Мониторинг в реальном времени
-top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- "--process-name=writing_service"),$(pgrep -f -- "--process-name=frontend")
 ```
 
 ## Устранение проблем
 
-### Writing Service не запускается
-
-**Симптомы**: Ошибки при запуске Writing Service, скрипт `start_4_writing_service.sh` завершается с ошибкой.
-
-**Решения**:
-1. Проверьте логи Writing Service:
-   ```bash
-   cat writing_service/logs/writing_service.log
-   ```
-
-2. Проверьте, не занят ли порт Writing Service:
-   ```bash
-   lsof -i :8600
-   ```
-
-3. Проверьте переменные окружения:
-   ```bash
-   source ./run_export_env.sh
-   echo $WRITING_SERVICE_HOST
-   echo $WRITING_SERVICE_PORT
-   ```
-
-4. Проверьте права доступа к директориям:
-   ```bash
-   ls -la writing_service/logs/
-   ls -la writing_service/temp/
-   ```
-
-5. Если порт занят, завершите процесс:
-   ```bash
-   pkill -f -- "--process-name=writing_service"
-   # или используйте другой порт
-   ./start_4_writing_service.sh --port=8601
-   ```
-
 ### Интеграция между сервисами не работает
 
-**Симптомы**: Фронтенд не может получить изображения от Writing Service.
 
 **Решения**:
-1. Проверьте доступность Writing Service:
    ```bash
-   curl http://localhost:8600/health
    ```
 
 2. Проверьте сетевое взаимодействие:
    ```bash
    # Из фронтенда должно быть доступно:
-   curl http://localhost:8600/api/writing/status
    ```
 
 3. Проверьте конфигурацию в фронтенде:
    ```bash
-   # Убедитесь, что Writing Service URL правильно настроен
-   grep -r "8600" frontend/conf/config/
    ```
 
 ### Полный перезапуск системы
@@ -411,11 +313,9 @@ top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- 
 # Остановка всех процессов
 pkill -f mongod
 pkill -f -- "--process-name=backend"
-pkill -f -- "--process-name=writing_service"  # 🆕
 pkill -f -- "--process-name=frontend"
 
 # Очистка PID файлов
-rm -f .backend.pid .writing_service.pid .frontend.pid
 
 # Ожидание завершения процессов
 sleep 5
@@ -423,12 +323,10 @@ sleep 5
 # Запуск всех компонентов
 ./start_1_db.sh
 ./start_2_backend.sh
-./start_4_writing_service.sh  # 🆕
 ./start_3_frontend.sh
 
 # Проверка запуска всех сервисов
 curl http://localhost:8573/api/health
-curl http://localhost:8600/health
 ```
 
 ## Быстрый старт для новых разработчиков
@@ -451,10 +349,8 @@ python scripts/seed_data.py  # опционально
 # 4. Запуск всех сервисов
 ./start_2_backend.sh
 ./start_3_frontend.sh
-./start_4_writing_service.sh  # 🆕 Новый сервис
 
 # 5. Проверка работоспособности
 curl http://localhost:8573/api/health  # Backend
-curl http://localhost:8600/health      # Writing Service
 # Отправьте /start боту в Telegram
 ```

@@ -50,7 +50,6 @@ git lfs install
 ```bash
 # Создание AI окружения с GPU поддержкой
 conda env create -f environment_gpu.yml
-conda activate amikhalev_writing_images_service
 
 # Проверка CUDA
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPU: {torch.cuda.get_device_name()}')"
@@ -59,7 +58,6 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPU: {torch.
 ### 3. 🔥 Установка AI зависимостей
 ```bash
 # AI зависимости для GPU
-pip install -r writing_service/requirements_gpu.txt
 
 # Проверка ключевых AI библиотек
 python -c "import diffusers, transformers, xformers; print('AI libraries OK')"
@@ -74,19 +72,14 @@ cp .env.example .env
 ### 5. 🔥 Создание AI кэш директорий
 ```bash
 # Создание cache директорий для AI моделей
-mkdir -p writing_service/cache/{huggingface,transformers,torch,pytorch_kernel_cache}
 
 # Настройка переменных окружения
-export HF_HOME="./writing_service/cache/huggingface"
-export TORCH_HOME="./writing_service/cache/torch"
-export TRANSFORMERS_CACHE="./writing_service/cache/transformers"
 ```
 
 ### 6. Запуск сервисов
 ```bash
 ./start_1_db.sh          # MongoDB
 ./start_2_backend.sh     # Backend API
-./start_4_writing_service.sh # 🔥 AI сервис
 ./start_3_frontend.sh    # Telegram бот
 ```
 
@@ -97,7 +90,6 @@ export TRANSFORMERS_CACHE="./writing_service/cache/transformers"
 #### **GPU Validation:**
 ```bash
 # Проверка NVIDIA драйверов
-nvidia-smi
 
 # Проверка CUDA
 nvcc --version
@@ -124,7 +116,6 @@ pip install diffusers>=0.25.0 transformers>=4.39.0 accelerate>=0.24.0
 
 # Optimization libraries
 pip install xformers>=0.0.22
-pip install controlnet-aux>=0.0.10
 
 # Monitoring
 pip install pynvml>=11.5.0 gpustat>=1.1.0
@@ -139,30 +130,6 @@ sudo apt-get install -y mongodb
 docker run -d -p 8527:8527 --name mongodb mongo:5.0
 ```
 
-### 🔥 Writing Service Configuration
-
-#### **AI Generation Config** (`writing_service/conf/config/ai_generation.yaml`):
-```yaml
-ai_generation:
-  enabled: true
-  
-  models:
-    base_model: "stabilityai/stable-diffusion-xl-base-1.0"
-    controlnet_models:
-      union: "xinsir/controlnet-union-sdxl-1.0"
-  
-  generation:
-    width: 1024
-    height: 1024
-    batch_size: 1  # Увеличить для 80GB GPU
-  
-  gpu:
-    device: "cuda"
-    memory_efficient: true    # false для 80GB GPU
-    enable_attention_slicing: true  # false для 80GB GPU
-    max_batch_size: 2         # 4-8 для 80GB GPU
-```
-
 ## Первый запуск
 
 ### 1. Инициализация базы данных
@@ -171,28 +138,11 @@ python scripts/init_db.py
 python scripts/seed_data.py
 ```
 
-### 2. 🔥 Проверка AI сервиса
-```bash
 # Проверка здоровья AI
-curl http://localhost:8600/health
 
 # Детальная AI диагностика
-curl http://localhost:8600/health/detailed
 
 # Готовность AI моделей
-curl http://localhost:8600/health/ready
-```
-
-### 3. 🔥 Тестовая AI генерация
-```bash
-curl -X POST http://localhost:8600/api/writing/generate-writing-image \
-  -H "Content-Type: application/json" \
-  -d '{
-    "word": "测试",
-    "translation": "test",
-    "width": 512,
-    "height": 512
-  }'
 ```
 
 ### 4. Запуск Telegram бота
@@ -206,56 +156,18 @@ curl -X POST http://localhost:8600/api/writing/generate-writing-image \
 ### Automatic Model Download
 Модели загружаются автоматически при первом запросе:
 - Stable Diffusion XL: ~7GB
-- Union ControlNet: ~2.5GB
 - VAE & Scheduler: ~1GB
 
 ### Manual Model Download (опционально)
 ```bash
-python scripts/ai_model_downloader.py --model sdxl-base
-python scripts/ai_model_downloader.py --model union-controlnet
 ```
 
 ### Model Cache Locations
 ```bash
-writing_service/cache/
-├── huggingface/               # HuggingFace модели
 │   └── hub/
-│       ├── models--stabilityai--stable-diffusion-xl-base-1.0/
-│       └── models--xinsir--controlnet-union-sdxl-1.0/
-├── torch/                     # PyTorch cache
-└── pytorch_kernel_cache/      # Compiled CUDA kernels
 ```
 
 ## Troubleshooting
-
-### 🔥 AI Issues
-
-#### **CUDA Out of Memory:**
-```bash
-# Уменьшить batch size
-echo "generation.batch_size: 1" >> writing_service/conf/config/ai_generation.yaml
-
-# Включить memory optimizations
-echo "gpu.memory_efficient: true" >> writing_service/conf/config/ai_generation.yaml
-```
-
-#### **Model Loading Failures:**
-```bash
-# Очистить cache
-rm -rf writing_service/cache/huggingface/*
-
-# Проверить сетевое подключение
-curl -I https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0
-```
-
-#### **Slow Generation:**
-```bash
-# Проверить GPU utilization
-nvidia-smi -l 1
-
-# Включить оптимизации
-echo "gpu.use_torch_compile: true" >> writing_service/conf/config/ai_generation.yaml
-```
 
 ### Common Issues
 
@@ -269,13 +181,11 @@ pip install --upgrade diffusers transformers
 #### **Permissions:**
 ```bash
 # Права на cache директории
-chmod -R 755 writing_service/cache/
 ```
 
 #### **Port Conflicts:**
 ```bash
 # Проверка занятых портов
-lsof -i :8600  # Writing Service
 lsof -i :8500  # Backend
 lsof -i :8527 # MongoDB
 ```
@@ -302,21 +212,11 @@ export TOKENIZERS_PARALLELISM=false
 ### **Monitoring Setup:**
 ```bash
 # Continuous GPU monitoring
-watch -n 1 nvidia-smi
 
-# AI service monitoring
-tail -f writing_service/logs/writing_service.log | grep "AI"
-```
-
-## Development Setup
-
-### Auto-reload Development
-```bash
 # Frontend auto-reload
 ./start_3_frontend_auto_reload.sh
 
 # Backend auto-reload (built-in FastAPI)
-# Writing Service auto-reload (built-in FastAPI)
 ```
 
 ### Testing
@@ -325,10 +225,8 @@ tail -f writing_service/logs/writing_service.log | grep "AI"
 ./run_tests.sh
 
 # AI тесты отдельно
-pytest writing_service/tests/test_ai/ -v
 
 # Интеграционные AI тесты
-pytest writing_service/tests/integration/ -v
 ```
 
 ---

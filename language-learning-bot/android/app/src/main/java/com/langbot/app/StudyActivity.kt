@@ -130,6 +130,12 @@ class StudyActivity : AppCompatActivity() {
                 BLSClient.api.endSession(userId, languageId)
             } catch (_: Exception) { /* ignore — session may not exist */ }
             sessionId = null
+            // Reset the offline side too. Without this, restarting with no network
+            // fell through to enterOfflineFromStore(), which positions the engine at
+            // lastWordId — so "начать заново" landed back on the very same word and
+            // looked like it did nothing.
+            lastWordId = null
+            OfflineCache.saveCursor(userId, languageId, 0)
             loadSession()
         }
     }

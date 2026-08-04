@@ -2,7 +2,7 @@
 """
 Script to run tests for the Language Learning Bot project.
 Runs tests for all active components: BLS, telegram_bot, web_frontend,
-backend, common, legacy frontend, writing_service.
+backend, common, legacy frontend.
 """
 
 import argparse
@@ -21,7 +21,6 @@ COMPONENT_DIRS = {
     "backend": PROJECT_ROOT / "backend",
     "common": PROJECT_ROOT / "common",
     "frontend": PROJECT_ROOT / "frontend",
-    "writing_service": PROJECT_ROOT / "writing_images_service",
 }
 
 def setup_parser():
@@ -30,7 +29,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["bls", "telegram", "web", "backend", "common", "frontend", "writing_service", "all"],
+        choices=["bls", "telegram", "web", "backend", "common", "frontend", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -124,9 +123,6 @@ def run_common_tests(args):
     return run_component_tests("common", COMPONENT_DIRS["common"], args)
 
 
-def run_writing_service_tests(args):
-    return run_component_tests("writing_service", COMPONENT_DIRS["writing_service"], args, ["-m", "not slow"])
-
 
 def run_bls_tests(args):
     return run_component_tests("bls", COMPONENT_DIRS["bls"], args)
@@ -155,11 +151,10 @@ def main():
         "backend": run_backend_tests,
         "common": run_common_tests,
         "frontend": run_frontend_tests,
-        "writing_service": run_writing_service_tests,
     }
 
     if args.component == "all":
-        components = ["bls", "telegram", "web", "backend", "common", "frontend", "writing_service"]
+        components = ["bls", "telegram", "web", "backend", "common", "frontend"]
     else:
         components = [args.component]
 

@@ -21,7 +21,6 @@ SETTING_LABELS = {
     "show_hint_phoneticassociation": "Ассоциация звучания",
     "show_hint_writing":             "Ассоциация написания",
     "show_big":                      "Показывать крупное написание",
-    "show_writing_images":           "Показывать картинки",
     "show_radicals":                 "Показывать радикалы",
     "show_references":               "Показывать ссылки",
     "show_tones":                    "Показывать тоны",

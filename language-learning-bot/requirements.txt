@@ -49,10 +49,6 @@ pydub>=0.25.1  # For audio processing
 motor>=3.3.0
 pymongo>=4.5.0
 
-# Распознавание речи
-openai-whisper>=20231117
-torch>=2.0.0
-torchaudio>=2.0.0
 numpy>=1.22.0
 imageio-ffmpeg>=0.4.8
 

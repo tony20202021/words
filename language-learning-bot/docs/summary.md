@@ -17,7 +17,6 @@
 - **installation/mongodb_setup.md** - Установка и настройка MongoDB
 
 ## Запуск и управление
-- **running/running_guide.md** - Руководство по запуску компонентов (включая Writing Service)
 - **running/scripts_reference.md** - Справочник по скриптам запуска и управления
 - **running/auto_reload.md** - Руководство по автоматическому перезапуску
 - **running/deployment_guide.md** - Развертывание в продакшене
@@ -36,8 +35,9 @@
 - **development/testing_guide.md** - Руководство по тестированию
 - **development/bot_test_framework.md** - Фреймворк для тестирования бота
 - **development/configuration.md** - Конфигурация с помощью Hydra
-- **development/directory_structure.md** - Структура каталогов и файлов проекта
+- **directory_structure.md** - Структура каталогов и файлов проекта
 - **development/router_organization.md** - Организация роутеров и обработчиков
 - **development/meta_states_guide.md** - Руководство по Meta-состояниям
 - **development/show_big.md** - Техническая документация по генерации изображений
 - **development/offline_caching.md** - Дизайн офлайн-кеширования на Android (аудит Android↔BLS, префетч-бандл, outbox, фазы)
+- **development/android_build.md** - Сборка и подпись APK

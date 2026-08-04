@@ -99,7 +99,6 @@ class UserLanguageSettingsRepository:
             "use_check_date": settings_dict.get("use_check_date", True),
             "show_check_date": settings_dict.get("show_check_date", True),
             "show_big": settings_dict.get("show_big", False),
-            "show_writing_images": settings_dict.get("show_writing_images", True),
             "show_radicals": settings_dict.get("show_radicals", True),
             "show_references": settings_dict.get("show_references", True),
             "show_tones": settings_dict.get("show_tones", True),

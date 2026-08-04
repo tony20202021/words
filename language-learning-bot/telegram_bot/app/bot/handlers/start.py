@@ -312,7 +312,6 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         "",
         "🖼️ <b>Настройки написания:</b>",
         f"   • Крупное написание: <b>{b(s.get('show_big', False))}</b>",
-        f"   • Картинки написания: <b>{b(s.get('show_writing_images', False))}</b>",
         f"   • Радикалы: <b>{b(s.get('show_radicals', True))}</b>",
         f"   • Ссылки: <b>{b(s.get('show_references', True))}</b>",
         f"   • Тоны: <b>{b(s.get('show_tones', True))}</b>",

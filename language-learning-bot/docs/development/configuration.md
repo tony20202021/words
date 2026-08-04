@@ -34,13 +34,6 @@
 - **database.yaml** - настройки подключения к MongoDB
 - **logging.yaml** - настройки логирования
 
-### Writing Service (writing_service/conf/config/)
-
-- **default.yaml** - основной файл сервиса генерации картинок
-- **api.yaml** - настройки API сервиса (порт 8600)
-- **generation.yaml** - настройки генерации изображений
-- **logging.yaml** - настройки логирования сервиса
-
 ## Использование конфигурации в коде
 
 from app.utils import config_holder
@@ -61,9 +54,6 @@ python app/main.py api.port=8501 logging.level=DEBUG
 python app/main.py bot.word_images.fonts.word_size=300
 python app/main.py bot.word_images.universal_language_support=false
 
-# Переопределение настроек Writing Service
-python app/main_writing_service.py api.port=8601
-python app/main_writing_service.py generation.generation_defaults.width=800
 
 # Переопределение настроек базы данных
 python app/main.py database.mongodb.host=remote-server
