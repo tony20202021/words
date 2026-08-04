@@ -95,6 +95,15 @@ async def start_session(req: StartSessionRequest, api_client=Depends(get_api_cli
     return await _card_response(session, api_client)
 
 
+@router.post("/{user_id}/{language_id}/bundle")
+async def get_bundle(user_id: str, language_id: str, api_client=Depends(get_api_client)):
+    """Offline prefetch: current batch of words pre-rendered for both card sides."""
+    bundle = await session_service.build_bundle(user_id, language_id, api_client)
+    if bundle is None:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Failed to build bundle")
+    return bundle
+
+
 @router.get("/{user_id}/{language_id}")
 async def get_session(user_id: str, language_id: str, api_client=Depends(get_api_client)):
     session = session_service.get_session(user_id, language_id)

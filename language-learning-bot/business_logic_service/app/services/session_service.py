@@ -47,10 +47,15 @@ async def start_session(
     api_client,
     settings: Optional[Dict[str, Any]] = None,
     session_mode: Optional[str] = None,
+    register: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
     Load words from backend and create a new study session.
     Returns the session dict or None on failure.
+
+    When ``register`` is False the session is built but NOT stored in the global
+    session registry — used to produce a read-only snapshot (e.g. an offline
+    bundle) without disturbing the user's active online session.
     """
     if settings is None:
         settings = await get_settings(user_id, language_id, api_client)
@@ -98,9 +103,12 @@ async def start_session(
     }
 
     session["last_activity_at"] = datetime.utcnow().isoformat()
-    _sessions[session_id] = session
-    _session_index[_session_key(user_id, language_id)] = session_id
-    logger.info(f"Session started: {session_id} user={user_id} lang={language_id} words={len(words)}")
+    if register:
+        _sessions[session_id] = session
+        _session_index[_session_key(user_id, language_id)] = session_id
+        logger.info(f"Session started: {session_id} user={user_id} lang={language_id} words={len(words)}")
+    else:
+        logger.info(f"Session snapshot built (unregistered): user={user_id} lang={language_id} words={len(words)}")
     return session
 
 
@@ -434,3 +442,103 @@ async def _load_words_with_slide(
 
     logger.info(f"No words found up to max_shift={max_shift}")
     return [], current_shift
+
+
+# ── Offline bundle + batch results ──────────────────────────────────────────────
+
+# In-process idempotency guard for replayed offline results (bounded).
+_processed_event_ids: "set[str]" = set()
+
+
+async def build_bundle(
+    user_id: str,
+    language_id: str,
+    api_client,
+    settings: Optional[Dict[str, Any]] = None,
+    limit: int = 100,
+) -> Optional[Dict[str, Any]]:
+    """
+    Build an offline study bundle: the current batch of words, each pre-rendered
+    for both the question and answer sides (plus pick options where applicable),
+    so an Android client can run the study loop without the network.
+    """
+    from app.services.card_builder import build_card, _parse_sound_urls
+    from app.services import quiz_service
+
+    # register=False: build a read-only snapshot without clobbering the user's
+    # active online session in the global registry.
+    session = await start_session(user_id, language_id, api_client, settings, register=False)
+    if session is None:
+        return None
+
+    words = (session.get("words") or [])[:limit]
+    units: List[Dict[str, Any]] = []
+    for w in words:
+        wid = str(w.get("_id") or w.get("id") or w.get("word_id", ""))
+        ctx = dict(session)
+        ctx["show_mode"] = _pick_show_mode(session["settings"])
+        ctx["pick_mode_active"] = _pick_quiz_mode(session["settings"])
+        ctx["quiz_options"] = None
+        ctx["word_processed"] = False
+        ctx["score_changed"] = False
+        if ctx["pick_mode_active"]:
+            opts = await quiz_service.generate_quiz_options(ctx, w, api_client)
+            if opts:
+                ctx["quiz_options"] = opts
+            else:
+                ctx["pick_mode_active"] = False
+        units.append({
+            "word_id": wid,
+            "word_number": w.get("word_number"),
+            "card_front": build_card(ctx, w, False),
+            "card_answer": build_card(ctx, w, True),
+            "sounds": _parse_sound_urls(w),
+        })
+
+    return {
+        "session_id": session["session_id"],
+        "words": units,
+        "settings": session.get("settings", {}),
+        "language_name_ru": session.get("language_name_ru", ""),
+        "language_name_foreign": session.get("language_name_foreign", ""),
+        "total_words": session.get("total_words", 0),
+        "words_for_today": session.get("words_for_today", 0),
+    }
+
+
+async def apply_results_batch(
+    user_id: str,
+    language_id: str,
+    events: List[Dict[str, Any]],
+    api_client,
+) -> Dict[str, Any]:
+    """
+    Apply a list of study results (accumulated offline) directly by word_id,
+    idempotently by event_id, in timestamp order. rating ∈ {know, dont_know, skip}.
+    """
+    settings = await get_settings(user_id, language_id, api_client)
+    max_interval = int(settings.get("max_check_interval", MAX_INTERVAL_DAYS))
+
+    acks: List[Dict[str, Any]] = []
+    for ev in sorted(events, key=lambda e: e.get("ts", "")):
+        eid = ev.get("event_id", "")
+        word_id = ev.get("word_id", "")
+        rating = ev.get("rating", "")
+        if eid and eid in _processed_event_ids:
+            acks.append({"event_id": eid, "status": "duplicate"})
+            continue
+        if not word_id or rating not in ("know", "dont_know", "skip"):
+            acks.append({"event_id": eid, "status": "invalid"})
+            continue
+        score = 1 if rating == "know" else 0
+        is_skipped = rating == "skip"
+        ok, _ = await update_word_score(
+            api_client, user_id, word_id, score=score,
+            word={"language_id": language_id}, is_skipped=is_skipped,
+            max_interval=max_interval,
+        )
+        if ok and eid:
+            _processed_event_ids.add(eid)
+        acks.append({"event_id": eid, "status": "ok" if ok else "error"})
+
+    return {"acks": acks}

@@ -102,9 +102,14 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
     # Show pick options only before the answer; after answer — show normal card
     pick_options = None
     if pick_mode_active and not show_answer and quiz_options:
+        # Stamp each option with the rating an offline client should record —
+        # so Android reads it straight from the bundle instead of re-deriving it.
+        options = []
+        for o in quiz_options.get("options", []):
+            options.append({**o, "offline_rating": "know" if o.get("is_correct") else "dont_know"})
         pick_options = {
             "target_modality": quiz_options.get("target_modality", "foreign"),
-            "options": quiz_options.get("options", []),
+            "options": options,
         }
 
     # Forbidden quiz pairs for this word — shown in extra_content after answer
@@ -232,33 +237,50 @@ def _add_hints(content: list, word: dict, uwd: dict, settings: dict) -> None:
 
 # ── buttons ───────────────────────────────────────────────────────────────────
 
+# Offline action semantics per button — the single source of truth for how an
+# offline client (Android) interprets each button without any of its own rules.
+#   offline_effect: "reveal_answer" | "reveal_question" | "submit"
+#   offline_rating: rating to record when effect == "submit" (else absent)
+def _offline(effect: str, rating: str = None) -> Dict[str, Any]:
+    d = {"offline_effect": effect}
+    if rating is not None:
+        d["offline_rating"] = rating
+    return d
+
+
+def _skip_button(is_skipped: bool) -> Dict[str, Any]:
+    return {
+        "id": "toggle_skip",
+        "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
+        "style": "outline-secondary",
+        **_offline("submit", "skip"),
+    }
+
+
 def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
     btns = [
-        {"id": "know", "text": "✅ Знаю", "style": "success"},
-        {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger"},
+        {"id": "know", "text": "✅ Знаю", "style": "success", **_offline("submit", "know")},
+        {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger", **_offline("reveal_answer")},
     ]
     if show_skip:
-        btns.append({"id": "toggle_skip",
-                     "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
-                     "style": "outline-secondary"})
+        btns.append(_skip_button(is_skipped))
     return btns
 
 
 def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True,
                    pick_mode: bool = False) -> List[Dict[str, Any]]:
-    skip_btn = {
-        "id": "toggle_skip",
-        "text": "⏩ Не пропускать" if is_skipped else "⏩ Пропускать",
-        "style": "outline-secondary",
-    }
+    skip_btn = _skip_button(is_skipped)
     if score_changed:
-        btns = [{"id": "rate", "text": "✅ К следующему слову", "style": "success", "rating": "know"}]
+        btns = [{"id": "rate", "text": "✅ К следующему слову", "style": "success",
+                 "rating": "know", **_offline("submit", "know")}]
         if not pick_mode:
-            btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю", "style": "outline-danger"})
+            btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю",
+                         "style": "outline-danger", **_offline("reveal_question")})
         if show_skip:
             btns.append(skip_btn)
         return btns
-    btns = [{"id": "rate", "text": "➡️ Дальше", "style": "success", "rating": "dont_know"}]
+    btns = [{"id": "rate", "text": "➡️ Дальше", "style": "success",
+             "rating": "dont_know", **_offline("submit", "dont_know")}]
     if show_skip:
         btns.append(skip_btn)
     return btns

@@ -27,8 +27,16 @@ import com.langbot.app.network.PickOption
 import com.langbot.app.network.RateRequest
 import com.langbot.app.network.SessionResponse
 import com.langbot.app.network.StartSessionRequest
+import com.langbot.app.offline.AudioCache
+import com.langbot.app.offline.OfflineCache
+import com.langbot.app.offline.OfflineEngine
+import com.langbot.app.offline.OfflineSemantics
+import com.langbot.app.offline.OutboxSync
+import com.langbot.app.offline.StoredBundle
 import com.langbot.app.prefs.UserPrefs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class StudyActivity : AppCompatActivity() {
 
@@ -42,6 +50,14 @@ class StudyActivity : AppCompatActivity() {
 
     // Last pick-mode answer result: true=correct, false=wrong/dont_know, null=not a pick answer
     private var lastPickAnswerResult: Boolean? = null
+
+    // ── Offline mode ──
+    // Non-null while the study loop is running from the local cache (network is down).
+    private var offline: OfflineEngine? = null
+    // word_id of the currently rendered card — used to position the offline engine.
+    private var lastWordId: String? = null
+    // Guards against recording the current offline word's result more than once.
+    private var offlineCurrentRecorded: Boolean = false
 
     companion object {
         private const val MENU_REFRESH = 1
@@ -66,6 +82,9 @@ class StudyActivity : AppCompatActivity() {
         binding.swipeRefresh.setOnRefreshListener {
             loadSession()
         }
+
+        OfflineCache.init(this)  // defensive — normally done in LangBotApp
+        AudioCache.init(this)
 
         loadSession()
     }
@@ -127,13 +146,135 @@ class StudyActivity : AppCompatActivity() {
                 if (!resp.isSuccessful || resp.body()?.session_id == null) {
                     resp = BLSClient.api.startSession(StartSessionRequest(userId, languageId))
                 }
+                offline = null  // back online
                 handleResponse(resp.body())
+                // Best-effort background chores once we're online again.
+                flushOutboxInBackground()
+                prefetchBundleInBackground()
             } catch (e: Exception) {
-                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
+                // Network is down — fall back to the cached bundle if we have one.
+                if (!enterOfflineFromStore()) {
+                    showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
+                }
             } finally {
                 setLoading(false)
             }
         }
+    }
+
+    /** Prefetch a fresh offline bundle in the background; never blocks the UI. */
+    private fun prefetchBundleInBackground() {
+        lifecycleScope.launch {
+            runCatching {
+                val resp = BLSClient.api.getBundle(userId, languageId)
+                val body = resp.body()
+                if (resp.isSuccessful && body != null && body.words.isNotEmpty()) {
+                    OfflineCache.saveBundle(
+                        StoredBundle(userId, languageId, body.words, cursor = 0)
+                    )
+                    // Phase 3: pull each word's sounds into the on-disk cache so audio
+                    // plays offline too. Best-effort, sequential, background thread.
+                    val sounds = body.words.flatMap { it.sounds }
+                    withContext(Dispatchers.IO) { AudioCache.prefetch(sounds) }
+                }
+            }
+        }
+    }
+
+    /** Flush any accumulated offline results; never blocks the UI. */
+    private fun flushOutboxInBackground() {
+        lifecycleScope.launch { runCatching { OutboxSync.flush() } }
+    }
+
+    // ── Offline study loop ───────────────────────────────────────────────────────
+
+    /**
+     * Switch to offline mode using the cached bundle, positioned at the current word.
+     * Returns false if there is no usable cached bundle (nothing to study offline).
+     */
+    private fun enterOfflineFromStore(): Boolean {
+        val eng = OfflineEngine.fromStore(userId, languageId) ?: return false
+        eng.positionAtWord(lastWordId)
+        if (!eng.hasCurrent()) return false
+        offline = eng
+        offlineCurrentRecorded = false
+        renderOfflineCurrent(showAnswer = false)
+        Toast.makeText(this, "Нет сети — занимаемся офлайн", Toast.LENGTH_SHORT).show()
+        return true
+    }
+
+    /**
+     * Apply a card-button action locally against the cached bundle.
+     * Semantics come from the button itself (server-declared in the bundle);
+     * OfflineSemantics is a compat fallback for bundles cached before those fields.
+     */
+    private fun handleOfflineAction(btn: CardButton) {
+        offline ?: return
+        val effect = btn.offline_effect ?: OfflineSemantics.effectFor(btn.id) ?: return
+        when (effect) {
+            "reveal_answer"   -> renderOfflineCurrent(showAnswer = true)
+            "reveal_question" -> renderOfflineCurrent(showAnswer = false)
+            "submit" -> {
+                val r = btn.offline_rating ?: OfflineSemantics.ratingFor(btn.id, btn.rating)
+                recordOffline(r)
+                advanceOffline()
+            }
+        }
+    }
+
+    /** Apply a pick-mode answer locally against the cached bundle. */
+    private fun handleOfflinePick(selectedWordId: String) {
+        val eng = offline ?: return
+        val option = eng.frontCard()?.pick_options?.options?.firstOrNull { it.word_id == selectedWordId }
+        // Rating is server-declared per option; fall back to is_correct for old bundles.
+        val rating = when {
+            selectedWordId == "dont_know" -> "dont_know"
+            option?.offline_rating != null -> option.offline_rating
+            else -> if (option?.is_correct == true) "know" else "dont_know"
+        }
+        lastPickAnswerResult = rating == "know"
+        recordOffline(rating)
+        // Reveal the answer; the word is already banked, so any follow-up just advances.
+        renderOfflineCurrent(showAnswer = true)
+    }
+
+    private fun recordOffline(rating: String) {
+        val eng = offline ?: return
+        if (offlineCurrentRecorded) return
+        eng.record(rating)
+        offlineCurrentRecorded = true
+    }
+
+    private fun advanceOffline() {
+        val eng = offline ?: return
+        eng.advance()
+        offlineCurrentRecorded = false
+        if (eng.atEnd()) showOfflineDone() else renderOfflineCurrent(showAnswer = false)
+    }
+
+    private fun renderOfflineCurrent(showAnswer: Boolean) {
+        val eng = offline ?: return
+        val card = if (showAnswer) eng.answerCard() else eng.frontCard()
+        if (card == null) { showOfflineDone(); return }
+        renderCard(card)
+        showOfflineBanner()
+    }
+
+    private fun showOfflineBanner() {
+        val pending = OfflineCache.pendingCount()
+        binding.tvStaleSession.text =
+            "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении"
+        binding.tvStaleSession.visibility = View.VISIBLE
+    }
+
+    private fun showOfflineDone() {
+        offline = null
+        flushOutboxInBackground()
+        showAllDone()
+        binding.tvStaleSession.text =
+            "📴 Слова из офлайн-партии пройдены. Подключитесь к сети, чтобы продолжить и отправить результаты."
+        binding.tvStaleSession.visibility = View.VISIBLE
     }
 
     private fun handleResponse(resp: SessionResponse?) {
@@ -158,6 +299,7 @@ class StudyActivity : AppCompatActivity() {
 
     private fun renderCard(card: Card) {
         val meta = card.meta
+        if (meta.word_id.isNotEmpty()) lastWordId = meta.word_id
         val barTotal = meta.session_total?.takeIf { it > 0 }
         binding.tvBadge.visibility = View.GONE  // badge now lives inside cardContent
 
@@ -673,8 +815,11 @@ class StudyActivity : AppCompatActivity() {
 
     // ── Button click handler ────────────────────────────────────────────────────
 
-    private fun onButtonClick(btnId: String, rating: String?) {
+    private fun onButtonClick(btn: CardButton) {
+        if (offline != null) { handleOfflineAction(btn); return }
         val sid = sessionId ?: return
+        val btnId = btn.id
+        val rating = btn.rating
         lastPickAnswerResult = null
         setLoading(true)
         lifecycleScope.launch {
@@ -701,8 +846,14 @@ class StudyActivity : AppCompatActivity() {
                     return@launch
                 }
                 handleResponse(body)
+                flushOutboxInBackground()
             } catch (e: Exception) {
-                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                // Network dropped — switch to the cached bundle and apply this action locally.
+                if (enterOfflineFromStore()) {
+                    handleOfflineAction(btn)
+                } else {
+                    Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 setLoading(false)
             }
@@ -715,10 +866,12 @@ class StudyActivity : AppCompatActivity() {
         var idx = 0
         fun playNext() {
             if (idx >= paths.size) return
-            val url = BLSClient.soundUrl(paths[idx]); idx++
+            val path = paths[idx]; idx++
+            // Prefer the offline-cached file; fall back to streaming from BLS.
+            val source = AudioCache.cachedFile(path)?.absolutePath ?: BLSClient.soundUrl(path)
             val mp = MediaPlayer()
             try {
-                mp.setDataSource(url)
+                mp.setDataSource(source)
                 mp.setOnPreparedListener { it.start() }
                 mp.setOnCompletionListener { it.release(); binding.root.postDelayed({ playNext() }, 350) }
                 mp.setOnErrorListener { p, _, _ -> p.release(); binding.root.postDelayed({ playNext() }, 350); true }
@@ -731,6 +884,7 @@ class StudyActivity : AppCompatActivity() {
     }
 
     private fun onPickAnswer(selectedWordId: String) {
+        if (offline != null) { handleOfflinePick(selectedWordId); return }
         val sid = sessionId ?: return
         setLoading(true)
         lifecycleScope.launch {
@@ -753,8 +907,13 @@ class StudyActivity : AppCompatActivity() {
                     else -> true
                 }
                 handleResponse(body)
+                flushOutboxInBackground()
             } catch (e: Exception) {
-                Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                if (enterOfflineFromStore()) {
+                    handleOfflinePick(selectedWordId)
+                } else {
+                    Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 setLoading(false)
             }
@@ -762,6 +921,10 @@ class StudyActivity : AppCompatActivity() {
     }
 
     private fun onAddForbiddenPair(badWordId: String) {
+        if (offline != null) {
+            Toast.makeText(this, "Недоступно офлайн", Toast.LENGTH_SHORT).show()
+            return
+        }
         val sid = sessionId ?: return
         setLoading(true)
         lifecycleScope.launch {
@@ -799,7 +962,7 @@ class StudyActivity : AppCompatActivity() {
                 b.strokeWidth = 2
             }
         }
-        b.setOnClickListener { onButtonClick(btn.id, btn.rating) }
+        b.setOnClickListener { onButtonClick(btn) }
         return b
     }
 

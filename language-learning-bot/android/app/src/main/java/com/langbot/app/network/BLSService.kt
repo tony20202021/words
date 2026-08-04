@@ -77,6 +77,16 @@ interface BLSApi {
         @Path("language_id") languageId: String,
     ): Response<Unit>
 
+    // Offline
+    @POST("session/{user_id}/{language_id}/bundle")
+    suspend fun getBundle(
+        @Path("user_id") userId: String,
+        @Path("language_id") languageId: String,
+    ): Response<BundleResponse>
+
+    @POST("results/batch")
+    suspend fun postResultsBatch(@Body body: ResultsBatchRequest): Response<ResultsBatchResponse>
+
     // Statistics
     @GET("statistics/{user_id}/{language_id}")
     suspend fun getStatistics(
@@ -182,6 +192,8 @@ object BLSClient {
     }
 
     val api: BLSApi get() = _api ?: error("BLSClient not initialized — call BLSClient.init(url) first")
+
+    val isInitialized: Boolean get() = _api != null
 
     /** Full URL for a sound path, routed through BLS sound proxy. */
     fun soundUrl(path: String): String = "$rawBaseUrl/sounds/$path"

@@ -422,3 +422,49 @@ class TestSetSettingEndpoint:
         )
         assert resp.status_code == 200
         assert resp.json()["start_word"] == 100
+
+
+# ── Offline endpoints (bundle + batch results) ──────────────────────────────────
+
+class TestOfflineEndpoints:
+    def test_bundle_endpoint_pre_renders_and_labels_buttons(self, client, api):
+        resp = client.post("/session/user-1/lang1/bundle")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["words"]) >= 1
+        w = data["words"][0]
+        assert w["card_front"]["show_answer"] is False
+        assert w["card_answer"]["show_answer"] is True
+        assert "sounds" in w
+        effects = {b["id"]: b.get("offline_effect") for b in w["card_front"]["buttons"]}
+        assert effects.get("know") == "submit"
+        assert effects.get("show_answer") == "reveal_answer"
+
+    def test_results_batch_endpoint_validates_and_applies(self, client, api):
+        from app.services import session_service
+        session_service._processed_event_ids.clear()
+        resp = client.post("/results/batch", json={
+            "user_id": "user-1", "language_id": "lang1",
+            "events": [
+                {"event_id": "r1", "word_id": "", "rating": "know", "ts": "001"},
+                {"event_id": "r2", "word_id": "word-1", "rating": "know", "ts": "002"},
+                {"event_id": "r3", "word_id": "word-2", "rating": "skip", "ts": "003"},
+            ],
+        })
+        assert resp.status_code == 200
+        acks = {a["event_id"]: a["status"] for a in resp.json()["acks"]}
+        assert acks["r1"] == "invalid"
+        assert acks["r2"] == "ok"
+        assert acks["r3"] == "ok"
+
+    def test_results_batch_endpoint_is_idempotent(self, client, api):
+        from app.services import session_service
+        session_service._processed_event_ids.clear()
+        body = {
+            "user_id": "user-1", "language_id": "lang1",
+            "events": [{"event_id": "dup-1", "word_id": "word-1", "rating": "know", "ts": "001"}],
+        }
+        first = client.post("/results/batch", json=body)
+        second = client.post("/results/batch", json=body)
+        assert first.json()["acks"][0]["status"] == "ok"
+        assert second.json()["acks"][0]["status"] == "duplicate"

@@ -79,4 +79,7 @@ dependencies {
 
     // Pull-to-refresh
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+
+    // Unit tests (pure JVM — no emulator needed; run via ./gradlew testReleaseUnitTest)
+    testImplementation 'junit:junit:4.13.2'
 }

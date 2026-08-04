@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.logger import setup_logger
 from app.api.client import init_api_client
-from app.routers import session, user, settings, statistics, languages, auth, admin, hints, sounds, info
+from app.routers import session, user, settings, statistics, languages, auth, admin, hints, sounds, info, results
 
 logger = setup_logger(__name__)
 
@@ -34,6 +34,7 @@ app.include_router(admin.router)
 app.include_router(hints.router)
 app.include_router(sounds.router)
 app.include_router(info.router)
+app.include_router(results.router)
 
 
 @app.get("/health")

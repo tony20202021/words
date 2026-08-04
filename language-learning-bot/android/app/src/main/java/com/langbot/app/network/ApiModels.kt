@@ -49,6 +49,7 @@ data class PickOption(
     val word_id: String,
     val target_text: String,
     val is_correct: Boolean,
+    val offline_rating: String? = null,   // know | dont_know — server-declared for offline
 )
 
 data class CardItem(
@@ -74,6 +75,9 @@ data class CardButton(
     val text: String,
     val style: String,
     val rating: String? = null,
+    // Server-declared offline semantics (source of truth; see BLS card_builder):
+    val offline_effect: String? = null,   // reveal_answer | reveal_question | submit
+    val offline_rating: String? = null,   // rating to record when effect == submit
 )
 
 data class CardMeta(
@@ -145,3 +149,38 @@ data class ChartManifestResponse(
     val sections: List<ChartManifestSection>,
     val captions: Map<String, String>,
 )
+
+// ── Offline bundle + batch results ─────────────────────────────────────────────
+
+data class BundleWord(
+    val word_id: String,
+    val word_number: Int?,
+    val card_front: Card,
+    val card_answer: Card,
+    val sounds: List<String> = emptyList(),
+)
+
+data class BundleResponse(
+    val session_id: String,
+    val words: List<BundleWord> = emptyList(),
+    val settings: Map<String, Any> = emptyMap(),
+    val language_name_ru: String = "",
+    val total_words: Int = 0,
+    val words_for_today: Int = 0,
+)
+
+data class ResultEvent(
+    val event_id: String,
+    val word_id: String,
+    val rating: String,   // know | dont_know | skip
+    val ts: String,
+)
+
+data class ResultsBatchRequest(
+    val user_id: String,
+    val language_id: String,
+    val events: List<ResultEvent>,
+)
+
+data class ResultAck(val event_id: String, val status: String)
+data class ResultsBatchResponse(val acks: List<ResultAck> = emptyList())

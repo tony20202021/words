@@ -753,3 +753,64 @@ class TestSessionCounterMeta:
         assert card["meta"]["is_new_word"] is False
         assert card["meta"]["show_session_counter"] is True
         assert "в сессии" in card["meta"]["session_counter_text"]
+
+
+# ── offline action semantics (for the Android offline "dumb player") ─────────────
+# The bundle stamps each button/option with what an offline client should do, so
+# Android carries no business rules of its own. These assert the single source of
+# truth lives here in build_card.
+
+def _btn(card, bid):
+    return next(b for b in card["buttons"] if b["id"] == bid)
+
+
+def test_before_answer_buttons_carry_offline_semantics():
+    card = build_card(make_session(show_answer=False), make_word(), show_answer=False)
+    know = _btn(card, "know")
+    assert know["offline_effect"] == "submit"
+    assert know["offline_rating"] == "know"
+    show = _btn(card, "show_answer")
+    assert show["offline_effect"] == "reveal_answer"
+    assert "offline_rating" not in show
+    skip = _btn(card, "toggle_skip")
+    assert skip["offline_effect"] == "submit"
+    assert skip["offline_rating"] == "skip"
+
+
+def test_after_answer_score_changed_buttons_offline_semantics():
+    card = build_card(make_session(show_answer=True, score_changed=True),
+                      make_word(), show_answer=True)
+    rate = _btn(card, "rate")
+    assert rate["offline_effect"] == "submit"
+    assert rate["offline_rating"] == "know"
+    reconsider = _btn(card, "reconsider")
+    assert reconsider["offline_effect"] == "reveal_question"
+    assert "offline_rating" not in reconsider
+
+
+def test_after_answer_unchanged_rate_records_dont_know_offline():
+    card = build_card(make_session(show_answer=True, score_changed=False),
+                      make_word(), show_answer=True)
+    rate = _btn(card, "rate")
+    assert rate["offline_effect"] == "submit"
+    assert rate["offline_rating"] == "dont_know"
+
+
+def test_pick_options_carry_offline_rating():
+    session = make_session(show_answer=False)
+    session["pick_mode_active"] = True
+    session["quiz_options"] = {
+        "target_modality": "foreign",
+        "options": [
+            {"word_id": "w1", "target_text": "a", "is_correct": False},
+            {"word_id": "w2", "target_text": "b", "is_correct": True},
+            {"word_id": "w3", "target_text": "c", "is_correct": False},
+        ],
+    }
+    card = build_card(session, make_word(), show_answer=False)
+    po = card["pick_options"]
+    assert po is not None
+    ratings = {o["word_id"]: o["offline_rating"] for o in po["options"]}
+    assert ratings["w1"] == "dont_know"
+    assert ratings["w2"] == "know"
+    assert ratings["w3"] == "dont_know"

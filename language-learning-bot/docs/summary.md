@@ -40,3 +40,4 @@
 - **development/router_organization.md** - Организация роутеров и обработчиков
 - **development/meta_states_guide.md** - Руководство по Meta-состояниям
 - **development/show_big.md** - Техническая документация по генерации изображений
+- **development/offline_caching.md** - Дизайн офлайн-кеширования на Android (аудит Android↔BLS, префетч-бандл, outbox, фазы)
