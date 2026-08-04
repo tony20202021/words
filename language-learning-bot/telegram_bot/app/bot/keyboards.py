@@ -74,7 +74,7 @@ def build_language_keyboard(languages: List[Dict[str, Any]]) -> InlineKeyboardMa
     return builder.as_markup()
 
 
-def build_welcome_keyboard(web_url: str = "") -> InlineKeyboardMarkup:
+def build_welcome_keyboard(web_url: str = "", is_admin: bool = False) -> InlineKeyboardMarkup:
     """Navigation keyboard shown after the stats block in /start."""
     builder = InlineKeyboardBuilder()
     builder.button(text="🌐 Выбрать язык",  callback_data="welcome:language")
@@ -84,6 +84,9 @@ def build_welcome_keyboard(web_url: str = "") -> InlineKeyboardMarkup:
     builder.button(text="📚 Помощь",        callback_data="welcome:help")
     if web_url:
         builder.button(text="🔗 Веб-версия", url=web_url)
+    if is_admin:
+        # "admin:menu" is already handled by admin.admin_menu_back — no new handler needed.
+        builder.button(text="⚙️ Админка",   callback_data="admin:menu")
     builder.adjust(2)
     return builder.as_markup()
 

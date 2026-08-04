@@ -34,9 +34,7 @@ import com.langbot.app.offline.OfflineSemantics
 import com.langbot.app.offline.OutboxSync
 import com.langbot.app.offline.StoredBundle
 import com.langbot.app.prefs.UserPrefs
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class StudyActivity : AppCompatActivity() {
 
@@ -174,9 +172,10 @@ class StudyActivity : AppCompatActivity() {
                         StoredBundle(userId, languageId, body.words, cursor = 0)
                     )
                     // Phase 3: pull each word's sounds into the on-disk cache so audio
-                    // plays offline too. Best-effort, sequential, background thread.
-                    val sounds = body.words.flatMap { it.sounds }
-                    withContext(Dispatchers.IO) { AudioCache.prefetch(sounds) }
+                    // plays offline too. Returns immediately — AudioCache downloads in
+                    // parallel on its own process-lifetime scope, so leaving this screen
+                    // no longer cancels the download halfway.
+                    AudioCache.prefetch(body.words.flatMap { it.sounds })
                 }
             }
         }

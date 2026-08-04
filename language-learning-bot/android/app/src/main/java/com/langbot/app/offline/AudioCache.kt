@@ -1,17 +1,42 @@
 package com.langbot.app.offline
 
 import android.content.Context
+import android.util.Log
 import com.langbot.app.network.BLSClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * On-disk cache of pronunciation sounds (mp3) so audio plays while offline.
- * Files live under `filesDir/sounds/`. Dependency-free (HttpURLConnection).
+ * Files live under `filesDir/sounds/`. Downloads use HttpURLConnection.
+ *
+ * Prefetch runs on a process-lifetime scope, NOT on an Activity scope: a bundle
+ * carries ~200 sounds and leaving StudyActivity used to cancel the download
+ * halfway, leaving most words silent offline.
  */
 object AudioCache {
+    private const val TAG = "AudioCache"
+
+    /** Concurrent downloads. Files are small (~3 KB); the win is round-trip overlap. */
+    private const val PARALLELISM = 6
+
     private lateinit var appCtx: Context
+
+    /** Survives Activity teardown — prefetch must finish even if the user navigates away. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Paths currently being downloaded, so overlapping prefetches don't duplicate work. */
+    private val inFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     fun init(ctx: Context) { appCtx = ctx.applicationContext }
     private fun ready() = ::appCtx.isInitialized
@@ -34,13 +59,20 @@ object AudioCache {
         if (!ready() || path.isBlank()) return false
         val f = File(dir(), fileNameFor(path))
         if (f.exists() && f.length() > 0) return true
+        val url = BLSClient.soundUrl(path)
         return runCatching {
-            val conn = (URL(BLSClient.soundUrl(path)).openConnection() as HttpURLConnection).apply {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 15000
                 readTimeout = 30000
                 requestMethod = "GET"
             }
             try {
+                val code = conn.responseCode
+                if (code !in 200..299) {
+                    Log.w(TAG, "download failed HTTP $code for $url")
+                    return false
+                }
+                // Write to a temp file first so a partial download never looks cached.
                 val tmp = File(f.absolutePath + ".tmp")
                 conn.inputStream.use { input -> tmp.outputStream().use { out -> input.copyTo(out) } }
                 if (tmp.length() > 0) tmp.renameTo(f) else tmp.delete()
@@ -48,13 +80,47 @@ object AudioCache {
                 conn.disconnect()
             }
             f.exists() && f.length() > 0
-        }.getOrDefault(false)
+        }.getOrElse { e ->
+            Log.w(TAG, "download error for $url: ${e.javaClass.simpleName}: ${e.message}")
+            false
+        }
     }
 
-    /** Best-effort prefetch of many sounds. Call from a background coroutine (blocks per file). */
+    /**
+     * Fire-and-forget prefetch of many sounds, in parallel, on the process scope.
+     * Returns immediately; safe to call repeatedly (already-cached and in-flight
+     * paths are skipped).
+     */
     fun prefetch(paths: List<String>) {
         if (!ready()) return
-        for (p in paths) if (p.isNotBlank()) ensure(p)
+        val todo = paths
+            .filter { it.isNotBlank() && cachedFile(it) == null }
+            .distinct()
+            .filter { inFlight.add(it) }
+        if (todo.isEmpty()) return
+
+        scope.launch {
+            var ok = 0
+            var failed = 0
+            runCatching {
+                val gate = Semaphore(PARALLELISM)
+                coroutineScope {
+                    todo.map { p ->
+                        async {
+                            try {
+                                gate.withPermit { ensure(p) }
+                            } finally {
+                                inFlight.remove(p)
+                            }
+                        }
+                    }.forEach { if (it.await()) ok++ else failed++ }
+                }
+            }.onFailure { e ->
+                Log.w(TAG, "prefetch aborted: ${e.javaClass.simpleName}: ${e.message}")
+            }
+            todo.forEach { inFlight.remove(it) }
+            Log.i(TAG, "prefetch finished: requested=${todo.size} ok=$ok failed=$failed cached=${cachedCount()}")
+        }
     }
 
     /** Number of cached sound files (excludes in-flight `.tmp`). */

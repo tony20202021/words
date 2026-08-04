@@ -101,6 +101,11 @@ def run_component_tests(name: str, directory: Path, args, extra_pytest_args=None
 
     print(f"Running command: {' '.join(cmd)}")
     result = subprocess.run(cmd)
+    # pytest exits 5 when everything was skipped at module level (nothing collected).
+    # That is a deliberate skip, not a failure — see the skip reasons in the test files.
+    if result.returncode == 5:
+        print(f"⏭️  {label}: all tests skipped at module level (see skip reason in the files)")
+        return 0
     return result.returncode
 
 

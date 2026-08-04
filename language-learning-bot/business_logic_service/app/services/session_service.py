@@ -472,10 +472,17 @@ async def build_bundle(
         return None
 
     words = (session.get("words") or [])[:limit]
+    # The snapshot never advances, so every card would otherwise be rendered at the
+    # same position ("1 из N" on all of them). Walk the counters forward per unit —
+    # card_builder derives session_pos as total_words_processed + 1.
+    base_processed = session.get("total_words_processed", 0)
+    base_current = session.get("current_index", 0)
     units: List[Dict[str, Any]] = []
-    for w in words:
+    for i, w in enumerate(words):
         wid = str(w.get("_id") or w.get("id") or w.get("word_id", ""))
         ctx = dict(session)
+        ctx["total_words_processed"] = base_processed + i
+        ctx["current_index"] = base_current + i
         ctx["show_mode"] = _pick_show_mode(session["settings"])
         ctx["pick_mode_active"] = _pick_quiz_mode(session["settings"])
         ctx["quiz_options"] = None

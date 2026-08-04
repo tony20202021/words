@@ -53,6 +53,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true   // required by Robolectric
+        }
+    }
     kotlinOptions {
         jvmTarget = '1.8'
     }
@@ -82,4 +87,11 @@ dependencies {
 
     // Unit tests (pure JVM — no emulator needed; run via ./gradlew testReleaseUnitTest)
     testImplementation 'junit:junit:4.13.2'
+    // Robolectric gives a real android.content.Context on the JVM, so the parts of
+    // the offline layer that touch filesDir are testable without an emulator.
+    testImplementation 'org.robolectric:robolectric:4.11.1'
+    testImplementation 'androidx.test:core:1.5.0'
+    // MockWebServer — drive OutboxSync/BLS calls against a local stub server.
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
 }

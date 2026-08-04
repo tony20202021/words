@@ -35,6 +35,17 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
     await state.set_state(UserState.idle)
     await state.update_data(bls_user_id=bls_user_id)
 
+    # Admins get an "Админка" button plus /admin in their personal command menu.
+    # Doing it here (not at bot startup) keeps it self-healing: promotions and
+    # demotions take effect the next time the user opens /start.
+    is_admin = False
+    try:
+        is_admin = await bls.is_admin(bls_user_id)
+        from app.main import sync_admin_commands
+        await sync_admin_commands(message.bot, message.chat.id, is_admin)
+    except Exception:
+        pass  # a cosmetic menu must never break /start
+
     first_name = message.from_user.first_name or ""
 
     # Сообщение 1 — приветствие
@@ -66,7 +77,7 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
     stats_lines.append("📋 Используйте кнопки ниже для навигации:")
     await message.answer(
         "\n".join(stats_lines),
-        reply_markup=build_welcome_keyboard(),
+        reply_markup=build_welcome_keyboard(is_admin=is_admin),
     )
 
 

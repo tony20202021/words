@@ -62,6 +62,29 @@ async def test_build_bundle_pre_renders_both_card_sides():
 
 
 @pytest.mark.asyncio
+async def test_build_bundle_advances_session_position_per_unit():
+    """
+    Regression: build_bundle rendered every card from the same non-advancing
+    snapshot, so meta.session_pos was 1 on all of them and the Android offline
+    screen showed "1 из N" for the whole session.
+    """
+    api = make_mock_api(words=[make_word(i) for i in range(1, 8)], settings={"random_pick_mode": False})
+    bundle = await build_bundle("u1", "lang1", api)
+
+    positions = [u["card_front"]["meta"]["session_pos"] for u in bundle["words"]]
+    assert positions == list(range(1, len(bundle["words"]) + 1)), positions
+    assert len(set(positions)) == len(positions), "session_pos must be unique per unit"
+
+    # The answer side must agree with the question side for the same word.
+    for unit in bundle["words"]:
+        assert unit["card_answer"]["meta"]["session_pos"] == unit["card_front"]["meta"]["session_pos"]
+
+    # word_number keeps coming from the word itself and must stay distinct too.
+    numbers = [u["word_number"] for u in bundle["words"]]
+    assert len(set(numbers)) == len(numbers)
+
+
+@pytest.mark.asyncio
 async def test_build_bundle_respects_limit():
     api = make_mock_api(words=[make_word(i) for i in range(1, 11)], settings={"random_pick_mode": False})
     bundle = await build_bundle("u1", "lang1", api, limit=4)

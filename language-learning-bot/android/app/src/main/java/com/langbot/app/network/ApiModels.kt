@@ -161,7 +161,11 @@ data class BundleWord(
 )
 
 data class BundleResponse(
-    val session_id: String,
+    // Every field needs a default: Kotlin only emits a no-arg constructor when all
+    // parameters have one, and without it Gson allocates via Unsafe and skips the
+    // defaults entirely — leaving `words` null despite its non-null type, which then
+    // NPEs inside the prefetch and gets swallowed by runCatching.
+    val session_id: String = "",
     val words: List<BundleWord> = emptyList(),
     val settings: Map<String, Any> = emptyMap(),
     val language_name_ru: String = "",
