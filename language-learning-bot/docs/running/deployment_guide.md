@@ -26,7 +26,6 @@
    - Запускает Python-модуль с параметром `--process-name=backend`
    - Сохраняет PID процесса для последующего управления
 
-4. **Скрипт start_3_frontend.sh** запускает фронтенд
    - Проверяет и завершает конфликтующие процессы фронтенда
    - Запускает Python-модуль с параметром `--process-name=frontend`
    - Сохраняет PID процесса для последующего управления
@@ -88,12 +87,10 @@
 2. **Подготовка скриптов для запуска**:
    ```bash
    # Сделать скрипты исполняемыми
-   chmod +x run_export_env.sh start_1_db.sh start_2_backend.sh start_3_frontend.sh run_tests.sh
    ```
 
 ### 3. Настройка конфигурации Hydra
 
-1. **Фронтенд** - отредактируйте файлы в директории `frontend/conf/config/`:
    - `bot.yaml` - укажите токен Telegram-бота:
      ```yaml
      token: "YOUR_TELEGRAM_BOT_TOKEN"
@@ -107,7 +104,7 @@
    - `api.yaml` - настройте параметры API:
      ```yaml
      host: "0.0.0.0"
-     port: 8500
+     port: 8573
      ```
    - `database.yaml` - настройте подключение к MongoDB:
      ```yaml
@@ -136,7 +133,6 @@
 
 4. **Запуск фронтенда**:
    ```bash
-   ./start_3_frontend.sh
    ```
 
 ### 5. Проверка запущенных процессов
@@ -156,7 +152,6 @@ ps aux | grep -e "--process-name=frontend"
 
 ### Работа с пользователями и администраторами
 
-В проекте реализован скрипт `admin_manager.py` для управления администраторами. Он позволяет:
 
 1. Просматривать список всех пользователей
 2. Искать пользователя по Telegram ID
@@ -169,16 +164,12 @@ ps aux | grep -e "--process-name=frontend"
 
 ```bash
 # Вывести справку по командам
-python scripts/admin_manager.py --help
 
 # Получить список пользователей
-python scripts/admin_manager.py list
 
 # Искать пользователя по Telegram ID
-python scripts/admin_manager.py find 123456789
 
 # Сделать пользователя администратором
-python scripts/admin_manager.py make-admin user_id_123
 ```
 
 ### Администрирование базы данных
@@ -237,7 +228,6 @@ pkill -f -- "--process-name=backend"
 
 # Перезапуск фронтенда
 pkill -f -- "--process-name=frontend"
-./start_3_frontend.sh
 ```
 
 ### Обновление конфигурации
@@ -290,7 +280,7 @@ top -p $(pgrep -f mongod),$(pgrep -f -- "--process-name=backend"),$(pgrep -f -- 
 
 1. **Бэкенд не запускается**:
    - Проверьте логи: `cat backend/logs/backend.log`
-   - Проверьте, не занят ли порт: `lsof -i :8500`
+   - Проверьте, не занят ли порт: `lsof -i :8573`
    - Проверьте настройки подключения к MongoDB
 
 2. **API не отвечает**:
@@ -328,7 +318,6 @@ pkill -f -- "--process-name=frontend"
 
 ./start_1_db.sh
 ./start_2_backend.sh
-./start_3_frontend.sh
 ```
 
 ### Обновление структуры базы данных

@@ -14,8 +14,6 @@ language-learning-bot/
 ├── run_tests.sh
 ├── start_1_db.sh
 ├── start_2_backend.sh
-├── start_3_frontend.sh
-├── start_3_frontend_auto_reload.sh
 ├── create_project_structure.py
 ├── docs/
 ├── frontend/
@@ -266,7 +264,6 @@ frontend/
 │       ├── state_models.py
 │       ├── statistics_utils.py
 │       ├── user_utils.py
-│       ├── voice_recognition.py
 │       ├── voice_utils.py
 │       ├── word_data_utils.py
 ├── conf/
@@ -347,7 +344,6 @@ frontend/
     │   ├── test_logger.py
     │   ├── test_settings_utils.py
     │   ├── test_state_models.py
-    │   ├── test_voice_recognition.py
     │   └── test_word_data_utils.py
     ├── test_scenarios/
     │   ├── __init__.py
@@ -376,7 +372,6 @@ common/
 
 ```
 scripts/
-├── admin_manager.py
 ├── create_user_language_settings_collection.py
 ├── db_indexes.py
 ├── db_show.py
@@ -384,6 +379,5 @@ scripts/
 ├── run_tests.py
 ├── seed_data.py
 ├── test_opus_support.py
-├── test_voice_recognition.py
 └── update_statistics_index.py
 ```

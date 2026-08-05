@@ -2,7 +2,7 @@
 """
 Script to run tests for the Language Learning Bot project.
 Runs tests for all active components: BLS, telegram_bot, web_frontend,
-backend, common, legacy frontend.
+backend, common.
 """
 
 import argparse
@@ -20,7 +20,6 @@ COMPONENT_DIRS = {
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
     "common": PROJECT_ROOT / "common",
-    "frontend": PROJECT_ROOT / "frontend",
 }
 
 def setup_parser():
@@ -29,7 +28,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["bls", "telegram", "web", "backend", "common", "frontend", "all"],
+        choices=["bls", "telegram", "web", "backend", "common", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -108,13 +107,6 @@ def run_component_tests(name: str, directory: Path, args, extra_pytest_args=None
     return result.returncode
 
 
-def run_frontend_tests(args):
-    """Run legacy frontend tests."""
-    extra = ["-k", "not real_hydra"]
-    os.environ['HYDRA_FULL_ERROR'] = '1'
-    return run_component_tests("legacy frontend", COMPONENT_DIRS["frontend"], args, extra)
-
-
 def run_backend_tests(args):
     return run_component_tests("backend", COMPONENT_DIRS["backend"], args)
 
@@ -150,11 +142,10 @@ def main():
         "web": run_web_tests,
         "backend": run_backend_tests,
         "common": run_common_tests,
-        "frontend": run_frontend_tests,
     }
 
     if args.component == "all":
-        components = ["bls", "telegram", "web", "backend", "common", "frontend"]
+        components = ["bls", "telegram", "web", "backend", "common"]
     else:
         components = [args.component]
 

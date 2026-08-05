@@ -25,7 +25,6 @@
 | `langbot-backend` | 8573 | нет | `start_2_backend.sh` |
 | `langbot-bls` | 8531 | ✅ watchmedo `.py` | `start_bls_auto_reload.sh` |
 | `langbot-web` | 8548 | ✅ watchmedo `.py` + `.html` | `start_web_auto_reload.sh` |
-| `langbot-frontend` | — | ✅ watchmedo `.py` | `start_3_frontend_auto_reload.sh` |
 | `langbot-telegram` | — | ✅ watchmedo `.py` | `start_telegram_bot_auto_reload.sh` |
 
 Быстрые команды:
@@ -137,7 +136,6 @@ Type=simple
 User=tony
 WorkingDirectory=/home/tony/repos/words/language-learning-bot
 Environment="PATH=/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin:/home/tony/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/bin/bash start_3_frontend_auto_reload.sh
 Restart=on-failure
 RestartSec=5
 

@@ -34,7 +34,6 @@ class BigWordGenerator:
 common/utils/
 └── font_utils.py               # Общий модуль управления шрифтами
 
-frontend/app/utils/
 ├── big_word_generator.py       # Генератор крупных изображений слов
 ├── config_holder.py           # Держатель конфигурации
 ```

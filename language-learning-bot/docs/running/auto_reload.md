@@ -39,10 +39,8 @@ chmod +x setup_watchdog.sh
 
 ```bash
 # Сделать скрипт исполняемым
-chmod +x start_3_frontend_auto_reload.sh
 
 # Запустить фронтенд в режиме автоперезапуска
-./start_3_frontend_auto_reload.sh
 ```
 
 После запуска система будет отслеживать изменения в указанных директориях и файлах. При обнаружении изменений фронтенд будет автоматически перезапущен.
@@ -50,18 +48,14 @@ chmod +x start_3_frontend_auto_reload.sh
 ## Параметры и настройка
 
 Стандартная конфигурация настроена на отслеживание:
-- Директорий: `frontend/app` и `frontend/conf/config`
 - Файлов с расширениями: `.py`, `.yaml`, `.yml`, `.json`
 - Игнорируются директории: `__pycache__`, `.git`, `env`, `venv`, `.env`, `.venv`, `logs`
 
 ### Изменение параметров мониторинга
 
-Параметры мониторинга указаны в скрипте `start_3_frontend_auto_reload.sh`:
 
 ```bash
 python frontend/watch_and_reload.py \
-    --script frontend/app/main_frontend.py \
-    --paths frontend/app frontend/conf/config \
     --process-name frontend_autoreload \
     --extensions .py .yaml .yml .json \
     --ignore-dirs __pycache__ .git env venv .env .venv logs
@@ -81,8 +75,6 @@ python frontend/watch_and_reload.py \
 
 ```bash
 python frontend/watch_and_reload.py \
-    --script frontend/app/main_frontend.py \
-    --paths frontend/app/bot/handlers frontend/app/utils \
     --extensions .py \
     --ignore-dirs __pycache__ \
     --process-name custom_name \

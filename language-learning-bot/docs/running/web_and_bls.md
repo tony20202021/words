@@ -7,7 +7,6 @@
 2. Backend API  (start_2_backend.sh)
 3. BLS          (start_4_bls.sh)        ← новый
 4. Web Frontend (start_5_web.sh)        ← новый
-5. Telegram Bot (start_6_telegram_bot.sh или start_3_frontend_auto_reload.sh)
 ```
 
 ## BLS (Business Logic Service) — порт 8531

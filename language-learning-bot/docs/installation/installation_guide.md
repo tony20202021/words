@@ -1,242 +1,136 @@
-# Руководство по установке (ОБНОВЛЕНО с AI)
+# Установка Language Learning Bot
 
-## 🔥 Системные требования
+Развёртывание с нуля. Боевая установка — сервер **i-04** (`77.81.226.56`),
+сервисы под systemd.
 
-### Hardware Requirements для AI:
+## Требования
 
-#### **Minimum (12GB GPU):**
-```
-GPU: RTX 3080, RTX 4070 Ti, A4000
-RAM: 32GB System RAM
-Storage: 100GB+ для AI моделей
-CUDA: 11.8+
-```
+| Что | Версия | Зачем |
+|-----|--------|-------|
+| Python | 3.10+ | все сервисы |
+| MongoDB | 7.0 | единственная БД проекта |
+| JDK | **17** | сборка Android (AGP 8.2 / Gradle 8.4) |
+| Android SDK | platform 34, build-tools 34.0.0 | сборка APK |
+| nginx | 1.24+ | терминация TLS |
 
-#### **Recommended (24GB+ GPU):**
-```
-GPU: RTX 3090, RTX 4090, A5000, A6000
-RAM: 64GB System RAM
-Storage: 500GB+ NVMe SSD
-CUDA: 11.8+
-```
+Железа хватает скромного: i-04 — 2 vCPU / 3.8 GiB RAM. GPU не нужен.
 
-#### **Optimal (80GB+ GPU):**
-```
-GPU: A100, H100
-RAM: 128GB+ System RAM
-Storage: 1TB+ NVMe SSD
-CUDA: 11.8+
-```
+## 1. Окружение Python
 
-### Software Requirements:
-- Python 3.8+
-- MongoDB 5.0+
-- CUDA 11.8+
-- Git LFS
-- FFmpeg
-
-## Быстрая установка
-
-### 1. Клонирование репозитория
 ```bash
-git clone https://github.com/username/language-learning-bot.git
-cd language-learning-bot
-
-# Инициализация Git LFS для AI моделей
-git lfs install
+conda env create -f environment.yml
+conda activate amikhalev_language_learning_bot
+pip install -r requirements.txt
 ```
 
-### 2. 🔥 Настройка AI окружения
-```bash
-# Создание AI окружения с GPU поддержкой
-conda env create -f environment_gpu.yml
+Подробнее: [environment_setup.md](environment_setup.md)
 
-# Проверка CUDA
-python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPU: {torch.cuda.get_device_name()}')"
-```
+## 2. MongoDB
 
-### 3. 🔥 Установка AI зависимостей
-```bash
-# AI зависимости для GPU
+Проект слушает нестандартный порт **8527**. На i-04 стоит пользовательская установка
+в `~/mongodb` (без root), поднимается юнитом `langbot-db`.
 
-# Проверка ключевых AI библиотек
-python -c "import diffusers, transformers, xformers; print('AI libraries OK')"
-```
+Установка и настройка: [mongodb_setup.md](mongodb_setup.md)
 
-### 4. Настройка конфигурации
+## 3. Переменные окружения
+
 ```bash
 cp .env.example .env
-# Отредактируйте .env и добавьте TELEGRAM_BOT_TOKEN
 ```
 
-### 5. 🔥 Создание AI кэш директорий
-```bash
-# Создание cache директорий для AI моделей
+Обязательный минимум:
 
-# Настройка переменных окружения
+```env
+MONGODB_URL=mongodb://localhost:8527
+MONGODB_DB_NAME=language_learning_bot
+BLS_PUBLIC_URL=https://<ip>:8443
+WEB_URL=http://<ip>:8548
+BOT_TOKEN=<токен от @BotFather>
+SECRET_KEY=<случайная строка>
+TELEGRAM_BOT_URL=https://t.me/<имя бота>
 ```
 
-### 6. Запуск сервисов
-```bash
-./start_1_db.sh          # MongoDB
-./start_2_backend.sh     # Backend API
-./start_3_frontend.sh    # Telegram бот
-```
+> ⚠️ `WEB_URL` задавать обязательно. Без него срабатывает хардкод-дефолт в коде,
+> и команды `/web` и `/android` начнут отправлять пользователей не на тот сервер.
 
-## Детальная установка
+`.env` в git не попадает — он в `.gitignore`.
 
-### 🔥 AI Environment Setup
+## 4. Инициализация базы
 
-#### **GPU Validation:**
-```bash
-# Проверка NVIDIA драйверов
-
-# Проверка CUDA
-nvcc --version
-
-# Проверка PyTorch с CUDA
-python -c "
-import torch
-print(f'PyTorch: {torch.__version__}')
-print(f'CUDA available: {torch.cuda.is_available()}')
-print(f'CUDA version: {torch.version.cuda}')
-if torch.cuda.is_available():
-    print(f'GPU: {torch.cuda.get_device_name()}')
-    print(f'Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB')
-"
-```
-
-#### **AI Dependencies Installation:**
-```bash
-# Основные AI frameworks
-pip install torch>=2.1.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# HuggingFace ecosystem
-pip install diffusers>=0.25.0 transformers>=4.39.0 accelerate>=0.24.0
-
-# Optimization libraries
-pip install xformers>=0.0.22
-
-# Monitoring
-pip install pynvml>=11.5.0 gpustat>=1.1.0
-```
-
-### MongoDB Setup
-```bash
-# Установка MongoDB
-sudo apt-get install -y mongodb
-
-# Или через Docker
-docker run -d -p 8527:8527 --name mongodb mongo:5.0
-```
-
-## Первый запуск
-
-### 1. Инициализация базы данных
 ```bash
 python scripts/init_db.py
-python scripts/seed_data.py
+python scripts/db_indexes.py
 ```
 
-# Проверка здоровья AI
+## 5. Запуск
 
-# Детальная AI диагностика
+В проде — systemd:
 
-# Готовность AI моделей
-```
-
-### 4. Запуск Telegram бота
 ```bash
-# Проверка что бот отвечает
-# Отправьте /start боту в Telegram
+sudo systemctl enable --now langbot-db langbot-backend langbot-bls langbot-web langbot-telegram
 ```
 
-## 🔥 AI Model Management
+Вручную для разработки:
 
-### Automatic Model Download
-Модели загружаются автоматически при первом запросе:
-- Stable Diffusion XL: ~7GB
-- VAE & Scheduler: ~1GB
-
-### Manual Model Download (опционально)
 ```bash
+./start_1_db.sh            # MongoDB      :8527
+./start_2_backend.sh       # Backend API  :8573
+./start_4_bls.sh           # BLS          :8531
+./start_5_web.sh           # Web          :8548
+./start_6_telegram_bot.sh  # Telegram-бот
 ```
 
-### Model Cache Locations
+Подробнее: [../running/running_guide.md](../running/running_guide.md),
+[../running/systemctl_guide.md](../running/systemctl_guide.md)
+
+## 6. TLS
+
+Порт 443 занят посторонним сервисом, поэтому TLS вынесен на **8443** (BLS) и
+**8444** (web). Сертификат Let's Encrypt выписан на IP-адрес — домен не нужен.
+
+Схема и подводные камни (порт 80 под ACME-челлендж, перезагрузка nginx после
+продления сертификата): [../architecture.md](../architecture.md)
+
+## 7. Проверка
+
 ```bash
-│   └── hub/
+curl -s localhost:8573/api/health    # backend
+curl -s localhost:8531/health        # BLS
+curl -s localhost:8531/version       # версия проекта
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8548/
 ```
 
-## Troubleshooting
+Функциональная проверка — отправить боту `/start` в Telegram.
 
-### Common Issues
+## Типичные проблемы
 
-#### **Dependencies:**
+**Порт занят**
+
 ```bash
-# Переустановка проблемных пакетов
-pip install --force-reinstall xformers
-pip install --upgrade diffusers transformers
+ss -ltnp | grep -E '8527|8531|8548|8573'
 ```
 
-#### **Permissions:**
+**Сервис не поднимается**
+
 ```bash
-# Права на cache директории
+systemctl status langbot-<имя>
+journalctl -u langbot-<имя> -n 50
 ```
 
-#### **Port Conflicts:**
+**Бот не отвечает.** Убедитесь, что тем же токеном не запущен второй экземпляр:
+
 ```bash
-# Проверка занятых портов
-lsof -i :8500  # Backend
-lsof -i :8527 # MongoDB
+curl -s "https://api.telegram.org/bot$BOT_TOKEN/getWebhookInfo"
 ```
 
-## Performance Optimization
+Непустой `last_error_message` с упоминанием конфликта означает, что бот поллит
+дважды — Telegram отдаёт обновления только одному экземпляру.
 
-### 🔥 GPU Optimization
+## Тесты
 
-#### **Memory Settings:**
 ```bash
-# Для 12GB GPU
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
-
-# Для 24GB+ GPU  
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+python run_tests.sh                        # bls, telegram, web, backend, common
+cd android && ./gradlew testDebugUnitTest  # Android, эмулятор не нужен
 ```
 
-#### **CUDA Settings:**
-```bash
-export CUDA_VISIBLE_DEVICES=0
-export TOKENIZERS_PARALLELISM=false
-```
-
-### **Monitoring Setup:**
-```bash
-# Continuous GPU monitoring
-
-# Frontend auto-reload
-./start_3_frontend_auto_reload.sh
-
-# Backend auto-reload (built-in FastAPI)
-```
-
-### Testing
-```bash
-# Все тесты
-./run_tests.sh
-
-# AI тесты отдельно
-
-# Интеграционные AI тесты
-```
-
----
-
-**🎯 После установки:**
-
-1. ✅ Проверьте AI health checks
-2. ✅ Протестируйте генерацию изображений
-3. ✅ Настройте мониторинг GPU
-4. ✅ Запустите Telegram бота
-5. ✅ Проверьте все сервисы работают
-
-**🔥 Ready для production AI generation!**
+Подробнее: [../development/testing_guide.md](../development/testing_guide.md)

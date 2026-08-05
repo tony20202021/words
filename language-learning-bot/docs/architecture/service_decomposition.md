@@ -8,7 +8,7 @@ Telegram Bot (frontend/, старый)   ──HTTP──┐
 Telegram Bot (telegram_bot/, новый) ──HTTP─┤──► Business Logic Service (BLS, :8531)
                                            │              │
 Web Frontend (:8548) ──────────────HTTP────┘              ▼
-                                                   Backend API (:8500)
+                                                   Backend API (:8573)
                                                           │
                                                           ▼
                                                      MongoDB (:8527)
@@ -19,10 +19,9 @@ Web Frontend (:8548) ──────────────HTTP────�
 | Сервис | Порт | Директория | Запуск |
 |--------|------|------------|--------|
 | MongoDB | 8527 | — | `start_1_db.sh` |
-| Backend API | 8500 | `backend/` | `start_2_backend.sh` |
+| Backend API | 8573 | `backend/` | `start_2_backend.sh` |
 | Business Logic Service | 8531 | `business_logic_service/` | `start_4_bls.sh` |
 | Web Frontend | 8548 | `web_frontend/` | `start_5_web.sh` |
-| Telegram Bot (старый) | — | `frontend/` | `start_3_frontend_auto_reload.sh` |
 | Telegram Bot (новый) | — | `telegram_bot/` | `start_6_telegram_bot.sh` |
 
 ## Принцип разделения

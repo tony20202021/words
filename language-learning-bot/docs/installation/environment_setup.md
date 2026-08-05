@@ -100,14 +100,6 @@ source ./run_export_env.sh
 
 ### Структура конфигурационных файлов
 
-#### Фронтенд (frontend/conf/config/)
-
-- **default.yaml** - основной файл, подключающий другие файлы
-- **bot.yaml** - настройки Telegram-бота
-- **api.yaml** - настройки для подключения к бэкенду
-- **logging.yaml** - настройки логирования
-- **learning.yaml** - настройки процесса обучения
-
 #### Бэкенд (backend/conf/config/)
 
 - **default.yaml** - основной файл, подключающий другие файлы
@@ -119,7 +111,6 @@ source ./run_export_env.sh
 
 #### Настройка Telegram-бота
 
-Отредактируйте файл `frontend/conf/config/bot.yaml`:
 
 ```yaml
 # Токен для подключения к Telegram API
@@ -141,7 +132,6 @@ commands:
 
 #### Настройка API бэкенда
 
-Отредактируйте файл `frontend/conf/config/api.yaml`:
 
 ```yaml
 # Конфигурация API-клиента
@@ -185,22 +175,11 @@ debug: true      # Режим отладки
 Для более подробного логирования в фронтенде:
 
 ```yaml
-# В файле frontend/conf/config/logging.yaml
-level: "DEBUG"   # Уровень логирования (DEBUG, INFO, WARNING, ERROR)
-```
-
-### Автоматический перезапуск
-
-Для разработки и тестирования можно использовать режим автоматического перезапуска фронтенда:
-
-```bash
 # Установка watchdog
 chmod +x setup_watchdog.sh
 ./setup_watchdog.sh
 
 # Запуск с автоперезапуском
-chmod +x start_3_frontend_auto_reload.sh
-./start_3_frontend_auto_reload.sh
 ```
 
 ## Настройки для production
@@ -208,18 +187,6 @@ chmod +x start_3_frontend_auto_reload.sh
 ### Логирование
 
 Для production рекомендуется настроить логирование с ротацией файлов:
-
-```yaml
-# В файле frontend/conf/config/logging.yaml и backend/conf/config/logging.yaml
-level: "INFO"               # Уровень логирования
-log_to_file: true           # Записывать логи в файл
-log_file_max_size: 5242880  # 5 MB
-log_file_backup_count: 10   # Количество бэкапов при ротации
-```
-
-### Безопасность
-
-Для production важно настроить параметры безопасности:
 
 ```yaml
 # В файле backend/conf/config/api.yaml
@@ -291,29 +258,11 @@ python check_config.py backend
 ```bash
 # Создание бэкапа конфигурации
 mkdir -p config_backup/$(date +%Y%m%d)
-cp -r frontend/conf/config config_backup/$(date +%Y%m%d)/frontend
 cp -r backend/conf/config config_backup/$(date +%Y%m%d)/backend
 cp .env config_backup/$(date +%Y%m%d)/
 ```
 
 ### 4.2. Обновление environment_setup.md
 
-Добавить раздел о настройке распознавания речи:
 
 ```markdown
-### Настройка распознавания речи
-
-Проект использует модель Whisper от OpenAI для распознавания голосовых сообщений. Необходимо настроить параметры распознавания:
-
-```yaml
-# В файле frontend/conf/config/bot.yaml
-voice_recognition:
-  # Размер модели Whisper (tiny, base, small, medium, large)
-  model_size: "small"  
-  # Язык распознавания (ru для русского)
-  language: "ru"        
-  # Директория для временных аудиофайлов
-  temp_dir: "temp"      
-  # Максимальная длительность голосового сообщения в секундах
-  max_duration: 60
-```

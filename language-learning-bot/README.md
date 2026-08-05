@@ -158,8 +158,6 @@ language-learning-bot/
 ├── android/                # Android-приложение (Kotlin)
 │   ├── langbot.jks         # Ключ подписи release APK (не в git!)
 │   └── keystore.properties # Пароли к ключу (не в git!)
-├── frontend/               # ЛЕГАСИ: старый Telegram-бот, заменён telegram_bot/,
-│                           # не запускается, юнита нет
 ├── common/                 # Общие модули
 │   ├── version.py          # Единая версия всего проекта
 │   └── help_text.py        # Текст справки
@@ -192,7 +190,7 @@ Android `versionCode` вычисляется из неё автоматичес�
 ## Тестирование
 
 ```bash
-# Всё сразу — bls, telegram, web, backend, common, legacy frontend
+# Всё сразу — bls, telegram, web, backend, common
 python run_tests.sh
 
 # Отдельный компонент

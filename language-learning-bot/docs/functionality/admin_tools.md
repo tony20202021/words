@@ -341,10 +341,8 @@
 2. **Через командную строку:**
    ```bash
    # Поиск пользователя по Telegram ID
-   python scripts/admin_manager.py find 123456789
    
    # Назначение администратором
-   python scripts/admin_manager.py make-admin user_id_123
    ```
 
 ### Управление правами доступа
