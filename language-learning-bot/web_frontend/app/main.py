@@ -2,6 +2,7 @@
 Web Frontend — FastAPI + Jinja2 + HTMX. Port: 8548
 """
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -31,6 +32,34 @@ async def no_store_dynamic_pages(request: Request, call_next):
     if not request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    """
+    Отказ BLS не должен превращаться в белый экран с 500.
+
+    Веб-фронтенд stateless и полностью зависит от BLS: если тот недоступен,
+    падает любой маршрут. Раньше исключение улетало наружу, и пользователь
+    видел стандартную страницу ошибки без единой подсказки, что делать.
+    Теперь — понятное сообщение и кнопки «Повторить» и «К списку языков».
+
+    HTMX-запросы получают тот же фрагмент, чтобы ошибка отрисовалась внутри
+    страницы, а не заменила её целиком.
+    """
+    logging.exception("необработанная ошибка на %s", request.url.path)
+    status = 503 if isinstance(exc, (ConnectionError, TimeoutError)) else 500
+    return templates.TemplateResponse(
+        "error.html",
+        {
+            "request": request,
+            "title": "Сервер недоступен",
+            "message": "Не удалось получить данные. "
+                       "Попробуйте повторить через несколько секунд.",
+            "detail": f"{type(exc).__name__}: {exc}",
+        },
+        status_code=status,
+    )
 
 
 app.include_router(auth.router)

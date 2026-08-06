@@ -29,6 +29,36 @@ COMMON_COMMANDS = [
 ADMIN_COMMAND = BotCommand(command="admin", description="Панель администратора")
 
 
+async def on_handler_error(event, bot: Bot | None = None) -> bool:
+    """
+    Любая необработанная ошибка в хендлере должна дойти до пользователя.
+
+    Без этого aiogram молча логирует исключение, а человек не получает ничего:
+    экран «висит», и непонятно, нажалась кнопка или нет. Чаще всего причина —
+    недоступный BLS, от которого зависят все команды.
+
+    Возвращает True: событие считается обработанным, поллинг продолжается.
+    """
+    logging.exception("необработанная ошибка в хендлере: %s", getattr(event, "exception", event))
+
+    update = getattr(event, "update", None)
+    target = None
+    if update is not None:
+        if getattr(update, "message", None):
+            target = update.message
+        elif getattr(update, "callback_query", None):
+            target = update.callback_query.message
+
+    if target is not None:
+        try:
+            await target.answer(
+                "⚠️ Сервер сейчас недоступен. Попробуйте повторить через несколько секунд."
+            )
+        except Exception:
+            logging.exception("не удалось отправить сообщение об ошибке")
+    return True
+
+
 async def sync_admin_commands(bot: Bot, chat_id: int, is_admin: bool) -> None:
     """
     Show /admin in the command menu of THIS chat only, for admins only.
@@ -65,6 +95,9 @@ async def main() -> None:
     dp.include_router(help.router)
     dp.include_router(stats.router)
     dp.include_router(settings.router)
+
+    # Ловит исключения из любого хендлера — иначе пользователь не узнает об ошибке.
+    dp.errors.register(on_handler_error)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_my_commands(COMMON_COMMANDS)
