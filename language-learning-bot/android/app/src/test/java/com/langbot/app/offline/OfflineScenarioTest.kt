@@ -64,7 +64,7 @@ class OfflineScenarioTest {
     /** Кнопки со «штампом» сервера — так их отдаёт BLS card_builder. */
     private fun buttons(showAnswer: Boolean) =
         if (!showAnswer) listOf(
-            CardButton("know", "Знаю", "success", "know", "submit", "know"),
+            CardButton("know", "Знаю", "success", "know", "record_and_reveal", "know"),
             CardButton("show_answer", "Не знаю", "warn", null, "reveal_answer", null),
         ) else listOf(
             CardButton("rate", "Дальше", "success", "dont_know", "submit", "dont_know"),
@@ -191,6 +191,68 @@ class OfflineScenarioTest {
     }
 
     @Test
+    fun know_reveals_the_answer_before_moving_on() {
+        // Баг: офлайн «Знаю» было помечено submit, то есть записывало результат
+        // и сразу листало дальше — карточка с переводом не показывалась вовсе.
+        // Онлайн know_word() показывает ответ БЕЗ перехода, а листает уже rate.
+        assertEquals("record_and_reveal", OfflineSemantics.effectFor("know"))
+
+        OfflineCache.saveBundle(bundle(3))
+        val engine = OfflineEngine(OfflineCache.loadBundle(u, l)!!)
+        val first = engine.currentWordId()
+
+        // Нажали «Знаю»: результат записан, но слово то же — показывается ответ.
+        engine.record("know")
+        assertEquals("после «Знаю» слово меняться не должно", first, engine.currentWordId())
+        assertEquals(1, OfflineCache.pendingCount())
+
+        // И только «К следующему слову» переводит дальше.
+        engine.advance()
+        assertEquals("w2", engine.currentWordId())
+        assertEquals("переход не должен записывать результат повторно",
+            1, OfflineCache.pendingCount())
+    }
+
+    @Test
+    fun rate_after_know_only_advances_and_does_not_double_record() {
+        // Кнопка rate на ответной стороне после «Знаю» помечена сервером как
+        // advance: оценка уже записана, второй раз её слать нельзя.
+        val rateAfterKnow = CardButton(
+            "rate", "К следующему слову", "success", "know", "advance", null)
+        assertEquals("advance", rateAfterKnow.offline_effect)
+
+        OfflineCache.saveBundle(bundle(2))
+        val engine = OfflineEngine(OfflineCache.loadBundle(u, l)!!)
+        engine.record("know")          // «Знаю»
+        engine.advance()               // «К следующему» — только переход
+
+        assertEquals(1, OfflineCache.loadOutbox().size)
+        assertEquals("know", OfflineCache.loadOutbox().first().rating)
+    }
+
+    @Test
+    fun dont_know_path_reveals_then_submits() {
+        // Путь «Не знаю» работал и раньше: reveal_answer показывает ответ,
+        // затем rate помечен submit и записывает dont_know.
+        assertEquals("reveal_answer", OfflineSemantics.effectFor("show_answer"))
+        assertEquals("submit", OfflineSemantics.effectFor("rate"))
+
+        OfflineCache.saveBundle(bundle(2))
+        val engine = OfflineEngine(OfflineCache.loadBundle(u, l)!!)
+        val first = engine.currentWordId()
+
+        // «Не знаю» — ничего не записывает, только раскрывает ответ.
+        assertEquals(0, OfflineCache.pendingCount())
+        assertEquals(first, engine.currentWordId())
+
+        // «Дальше» — записывает dont_know и листает.
+        engine.record("dont_know")
+        engine.advance()
+        assertEquals(listOf("dont_know"), OfflineCache.loadOutbox().map { it.rating })
+        assertEquals("w2", engine.currentWordId())
+    }
+
+    @Test
     fun button_semantics_come_from_the_server_stamp_not_from_the_client() {
         // Дедуп бизнес-логики: BLS штампует offline_effect/offline_rating,
         // клиент их только читает. Если сервер сказал «skip» — пишем skip,
@@ -201,7 +263,7 @@ class OfflineScenarioTest {
         // А для старого бандла без штампов работает запасная логика.
         val legacy = CardButton("know", "Знаю", "success", "know", null, null)
         assertEquals("know", ratingFor(legacy))
-        assertEquals("submit", OfflineSemantics.effectFor("know"))
+        assertEquals("record_and_reveal", OfflineSemantics.effectFor("know"))
         assertEquals("reveal_answer", OfflineSemantics.effectFor("show_answer"))
         assertNull("незнакомую кнопку офлайн игнорирует", OfflineSemantics.effectFor("unknown"))
     }

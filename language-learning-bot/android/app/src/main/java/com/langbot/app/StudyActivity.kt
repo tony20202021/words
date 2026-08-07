@@ -220,6 +220,20 @@ class StudyActivity : AppCompatActivity() {
         when (effect) {
             "reveal_answer"   -> renderOfflineCurrent(showAnswer = true)
             "reveal_question" -> renderOfflineCurrent(showAnswer = false)
+
+            // «Знаю»: записать оценку и ПОКАЗАТЬ ответ, не листая дальше — так же,
+            // как онлайн know_word(). Раньше эта кнопка была помечена submit, и
+            // офлайн перебрасывал сразу на следующее слово, минуя карточку с
+            // переводом и транскрипцией.
+            "record_and_reveal" -> {
+                val r = btn.offline_rating ?: OfflineSemantics.ratingFor(btn.id, btn.rating)
+                recordOffline(r)
+                renderOfflineCurrent(showAnswer = true)
+            }
+
+            // Оценка уже записана — здесь только переход, иначе результат уйдёт дважды.
+            "advance" -> advanceOffline()
+
             "submit" -> {
                 val r = btn.offline_rating ?: OfflineSemantics.ratingFor(btn.id, btn.rating)
                 recordOffline(r)

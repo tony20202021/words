@@ -437,8 +437,11 @@ class TestOfflineEndpoints:
         assert w["card_answer"]["show_answer"] is True
         assert "sounds" in w
         effects = {b["id"]: b.get("offline_effect") for b in w["card_front"]["buttons"]}
-        assert effects.get("know") == "submit"
+        assert effects.get("know") == "record_and_reveal"
         assert effects.get("show_answer") == "reveal_answer"
+        # Ответная сторона: rate после know только листает, не записывая повторно.
+        after = {b["id"]: b.get("offline_effect") for b in w["card_answer"]["buttons"]}
+        assert after.get("rate") in ("advance", "submit")
 
     def test_results_batch_endpoint_validates_and_applies(self, client, api):
         from app.services import session_service

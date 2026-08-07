@@ -13,11 +13,24 @@ package com.langbot.app.offline
  */
 object OfflineSemantics {
 
-    /** One of: "reveal_answer" | "reveal_question" | "submit"; null = ignore offline. */
+    /**
+     * One of: "reveal_answer" | "reveal_question" | "record_and_reveal" |
+     * "submit" | "advance"; null = ignore offline.
+     *
+     * `know` records the rating and reveals the answer WITHOUT advancing — the
+     * same two-step flow as online (`know_word` then `rate_word`). Treating it
+     * as a plain submit skipped the answer card entirely and looked like the app
+     * jumped straight to the next word.
+     *
+     * `rate` stays a submit here: without the server stamp we cannot tell the
+     * already-scored case from the not-yet-scored one, and recording a duplicate
+     * is safer than losing a result — the outbox dedups by event_id server-side.
+     */
     fun effectFor(btnId: String): String? = when (btnId) {
         "show_answer" -> "reveal_answer"
         "reconsider"  -> "reveal_question"
-        "know", "rate", "toggle_skip" -> "submit"
+        "know"        -> "record_and_reveal"
+        "rate", "toggle_skip" -> "submit"
         else -> null
     }
 

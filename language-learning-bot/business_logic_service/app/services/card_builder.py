@@ -239,8 +239,19 @@ def _add_hints(content: list, word: dict, uwd: dict, settings: dict) -> None:
 
 # Offline action semantics per button — the single source of truth for how an
 # offline client (Android) interprets each button without any of its own rules.
-#   offline_effect: "reveal_answer" | "reveal_question" | "submit"
-#   offline_rating: rating to record when effect == "submit" (else absent)
+#
+#   reveal_answer      показать ответную сторону, ничего не записывать
+#   reveal_question    вернуться к вопросу (reconsider)
+#   record_and_reveal  записать оценку и показать ответ, НЕ листать дальше
+#   submit             записать оценку и перейти к следующему слову
+#   advance            только перейти дальше, оценка уже записана
+#
+#   offline_rating: оценка для record_and_reveal и submit (иначе отсутствует)
+#
+# Пара know -> rate повторяет онлайн: know_word() показывает результат без
+# перехода, а rate_word("know") затем листает и НЕ начисляет повторно. Если
+# офлайн пометить know как submit, ответная карточка не покажется вовсе —
+# пользователь увидит, что его перебрасывает сразу на следующее слово.
 def _offline(effect: str, rating: str = None) -> Dict[str, Any]:
     d = {"offline_effect": effect}
     if rating is not None:
@@ -259,7 +270,7 @@ def _skip_button(is_skipped: bool) -> Dict[str, Any]:
 
 def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
     btns = [
-        {"id": "know", "text": "✅ Знаю", "style": "success", **_offline("submit", "know")},
+        {"id": "know", "text": "✅ Знаю", "style": "success", **_offline("record_and_reveal", "know")},
         {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger", **_offline("reveal_answer")},
     ]
     if show_skip:
@@ -271,8 +282,10 @@ def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True
                    pick_mode: bool = False) -> List[Dict[str, Any]]:
     skip_btn = _skip_button(is_skipped)
     if score_changed:
+        # Оценка уже записана кнопкой know — здесь только переход, иначе
+        # офлайн запишет результат дважды.
         btns = [{"id": "rate", "text": "✅ К следующему слову", "style": "success",
-                 "rating": "know", **_offline("submit", "know")}]
+                 "rating": "know", **_offline("advance")}]
         if not pick_mode:
             btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю",
                          "style": "outline-danger", **_offline("reveal_question")})

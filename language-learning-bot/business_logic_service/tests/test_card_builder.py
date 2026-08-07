@@ -767,7 +767,10 @@ def _btn(card, bid):
 def test_before_answer_buttons_carry_offline_semantics():
     card = build_card(make_session(show_answer=False), make_word(), show_answer=False)
     know = _btn(card, "know")
-    assert know["offline_effect"] == "submit"
+    # «Знаю» записывает оценку и показывает ответ, НЕ листая дальше — как онлайн
+    # know_word(). С submit офлайн-клиент перебрасывал сразу на следующее слово,
+    # и карточка с переводом не показывалась вовсе.
+    assert know["offline_effect"] == "record_and_reveal"
     assert know["offline_rating"] == "know"
     show = _btn(card, "show_answer")
     assert show["offline_effect"] == "reveal_answer"
@@ -781,8 +784,10 @@ def test_after_answer_score_changed_buttons_offline_semantics():
     card = build_card(make_session(show_answer=True, score_changed=True),
                       make_word(), show_answer=True)
     rate = _btn(card, "rate")
-    assert rate["offline_effect"] == "submit"
-    assert rate["offline_rating"] == "know"
+    # Оценку уже записала кнопка know — здесь только переход, иначе результат
+    # уйдёт в outbox дважды.
+    assert rate["offline_effect"] == "advance"
+    assert "offline_rating" not in rate
     reconsider = _btn(card, "reconsider")
     assert reconsider["offline_effect"] == "reveal_question"
     assert "offline_rating" not in reconsider

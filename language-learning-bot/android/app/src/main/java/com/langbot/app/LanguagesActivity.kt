@@ -23,6 +23,7 @@ import com.langbot.app.network.BLSClient
 import com.langbot.app.network.Language
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
+import com.langbot.app.offline.OfflineNotice
 
 class LanguagesActivity : AppCompatActivity() {
 
@@ -63,12 +64,15 @@ class LanguagesActivity : AppCompatActivity() {
                 val resp = BLSClient.api.getLanguages()
                 if (resp.isSuccessful) {
                     connectionFailures = 0
+                    OfflineNotice.clear(binding.root as android.view.ViewGroup)
                     adapter.items = resp.body() ?: emptyList()
                     adapter.notifyDataSetChanged()
                 }
             } catch (e: Exception) {
                 connectionFailures++
-                Toast.makeText(this@LanguagesActivity, "getLanguages: [${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
+                // Список языков офлайн взять неоткуда, но пустой экран без
+                // объяснения хуже, чем явное сообщение с подсказкой повторить.
+                OfflineNotice.show(binding.root as android.view.ViewGroup, "список языков")
                 if (connectionFailures >= 2) {
                     showReloginSuggestion()
                 }

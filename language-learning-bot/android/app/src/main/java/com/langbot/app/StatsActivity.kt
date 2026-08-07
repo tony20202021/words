@@ -13,6 +13,7 @@ import com.langbot.app.network.Statistics
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import com.langbot.app.offline.OfflineNotice
 
 class StatsActivity : AppCompatActivity() {
 
@@ -56,13 +57,15 @@ class StatsActivity : AppCompatActivity() {
                 val statsDeferred = async { BLSClient.api.getStatistics(userId, languageId) }
                 val statsResp = statsDeferred.await()
                 if (statsResp.isSuccessful && statsResp.body() != null) {
+                    OfflineNotice.clear(binding.statsContainer)
                     renderStats(statsResp.body()!!)
                     loadCharts()
                 } else {
-                    Toast.makeText(this@StatsActivity, "Ошибка загрузки", Toast.LENGTH_SHORT).show()
+                    OfflineNotice.show(binding.statsContainer, "статистику")
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@StatsActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                // Статистику офлайн показать неоткуда — она целиком серверная.
+                OfflineNotice.show(binding.statsContainer, "статистику")
             } finally {
                 binding.progress.visibility = View.GONE
                 binding.swipeRefresh.isRefreshing = false

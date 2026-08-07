@@ -37,7 +37,10 @@ class OfflineLogicTest {
     fun effectFor_maps_known_button_ids() {
         assertEquals("reveal_answer", OfflineSemantics.effectFor("show_answer"))
         assertEquals("reveal_question", OfflineSemantics.effectFor("reconsider"))
-        assertEquals("submit", OfflineSemantics.effectFor("know"))
+        // «Знаю» записывает оценку и показывает ответ, НЕ листая дальше —
+        // так же, как онлайн know_word(). Пока здесь стоял submit, офлайн
+        // перебрасывал сразу на следующее слово, минуя карточку с переводом.
+        assertEquals("record_and_reveal", OfflineSemantics.effectFor("know"))
         assertEquals("submit", OfflineSemantics.effectFor("rate"))
         assertEquals("submit", OfflineSemantics.effectFor("toggle_skip"))
     }

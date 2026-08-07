@@ -11,6 +11,7 @@ import com.langbot.app.databinding.ActivitySettingsBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
+import com.langbot.app.offline.OfflineNotice
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -73,12 +74,15 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val resp = BLSClient.api.getSettings(userId, languageId)
                 if (resp.isSuccessful && resp.body() != null) {
+                    OfflineNotice.clear(binding.settingsContainer)
                     renderSettings(resp.body()!!)
                 } else {
-                    Toast.makeText(this@SettingsActivity, "Ошибка загрузки", Toast.LENGTH_SHORT).show()
+                    OfflineNotice.show(binding.settingsContainer, "настройки")
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@SettingsActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                // Экран целиком зависит от BLS и ничего не кеширует — вместо
+                // исчезающего Toast и пустого экрана показываем, что произошло.
+                OfflineNotice.show(binding.settingsContainer, "настройки")
             } finally {
                 binding.progress.visibility = View.GONE
                 binding.swipeRefresh.isRefreshing = false
