@@ -68,8 +68,7 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         _add_after_answer(content, word, settings, extra_content, words_studied)
         _add_hints(content, word, uwd, settings)
         sounds = all_sounds
-        pick_answer_was_used = session.get("pick_answer_was_used", False)
-        buttons = _buttons_after(is_skipped, score_changed, show_skip, pick_answer_was_used)
+        buttons = _buttons_after(is_skipped, score_changed, show_skip)
 
     big_word = None
     if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
@@ -278,17 +277,20 @@ def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, 
     return btns
 
 
-def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True,
-                   pick_mode: bool = False) -> List[Dict[str, Any]]:
+def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
     skip_btn = _skip_button(is_skipped)
     if score_changed:
         # Оценка уже записана кнопкой know — здесь только переход, иначе
         # офлайн запишет результат дважды.
         btns = [{"id": "rate", "text": "✅ К следующему слову", "style": "success",
                  "rating": "know", **_offline("advance")}]
-        if not pick_mode:
-            btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю",
-                         "style": "outline-danger", **_offline("reveal_question")})
+        # «Ой, все-таки не знаю» показываем всегда, когда слово засчитано знакомым,
+        # включая верный ответ в пик-режиме. Раньше там кнопку прятали, и отменить
+        # угаданный вариант было нечем: слово уходило как выученное и интервал
+        # повторения растягивался. В режиме выбора из N вариантов угадать легко,
+        # так что возможность отменить нужна там даже больше, чем при обычном вводе.
+        btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю",
+                     "style": "outline-danger", **_offline("reveal_question")})
         if show_skip:
             btns.append(skip_btn)
         return btns

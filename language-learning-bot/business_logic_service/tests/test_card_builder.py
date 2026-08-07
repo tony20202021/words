@@ -819,3 +819,28 @@ def test_pick_options_carry_offline_rating():
     assert ratings["w1"] == "dont_know"
     assert ratings["w2"] == "know"
     assert ratings["w3"] == "dont_know"
+
+def test_reconsider_is_offered_after_a_correct_pick_answer():
+    """
+    Регрессия: в пик-режиме верный ответ прятал «Ой, все-таки не знаю».
+
+    Слово при этом засчитывалось знакомым и интервал повторения растягивался,
+    а отменить это было нечем. Угадать один вариант из N легко, поэтому отмена
+    там нужна не меньше, чем при обычном вводе.
+    """
+    session = make_session(show_answer=True, score_changed=True)
+    session["pick_answer_was_used"] = True
+    card = build_card(session, make_word(), show_answer=True)
+
+    ids = [b["id"] for b in card["buttons"]]
+    assert "reconsider" in ids, f"кнопка отмены пропала в пик-режиме: {ids}"
+
+    reconsider = _btn(card, "reconsider")
+    assert reconsider["offline_effect"] == "reveal_question"
+
+
+def test_reconsider_absent_when_the_word_was_not_scored_as_known():
+    """После «Не знаю» отменять нечего — слово и так засчитано незнакомым."""
+    card = build_card(make_session(show_answer=True, score_changed=False),
+                      make_word(), show_answer=True)
+    assert "reconsider" not in [b["id"] for b in card["buttons"]]
