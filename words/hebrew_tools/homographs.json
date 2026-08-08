@@ -1,0 +1,128 @@
+[
+  {
+    "rank": 3994, "hebrew": "יצר",
+    "readings": [
+      {"niqqud": "יֵצֶר", "ipa": "ˈjetseʁ", "translit_ru": "йЕцер", "sense": "инстинкт, влечение"},
+      {"niqqud": "יָצַר", "ipa": "jaˈtsaʁ", "translit_ru": "яцАр", "sense": "создал"}
+    ]
+  },
+  {
+    "rank": 9843, "hebrew": "אטום",
+    "readings": [
+      {"niqqud": "אָטוֹם", "ipa": "ʔaˈtom", "translit_ru": "атОм", "sense": "атом"},
+      {"niqqud": "אָטוּם", "ipa": "ʔaˈtum", "translit_ru": "атУм", "sense": "герметичный, запечатанный"}
+    ]
+  },
+  {
+    "rank": 3679, "hebrew": "לבנה",
+    "readings": [
+      {"niqqud": "לְבָנָה", "ipa": "levaˈna", "translit_ru": "леванА", "sense": "белая; луна"},
+      {"niqqud": "לְבֵנָה", "ipa": "leveˈna", "translit_ru": "левенА", "sense": "кирпич"}
+    ]
+  },
+  {
+    "rank": 3709, "hebrew": "אנוש",
+    "readings": [
+      {"niqqud": "אֱנוֹשׁ", "ipa": "ʔeˈnoʃ", "translit_ru": "энОш", "sense": "человек, род людской"},
+      {"niqqud": "אָנוּשׁ", "ipa": "ʔaˈnuʃ", "translit_ru": "анУш", "sense": "смертельный, тяжёлый"}
+    ]
+  },
+  {
+    "rank": 4167, "hebrew": "עובדות",
+    "readings": [
+      {"niqqud": "עוּבְדּוֹת", "ipa": "ʔuvˈdot", "translit_ru": "увдОт", "sense": "факты"},
+      {"niqqud": "עוֹבְדוֹת", "ipa": "ʔovˈdot", "translit_ru": "овдОт", "sense": "работают (ж.р.)"}
+    ]
+  },
+  {
+    "rank": 5178, "hebrew": "תקנה",
+    "readings": [
+      {"niqqud": "תַּקָּנָה", "ipa": "takaˈna", "translit_ru": "таканА", "sense": "постановление, правило"},
+      {"niqqud": "תִּקְנֶה", "ipa": "tiˈkne", "translit_ru": "тикнЭ", "sense": "ты купишь"}
+    ]
+  },
+  {
+    "rank": 5926, "hebrew": "הלבנים",
+    "readings": [
+      {"niqqud": "הַלְּבָנִים", "ipa": "halevaˈnim", "translit_ru": "hалеванИм", "sense": "белые"},
+      {"niqqud": "הַלְּבֵנִים", "ipa": "haleveˈnim", "translit_ru": "hалевенИм", "sense": "кирпичи"}
+    ]
+  },
+  {
+    "rank": 6252, "hebrew": "מוכנות",
+    "readings": [
+      {"niqqud": "מוּכָנוֹת", "ipa": "muχaˈnot", "translit_ru": "муханОт", "sense": "готовы (ж.р.)"},
+      {"niqqud": "מוּכָנוּת", "ipa": "muχaˈnut", "translit_ru": "муханУт", "sense": "готовность"}
+    ]
+  },
+  {
+    "rank": 6591, "hebrew": "בערבות",
+    "readings": [
+      {"niqqud": "בְּעַרְבוּת", "ipa": "beʔaʁˈvut", "translit_ru": "беарвУт", "sense": "под залог, под поручительство"},
+      {"niqqud": "בַּעֲרָבוֹת", "ipa": "baʔaʁaˈvot", "translit_ru": "баараавОт", "sense": "в степях"}
+    ]
+  },
+  {
+    "rank": 7741, "hebrew": "המתה",
+    "readings": [
+      {"niqqud": "הֲמָתָה", "ipa": "hamaˈta", "translit_ru": "hаматА", "sense": "умерщвление"},
+      {"niqqud": "הַמֵּתָה", "ipa": "hameˈta", "translit_ru": "hаметА", "sense": "убитая, мёртвая"}
+    ]
+  },
+  {
+    "rank": 3714, "hebrew": "דברי",
+    "readings": [
+      {"niqqud": "דִּבְרֵי", "ipa": "divˈʁej", "translit_ru": "дивъЭй", "sense": "слова (чьи-то)"},
+      {"niqqud": "דַּבְּרִי", "ipa": "daˈbʁi", "translit_ru": "дабрИ", "sense": "говори (ж.р.)"}
+    ]
+  },
+  {
+    "rank": 5488, "hebrew": "ללוות",
+    "readings": [
+      {"niqqud": "לְלַוּוֹת", "ipa": "lelaˈvot", "translit_ru": "лелавОт", "sense": "сопровождать"},
+      {"niqqud": "לִלְווֹת", "ipa": "liˈlvot", "translit_ru": "лильвОт", "sense": "одолжить, занять"}
+    ]
+  },
+  {
+    "rank": 7576, "hebrew": "קווי",
+    "readings": [
+      {"niqqud": "קַוִּוי", "ipa": "kaˈvi", "translit_ru": "кавИ", "sense": "линейный"},
+      {"niqqud": "קַוֵּוי", "ipa": "kaˈvej", "translit_ru": "кавЭй", "sense": "линии (чьи-то)"}
+    ]
+  },
+  {
+    "rank": 6769, "hebrew": "ואחר",
+    "readings": [
+      {"niqqud": "וְאַחֵר", "ipa": "veʔaˈχeʁ", "translit_ru": "веахЭр", "sense": "и другой"},
+      {"niqqud": "וְאַחַר", "ipa": "veʔaˈχaʁ", "translit_ru": "веахАр", "sense": "а затем, и после"}
+    ]
+  },
+  {
+    "rank": 3748, "hebrew": "בשל",
+    "readings": [
+      {"niqqud": "בָּשֵׁל", "ipa": "baˈʃel", "translit_ru": "башЭль", "sense": "спелый, зрелый"},
+      {"niqqud": "בְּשֶׁל", "ipa": "beˈʃel", "translit_ru": "бешЭль", "sense": "из-за, ради"}
+    ]
+  },
+  {
+    "rank": 9874, "hebrew": "נהפוך",
+    "readings": [
+      {"niqqud": "נַהֲפוֹךְ", "ipa": "nahaˈfoχ", "translit_ru": "наhафОх", "sense": "наоборот (нахпох ху)"},
+      {"niqqud": "נֵהָפֵךְ", "ipa": "nehaˈfeχ", "translit_ru": "неhафЭх", "sense": "превратимся, станем"}
+    ]
+  },
+  {
+    "rank": 7204, "hebrew": "נבנה",
+    "readings": [
+      {"niqqud": "נִבְנֶה", "ipa": "nivˈne", "translit_ru": "нивнЭ", "sense": "будет построен; построим"},
+      {"niqqud": "נִבְנָה", "ipa": "nivˈna", "translit_ru": "нивнА", "sense": "был построен"}
+    ]
+  },
+  {
+    "rank": 9188, "hebrew": "גרוש",
+    "readings": [
+      {"niqqud": "גְּרוֹשׁ", "ipa": "ɡʁoʃ", "translit_ru": "грош", "sense": "грош (монета)"},
+      {"niqqud": "גָּרוּשׁ", "ipa": "ɡaˈʁuʃ", "translit_ru": "гарУш", "sense": "разведённый"}
+    ]
+  }
+]

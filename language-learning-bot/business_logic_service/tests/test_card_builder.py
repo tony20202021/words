@@ -844,3 +844,43 @@ def test_reconsider_absent_when_the_word_was_not_scored_as_known():
     card = build_card(make_session(show_answer=True, score_changed=False),
                       make_word(), show_answer=True)
     assert "reconsider" not in [b["id"] for b in card["buttons"]]
+
+def test_prompt_shows_only_the_primary_meaning_of_a_homograph():
+    """
+    У омографов перевод многострочный: основное значение плюс строка про другое
+    чтение. В вопросе её показывать нельзя — там стоит вторая огласовка, и
+    подсказка выдала бы ответ.
+    """
+    from app.services.card_builder import primary_meaning
+
+    full = "инстинкт, влечение\n⚠ то же написание читается иначе: יָצַר (яцАр) — создал"
+    assert primary_meaning(full) == "инстинкт, влечение"
+
+    word = make_word()
+    word["translation"] = full
+    session = make_session(show_answer=False)
+    session["show_mode"] = "translation"
+    card = build_card(session, word, show_answer=False)
+
+    shown = " ".join(c["text"] for c in card["content"] if c["type"] == "translation")
+    assert "инстинкт" in shown
+    assert "יָצַר" not in shown, "вторая огласовка не должна попадать в вопрос"
+    assert "читается иначе" not in shown
+
+
+def test_answer_side_keeps_the_other_reading():
+    """А на ответной стороне другое чтение показать наоборот нужно — это и учим."""
+    word = make_word()
+    word["translation"] = "инстинкт, влечение\n⚠ то же написание читается иначе: יָצַר (яцАר) — создал"
+    card = build_card(make_session(show_answer=True), word, show_answer=True)
+
+    shown = " ".join(c["text"] for c in card["content"] if c["type"] == "translation")
+    assert "читается иначе" in shown, "полный перевод с вариантами должен остаться"
+
+
+def test_pick_option_uses_the_primary_meaning_only():
+    """Вариант ответа в пик-режиме — короткий, без пометки о другом чтении."""
+    from app.services.quiz_service import _get_text_for_modality
+
+    word = {"translation": "грош (монета)\n⚠ то же написание читается иначе: גָּרוּשׁ (гарУш) — разведённый"}
+    assert _get_text_for_modality(word, "translation") == "грош (монета)"

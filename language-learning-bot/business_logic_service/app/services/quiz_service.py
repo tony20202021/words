@@ -156,7 +156,10 @@ def _weighted_sample(word_numbers: List[int], count: int, exclude: int) -> List[
 def _get_text_for_modality(word: Dict[str, Any], modality: str) -> Optional[str]:
     """Extract the display text for a given modality from a word dict."""
     if modality == "translation":
-        return (word.get("translation") or "").strip() or None
+        # Вариант ответа — только основное значение. Полный перевод у омографов
+        # содержит вторую огласовку, и кнопка выдала бы ответ.
+        from app.services.card_builder import primary_meaning
+        return primary_meaning(word.get("translation") or "") or None
     if modality == "foreign":
         return (word.get("word_foreign") or "").strip() or None
     if modality == "transcription":

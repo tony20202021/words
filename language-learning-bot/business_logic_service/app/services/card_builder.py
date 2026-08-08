@@ -170,10 +170,24 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
 # ── content builders ──────────────────────────────────────────────────────────
 
+def primary_meaning(translation: str) -> str:
+    """
+    Первое значение перевода — без пометок о других чтениях.
+
+    У омографов перевод многострочный: основное значение, а ниже строка
+    «⚠ то же написание читается иначе: …». В подсказке-вопросе и в вариантах
+    пик-режима её показывать нельзя — она содержит вторую огласовку и просто
+    выдаёт ответ.
+    """
+    return (translation or "").split("\n", 1)[0].strip()
+
+
 def _add_before_answer(content: list, word: dict, show_mode: str) -> None:
     if show_mode == "translation":
         content.append({"type": "label", "text": "🔍 Слово на русском:"})
-        content.append({"type": "translation", "text": word.get("translation", "")})
+        # Только основное значение: полный перевод с другими чтениями
+        # показывается уже на ответной стороне.
+        content.append({"type": "translation", "text": primary_meaning(word.get("translation", ""))})
     elif show_mode == "transcription":
         content.append({"type": "label", "text": "🔊 Транскрипция:"})
         content.append({"type": "transcription", "text": f"[{word.get('transcription', '')}]"})
