@@ -1,5 +1,7 @@
 package com.langbot.app.network
 
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
@@ -173,23 +175,55 @@ object BLSClient {
     var rawBaseUrl: String = ""
         private set
 
+    /**
+     * Таймауты подключения по попыткам, мс.
+     *
+     * Бывает, что сеть есть, а до сервера не достучаться: пакеты уходят в никуда
+     * и TCP-подключение висит до таймаута. С одним таймаутом в 15 секунд (плюс
+     * повтор внутри OkHttp) нажатие кнопки выглядело как «ничего не произошло».
+     *
+     * Живой сервер отвечает за десятки миллисекунд, поэтому первая попытка
+     * короткая: есть связь — соединится сразу, нет — провалится сразу.
+     * Дальше таймаут растёт, чтобы пережить действительно медленную сеть.
+     */
+    val CONNECT_TIMEOUTS_MS = listOf(2_000, 6_000, 15_000)
+
+    private var _apis: List<BLSApi> = emptyList()
+
     fun init(baseUrl: String) {
         rawBaseUrl = baseUrl.trimEnd('/')
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val okhttp = OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-            .build()
-        _api = Retrofit.Builder()
-            .baseUrl("$rawBaseUrl/")
-            .client(okhttp)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(BLSApi::class.java)
+        // Пул и диспетчер общие: клиенты отличаются только таймаутами.
+        val pool = ConnectionPool()
+        val dispatcher = Dispatcher()
+
+        _apis = CONNECT_TIMEOUTS_MS.map { connectMs ->
+            val okhttp = OkHttpClient.Builder()
+                .addInterceptor(logging)
+                .connectionPool(pool)
+                .dispatcher(dispatcher)
+                .connectTimeout(connectMs.toLong(), TimeUnit.MILLISECONDS)
+                .readTimeout((connectMs * 2).toLong(), TimeUnit.MILLISECONDS)
+                .writeTimeout(connectMs.toLong(), TimeUnit.MILLISECONDS)
+                // Повторы делает NetworkRetry — иначе OkHttp молча удваивает
+                // ожидание и попытки перестают быть предсказуемыми.
+                .retryOnConnectionFailure(false)
+                .build()
+            Retrofit.Builder()
+                .baseUrl("$rawBaseUrl/")
+                .client(okhttp)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(BLSApi::class.java)
+        }
+        _api = _apis.first()
     }
+
+    /** Клиент для попытки номер [attempt] (с нуля); дальше последнего — самый терпеливый. */
+    fun apiForAttempt(attempt: Int): BLSApi =
+        _apis.getOrElse(attempt) { _apis.lastOrNull() ?: api }
+
+    val attemptCount: Int get() = _apis.size.coerceAtLeast(1)
 
     val api: BLSApi get() = _api ?: error("BLSClient not initialized — call BLSClient.init(url) first")
 

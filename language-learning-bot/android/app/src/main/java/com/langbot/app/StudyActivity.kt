@@ -21,6 +21,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.langbot.app.databinding.ActivityStudyBinding
 import com.langbot.app.network.BLSClient
+import com.langbot.app.network.NetworkRetry
 import com.langbot.app.network.Card
 import com.langbot.app.network.CardButton
 import com.langbot.app.network.PickOption
@@ -126,9 +127,13 @@ class StudyActivity : AppCompatActivity() {
     private fun restartSession() {
         setLoading(true)
         lifecycleScope.launch {
-            try {
-                BLSClient.api.endSession(userId, languageId)
-            } catch (_: Exception) { /* ignore — session may not exist */ }
+            // Закрытие сессии на сервере — необязательный шаг: если он не дошёл,
+            // локальный сброс всё равно должен произойти, иначе кнопка «Начать
+            // заново» снова выглядит как ничего не делающая.
+            NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                api.endSession(userId, languageId)
+            }
+            clearConnectionStatus()
             sessionId = null
             // Reset the offline side too. Without this, restarting with no network
             // fell through to enterOfflineFromStore(), which positions the engine at
@@ -146,9 +151,20 @@ class StudyActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
-                var resp = BLSClient.api.getSession(userId, languageId)
-                if (!resp.isSuccessful || resp.body()?.session_id == null) {
-                    resp = BLSClient.api.startSession(StartSessionRequest(userId, languageId))
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                    var r = api.getSession(userId, languageId)
+                    if (!r.isSuccessful || r.body()?.session_id == null) {
+                        r = api.startSession(StartSessionRequest(userId, languageId))
+                    }
+                    r
+                }
+                clearConnectionStatus()
+                if (resp == null) {
+                    // Сервер недостижим — учимся из кеша, не заставляя ждать впустую.
+                    if (!enterOfflineFromStore()) {
+                        showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    }
+                    return@launch
                 }
                 offline = null  // back online
                 handleResponse(resp.body())
@@ -193,6 +209,23 @@ class StudyActivity : AppCompatActivity() {
     }
 
     // ── Offline study loop ───────────────────────────────────────────────────────
+
+    /**
+     * Показать, что происходит с соединением, пока идут попытки.
+     *
+     * Без этого нажатие кнопки при недостижимом сервере выглядело как «ничего не
+     * произошло»: экран замирал на время таймаута. Переиспользуем плашку
+     * restart_notice — она уже есть над карточкой.
+     */
+    private fun showConnectionStatus(status: NetworkRetry.Status) {
+        if (status.attempt == 1) return   // первая попытка короткая, не мельтешим
+        binding.tvRestartNotice.text = status.message
+        binding.tvRestartNotice.visibility = View.VISIBLE
+    }
+
+    private fun clearConnectionStatus() {
+        binding.tvRestartNotice.visibility = View.GONE
+    }
 
     /**
      * Switch to offline mode using the cached bundle, positioned at the current word.
@@ -843,15 +876,32 @@ class StudyActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
-                val resp = when (btnId) {
-                    "know"        -> BLSClient.api.knowWord(sid)
-                    "show_answer" -> BLSClient.api.showAnswer(sid)
-                    "rate"        -> BLSClient.api.rateWord(sid, RateRequest(rating ?: "dont_know"))
-                    "reconsider"  -> BLSClient.api.reconsider(sid)
-                    "toggle_skip" -> BLSClient.api.toggleSkip(sid)
-                    else          -> null
+                // Быстрый провал с эскалацией: первая попытка короткая, дальше
+                // таймаут растёт. Пока идут попытки — пользователь видит статус,
+                // а не замерший экран.
+                // Незнакомая кнопка — сети не касаемся вовсе.
+                if (btnId !in setOf("know", "show_answer", "rate", "reconsider", "toggle_skip")) {
+                    return@launch
                 }
-                val body = resp?.body() ?: return@launch
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                    when (btnId) {
+                        "know"        -> api.knowWord(sid)
+                        "show_answer" -> api.showAnswer(sid)
+                        "rate"        -> api.rateWord(sid, RateRequest(rating ?: "dont_know"))
+                        "reconsider"  -> api.reconsider(sid)
+                        else          -> api.toggleSkip(sid)
+                    }
+                }
+                clearConnectionStatus()
+
+                if (resp == null) {
+                    // Сервер недостижим — работаем из кеша, действие применяем локально.
+                    if (enterOfflineFromStore()) handleOfflineAction(btn)
+                    else showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    return@launch
+                }
+
+                val body = resp.body() ?: return@launch
                 if (body.batch_exhausted) {
                     val batchSid = body.session_id ?: sid
                     val batch = BLSClient.api.nextBatch(batchSid)
