@@ -111,6 +111,12 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
             "target_modality": quiz_options.get("target_modality", "foreign"),
             "options": options,
         }
+        # Кнопки пик-режима — тоже отсюда. Раньше карточка отдавала обычные
+        # know/show_answer/skip, а каждый клиент выбрасывал buttons[] целиком и
+        # рисовал свою «❓ Не знаю». Вместе с массивом терялась и «Пропускать»:
+        # настройка show_skip_button в пик-режиме молча не работала ни в одном
+        # из трёх клиентов, и снять пометку «пропущено» было нечем.
+        buttons = _buttons_pick(is_skipped, show_skip)
 
     # Forbidden quiz pairs for this word — shown in extra_content after answer
     if show_answer:
@@ -352,6 +358,25 @@ def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, 
         {"id": "know", "text": "✅ Знаю", "style": "success", **_offline("record_and_reveal", "know")},
         {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger", **_offline("reveal_answer")},
     ]
+    if show_skip:
+        btns.append(_skip_button(is_skipped))
+    return btns
+
+
+def _buttons_pick(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
+    """
+    Кнопки вопросной стороны в пик-режиме.
+
+    Сами варианты лежат в pick_options — здесь только «не знаю» и, если включена
+    настройка, «Пропускать».
+
+    id=pick_dont_know, а не show_answer: это pick_answer с
+    selected_word_id="dont_know", то есть ответ ЗАСЧИТЫВАЕТСЯ как незнание, а
+    клиент дополнительно показывает баннер из pick_answer_result. Обычный
+    show_answer ничего не записывает — перепутав их, клиент потерял бы оценку.
+    """
+    btns = [{"id": "pick_dont_know", "text": "❓ Не знаю", "style": "outline-secondary",
+             **_offline("record_and_reveal", "dont_know")}]
     if show_skip:
         btns.append(_skip_button(is_skipped))
     return btns

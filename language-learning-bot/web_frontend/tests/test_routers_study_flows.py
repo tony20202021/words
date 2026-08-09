@@ -49,6 +49,13 @@ def _pick_card(**extra):
             {"word_id": "w-2", "target_text": "спасибо"},
         ],
     }
+    # Что BLS отдаёт в пик-режиме: свои кнопки, а не know/show_answer. Раньше
+    # шаблон рисовал «Не знаю» сам и buttons[] в этом режиме не читал вовсе.
+    if not extra.get("show_answer"):
+        card["buttons"] = [
+            {"id": "pick_dont_know", "text": "❓ Не знаю", "style": "outline-secondary"},
+            {"id": "toggle_skip", "text": "⏩ Пропускать", "style": "outline-secondary"},
+        ]
     card.update(extra)
     return card
 

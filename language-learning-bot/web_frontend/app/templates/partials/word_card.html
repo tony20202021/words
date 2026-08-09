@@ -125,10 +125,21 @@
             hx-target="#word-area" hx-swap="outerHTML">{{ opt.target_text }}</button>
         {% endif %}
       {% endfor %}
-      <button class="btn btn-outline-secondary btn-rate"
-        hx-post="/study/{{ language_id }}/pick_answer"
-        hx-vals='{"selected_word_id": "dont_know"}'
-        hx-target="#word-area" hx-swap="outerHTML">❓ Не знаю</button>
+      {# Кнопки приходят из card.buttons — раньше «Не знаю» была зашита здесь, а
+         весь buttons[] выбрасывался, и вместе с ним пропадала «Пропускать»:
+         настройка show_skip_button в пик-режиме не работала. Место и вид те же. #}
+      {% for btn in card.buttons %}
+        {% if btn.id == 'pick_dont_know' %}
+          <button class="btn btn-{{ btn.style }} btn-rate"
+            hx-post="/study/{{ language_id }}/pick_answer"
+            hx-vals='{"selected_word_id": "dont_know"}'
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'toggle_skip' %}
+          <button class="btn btn-{{ btn.style }} btn-rate"
+            hx-post="/study/{{ language_id }}/toggle_skip"
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% endif %}
+      {% endfor %}
     </div>
     {% endif %}
 

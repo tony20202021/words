@@ -928,23 +928,78 @@ def test_grammar_note_shows_part_of_speech_and_a_differing_lemma():
     assert _grammar_note({}) == ""
 
 
-# ── pick mode: buttons ────────────────────────────────────────────────────────
+# ── кнопки пик-режима ────────────────────────────────────────────────────────
 
 def _pick_session(show_skip=True):
     session = make_session(show_answer=False,
                            settings={"show_sounds": True, "show_skip_button": show_skip})
     session["pick_mode_active"] = True
     session["quiz_options"] = {
-        "target_modality": "foreign",
-        "options": [
-            {"word_id": "w1", "target_text": "a", "is_correct": True},
-            {"word_id": "w2", "target_text": "b", "is_correct": False},
-        ],
+        "target_modality": "translation",
+        "options": [{"word_id": "w1", "target_text": "книга", "is_correct": True},
+                    {"word_id": "w2", "target_text": "лошадь", "is_correct": False}],
     }
     return session
 
 
+def test_pick_mode_sends_its_own_buttons():
+    """
+    Раньше в пик-режиме карточка отдавала обычные know/show_answer/skip, а каждый
+    клиент выбрасывал buttons[] целиком и рисовал свою «❓ Не знаю». Правило
+    жило в трёх копиях, и вместе с массивом терялась «Пропускать».
+    """
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": False}
+    card = build_card(_pick_session(), word, show_answer=False)
+
+    ids = [b["id"] for b in card["buttons"]]
+    assert ids == ["pick_dont_know", "toggle_skip"], ids
+    assert "know" not in ids and "show_answer" not in ids
 
 
+def test_pick_mode_keeps_the_skip_button_the_setting_asks_for():
+    """Настройка show_skip_button в пик-режиме молча не работала во всех трёх клиентах."""
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": False}
 
+    with_skip = build_card(_pick_session(show_skip=True), word, show_answer=False)
+    without = build_card(_pick_session(show_skip=False), word, show_answer=False)
+
+    assert [b["id"] for b in with_skip["buttons"]] == ["pick_dont_know", "toggle_skip"]
+    assert [b["id"] for b in without["buttons"]] == ["pick_dont_know"]
+
+
+def test_pick_dont_know_records_the_answer_offline():
+    """
+    Это pick_answer с dont_know, а не show_answer: незнание ЗАСЧИТЫВАЕТСЯ.
+    Перепутав их, офлайн-клиент потерял бы оценку — show_answer ничего не пишет.
+    """
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": False}
+    card = build_card(_pick_session(), word, show_answer=False)
+
+    btn = next(b for b in card["buttons"] if b["id"] == "pick_dont_know")
+    assert btn["offline_effect"] == "record_and_reveal"
+    assert btn["offline_rating"] == "dont_know"
+
+
+def test_skip_state_is_reflected_in_pick_mode():
+    """Снять пометку «пропущено» из пик-режима было нечем — кнопки не существовало."""
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": True}
+    card = build_card(_pick_session(), word, show_answer=False)
+
+    skip = next(b for b in card["buttons"] if b["id"] == "toggle_skip")
+    assert skip["text"] == "⏩ Не пропускать"
+
+
+def test_answer_side_of_pick_mode_keeps_the_normal_buttons():
+    """После ответа пик-режим кончился — кнопки снова обычные."""
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": False}
+    card = build_card(_pick_session(), word, show_answer=True)
+
+    ids = [b["id"] for b in card["buttons"]]
+    assert "pick_dont_know" not in ids
+    assert card["pick_options"] is None
 

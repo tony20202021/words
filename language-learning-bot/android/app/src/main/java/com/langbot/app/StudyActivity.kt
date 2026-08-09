@@ -674,17 +674,13 @@ class StudyActivity : AppCompatActivity() {
                     binding.buttonRow.addView(b)
                 }
             }
-            // "Don't know" button
-            val dontKnowBtn = MaterialButton(this)
-            dontKnowBtn.text = "❓ Не знаю"
-            dontKnowBtn.textSize = 13f
-            dontKnowBtn.setPadding(8, 14, 8, 14)
-            dontKnowBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.transparent))
-            dontKnowBtn.setTextColor(ContextCompat.getColor(this, R.color.btnSecondary))
-            dontKnowBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnSecondary)
-            dontKnowBtn.strokeWidth = 2
-            dontKnowBtn.setOnClickListener { onPickAnswer("dont_know") }
-            binding.buttonRow.addView(dontKnowBtn)
+            // Кнопки под вариантами приходят из card.buttons. Раньше «Не знаю»
+            // была зашита прямо здесь, а весь card.buttons в пик-режиме не
+            // читался — вместе с ним пропадала «Пропускать», и настройка
+            // show_skip_button тут молча не работала.
+            for (btn in card.buttons) {
+                binding.buttonRow.addView(makeCardButton(btn))
+            }
         } else if (card.buttons.size >= 3) {
             binding.buttonRow.orientation = LinearLayout.VERTICAL
             val row1 = buildButtonRow(card.buttons.take(2))
@@ -916,6 +912,10 @@ class StudyActivity : AppCompatActivity() {
     // ── Button click handler ────────────────────────────────────────────────────
 
     private fun onButtonClick(btn: CardButton) {
+        // «Не знаю» в пик-режиме — это pick_answer с dont_know, а не show_answer:
+        // ответ засчитывается как незнание, и показывается баннер результата.
+        // Путь тот же, что у выбора варианта, включая офлайн-ветку.
+        if (btn.id == "pick_dont_know") { onPickAnswer("dont_know"); return }
         if (offline != null) { handleOfflineAction(btn); return }
         val sid = sessionId ?: return
         val btnId = btn.id

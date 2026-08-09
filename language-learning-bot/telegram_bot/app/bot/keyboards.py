@@ -45,7 +45,16 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
         else:
             for opt in options:
                 builder.button(text=opt.get("target_text", "?"), callback_data=f"study:{language_id}:{ACTION_PICK}:{opt['word_id']}")
-        builder.button(text="❓ Не знаю", callback_data=f"study:{language_id}:{ACTION_PICK}:dont_know")
+        # Кнопки берём из card.buttons. Раньше «Не знаю» была зашита здесь, а
+        # весь buttons[] выбрасывался ранним return — вместе с ним пропадала
+        # «Пропускать», и настройка show_skip_button в пик-режиме не работала.
+        for btn in card.get("buttons", []):
+            if btn.get("id") == "pick_dont_know":
+                builder.button(text=btn["text"],
+                               callback_data=f"study:{language_id}:{ACTION_PICK}:dont_know")
+            elif btn.get("id") == "toggle_skip":
+                builder.button(text=btn["text"],
+                               callback_data=f"study:{language_id}:toggle_skip")
         builder.adjust(1, repeat=True)
         return builder.as_markup()
 

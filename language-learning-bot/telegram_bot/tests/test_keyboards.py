@@ -118,7 +118,16 @@ class TestPickModeKeyboard:
                     {"word_id": "w3", "target_text": "кот", "is_correct": False},
                 ],
             },
-            "buttons": [{"id": "know", "text": "✅ Знаю", "style": "success"}],
+            # Что BLS отдаёт на самом деле: до ответа — свои кнопки пик-режима,
+            # после — обычные. Раньше здесь всегда стоял know, потому что клиент
+            # всё равно выбрасывал buttons[] и рисовал «Не знаю» сам.
+            "buttons": (
+                [{"id": "know", "text": "✅ Знаю", "style": "success"},
+                 {"id": "rate", "rating": "dont_know", "text": "❌ Не знаю", "style": "danger"}]
+                if show_answer else
+                [{"id": "pick_dont_know", "text": "❓ Не знаю", "style": "outline-secondary"},
+                 {"id": "toggle_skip", "text": "⏩ Пропускать", "style": "outline-secondary"}]
+            ),
             "meta": {},
         }
         return card
@@ -245,3 +254,55 @@ class TestClearForbiddenPairsButton:
     def test_button_absent_for_empty_list(self):
         kb = build_card_keyboard(self._card([]), "lang1")
         assert "study:lang1:clear_pairs" not in callbacks(kb)
+
+# ── кнопки пик-режима приходят из карточки ───────────────────────────────────
+
+def _pick_card(buttons):
+    return {
+        "show_answer": False,
+        "buttons": buttons,
+        "pick_options": {"target_modality": "translation", "options": [
+            {"word_id": "w1", "target_text": "книга"},
+            {"word_id": "w2", "target_text": "лошадь"}]},
+    }
+
+
+_DONT_KNOW = {"id": "pick_dont_know", "text": "❓ Не знаю"}
+_SKIP = {"id": "toggle_skip", "text": "⏩ Пропускать"}
+
+
+def _flat(markup):
+    return [(b.text, b.callback_data) for row in markup.inline_keyboard for b in row]
+
+
+def test_skip_button_appears_in_pick_mode():
+    """
+    Ранний return отдавал клавиатуру до обычных кнопок, поэтому «Пропускать»
+    в пик-режиме не было, а настройка show_skip_button тут не работала.
+    """
+    labels = [t for t, _ in _flat(build_card_keyboard(_pick_card([_DONT_KNOW, _SKIP]), "l1"))]
+    assert "⏩ Пропускать" in labels, labels
+    assert "❓ Не знаю" in labels
+
+
+def test_skip_button_obeys_the_setting():
+    labels = [t for t, _ in _flat(build_card_keyboard(_pick_card([_DONT_KNOW]), "l1"))]
+    assert "⏩ Пропускать" not in labels, labels
+
+
+def test_dont_know_sends_pick_answer_not_show_answer():
+    """Незнание засчитывается: это pick_answer с dont_know, а не показ ответа."""
+    data = dict(_flat(build_card_keyboard(_pick_card([_DONT_KNOW]), "l1")))
+    assert data["❓ Не знаю"] == "study:l1:pick:dont_know"
+
+
+def test_skip_sends_toggle_skip():
+    data = dict(_flat(build_card_keyboard(_pick_card([_DONT_KNOW, _SKIP]), "l1")))
+    assert data["⏩ Пропускать"] == "study:l1:toggle_skip"
+
+
+def test_button_text_comes_from_the_card():
+    card = _pick_card([{"id": "pick_dont_know", "text": "❓ Понятия не имею"}])
+    labels = [t for t, _ in _flat(build_card_keyboard(card, "l1"))]
+    assert "❓ Понятия не имею" in labels
+
