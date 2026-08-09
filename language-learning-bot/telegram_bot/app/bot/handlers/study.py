@@ -177,6 +177,10 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         resp = await bls.pick_answer(session_id, selected_word_id)
         if resp.get("batch_exhausted"):
             batch = await bls.next_batch(session_id)
+            if batch.get("_failed"):
+                await callback.answer("Сервер не ответил. Попробуйте ещё раз",
+                                      show_alert=True)
+                return
             if batch.get("loaded"):
                 resp = batch
             else:
@@ -195,6 +199,10 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         resp = await bls.rate_word(session_id, rating)
         if resp.get("batch_exhausted"):
             batch = await bls.next_batch(session_id)
+            if batch.get("_failed"):
+                await callback.answer("Сервер не ответил. Попробуйте ещё раз",
+                                      show_alert=True)
+                return
             if batch.get("loaded"):
                 resp = batch
             else:
@@ -207,6 +215,10 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         resp = await bls.reconsider(session_id)
         if resp.get("batch_exhausted"):
             batch = await bls.next_batch(session_id)
+            if batch.get("_failed"):
+                await callback.answer("Сервер не ответил. Попробуйте ещё раз",
+                                      show_alert=True)
+                return
             if batch.get("loaded"):
                 resp = batch
             else:
@@ -215,6 +227,13 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
                 return
     else:
         await callback.answer()
+        return
+
+    # Неудавшийся запрос и «слов больше нет» — разные вещи, и раньше они были
+    # неотличимы: оба давали пустой ответ, и человек получал поздравление
+    # «🎉 Все слова на сегодня изучены» из-за моргнувшего бэкенда.
+    if resp.get("_failed"):
+        await callback.answer("Сервер не ответил. Попробуйте ещё раз", show_alert=True)
         return
 
     card = resp.get("card")

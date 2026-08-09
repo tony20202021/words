@@ -15,7 +15,22 @@ from app.templating import templates, __version__
 
 from app.routers import auth, languages, study, settings, admin, info
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production-please")
+# Этим ключом подписывается сессионная кука, в которой лежат user_id и is_admin.
+# Значение по умолчанию делало подделку тривиальной: зная строку, кто угодно
+# подписывает куку с чужим user_id и is_admin=true и получает чужой аккаунт, а с
+# админским id — удаление языков, импорт с очисткой и рассылку. Заглушка в коде
+# опаснее отсутствия ключа: отсутствие видно сразу, а заглушка молча работает.
+PLACEHOLDER_KEYS = {
+    "change-me-in-production", "change-me-in-production-please",
+    "secret", "changeme", "",
+}
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if SECRET_KEY in PLACEHOLDER_KEYS:
+    raise RuntimeError(
+        "SECRET_KEY не задан или оставлен заглушкой. Этим ключом подписывается "
+        "сессионная кука с user_id и is_admin — с известным значением подделать "
+        "её может кто угодно. Сгенерируйте: python -c \"import secrets; "
+        "print(secrets.token_urlsafe(48))\" и положите в .env")
 
 app = FastAPI(title="Language Learning Web", version=__version__)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)

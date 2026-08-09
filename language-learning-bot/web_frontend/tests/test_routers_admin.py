@@ -1,12 +1,16 @@
 """Unit tests for web_frontend admin router. BLS client is mocked; sessions signed manually."""
 
+import os
 import json
 import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from app.main import app
 
-SECRET_KEY = "change-me-in-production-please"
+# Ключ берём из окружения, как само приложение: раньше он был
+# зашит строкой, и тест ломался ровно тогда, когда продакшен
+# переставал использовать заглушку — то есть при её починке.
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 
 def _make_session_cookie(session_data: dict) -> str:

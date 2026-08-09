@@ -166,7 +166,21 @@ async def admin_users(callback: CallbackQuery, bls_user_id: str) -> None:
 async def admin_user_detail(callback: CallbackQuery, bls_user_id: str) -> None:
     if await _guard(callback, bls_user_id, is_callback=True):
         return
-    target_id = callback.data.split(":", 2)[2]
+    await _render_user_detail(callback, bls_user_id, callback.data.split(":", 2)[2])
+
+
+async def _render_user_detail(callback: CallbackQuery, bls_user_id: str,
+                              target_id: str) -> None:
+    """
+    Карточка пользователя по явному target_id.
+
+    Вынесено из хендлера, потому что после переключения прав его надо
+    перерисовать. Раньше для этого подменяли callback.data и звали хендлер
+    заново — но в aiogram 3 CallbackQuery это frozen-модель pydantic, и
+    присваивание бросало «Instance is frozen». Права при этом уже менялись, и
+    админ видел сначала «✅ назначен администратором», а следом «⚠️ Сервер
+    сейчас недоступен».
+    """
     bls = get_bls_client()
     user = await bls.admin_get_user_details(bls_user_id, target_id)
     if not user:
@@ -205,9 +219,8 @@ async def admin_toggle_admin(callback: CallbackQuery, bls_user_id: str) -> None:
     result = await bls.admin_toggle_admin(bls_user_id, target_id, make_admin)
     status = "назначен администратором" if make_admin else "лишён прав администратора"
     await callback.answer(f"✅ Пользователь {status}", show_alert=True)
-    # Refresh user detail
-    callback.data = f"admin:user:{target_id}"
-    await admin_user_detail(callback, bls_user_id)
+    # Перерисовать карточку с новым состоянием прав.
+    await _render_user_detail(callback, bls_user_id, target_id)
 
 
 # ── Languages ─────────────────────────────────────────────────────────────────

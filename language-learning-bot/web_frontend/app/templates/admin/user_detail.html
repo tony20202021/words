@@ -29,9 +29,14 @@
 
 <div class="card mt-3">
   <div class="card-body">
+    <p class="mb-2 small text-muted">Админ: {{ '✅ да' if u.is_admin else '❌ нет' }}</p>
     <form method="post" action="/admin/users/{{ u.user_id }}/toggle_admin">
-      <input type="hidden" name="is_admin" value="true">
-      <button type="submit" class="btn btn-outline-warning btn-sm">Переключить права админа</button>
+      {# Шлём ЖЕЛАЕМОЕ значение — обратное текущему. Раньше здесь было зашито
+         true, и права можно было только снять. #}
+      <input type="hidden" name="is_admin" value="{{ 'false' if u.is_admin else 'true' }}">
+      <button type="submit" class="btn btn-outline-warning btn-sm">
+        {{ 'Снять права админа' if u.is_admin else 'Дать права админа' }}
+      </button>
     </form>
   </div>
 </div>

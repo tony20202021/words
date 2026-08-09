@@ -116,7 +116,26 @@ def test_admin_users_page2_skip():
 
 # ── POST /admin/users/{id}/toggle_admin ──────────────────────────────────────
 
-def test_toggle_admin_negates_value():
+def test_toggle_admin_writes_the_requested_value():
+    """
+    Поле запроса называется is_admin, и клиенты шлют в нём ЖЕЛАЕМОЕ значение.
+    Прежняя версия писала его отрицание — «дать права» снимало их. Тест это
+    закреплял, потому что проверял реализацию, а не контракт ручки.
+    """
+    api = _make_api()
+    client, patcher = _client_with(api)
+    try:
+        r = client.post("/admin/users/u1/toggle_admin",
+                        params={"user_id": "admin-1"},
+                        json={"is_admin": True})
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+        api.update_user.assert_called_once_with("u1", {"is_admin": True})
+    finally:
+        _cleanup(patcher)
+
+
+def test_toggle_admin_can_also_revoke():
     api = _make_api()
     client, patcher = _client_with(api)
     try:
@@ -124,8 +143,7 @@ def test_toggle_admin_negates_value():
                         params={"user_id": "admin-1"},
                         json={"is_admin": False})
         assert r.status_code == 200
-        assert r.json()["ok"] is True
-        api.update_user.assert_called_once_with("u1", {"is_admin": True})
+        api.update_user.assert_called_once_with("u1", {"is_admin": False})
     finally:
         _cleanup(patcher)
 

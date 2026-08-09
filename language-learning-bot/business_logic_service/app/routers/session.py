@@ -104,6 +104,19 @@ async def get_bundle(user_id: str, language_id: str, api_client=Depends(get_api_
     return bundle
 
 
+# Объявлен ВЫШЕ /{user_id}/{language_id}: FastAPI выбирает первый подходящий
+# маршрут, а тот шаблон из двух сегментов проглатывает и «abc123/progress»,
+# разбирая его как user_id=abc123, language_id=progress. Ручка прогресса была
+# недостижима — на экране «Сессия завершена!» просто пропадала строка
+# «Обработано слов». Порядок здесь значим, не переставлять.
+@router.get("/{session_id}/progress")
+async def get_progress(session_id: str):
+    session = session_service.get_session_by_id(session_id)
+    if session is None:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
+    return session_service.get_progress(session)
+
+
 @router.get("/{user_id}/{language_id}")
 async def get_session(user_id: str, language_id: str, api_client=Depends(get_api_client)):
     session = session_service.get_session(user_id, language_id)
@@ -154,14 +167,6 @@ async def rate_word(session_id: str, req: RateRequest,
     if word is None:
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}
     return await _card_response(session, api_client)
-
-
-@router.get("/{session_id}/progress")
-async def get_progress(session_id: str):
-    session = session_service.get_session_by_id(session_id)
-    if session is None:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Session not found")
-    return session_service.get_progress(session)
 
 
 @router.post("/{session_id}/next_batch")

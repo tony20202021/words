@@ -73,6 +73,13 @@ router = APIRouter()
 
 @router.get("/sound/{sound_path:path}")
 async def proxy_sound(sound_path: str):
+    # Ручка без авторизации, и она проксирует путь в backend как есть. Приходящие
+    # закодированными ../ переживали и quote, и unquote на той стороне, а backend
+    # склеивал их через os.path.join без нормализации — то есть аноним мог
+    # прочитать любой .mp3 на хосте. Проверяем здесь и, независимо, там же:
+    # прокси может смениться, а каталог звуков останется.
+    if ".." in sound_path.split("/") or sound_path.startswith(("/", "\\")):
+        raise HTTPException(status_code=400, detail="Bad sound path")
     encoded = quote(sound_path, safe="").replace(".", "%2E")
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{BACKEND_URL}/api/sounds/{encoded}", timeout=10.0)

@@ -13,6 +13,20 @@ BLS_URL = os.environ.get("BLS_URL", "http://localhost:8531")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8573")
 
 
+
+def _payload(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Тело ответа, а при неудаче — явная пометка.
+
+    Раньше здесь стояло `result.get("data") or {}`, и запрос, упавший с 500,
+    становился неотличим от «карточки больше нет». Хендлер видел пустой ответ и
+    поздравлял с завершением сессии: человек, у которого просто моргнул бэкенд,
+    получал «🎉 Все слова на сегодня изучены» и терял занятие.
+    """
+    if result.get("status", 0) >= 400 or result.get("data") is None:
+        return {"_failed": True, "_status": result.get("status")}
+    return result["data"]
+
 class BLSClient:
     def __init__(self, base_url: str = BLS_URL, timeout: int = 10):
         self.base_url = base_url.rstrip("/")
@@ -106,15 +120,15 @@ class BLSClient:
 
     async def show_answer(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/show_answer")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def know_word(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/know")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def rate_word(self, session_id: str, rating: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/rate", {"rating": rating})
-        return result.get("data") or {}
+        return _payload(result)
 
     async def next_batch(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/next_batch")
@@ -122,27 +136,27 @@ class BLSClient:
 
     async def reconsider(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/reconsider")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def toggle_skip(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/toggle_skip")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def get_progress(self, session_id: str) -> Dict[str, Any]:
         result = await self._get(f"/session/{session_id}/progress")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def pick_answer(self, session_id: str, selected_word_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/pick_answer", {"selected_word_id": selected_word_id})
-        return result.get("data") or {}
+        return _payload(result)
 
     async def add_forbidden_pair(self, session_id: str, bad_word_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/add_forbidden_pair", {"bad_word_id": bad_word_id})
-        return result.get("data") or {}
+        return _payload(result)
 
     async def clear_forbidden_pairs(self, session_id: str) -> Dict[str, Any]:
         result = await self._post(f"/session/{session_id}/clear_forbidden_pairs")
-        return result.get("data") or {}
+        return _payload(result)
 
     async def end_session(self, user_id: str, language_id: str) -> None:
         await self._delete(f"/session/{user_id}/{language_id}")

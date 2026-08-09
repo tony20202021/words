@@ -1,5 +1,13 @@
 """Shared fixtures for web_frontend tests."""
 
+import os
+
+# Приложение отказывается стартовать без SECRET_KEY или с заглушкой — этим
+# ключом подписывается сессионная кука с user_id и is_admin. Тестам нужен свой,
+# заведомо не тот, что в продакшене: тесты сами подписывают админскую куку, и
+# рабочий ключ рядом с таким кодом означал бы готовый эксплойт в репозитории.
+os.environ.setdefault("SECRET_KEY", "test-only-key-not-for-production")
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient

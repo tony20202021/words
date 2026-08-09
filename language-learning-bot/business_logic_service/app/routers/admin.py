@@ -67,7 +67,7 @@ async def toggle_admin(
     api_client=Depends(get_api_client),
 ):
     await _check_admin(user_id, api_client)
-    ok = await admin_service.toggle_admin(target_user_id, body.is_admin, api_client)
+    ok = await admin_service.set_admin(target_user_id, body.is_admin, api_client)
     return {"ok": ok}
 
 

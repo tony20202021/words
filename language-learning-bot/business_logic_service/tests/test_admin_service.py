@@ -84,6 +84,7 @@ async def test_get_user_details_includes_languages_with_progress():
         _ok({"words_studied": 10, "words_known": 5}),
         _ok({"words_studied": 0,  "words_known": 0}),
     ])
+    api.get_user = AsyncMock(return_value={"id": "user1", "is_admin": False})
 
     result = await admin_service.get_user_details("user1", api)
     # Only lang1 has words_studied > 0
@@ -91,23 +92,16 @@ async def test_get_user_details_includes_languages_with_progress():
     assert result["progress"][0]["language_id"] == "lang1"
 
 
-# ── toggle_admin ──────────────────────────────────────────────────────────────
+# ── права администратора ──────────────────────────────────────────────────────
+# Прежние два теста здесь закрепляли ошибку: они требовали, чтобы функция писала
+# ОТРИЦАНИЕ присланного значения. Именно из-за этого переключатель работал
+# наоборот, а тесты были зелёными — они проверяли реализацию, а не контракт.
 
 @pytest.mark.asyncio
-async def test_toggle_admin_calls_update_with_negated_value():
-    api = MagicMock()
-    api.update_user = AsyncMock(return_value=_ok({"is_admin": True}))
-
-    ok = await admin_service.toggle_admin("u1", current_is_admin=False, api_client=api)
-    api.update_user.assert_called_once_with("u1", {"is_admin": True})
-    assert ok is True
-
-
-@pytest.mark.asyncio
-async def test_toggle_admin_api_failure_returns_false():
+async def test_set_admin_api_failure_returns_false():
     api = MagicMock()
     api.update_user = AsyncMock(return_value=_fail())
-    ok = await admin_service.toggle_admin("u1", False, api)
+    ok = await admin_service.set_admin("u1", True, api)
     assert ok is False
 
 
@@ -219,3 +213,51 @@ async def test_import_words_failure():
     result = await admin_service.import_words("lang1", b"DATA", "file.xlsx", {}, api)
     assert result["ok"] is False
     assert result["error"] == "bad file"
+
+# ── права администратора ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_set_admin_writes_the_value_it_is_given():
+    """
+    Раньше функция звалась toggle_admin и писала ОТРИЦАНИЕ присланного, считая
+    его текущим состоянием. Но поле запроса называется is_admin, и оба клиента
+    слали в нём желаемое значение — переключатель работал наоборот: «дать права»
+    снимало их. В вебе это выглядело как «права можно только снять».
+    """
+    from app.services import admin_service
+
+    api = MagicMock()
+    api.update_user = AsyncMock(return_value={"success": True})
+
+    assert await admin_service.set_admin("u1", True, api) is True
+    assert api.update_user.call_args.args == ("u1", {"is_admin": True})
+
+    await admin_service.set_admin("u1", False, api)
+    assert api.update_user.call_args.args == ("u1", {"is_admin": False})
+
+
+@pytest.mark.asyncio
+async def test_user_details_report_admin_flag():
+    """Странице пользователя нужен фактический флаг, чтобы нарисовать верную кнопку."""
+    from app.services import admin_service
+
+    api = MagicMock()
+    api.get_languages = AsyncMock(return_value={"success": True, "result": []})
+    api.get_user = AsyncMock(return_value={"id": "u1", "is_admin": True})
+
+    detail = await admin_service.get_user_details("u1", api)
+    assert detail["is_admin"] is True
+    assert detail["user_id"] == "u1"
+
+
+@pytest.mark.asyncio
+async def test_user_details_survive_a_missing_user():
+    from app.services import admin_service
+
+    api = MagicMock()
+    api.get_languages = AsyncMock(return_value={"success": True, "result": []})
+    api.get_user = AsyncMock(return_value=None)
+
+    detail = await admin_service.get_user_details("u1", api)
+    assert detail["is_admin"] is False
+

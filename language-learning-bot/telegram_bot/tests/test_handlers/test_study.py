@@ -448,3 +448,53 @@ async def test_pick_sound_survives_a_single_missing_variant(mock_bls):
     assert cb.message.answer_audio.await_count == 1
     cb.answer.assert_called_once()
 
+# ── упавший запрос не выдаётся за конец сессии ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_backend_failure_is_not_reported_as_session_completed(mock_bls):
+    """
+    Клиент возвращал `result.get("data") or {}`, поэтому упавший с 500 запрос был
+    неотличим от «карточки больше нет», и человек получал поздравление
+    «🎉 Все слова на сегодня изучены» из-за моргнувшего бэкенда — вместе с
+    потерянным занятием.
+    """
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.know_word = AsyncMock(return_value={"_failed": True, "_status": 500})
+    cb = make_callback("study:lang1:know")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.message.answer.assert_not_called()
+    cb.answer.assert_called_once()
+    assert cb.answer.call_args.kwargs.get("show_alert") is True
+    assert "не ответил" in cb.answer.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_real_completion_still_congratulates(mock_bls):
+    """Настоящее «слов больше нет» должно по-прежнему поздравлять."""
+    from app.bot.handlers.study import handle_study_callback, COMPLETED_TEXT
+    mock_bls.know_word = AsyncMock(return_value={"session_id": "sess-1", "card": None})
+    cb = make_callback("study:lang1:know")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.message.answer.assert_called_once()
+    assert cb.message.answer.call_args.args[0] == COMPLETED_TEXT
+
+
+@pytest.mark.asyncio
+async def test_failed_next_batch_is_not_reported_as_completed(mock_bls):
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.rate_word = AsyncMock(return_value={"batch_exhausted": True})
+    mock_bls.next_batch = AsyncMock(return_value={"_failed": True, "_status": 502})
+    cb = make_callback("study:lang1:rate:know")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.message.answer.assert_not_called()
+    assert "не ответил" in cb.answer.call_args.args[0]
+

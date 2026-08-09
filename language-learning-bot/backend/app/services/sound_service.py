@@ -45,7 +45,14 @@ class SoundService:
         logger.info(f"Sound path: {cfg.sounds.sound_path}")
 
         try:
-            sound_path = os.path.join(cfg.sounds.sound_path, sound_name)
+            # os.path.join сам по себе не защищает: sound_name вида ../../etc/x.mp3
+            # уводит за пределы каталога звуков, а абсолютный путь просто
+            # отбрасывает базу. Сверяем итоговый реальный путь с базовым.
+            base = os.path.realpath(cfg.sounds.sound_path)
+            sound_path = os.path.realpath(os.path.join(base, sound_name))
+            if os.path.commonpath([base, sound_path]) != base:
+                logger.error(f"Sound path escapes base dir: name={sound_name}")
+                raise HTTPException(status_code=400, detail="Bad sound name")
             logger.info(f"Sound file exists: {os.path.exists(sound_path)}")
             if not os.path.exists(sound_path):
                 logger.error(f"Sound file not found: {sound_path}")
@@ -54,6 +61,8 @@ class SoundService:
             with open(sound_path, "rb") as f:
                 return f.read()
 
+        except HTTPException:
+            raise          # 400/404 — осмысленные ответы, не превращать в 500
         except Exception as e:
             logger.exception(f"Error getting sound by name={sound_name}: {e}")
             raise HTTPException(status_code=500, detail=f"Error getting sound by name={sound_name}: {e}")

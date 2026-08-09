@@ -78,13 +78,27 @@ async def get_user_details(user_id: str, api_client) -> Dict[str, Any]:
                     **p,
                 })
 
-    return {"user_id": user_id, "progress": progress_list}
+    # is_admin нужен странице пользователя, чтобы показать «дать» или «снять».
+    # Без него шаблон слал зашитое значение и переключатель работал в одну сторону.
+    user = await api_client.get_user(user_id) or {}
+    return {"user_id": user_id, "is_admin": bool(user.get("is_admin", False)),
+            "progress": progress_list}
 
 
-async def toggle_admin(user_id: str, current_is_admin: bool, api_client) -> bool:
-    """Toggle admin rights for a user. Returns new value."""
-    new_value = not current_is_admin
-    resp = await api_client.update_user(user_id, {"is_admin": new_value})
+async def set_admin(user_id: str, is_admin: bool, api_client) -> bool:
+    """
+    Установить права администратора в присланное значение.
+
+    Раньше функция звалась toggle_admin и писала ОТРИЦАНИЕ присланного, считая
+    его текущим состоянием. Но поле в запросе называется is_admin, и оба клиента
+    слали в нём ЖЕЛАЕМОЕ значение — то есть переключатель работал наоборот:
+    «дать права» снимало их, «снять» выдавало. В вебе это выглядело как
+    «права можно только снять», потому что шаблон слал зашитое true.
+
+    Записываем то, что просят: у вызывающего и так есть текущее состояние, чтобы
+    решить, что показать на кнопке.
+    """
+    resp = await api_client.update_user(user_id, {"is_admin": is_admin})
     return resp.get("success", False)
 
 
