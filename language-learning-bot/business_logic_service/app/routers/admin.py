@@ -16,6 +16,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 EDITABLE_WORD_FIELDS = {
     "foreign", "translation", "transcription",
     "radicals", "references", "tones", "sounds", "number",
+    "part_of_speech", "lemma",
 }
 
 

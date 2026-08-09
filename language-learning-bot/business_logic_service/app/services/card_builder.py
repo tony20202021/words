@@ -65,7 +65,8 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         _add_hints(content, word, uwd, settings)
         buttons = _buttons_before(is_skipped, show_skip)
     else:
-        _add_after_answer(content, word, settings, extra_content, words_studied)
+        _add_after_answer(content, word, settings, extra_content, words_studied,
+                          session.get("language_name_ru", ""))
         _add_hints(content, word, uwd, settings)
         sounds = all_sounds
         buttons = _buttons_after(is_skipped, score_changed, show_skip)
@@ -212,8 +213,68 @@ def _filter_refs(text: str, words_studied: int) -> str:
     return "\n".join(kept)
 
 
+POS_FULL = {
+    "сущ": "существительное", "глаг": "глагол", "прил": "прилагательное",
+    "нареч": "наречие", "предл": "предлог", "мест": "местоимение",
+    "числ": "числительное", "союз": "союз", "част": "частица",
+    "межд": "междометие",
+}
+
+
+def _grammar_note(word: dict) -> str:
+    """
+    Строка с частью речи и словарной формой.
+
+    Обе величины уже были собраны при подготовке словаря, но до карточки не
+    доезжали. Для иврита это особенно полезно: одни и те же согласные бывают и
+    существительным, и глаголом, и часть речи снимает половину неоднозначности.
+    Словарную форму показываем только когда она отличается от самого слова —
+    иначе это шум.
+    """
+    parts = []
+    pos = (word.get("part_of_speech") or "").strip()
+    if pos:
+        parts.append(POS_FULL.get(pos, pos))
+    lemma = (word.get("lemma") or "").strip()
+    bare = _strip_niqqud(word.get("word_foreign") or "")
+    if lemma and lemma != bare:
+        parts.append(f"словарная форма: {lemma}")
+    return " · ".join(parts)
+
+
+def _strip_niqqud(text: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", text)
+                   if unicodedata.category(c) != "Mn")
+
+
+# Поля tones/references/radicals заводились под китайский, но решают задачи,
+# которые есть и в других языках — меняется только чем письмо неоднозначно.
+# Поэтому подпись блока зависит от языка, а сами поля переиспользуются.
+#   китайский: одна транскрипция, разные тоны -> разные слова
+#   иврит:     одни согласные, разная огласовка -> разные слова
+# То же с ссылками: у китайского это слова из тех же иероглифов, у иврита —
+# слова того же корня.
+EXTRA_LABELS_DEFAULT = {
+    "tones": "🎵 Тоны:",
+    "references": "🔍 Ссылки:",
+    "radicals": "🔍 Радикалы:",
+}
+EXTRA_LABELS_BY_LANGUAGE = {
+    "Иврит": {
+        "tones": "🔤 То же написание с другой огласовкой:",
+        "references": "🌱 Слова с той же основой:",
+    },
+}
+
+
+def _extra_label(language_ru: str, key: str) -> str:
+    per_language = EXTRA_LABELS_BY_LANGUAGE.get(language_ru or "", {})
+    return per_language.get(key) or EXTRA_LABELS_DEFAULT[key]
+
+
 def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
-                      words_studied: int = 0) -> None:
+                      words_studied: int = 0, language_ru: str = "") -> None:
     content.append({"type": "label", "text": "🔍 Перевод:"})
     content.append({"type": "translation", "text": word.get("translation", "")})
     if word.get("transcription"):
@@ -221,18 +282,23 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
         content.append({"type": "transcription", "text": f"[{word.get('transcription')}]"})
     content.append({"type": "label", "text": "📝 Слово на иностранном:"})
     content.append({"type": "foreign", "text": word.get("word_foreign", "")})
+    # Часть речи и словарная форма — тип label, потому что его рисуют все три
+    # клиента; новый тип пришлось бы добавлять в каждый.
+    grammar = _grammar_note(word)
+    if grammar:
+        content.append({"type": "label", "text": f"📚 {grammar}"})
     if settings.get("show_tones") and (word.get("tones") or "").strip():
         tones = _filter_refs(word.get("tones", ""), words_studied)
         if tones.strip():
-            extra.append({"type": "label", "text": "🎵 Тоны:", "group": "tones"})
+            extra.append({"type": "label", "text": _extra_label(language_ru, "tones"), "group": "tones"})
             extra.append({"type": "extra", "text": tones, "group": "tones"})
     if settings.get("show_references") and (word.get("references") or "").strip():
         refs = _filter_refs(word.get("references", ""), words_studied)
         if refs.strip():
-            extra.append({"type": "label", "text": "🔍 Ссылки:", "group": "references"})
+            extra.append({"type": "label", "text": _extra_label(language_ru, "references"), "group": "references"})
             extra.append({"type": "extra", "text": refs, "group": "references"})
     if settings.get("show_radicals") and (word.get("radicals") or "").strip():
-        extra.append({"type": "label", "text": "🔍 Радикалы:", "group": "radicals"})
+        extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})
 
 

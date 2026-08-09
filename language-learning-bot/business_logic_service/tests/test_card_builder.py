@@ -884,3 +884,45 @@ def test_pick_option_uses_the_primary_meaning_only():
 
     word = {"translation": "грош (монета)\n⚠ то же написание читается иначе: גָּרוּשׁ (гарУш) — разведённый"}
     assert _get_text_for_modality(word, "translation") == "грош (монета)"
+
+def test_extra_block_labels_depend_on_the_language():
+    """
+    Поля tones/references заводились под китайский, но переиспользуются: у
+    иврита огласовка играет роль тонов, а однокоренные — роль ссылок на слова
+    из тех же иероглифов. Подпись блока обязана следовать языку, иначе учащийся
+    читает «Тоны» над списком огласовок.
+    """
+    from app.services.card_builder import _extra_label
+
+    assert _extra_label("Китайский", "tones") == "🎵 Тоны:"
+    assert _extra_label("Китайский", "references") == "🔍 Ссылки:"
+    assert "огласовк" in _extra_label("Иврит", "tones")
+    assert "основой" in _extra_label("Иврит", "references")
+    # Незнакомый язык не должен ронять сборку карточки.
+    assert _extra_label("Суахили", "tones") == "🎵 Тоны:"
+    assert _extra_label("", "radicals") == "🔍 Радикалы:"
+
+
+def test_hebrew_card_labels_its_extra_blocks_in_hebrew_terms():
+    word = make_word()
+    word["references"] = "<b>את</b>: <i>слов с этой основой: 2</i>\n<i>[#1]</i>אֵת [ʔet] знак"
+    session = make_session(show_answer=True)
+    session["language_name_ru"] = "Иврит"
+    session["settings"]["show_references"] = True
+    session["words_studied"] = 100
+
+    card = build_card(session, word, show_answer=True)
+    labels = [e["text"] for e in card["extra_content"] if e["type"] == "label"]
+    assert any("основой" in t for t in labels), labels
+    assert not any("Ссылки" in t for t in labels), labels
+
+
+def test_grammar_note_shows_part_of_speech_and_a_differing_lemma():
+    from app.services.card_builder import _grammar_note
+
+    assert _grammar_note({"part_of_speech": "глаг", "lemma": "ידע",
+                          "word_foreign": "יוֹדֵעַ"}) == "глагол · словарная форма: ידע"
+    # Совпадающая лемма — шум, её не показываем.
+    assert _grammar_note({"part_of_speech": "сущ", "lemma": "כן",
+                          "word_foreign": "כֵּן"}) == "существительное"
+    assert _grammar_note({}) == ""

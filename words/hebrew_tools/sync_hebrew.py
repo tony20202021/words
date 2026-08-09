@@ -101,6 +101,15 @@ async def main() -> int:
             ("word_foreign", display_form(row)),
             ("translation", row.get("russian") or ""),
             ("transcription", transcription_of(row)),
+            # Часть речи и словарная форма собирались отдельными стадиями
+            # конвейера, но в базу не переносились — карточка их не видела.
+            ("part_of_speech", row.get("pos") or ""),
+            ("lemma", row.get("lemma") or ""),
+            # tones — варианты огласовки, references — однокоренные.
+            # Поля китайские по происхождению, но задача та же; заполняет
+            # build_hebrew_extras.py.
+            ("tones", row.get("tones") or ""),
+            ("references", row.get("references") or ""),
         ):
             if (doc.get(field) or "") != want:
                 diffs.append((doc["word_number"], field, doc.get(field) or "", want))
@@ -152,6 +161,14 @@ async def main() -> int:
                     "word_foreign": form,
                     "translation": row.get("russian") or "",
                     "transcription": trans,
+                    # Часть речи и словарная форма собирались отдельными стадиями
+                    # конвейера, но до базы никогда не доезжали.
+                    "part_of_speech": row.get("pos") or "",
+                    "lemma": row.get("lemma") or "",
+                    # tones — варианты огласовки, references — однокоренные.
+                    # Поля китайские по происхождению, задача та же.
+                    "tones": row.get("tones") or "",
+                    "references": row.get("references") or "",
                     "word_foreign_unit_count": unit_count(form),
                     "transcription_unit_count": unit_count(trans),
                     "updated_at": now,
