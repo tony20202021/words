@@ -40,6 +40,7 @@ from typing import Any
 HERE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                     "..", "data", "hebrew_freq")
 FULL = os.path.join(HERE, "hebrew_freq_10000_full.json")
+HOMOGRAPHS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "homographs.json")
 
 MATRES = "וי"  # вав и йод — матери чтения
 
@@ -118,8 +119,10 @@ def main() -> int:
         word["niqqud"] = rec["niqqud"]
         applied_niq += 1
 
-    # Пометка, которой apply_homographs.py дописывает другие чтения слова.
-    HOMOGRAPH_MARK = "⚠ то же написание читается иначе:"
+    # Ранги, разобранные вручную как омографы. Раньше их узнавали по пометке
+    # в самом переводе, но чтения переехали в поле tones и пометки не осталось —
+    # признак должен быть внешним, иначе защита тихо перестаёт срабатывать.
+    homograph_ranks = {h["rank"] for h in json.load(open(HOMOGRAPHS, encoding="utf-8"))}
 
     applied_ru = already_ru = kept_homograph = 0
     for rank, rec in sorted(ru.items()):
@@ -129,10 +132,10 @@ def main() -> int:
         if word.get("russian") == rec["russian"]:
             already_ru += 1
             continue
-        # У омографов перевод собран вручную и перечисляет несколько чтений.
-        # Стадия ru_out делалась до этого и хранит однострочную версию —
-        # применив её, мы бы молча откатили разбор омографов.
-        if HOMOGRAPH_MARK in (word.get("russian") or ""):
+        # У омографов перевод собран вручную для основного чтения. Стадия
+        # ru_out делалась до разбора омографов и не знает, какое из чтений
+        # основное, — применив её, мы бы молча откатили разбор.
+        if rank in homograph_ranks:
             kept_homograph += 1
             continue
         word["russian"] = rec["russian"]
