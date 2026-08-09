@@ -10,6 +10,7 @@ Android-тесты идут через gradle, а не pytest, и раньше �
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -72,22 +73,57 @@ def setup_parser():
     return parser
 
 
+# Сколько тестов должно собраться в каждом компоненте. Это НЕ проверка качества,
+# а защита от тихой пропажи: дважды за неделю тесты переставали запускаться, и оба
+# раза раннер рапортовал успех. В 5093835 путь компонента указывал на удалённый
+# сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
+# осознанно, вместе с новыми тестами.
+EXPECTED_MIN = {
+    "bls": 276, "telegram": 170, "web": 99, "backend": 140, "common": 11, "android": 64,
+}
+
+
+def collected_count(output: str) -> int | None:
+    """Сколько тестов реально прошло, по хвосту вывода pytest."""
+    m = re.findall(r"(\d+) passed", output)
+    return int(m[-1]) if m else None
+
+
+def check_count(name: str, got: int | None) -> int:
+    """0 если собрано не меньше ожидаемого, иначе 1 и объяснение."""
+    want = EXPECTED_MIN.get(name)
+    if want is None:
+        return 0
+    if got is None:
+        print(f"❌ {name}: не удалось определить число тестов — считаем это провалом, "
+              f"молчаливый успех уже дважды скрывал неработающий прогон")
+        return 1
+    if got < want:
+        print(f"❌ {name}: собрано {got}, ожидалось не меньше {want} — "
+              f"тесты пропали или перестали собираться")
+        return 1
+    if got > want:
+        print(f"ℹ️  {name}: тестов стало больше ({got} > {want}) — обновите EXPECTED_MIN")
+    return 0
+
+
 def run_component_tests(name: str, directory: Path, args, extra_pytest_args=None):
     """Run pytest in a component directory. Returns exit code."""
     label = name.replace("_", " ").title()
     print(f"\n🔍 Running {label} tests...\n")
 
+    # Отсутствие каталога или тестов — это НЕ успех. Компонент перечислен в
+    # COMPONENT_DIRS, значит его тесты обязаны существовать и запускаться;
+    # если он удалён — удалите его и отсюда.
     if not directory.exists():
-        print(f"⚠️ Directory not found: {directory}")
-        print(f"✅ {label} tests: skipped!")
-        return 0
+        print(f"❌ Directory not found: {directory}")
+        return 1
 
     os.chdir(directory)
     tests_dir = Path("tests")
     if not tests_dir.exists() or not list(tests_dir.rglob("test_*.py")):
-        print(f"⚠️ No test files found in {directory}/tests")
-        print(f"✅ {label} tests: No tests to run!")
-        return 0
+        print(f"❌ No test files found in {directory}/tests")
+        return 1
 
     cmd = ["pytest"]
     if args.verbose:
@@ -102,13 +138,21 @@ def run_component_tests(name: str, directory: Path, args, extra_pytest_args=None
         cmd.extend(args.pytest_args)
 
     print(f"Running command: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
-    # pytest exits 5 when everything was skipped at module level (nothing collected).
-    # That is a deliberate skip, not a failure — see the skip reasons in the test files.
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    # Код 5 — ничего не собрано. Послабление держали ради модульных скипов в
+    # writing_images_service; сервис удалён, скипов в проекте не осталось ни
+    # одного, так что теперь это просто «тесты не нашлись».
     if result.returncode == 5:
-        print(f"⏭️  {label}: all tests skipped at module level (see skip reason in the files)")
-        return 0
-    return result.returncode
+        print(f"❌ {label}: ни один тест не собран")
+        return 1
+    if result.returncode != 0:
+        return result.returncode
+    if args.specific or args.pytest_args:
+        return 0   # прогон подмножества — счётчик не про него
+    return check_count(name, collected_count(result.stdout))
 
 
 def run_backend_tests(args):
@@ -132,14 +176,30 @@ def run_web_tests(args):
     return run_component_tests("web", COMPONENT_DIRS["web"], args)
 
 
+def android_test_count(directory: Path) -> int | None:
+    """Сколько тестов отчитал gradle: -q ничего не печатает, читаем отчёты."""
+    import xml.etree.ElementTree as ET
+    results = directory / "app" / "build" / "test-results" / "testDebugUnitTest"
+    if not results.exists():
+        return None
+    total = 0
+    for xml in results.glob("*.xml"):
+        try:
+            total += int(ET.parse(xml).getroot().get("tests", 0))
+        except Exception:
+            return None
+    return total
+
+
 def run_android_tests(args):
     """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
     directory = COMPONENT_DIRS["android"]
     print("\n🔍 Running Android tests...\n")
+    # Пропуск при отсутствии gradlew был бы ровно тем же «нет тестов = зелено»,
+    # из-за которого шесть недель не запускались тесты удалённого сервиса.
     if not (directory / "gradlew").exists():
-        print(f"⚠️ gradlew не найден в {directory}")
-        print("✅ Android tests: skipped!")
-        return 0
+        print(f"❌ gradlew не найден в {directory}")
+        return 1
 
     os.chdir(directory)
     cmd = ["./gradlew", "testDebugUnitTest"]
@@ -148,7 +208,14 @@ def run_android_tests(args):
     if args.specific:
         cmd.extend(["--tests", args.specific])
     print(f"Running command: {' '.join(cmd)}")
-    return subprocess.run(cmd).returncode
+    code = subprocess.run(cmd).returncode
+    if code != 0:
+        return code
+    if args.specific:
+        return 0
+    n = android_test_count(directory)
+    print(f"  тестов в отчётах gradle: {n}")
+    return check_count("android", n)
 
 
 def main():

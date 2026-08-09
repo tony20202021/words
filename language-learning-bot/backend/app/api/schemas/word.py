@@ -1,56 +1,37 @@
 """
-Pydantic schemas for word data validation.
+Схемы ответов по словам для роутов языков.
+
+Почему список полей здесь не повторяется
+----------------------------------------
+Раньше этот файл держал собственную копию всех полей слова, и копий стало две:
+`app.api.models.word` — та, что используется восемью модулями приложения, и эта,
+которую импортирует ровно один роут. Копии разошлись молча. В 3.0.81 новые поля
+`part_of_speech` и `lemma` добавили именно сюда — в ту, что почти никем не
+читается, — и правка просто не сработала: API продолжал отдавать None, а
+причину было не видно, потому что файл выглядел правильным.
+
+Теперь список полей ровно один — в `models.word.WordBase`. Здесь остаётся только
+то, чем ответ роута отличается от общей модели: у него необязательные отметки
+времени, потому что не всякая проекция их выбирает.
 """
 
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.api.models.word import WordBase, WordCreate, WordUpdate  # noqa: F401
 
 
-class WordBase(BaseModel):
-    """Base schema for word data."""
-    language_id: str = Field(..., description="ID of the language this word belongs to")
-    word_foreign: str = Field(..., description="Word in foreign language")
-    translation: str = Field(..., description="Translation of the word to Russian")
-    transcription: Optional[str] = Field(None, description="Phonetic transcription")
-    word_number: int = Field(..., description="Sequential number in frequency list")
-    radicals: Optional[str] = Field(None, description="Radicals of the word")
-    references: Optional[str] = Field(None, description="References to the word")
-    tones: Optional[str] = Field(None, description="Tones of the word")
-    sounds: Optional[str] = Field(None, description="List of sounds files")
-    part_of_speech: Optional[str] = Field(None, description="Часть речи: сущ, глаг, прил…")
-    lemma: Optional[str] = Field(None, description="Словарная форма, если отличается от самого слова")
-    word_foreign_unit_count: Optional[int] = Field(None, description="Unit count of word_foreign (CJK: char count, other: word count)")
-    transcription_unit_count: Optional[int] = Field(None, description="Syllable count in transcription")
-
-
-class WordCreate(WordBase):
-    """Schema for creating a new word."""
-    pass
-
-
-class WordUpdate(BaseModel):
-    """Schema for updating an existing word."""
-    word_foreign: Optional[str] = Field(None, description="Word in foreign language")
-    translation: Optional[str] = Field(None, description="Translation of the word to Russian")
-    transcription: Optional[str] = Field(None, description="Phonetic transcription")
-    word_number: Optional[int] = Field(None, description="Sequential number in frequency list")
-    radicals: Optional[str] = Field(None, description="Radicals of the word")
-    references: Optional[str] = Field(None, description="References to the word")
-    tones: Optional[str] = Field(None, description="Tones of the word")
-    sounds: Optional[str] = Field(None, description="List of sound files")
-
-    
 class WordResponse(WordBase):
-    """Schema for word response data."""
+    """Схема ответа по слову."""
     id: str = Field(..., description="Word ID")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
-    
+
     model_config = {"from_attributes": True}
 
 
 class WordWithLanguageResponse(WordResponse):
-    """Schema for word response with language information."""
+    """Схема ответа по слову вместе с языком."""
     language_name_ru: str = Field(..., description="Russian name of the language")
     language_name_foreign: str = Field(..., description="Native name of the language")
