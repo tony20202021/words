@@ -134,14 +134,14 @@ class TestPickModeKeyboard:
         card = self._pick_card()
         kb = build_card_keyboard(card, "lang1")
         cbs = callbacks(kb)
-        assert "study:lang1:pick_answer:w1" in cbs
-        assert "study:lang1:pick_answer:w2" in cbs
+        assert "study:lang1:pick:w1" in cbs
+        assert "study:lang1:pick:w2" in cbs
 
     def test_pick_mode_has_dont_know_button(self):
         card = self._pick_card()
         kb = build_card_keyboard(card, "lang1")
         cbs = callbacks(kb)
-        assert "study:lang1:pick_answer:dont_know" in cbs
+        assert "study:lang1:pick:dont_know" in cbs
 
     def test_pick_mode_hides_normal_buttons(self):
         card = self._pick_card()
@@ -169,14 +169,14 @@ class TestPickModeKeyboard:
         card["last_wrong_distractor_id"] = "bad-word-id"
         kb = build_card_keyboard(card, "lang1")
         cbs = callbacks(kb)
-        assert "study:lang1:add_forbidden_pair:bad-word-id" in cbs
+        assert "study:lang1:ban:bad-word-id" in cbs
 
     def test_ban_distractor_button_absent_without_id(self):
         card = make_card(show_answer=True)
         card["last_wrong_distractor_id"] = None
         kb = build_card_keyboard(card, "lang1")
         cbs = callbacks(kb)
-        assert not any("add_forbidden_pair" in c for c in cbs)
+        assert not any(":ban:" in c for c in cbs)
 
 
 class TestBuildLanguageKeyboard:
@@ -215,3 +215,33 @@ class TestCallback:
 
     def test_toggle_skip_callback(self):
         assert _callback({"id": "toggle_skip"}, "lang1") == "study:lang1:toggle_skip"
+
+
+class TestClearForbiddenPairsButton:
+    """Запреты на комбинации копились молча: в Telegram не было ни счётчика, ни
+    способа их снять, хотя BLS отдаёт блок, а клиентский метод уже написан."""
+
+    @staticmethod
+    def _card(word_ids):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "forbidden_quiz_pairs", "word_ids": word_ids,
+             "group": "forbidden_quiz_pairs"},
+        ]
+        return card
+
+    def test_button_shown_when_pairs_banned(self):
+        kb = build_card_keyboard(self._card(["w2", "w3"]), "lang1")
+        assert "study:lang1:clear_pairs" in callbacks(kb)
+
+    def test_button_shows_count(self):
+        kb = build_card_keyboard(self._card(["w2", "w3"]), "lang1")
+        assert any("(2)" in t for t in texts(kb))
+
+    def test_button_absent_without_pairs(self):
+        kb = build_card_keyboard(make_card(show_answer=True), "lang1")
+        assert "study:lang1:clear_pairs" not in callbacks(kb)
+
+    def test_button_absent_for_empty_list(self):
+        kb = build_card_keyboard(self._card([]), "lang1")
+        assert "study:lang1:clear_pairs" not in callbacks(kb)

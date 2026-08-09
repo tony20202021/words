@@ -10,6 +10,10 @@ logger = setup_logger(__name__)
 
 MAX_INTERVAL_DAYS = 32
 
+# Отличает «документ не передавали» от «передали и там пусто»: во втором случае
+# повторно ходить в backend не нужно, запись просто ещё не создана.
+_NOT_FETCHED = object()
+
 
 async def ensure_user_word_data(
     api_client,
@@ -17,12 +21,21 @@ async def ensure_user_word_data(
     word_id: str,
     update_data: Dict[str, Any],
     word: Optional[Dict[str, Any]] = None,
+    existing: Any = _NOT_FETCHED,
 ) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    """Create or update user word data. Returns (success, result_data)."""
-    response = await api_client.get_user_word_data(user_id, word_id)
-    logger.info(f"get_user_word_data user={user_id} word={word_id}: {response}")
+    """
+    Create or update user word data. Returns (success, result_data).
 
-    if response["success"] and response["result"]:
+    existing — уже прочитанный документ user_word_data (или None, если его нет).
+    Передаётся вызывающим, который только что его получил, чтобы не делать
+    второй такой же GET на ту же оценку слова.
+    """
+    if existing is _NOT_FETCHED:
+        response = await api_client.get_user_word_data(user_id, word_id)
+        logger.info(f"get_user_word_data user={user_id} word={word_id}: {response}")
+        existing = response["result"] if response["success"] else None
+
+    if existing:
         update_response = await api_client.update_user_word_data(user_id, word_id, update_data)
         logger.info(f"update_user_word_data: {update_response}")
         return update_response["success"], update_response.get("result")
@@ -61,7 +74,11 @@ async def update_word_score(
     word_data: Dict[str, Any] = response["result"] or {}
     update_data = _calculate_update(word_data, score, is_skipped, max_interval)
 
-    return await ensure_user_word_data(api_client, user_id, word_id, update_data, word)
+    # Документ уже прочитан выше — передаём его дальше, иначе на каждую оценку
+    # уходило два одинаковых GET /users/{u}/word_data/{w}.
+    return await ensure_user_word_data(
+        api_client, user_id, word_id, update_data, word, existing=response["result"]
+    )
 
 
 def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
@@ -98,35 +115,3 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
         ).isoformat()
 
     return update
-
-
-async def get_hint_text(
-    api_client,
-    user_id: str,
-    word_id: str,
-    hint_key: str,
-    word: Dict[str, Any],
-) -> Optional[str]:
-    """Return hint text from word data, user_word_data, or API (in that order)."""
-    hint = word.get(hint_key)
-    if not hint:
-        hint = (word.get("user_word_data") or {}).get(hint_key)
-    if not hint:
-        resp = await api_client.get_user_word_data(user_id, word_id)
-        if resp["success"] and resp["result"]:
-            hint = resp["result"].get(hint_key)
-    return hint
-
-
-def calculate_new_interval(current_data: Optional[Dict[str, Any]], score: int) -> Dict[str, Any]:
-    """Pure calculation of new spaced-repetition interval (no I/O)."""
-    result: Dict[str, Any] = {"score": score}
-    if score == 0:
-        result["check_interval"] = 0
-        result["next_check_date"] = None
-    else:
-        current_interval = (current_data or {}).get("check_interval", 0)
-        new_interval = min(max(current_interval * 2, 1), MAX_INTERVAL_DAYS)
-        result["check_interval"] = new_interval
-        result["next_check_date"] = datetime.now() + timedelta(days=new_interval)
-    return result

@@ -36,36 +36,6 @@ class ProgressChartGenerator:
     """Генератор графиков прогресса изучения."""
 
     @staticmethod
-    def create_word_distribution_chart(progress: Dict) -> BytesIO:
-        words_known = progress.get('words_known', 0)
-        words_unknown = progress.get('words_studied', 0) - words_known - progress.get('words_skipped', 0)
-        words_skipped = progress.get('words_skipped', 0)
-
-        sizes = [words_known, words_unknown, words_skipped]
-        labels = [f'Выучено\n{words_known}', f'Неизвестно\n{words_unknown}', f'Пропущено\n{words_skipped}']
-        colors = ['#4CAF50', '#FF9800', '#9E9E9E']
-        explode = (0.05, 0, 0)
-
-        fig = Figure(figsize=(10, 8))
-        ax = fig.subplots()
-
-        wedges, texts, autotexts = ax.pie(
-            sizes, labels=labels, colors=colors, explode=explode,
-            autopct='%1.1f%%', startangle=90, textprops={'fontsize': 12}
-        )
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontweight('bold')
-            autotext.set_fontsize(11)
-
-        total_studied = sum(sizes)
-        ax.set_title(f'Распределение изученных слов\nВсего изучено: {total_studied}',
-                     fontsize=16, fontweight='bold', pad=20)
-        ax.axis('equal')
-        fig.tight_layout()
-        return _save_fig(fig)
-
-    @staticmethod
     def create_words_for_today_histogram(
         word_numbers_for_today: List[int],
         words_studied: int,

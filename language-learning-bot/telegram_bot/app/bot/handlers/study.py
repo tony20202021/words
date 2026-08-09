@@ -4,7 +4,9 @@ from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from app.bls_client.client import get_bls_client
 from app.bot.handlers.start import UserState
-from app.bot.keyboards import build_card_keyboard
+from app.bot.keyboards import (
+    build_card_keyboard, ACTION_PICK, ACTION_BAN_PAIR, ACTION_CLEAR_PAIRS, LEGACY_ACTIONS,
+)
 from app.bot.renderer import render_card_text, render_extra_texts
 from app.bot.big_word import generate_big_word_image
 
@@ -39,7 +41,13 @@ async def _display_card(target: Message, card: dict, language_id: str, bls, edit
     big_word = card.get("big_word")
     restart_notice = card.get("restart_notice")
 
-    has_extras = bool(sounds or extras or big_word)
+    # Строка о запрещённых комбинациях — про текущее слово, а не отдельный блок:
+    # считать её «дополнением» значит терять правку на месте. Раньше при простом
+    # обновлении того же слова (пропустить, показать ответ) сообщение
+    # редактировалось; после появления этой строки оно стало отправляться заново,
+    # хотя ни звука, ни блоков огласовки на карточке нет.
+    substantial = [e for e in extras if not e.startswith("🚫 Запрещённые варианты")]
+    has_extras = bool(sounds or substantial or big_word)
 
     if edit_mode and not has_extras:
         # Simple same-word update (toggle skip, show answer with no extras) — edit in place
@@ -124,7 +132,9 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
     parts = callback.data.split(":")
     # format: study:{language_id}:{action}[:{param}]
     language_id = parts[1]
-    action = parts[2]
+    # Имена действий сократились, чтобы callback_data влезала в лимит Telegram в
+    # 64 байта. Кнопки под старыми сообщениями шлют прежние имена — переводим.
+    action = LEGACY_ACTIONS.get(parts[2], parts[2])
 
     bls = get_bls_client()
     session_resp = await bls.get_session(bls_user_id, language_id)
@@ -172,7 +182,7 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
             return
         await callback.answer()
         return
-    elif action == "pick_answer":
+    elif action == ACTION_PICK:
         selected_word_id = parts[3] if len(parts) > 3 else "dont_know"
         resp = await bls.pick_answer(session_id, selected_word_id)
         if resp.get("batch_exhausted"):
@@ -187,9 +197,11 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
                 await callback.answer()
                 await callback.message.answer(COMPLETED_TEXT, parse_mode="HTML")
                 return
-    elif action == "add_forbidden_pair":
+    elif action == ACTION_BAN_PAIR:
         bad_word_id = parts[3] if len(parts) > 3 else ""
         resp = await bls.add_forbidden_pair(session_id, bad_word_id)
+    elif action == ACTION_CLEAR_PAIRS:
+        resp = await bls.clear_forbidden_pairs(session_id)
     elif action == "know":
         resp = await bls.know_word(session_id)
     elif action == "show_answer":
@@ -249,8 +261,8 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
     # Actions that advance to next word → always new message (like old bot)
     # Actions on the same word (show_answer, toggle_skip, pick_answer wrong) → try to edit
     next_word_actions = {"rate", "know", "reconsider"}
-    # pick_answer advances word only when correct (show_answer=False in next card); for wrong answer it shows the answer
-    if action == "pick_answer":
+    # pick advances word only when correct (show_answer=False in next card); for wrong answer it shows the answer
+    if action == ACTION_PICK:
         next_card_shows_answer = (resp.get("card") or {}).get("show_answer", False)
         edit_mode = next_card_shows_answer  # wrong → edit in place; correct → new message
         pick_result = (resp.get("card") or {}).get("pick_answer_result")

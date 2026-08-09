@@ -27,7 +27,7 @@ async def handle_auth_callback(callback: CallbackQuery) -> None:
                 await callback.message.edit_text("❌ Токен недействителен.")
 
     elif action == "deny":
-        result = await bls.auth_deny(token)
+        await bls.auth_deny(token)
         await callback.message.edit_text("❌ Авторизация отклонена.")
 
     await callback.answer()

@@ -1,7 +1,7 @@
 """Unit tests for card → Telegram HTML renderer."""
 
 import pytest
-from app.bot.renderer import render_card_text, render_extra_texts, _render_footer
+from app.bot.renderer import render_card_text, render_extra_texts, forbidden_pairs_count
 from tests.conftest import make_card
 
 
@@ -57,10 +57,10 @@ class TestRenderCardText:
         assert "2" in text
 
     def test_no_footer_for_zero_progress(self):
-        meta = {"word_number": None, "score_badge": {}, "session_pos": 1,
-                "correct_count": 0, "incorrect_count": 0}
-        footer = _render_footer(meta)
-        assert footer == ""
+        # Футера у карточки нет: текст заканчивается последним элементом content
+        card = make_card(show_answer=False, correct=0, incorrect=0)
+        text = render_card_text(card)
+        assert text.endswith("<b>hello</b>")
 
     def test_unknown_item_type_skipped(self):
         card = {"content": [{"type": "unknown_type", "text": "x"}], "extra_content": [], "meta": {}}
@@ -85,16 +85,11 @@ class TestRenderCardText:
 
 
 class TestRenderFooter:
-    def test_footer_always_empty(self):
-        meta = {
-            "word_number": 5,
-            "score_badge": {"text": "✓ знал · 7д", "variant": "success", "next_date": "2026-05-27"},
-            "session_pos": 4,
-            "correct_count": 3,
-            "incorrect_count": 0,
-        }
-        footer = _render_footer(meta)
-        assert footer == ""
+    def test_no_footer_with_progress(self):
+        # Даже когда в meta есть прогресс и бейдж, подписи внизу карточки нет
+        card = make_card(show_answer=True, word_number=5, correct=3, incorrect=0)
+        text = render_card_text(card)
+        assert text.endswith("<b>hello</b>")
 
 
 class TestRenderExtraTexts:
@@ -202,3 +197,58 @@ def test_prepared_markup_of_extra_blocks_is_not_escaped():
     card = {"meta": {}, "content": [{"type": "extra", "text": "<b>עם</b>: <i>2</i>"}]}
     assert "<b>עם</b>: <i>2</i>" in render_card_text(card)
 
+
+
+# ── forbidden_quiz_pairs ─────────────────────────────────────────────────────
+# card_builder кладёт в extra_content блок с забаненными комбинациями, а рендер
+# его не знал и молча выбрасывал: пользователь Telegram не видел накопившихся
+# запретов и не мог их снять (кнопка была только в вебе).
+
+class TestForbiddenQuizPairs:
+    @staticmethod
+    def _card_with_forbidden(word_ids):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "forbidden_quiz_pairs", "word_ids": word_ids,
+             "group": "forbidden_quiz_pairs"},
+        ]
+        return card
+
+    def test_forbidden_block_is_rendered(self):
+        msgs = render_extra_texts(self._card_with_forbidden(["w2", "w3"]))
+        assert len(msgs) == 1
+        assert "2" in msgs[0]
+        assert "апрещ" in msgs[0]
+
+    def test_forbidden_block_is_its_own_message(self):
+        card = make_card(show_answer=True)
+        card["extra_content"] = [
+            {"type": "label", "text": "🎵 Тоны:", "group": "tones"},
+            {"type": "extra", "text": "1声 2声", "group": "tones"},
+            {"type": "forbidden_quiz_pairs", "word_ids": ["w2"],
+             "group": "forbidden_quiz_pairs"},
+        ]
+        msgs = render_extra_texts(card)
+        assert len(msgs) == 2
+        assert "Тоны" in msgs[0]
+        assert "1声 2声" in msgs[0]
+        assert "апрещ" in msgs[1]
+        assert "Тоны" not in msgs[1]
+
+    def test_count_helper_reads_word_ids(self):
+        assert forbidden_pairs_count(self._card_with_forbidden(["a", "b", "c"])) == 3
+
+    def test_count_helper_zero_without_block(self):
+        assert forbidden_pairs_count(make_card(show_answer=True)) == 0
+
+    def test_count_helper_zero_for_empty_list(self):
+        assert forbidden_pairs_count(self._card_with_forbidden([])) == 0
+
+
+def test_unknown_content_type_is_logged(caplog):
+    """Молчаливое расхождение с card_builder — это исчезнувший с экрана блок."""
+    import logging
+    card = {"meta": {}, "content": [{"type": "brand_new_type", "text": "x"}]}
+    with caplog.at_level(logging.WARNING, logger="app.bot.renderer"):
+        render_card_text(card)
+    assert any("brand_new_type" in r.getMessage() for r in caplog.records)

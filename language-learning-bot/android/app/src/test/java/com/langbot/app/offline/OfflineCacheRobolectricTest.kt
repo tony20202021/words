@@ -1,7 +1,9 @@
 package com.langbot.app.offline
 
 import androidx.test.core.app.ApplicationProvider
+import com.langbot.app.network.BLSClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -159,6 +161,25 @@ class OfflineCacheRobolectricTest {
     }
 
     @Test
+    fun sound_source_is_the_cached_file_when_there_is_one_and_the_server_otherwise() {
+        // Офлайн-карточка обязана играть с диска: пока источник выбирался как
+        // «всегда по сети», звук офлайн молчал, хотя файлы уже были скачаны.
+        BLSClient.init("https://bls.example:8531")
+        val path = "sounds/he/gtts/42.mp3"
+
+        assertEquals(
+            "без кеша играем по сети",
+            "https://bls.example:8531/sounds/$path", AudioCache.sourceFor(path),
+        )
+
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(ctx.filesDir, "sounds").apply { mkdirs() }
+        val cached = File(dir, AudioCache.fileNameFor(path)).apply { writeBytes(byteArrayOf(1, 2, 3)) }
+
+        assertEquals("скачанный файл важнее сети", cached.absolutePath, AudioCache.sourceFor(path))
+    }
+
+    @Test
     fun cachedCount_excludes_in_flight_tmp_files() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         val dir = File(ctx.filesDir, "sounds").apply { mkdirs() }
@@ -202,7 +223,10 @@ class OfflineCacheRobolectricTest {
         OfflineCache.saveBundle(StoredBundle(u, l, listOf(word("w1", 1), word("w2", 2), word("w3", 3))))
         val engine = OfflineEngine(OfflineCache.loadBundle(u, l)!!)
 
-        engine.positionAtWord("w3")
+        assertTrue("встали на слово — это успех", engine.positionAtWord("w3"))
+        assertEquals("w3", engine.currentWordId())
+        assertTrue("пустой id — «остаёмся где стояли», это тоже успех",
+            engine.positionAtWord(null))
         assertEquals("w3", engine.currentWordId())
     }
 
@@ -212,7 +236,9 @@ class OfflineCacheRobolectricTest {
         val engine = OfflineEngine(OfflineCache.loadBundle(u, l)!!)
         val before = engine.currentWordId()
 
-        engine.positionAtWord("no-such-word")
+        // Провал обязан быть виден вызывающему: он стоит на другом слове, чем
+        // было на экране, и записывать за него оценку нельзя.
+        assertFalse("слова нет в партии — это не успех", engine.positionAtWord("no-such-word"))
         assertEquals(before, engine.currentWordId())
     }
 

@@ -54,6 +54,16 @@ object AudioCache {
         return if (f.exists() && f.length() > 0) f else null
     }
 
+    /**
+     * Откуда играть звук: сначала кеш на диске, потом сеть.
+     *
+     * Одно место на всех, кто заводит MediaPlayer (кнопки карточки и цепочка
+     * пик-режима): офлайн они молчали ровно потому, что тянули звук по сети,
+     * хотя файлы уже лежали на диске.
+     */
+    fun sourceFor(path: String): String =
+        cachedFile(path)?.absolutePath ?: BLSClient.soundUrl(path)
+
     /** Download one sound into the cache if missing. Returns true if available locally afterwards. */
     fun ensure(path: String): Boolean {
         if (!ready() || path.isBlank()) return false

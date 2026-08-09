@@ -38,10 +38,10 @@ export ANDROID_SDK_ROOT=/home/tony/Android/Sdk
 
 ```python
 # common/version.py
-__version__ = "3.0.60"
+__version__ = "4.0.0"
 ```
 
-`versionCode` считается автоматически: `major*10000 + minor*100 + patch` (например, 3.0.60 → 30060).
+`versionCode` считается автоматически: `major*10000 + minor*100 + patch` (например, 4.0.0 → 40000, 3.0.86 → 30086).
 
 ### 2. Собрать
 
@@ -95,7 +95,10 @@ aapt dump badging android/LangBot.apk | grep versionName
 cd android && ./gradlew -q printVersionName
 ```
 
-Ожидаемый вывод: `versionName='3.0.47'` — должен совпадать с `common/version.py`.
+Ожидаемый вывод: `versionName='4.0.0'` — должен совпадать с `common/version.py`.
+Раньше в этих двух примерах стояли разные устаревшие номера (3.0.60 и 3.0.47),
+что сбивало: выглядело так, будто версия в бинарнике и в version.py могут
+законно расходиться. Не могут — в этом весь смысл проверки.
 
 ## Если версия внутри APK старая
 

@@ -159,11 +159,27 @@ def _session_error(language_id: str) -> HTMLResponse:
     )
 
 
+def _card_unavailable(language_id: str) -> HTMLResponse:
+    """
+    Ответ BLS без карточки (не-2xx превращается клиентом в {}).
+
+    Шаблон карточки начинается с `card.meta`, и на card=None Jinja падала —
+    пользователь получал голую 500 прямо в hx-swap: экран замирал без единой
+    кнопки, потому что кнопки живут в той же подменённой области. Отдаём тот же
+    выход, что и при потерянной сессии.
+    """
+    return HTMLResponse(
+        f"<p class='text-danger'>Не удалось получить слово. "
+        f"<a href='/study/{language_id}'>Начать заново</a></p>"
+    )
+
+
 async def _card_partial(request, bls, user_id, language_id, resp):
+    card = (resp or {}).get("card")
+    if not card:
+        return _card_unavailable(language_id)
     ctx = await _page_ctx(bls, user_id, language_id)
-    card = resp.get("card")
-    if card:
-        _prepare_card(card)
+    _prepare_card(card)
     return templates.TemplateResponse("partials/word_card.html", {
         "request": request, "language_id": language_id,
         "card": card, **ctx,

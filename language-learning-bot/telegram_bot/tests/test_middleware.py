@@ -113,3 +113,51 @@ async def test_middleware_passes_through_to_handler():
     data = {"event_from_user": _make_tg_user()}
     await mw(_handler, MagicMock(), data)
     assert handler_called == [True]
+
+
+@pytest.mark.asyncio
+async def test_middleware_recovers_after_backend_failure():
+    """Раньше при недоступном BLS в кэш оседал telegram_id, повторный запрос уже
+    не делался, и человек до перезапуска процесса работал с несуществующим
+    аккаунтом: прогресс уходил в никуда, а внешне всё выглядело исправным."""
+    bls = AsyncMock()
+    bls.get_or_create_user = AsyncMock(side_effect=[
+        {"status": 500, "data": None},
+        {"status": 200, "data": {"id": "real-id"}},
+    ])
+    mw = UserMiddleware(bls)
+    user = _make_tg_user(tg_id=77)
+
+    first = await _invoke(mw, user)
+    assert first["bls_user_id"] == "77"      # аварийный ход на текущий апдейт
+
+    second = await _invoke(mw, user)
+    assert second["bls_user_id"] == "real-id"
+    assert bls.get_or_create_user.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_middleware_does_not_cache_failed_lookup():
+    bls = AsyncMock()
+    bls.get_or_create_user = AsyncMock(return_value={"status": 500, "data": None})
+    mw = UserMiddleware(bls)
+    user = _make_tg_user(tg_id=88)
+
+    await _invoke(mw, user)
+    await _invoke(mw, user)
+    assert bls.get_or_create_user.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_middleware_ignores_200_without_id():
+    """Ответ 200 без идентификатора — не повод считать пользователя решённым."""
+    bls = AsyncMock()
+    bls.get_or_create_user = AsyncMock(side_effect=[
+        {"status": 200, "data": {}},
+        {"status": 200, "data": {"user_id": "late-id"}},
+    ])
+    mw = UserMiddleware(bls)
+    user = _make_tg_user(tg_id=99)
+
+    assert (await _invoke(mw, user))["bls_user_id"] == "99"
+    assert (await _invoke(mw, user))["bls_user_id"] == "late-id"

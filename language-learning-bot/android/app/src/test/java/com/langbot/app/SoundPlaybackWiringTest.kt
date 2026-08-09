@@ -80,6 +80,18 @@ class SoundPlaybackWiringTest {
     }
 
     @Test
+    fun `источник звука везде один - сначала кеш, потом сеть`() {
+        // Офлайн карточка молчала: кнопки звука тянули файл по сети, хотя
+        // AudioCache скачал его заранее. Мест, заводящих MediaPlayer, два —
+        // кнопки карточки и цепочка пик-режима; оба обязаны спрашивать кеш.
+        val viaCache = Regex("""AudioCache\.sourceFor\(""").findAll(source).count()
+        assertTrue("источник берётся мимо кеша: AudioCache.sourceFor встречается $viaCache раз",
+                   viaCache >= 2)
+        assertFalse("прямой URL в обход кеша — это и есть тот баг",
+                    source.contains("BLSClient.soundUrl("))
+    }
+
+    @Test
     fun `переход к следующему слову глушит звук предыдущего`() {
         // Плееры цепочки не лежат в players, поэтому обрывает их именно это.
         val release = body("private fun releasePlayers() {")

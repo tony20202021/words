@@ -186,6 +186,9 @@ object BLSClient {
      */
     val CONNECT_TIMEOUTS_MS = listOf(2_000, 6_000, 15_000)
 
+    /** Сколько ждём ОТВЕТА уже соединившегося сервера: графики строятся секундами. */
+    const val READ_TIMEOUT_MS = 30_000L
+
     private var _apis: List<BLSApi> = emptyList()
 
     fun init(baseUrl: String) {
@@ -214,7 +217,31 @@ object BLSClient {
                 .build()
                 .create(BLSApi::class.java)
         }
-        _api = _apis.first()
+        // Общий клиент для экранов без NetworkRetry. Два таймаута отвечают на
+        // РАЗНЫЕ вопросы, и брать их из одной ступени неверно:
+        //   connect — есть ли вообще сеть. Ответ нужен быстро: офлайн-режиму
+        //             незачем держать человека в ожидании, ради этого и
+        //             заводились кеш и офлайн-подсказка.
+        //   read    — насколько медленно отвечает ЖИВОЙ сервер. Генерация
+        //             графиков статистики на холодном кеше занимает секунды,
+        //             и при read 4 с картинки молча пропадали с экрана.
+        // Взять целиком самую терпеливую ступень значило бы ждать 15 секунд,
+        // чтобы узнать, что сети нет.
+        val patient = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .connectionPool(pool)
+            .dispatcher(dispatcher)
+            .connectTimeout(CONNECT_TIMEOUTS_MS.first().toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .writeTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+        _api = Retrofit.Builder()
+            .baseUrl("$rawBaseUrl/")
+            .client(patient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(BLSApi::class.java)
     }
 
     /** Клиент для попытки номер [attempt] (с нуля); дальше последнего — самый терпеливый. */

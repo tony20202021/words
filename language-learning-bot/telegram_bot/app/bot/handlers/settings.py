@@ -134,8 +134,12 @@ async def change_numeric_setting(callback: CallbackQuery, bls_user_id: str) -> N
     current = await bls.get_settings(bls_user_id, language_id)
     _label, min_val = NUMERIC_LABELS.get(key, ("", 0))
     new_val = max(min_val, current.get(key, 0) + delta)
-    await bls.set_setting(bls_user_id, language_id, key, new_val)
-    updated = await bls.get_settings(bls_user_id, language_id)
+    # PUT /settings/... возвращает уже обновлённый словарь целиком, поэтому
+    # третий запрос на одно нажатие «+»/«−» не нужен. Повторный get_settings
+    # остаётся только как запасной путь, если запись не удалась и вернула {}.
+    updated = await bls.set_setting(bls_user_id, language_id, key, new_val)
+    if not updated:
+        updated = await bls.get_settings(bls_user_id, language_id)
     lang_name = await _lang_name(bls, language_id)
 
     keyboard = _build_settings_keyboard(updated, language_id)

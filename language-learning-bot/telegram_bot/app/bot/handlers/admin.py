@@ -765,6 +765,35 @@ async def admin_broadcast_start(callback: CallbackQuery, state: FSMContext, bls_
     await callback.answer()
 
 
+BROADCAST_DELAY = 0.04     # ~25 сообщений в секунду — под лимитом Telegram (~30)
+BROADCAST_RETRIES = 1      # одна повторная попытка после 429
+
+
+async def _broadcast_one(session, bot_token: str, chat_id, text: str) -> bool:
+    """Отправить одно сообщение рассылки. True — доставлено.
+
+    429 Telegram отдаёт с parameters.retry_after: раньше такой ответ молча
+    попадал в счётчик ошибок, и получатель просто не получал рассылку.
+    """
+    for attempt in range(BROADCAST_RETRIES + 1):
+        try:
+            async with session.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": chat_id, "text": text},
+            ) as resp:
+                body = await resp.json()
+                if body.get("ok"):
+                    return True
+                retry_after = (body.get("parameters") or {}).get("retry_after")
+                if retry_after and attempt < BROADCAST_RETRIES:
+                    await asyncio.sleep(float(retry_after))
+                    continue
+                return False
+        except Exception:
+            return False
+    return False
+
+
 @router.message(AdminState.broadcast_input)
 async def admin_broadcast_send(message: Message, state: FSMContext, bls_user_id: str) -> None:
     if await _guard(message, bls_user_id):
@@ -781,32 +810,28 @@ async def admin_broadcast_send(message: Message, state: FSMContext, bls_user_id:
     page = 1
 
     import aiohttp
-    while True:
-        data = await bls.admin_list_users(bls_user_id, page)
-        users = data.get("users", [])
-        if not users:
-            break
-        for u in users:
-            tg_id = u.get("telegram_id")
-            if not tg_id or not bot_token:
-                errors += 1
-                continue
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        json={"chat_id": tg_id, "text": text},
-                        timeout=aiohttp.ClientTimeout(total=5),
-                    ) as resp:
-                        if (await resp.json()).get("ok"):
-                            sent += 1
-                        else:
-                            errors += 1
-            except Exception:
-                errors += 1
-        if page >= data.get("total_pages", 1):
-            break
-        page += 1
+    # Одна сессия на всю рассылку. Раньше ClientSession создавался внутри цикла
+    # по получателям — то есть на каждого шло новое TLS-рукопожатие к
+    # api.telegram.org, и пауз между отправками не было вовсе.
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+        while True:
+            data = await bls.admin_list_users(bls_user_id, page)
+            users = data.get("users", [])
+            if not users:
+                break
+            for u in users:
+                tg_id = u.get("telegram_id")
+                if not tg_id or not bot_token:
+                    errors += 1
+                    continue
+                if await _broadcast_one(session, bot_token, tg_id, text):
+                    sent += 1
+                else:
+                    errors += 1
+                await asyncio.sleep(BROADCAST_DELAY)
+            if page >= data.get("total_pages", 1):
+                break
+            page += 1
 
     await status_msg.edit_text(
         f"✅ <b>Рассылка завершена.</b>\nОтправлено: {sent}, ошибок: {errors}",

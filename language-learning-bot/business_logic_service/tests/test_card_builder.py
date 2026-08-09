@@ -926,3 +926,25 @@ def test_grammar_note_shows_part_of_speech_and_a_differing_lemma():
     assert _grammar_note({"part_of_speech": "сущ", "lemma": "כן",
                           "word_foreign": "כֵּן"}) == "существительное"
     assert _grammar_note({}) == ""
+
+
+# ── pick mode: buttons ────────────────────────────────────────────────────────
+
+def _pick_session(show_skip=True):
+    session = make_session(show_answer=False,
+                           settings={"show_sounds": True, "show_skip_button": show_skip})
+    session["pick_mode_active"] = True
+    session["quiz_options"] = {
+        "target_modality": "foreign",
+        "options": [
+            {"word_id": "w1", "target_text": "a", "is_correct": True},
+            {"word_id": "w2", "target_text": "b", "is_correct": False},
+        ],
+    }
+    return session
+
+
+
+
+
+

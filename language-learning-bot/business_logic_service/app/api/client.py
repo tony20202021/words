@@ -503,39 +503,6 @@ class APIClient:
         params = {"skip": skip, "limit": limit}
         return await self._make_request("GET", "/users", params=params)
 
-    """
-    Дополнения к API клиенту для работы с ежедневной статистикой изучения.
-    Эти методы добавляются в класс APIClient для отслеживания прогресса пользователя по дням.
-    """
-
-    # Добавьте эти методы в класс APIClient в файле client.py
-
-    async def get_user_daily_stats(self, user_id: str, language_id: str = None, 
-                                start_date: str = None, end_date: str = None) -> dict:
-        """
-        Получение ежедневной статистики пользователя.
-        
-        Args:
-            user_id: ID пользователя
-            language_id: Опциональный ID языка для фильтрации
-            start_date: Начальная дата в формате YYYY-MM-DD
-            end_date: Конечная дата в формате YYYY-MM-DD
-            
-        Returns:
-            Словарь с результатами запроса
-        """
-        params = {}
-        
-        if language_id:
-            params["language_id"] = language_id
-        if start_date:
-            params["start_date"] = start_date
-        if end_date:
-            params["end_date"] = end_date
-            
-        endpoint = f"/users/{user_id}/daily_stats"
-        return await self._make_request("GET", endpoint, params=params)
-
     # User Language Settings - Базовые методы
 
     async def get_user_language_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
@@ -570,27 +537,6 @@ class APIClient:
 
     # НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ИНДИВИДУАЛЬНЫМИ НАСТРОЙКАМИ ПОДСКАЗОК
 
-    async def toggle_hint_setting(self, user_id: str, language_id: str, hint_type: str, enabled: bool) -> Dict[str, Any]:
-        """
-        Toggle a specific hint setting for a user and language.
-        
-        Args:
-            user_id: User ID
-            language_id: Language ID
-            hint_type: Type of hint ('syllables', 'association', 'meaning', 'writing')
-            enabled: Whether to enable or disable the hint
-            
-        Returns:
-            API response with updated settings
-        """
-        endpoint = f"/users/{user_id}/languages/{language_id}/settings/hints/{hint_type}"
-        data = {"enabled": enabled}
-        
-        logger.info(f"Toggling hint setting: user_id={user_id}, language_id={language_id}, "
-                    f"hint_type={hint_type}, enabled={enabled}")
-        
-        return await self._make_request("PATCH", endpoint, data=data)
-
     async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
         """
         Get hint settings for a specific user and language.
@@ -607,60 +553,6 @@ class APIClient:
         logger.info(f"Getting hint settings for user_id={user_id}, language_id={language_id}")
         
         return await self._make_request("GET", endpoint)
-
-    async def update_multiple_hint_settings(self, user_id: str, language_id: str, hint_settings: Dict[str, bool]) -> Dict[str, Any]:
-        """
-        Update multiple hint settings at once for a user and language.
-        
-        Args:
-            user_id: User ID
-            language_id: Language ID
-            hint_settings: Dictionary with hint settings to update
-                          Expected keys: 'syllables', 'association', 'meaning', 'writing'
-            
-        Returns:
-            API response with updated settings
-        """
-        endpoint = f"/users/{user_id}/languages/{language_id}/settings/hints/bulk"
-        
-        logger.info(f"Updating multiple hint settings for user_id={user_id}, language_id={language_id}, "
-                    f"settings={hint_settings}")
-        
-        return await self._make_request("POST", endpoint, data=hint_settings)
-
-    # Удобные методы для работы с конкретными типами подсказок
-
-    async def toggle_syllables_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
-        """Toggle syllables hint setting."""
-        return await self.toggle_hint_setting(user_id, language_id, "syllables", enabled)
-
-    async def toggle_association_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
-        """Toggle association hint setting."""
-        return await self.toggle_hint_setting(user_id, language_id, "association", enabled)
-
-    async def toggle_meaning_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
-        """Toggle meaning hint setting."""
-        return await self.toggle_hint_setting(user_id, language_id, "meaning", enabled)
-
-    async def toggle_writing_hint(self, user_id: str, language_id: str, enabled: bool) -> Dict[str, Any]:
-        """Toggle writing hint setting."""
-        return await self.toggle_hint_setting(user_id, language_id, "writing", enabled)
-
-    # Административные методы
-
-    async def migrate_hint_settings(self) -> Dict[str, Any]:
-        """
-        Migrate existing user language settings to include individual hint flags.
-        This method is for administrative use only.
-        
-        Returns:
-            API response with migration results
-        """
-        endpoint = "/admin/migrate-hint-settings"
-        
-        logger.info("Starting migration of user language settings")
-        
-        return await self._make_request("POST", endpoint)
 
     # Export methods
 
@@ -861,19 +753,6 @@ class APIClient:
         logger.info(f"Getting monthly statistics for user_id={user_id}, language_id={language_id}, "
                    f"date={date}")
         
-        return await self._make_request("GET", endpoint)
-
-
-    async def get_daily_first_finish_statistics(
-        self,
-        user_id: str,
-        language_id: str,
-        date: datetime.date
-    ) -> Dict[str, Any]:
-        """
-        Get first finish statistics for a specific user and language.
-        """
-        endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
         return await self._make_request("GET", endpoint)
 
 

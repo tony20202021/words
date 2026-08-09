@@ -4,7 +4,7 @@ Allows users to create/edit/delete personal hint texts for individual words.
 
 Flow:
   card (show_answer) → 💡 Подсказки → hint menu → tap type → enter text → saved → back to card
-  Callback pattern: hint:{language_id}:{word_id}:{action}[:{hint_type}]
+  Callback pattern: hint:{language_id}:{word_id}:{action}[:{hint_type_index}]
 """
 
 from aiogram import Router, F
@@ -25,7 +25,23 @@ from common.hint_catalog import hint_types_ordered, setting_key_for
 router = Router()
 
 ALL_HINT_TYPES = hint_types_ordered()
-HINT_TYPES = ALL_HINT_TYPES
+
+# В callback_data имя типа не помещается: hint:<lang 24>:<word 24>:edit: — уже
+# 55 байт, а "phoneticassociation" добавляет ещё 20 при лимите Telegram в 64.
+# Кнопка с таким callback_data не отправляется, и вместе с ней падает всё
+# сообщение с меню подсказок. Поэтому в кнопке едет порядковый номер типа.
+_HINT_CODES = list(ALL_HINT_TYPES)
+
+
+def _hint_code(hint_type: str) -> str:
+    return str(_HINT_CODES.index(hint_type))
+
+
+def _hint_type_by_code(code: str) -> str:
+    """Обратное преобразование; неизвестный код даёт пустую строку."""
+    if code.isdigit() and int(code) < len(_HINT_CODES):
+        return _HINT_CODES[int(code)]
+    return ""
 
 
 async def _get_enabled_hint_types(bls, bls_user_id: str, language_id: str) -> dict:
@@ -55,12 +71,12 @@ def _hint_menu_kb(lang_id: str, word_id: str, hints: dict,
         btn_text = f"{icon} {label}: {status}"
         rows.append([InlineKeyboardButton(
             text=btn_text,
-            callback_data=f"hint:{lang_id}:{word_id}:edit:{ht}",
+            callback_data=f"hint:{lang_id}:{word_id}:edit:{_hint_code(ht)}",
         )])
         if val:
             rows[-1].append(InlineKeyboardButton(
                 text="🗑",
-                callback_data=f"hint:{lang_id}:{word_id}:del:{ht}",
+                callback_data=f"hint:{lang_id}:{word_id}:del:{_hint_code(ht)}",
             ))
     rows.append([InlineKeyboardButton(text="← Назад", callback_data=f"hint:{lang_id}:{word_id}:back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -84,7 +100,7 @@ async def hint_menu(callback: CallbackQuery, state: FSMContext, bls_user_id: str
     lang_id   = parts[1]
     word_id   = parts[2]
     action    = parts[3]
-    hint_type = parts[4] if len(parts) > 4 else None
+    hint_type = _hint_type_by_code(parts[4]) if len(parts) > 4 else None
 
     bls = get_bls_client()
 

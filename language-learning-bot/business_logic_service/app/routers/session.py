@@ -17,10 +17,14 @@ logger = setup_logger(__name__)
 async def _bg_update_daily(user_id: str, language_id: str, api_client, word_number: int = 0) -> None:
     """Update daily record and max_word_number after each word rating."""
     try:
-        progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
         today = date.today()
+        # Прогресс нужен только когда дневной записи ещё нет (раз в сутки), а
+        # ответ у него тяжёлый — массивы номеров слов на тысячи элементов.
+        # Поэтому передаём загрузчик, а не результат.
         await statistics_service.update_daily_statistics(
-            user_id, language_id, today, progress, api_client)
+            user_id, language_id, today,
+            lambda: statistics_service.get_user_progress(user_id, language_id, api_client),
+            api_client)
         await statistics_service.update_daily_max_word_number(
             user_id, language_id, today, word_number, api_client)
     except Exception as e:

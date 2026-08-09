@@ -166,6 +166,85 @@ class TestSessionEndpoints:
         assert card["meta"]["correct_count"] == 0
         assert card["meta"]["incorrect_count"] == 1
 
+    # ── остальные маршруты роутера сессии ────────────────────────────────────
+    # Их не дёргали по HTTP, поэтому коллизия /session/{sid}/progress с
+    # /session/{uid}/{lid} прожила незамеченной: сервис тестировался напрямую,
+    # минуя роутинг. Ниже — вызовы именно через HTTP.
+
+    def test_progress_endpoint_answers_by_session_id(self, client, api):
+        resp = self._start(client)
+        session_id = resp.json()["session_id"]
+        prog = client.get(f"/session/{session_id}/progress")
+        assert prog.status_code == 200
+        body = prog.json()
+        # session_id в ответе доказывает, что отработал обработчик прогресса,
+        # а не маршрут /{user_id}/{language_id}, который вернул бы карточку.
+        assert body["session_id"] == session_id
+        assert body["batch_size"] == 3
+        assert body["total_words_processed"] == 0
+
+    def test_progress_endpoint_404_for_unknown_session(self, client, api):
+        resp = client.get("/session/no-such-session/progress")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Session not found"
+
+    def test_next_batch_returns_new_card(self, client, api):
+        session_id = self._start(client).json()["session_id"]
+        resp = client.post(f"/session/{session_id}/next_batch")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["loaded"] is True
+        assert body["card"] is not None
+
+    def test_next_batch_reports_when_nothing_loaded(self, client, api):
+        session_id = self._start(client).json()["session_id"]
+        api.get_study_words.return_value = {"success": False, "result": None}
+        resp = client.post(f"/session/{session_id}/next_batch")
+        assert resp.status_code == 200
+        assert resp.json() == {"loaded": False, "session_id": session_id, "card": None}
+
+    def test_toggle_skip_marks_current_word(self, client, api):
+        session_id = self._start(client).json()["session_id"]
+        resp = client.post(f"/session/{session_id}/toggle_skip")
+        assert resp.status_code == 200
+        assert resp.json()["card"]["meta"]["is_skipped"] is True
+        payload = api.create_user_word_data.call_args[0][1]
+        assert payload["is_skipped"] is True
+
+    def test_toggle_skip_404_for_unknown_session(self, client, api):
+        resp = client.post("/session/no-such-session/toggle_skip")
+        assert resp.status_code == 404
+
+    def test_add_forbidden_pair_saves_and_shows_the_pair(self, client, api):
+        session_id = self._start(client).json()["session_id"]
+        client.post(f"/session/{session_id}/show_answer")
+        resp = client.post(f"/session/{session_id}/add_forbidden_pair",
+                           json={"bad_word_id": "word-2"})
+        assert resp.status_code == 200
+        # записи user_word_data ещё нет, поэтому список уходит в create
+        saved = api.create_user_word_data.call_args[0][1]
+        assert saved["forbidden_quiz_pairs"] == ["word-2"]
+        groups = [e for e in resp.json()["card"]["extra_content"]
+                  if e["type"] == "forbidden_quiz_pairs"]
+        assert groups and groups[0]["word_ids"] == ["word-2"]
+
+    def test_clear_forbidden_pairs_empties_the_list(self, client, api):
+        session_id = self._start(client).json()["session_id"]
+        client.post(f"/session/{session_id}/show_answer")
+        client.post(f"/session/{session_id}/add_forbidden_pair",
+                    json={"bad_word_id": "word-2"})
+        resp = client.post(f"/session/{session_id}/clear_forbidden_pairs")
+        assert resp.status_code == 200
+        saved = api.create_user_word_data.call_args[0][1]
+        assert saved["forbidden_quiz_pairs"] == []
+        assert not [e for e in resp.json()["card"]["extra_content"]
+                    if e["type"] == "forbidden_quiz_pairs"]
+
+    def test_forbidden_pair_routes_404_for_unknown_session(self, client, api):
+        assert client.post("/session/nope/add_forbidden_pair",
+                           json={"bad_word_id": "word-2"}).status_code == 404
+        assert client.post("/session/nope/clear_forbidden_pairs").status_code == 404
+
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 

@@ -9,10 +9,41 @@ from unittest.mock import MagicMock, patch, mock_open
 import sys
 from logging.handlers import RotatingFileHandler
 
+from common.utils import logger as logger_module
 from common.utils.logger import (
     setup_logger,
     get_module_logger
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_logger_module_state():
+    """
+    setup_logger хранит настройки уровня приложения в модульном состоянии.
+    Сбрасываем его между тестами, чтобы тесты не зависели от порядка запуска.
+    """
+    saved_defaults = dict(logger_module._app_defaults)
+    saved_managed = dict(logger_module._managed_loggers)
+    logger_module._managed_loggers.clear()
+
+    yield
+
+    # Убираем хендлеры и уровни, выставленные тестом на настоящих логгерах
+    for entry in logger_module._managed_loggers.values():
+        configured = entry["logger"]
+        for handler in list(getattr(configured, "handlers", []) or []):
+            configured.removeHandler(handler)
+            try:
+                handler.close()
+            except Exception:
+                pass
+        configured.setLevel(logging.NOTSET)
+
+    logger_module._managed_loggers.clear()
+    logger_module._managed_loggers.update(saved_managed)
+    logger_module._app_defaults.clear()
+    logger_module._app_defaults.update(saved_defaults)
+
 
 class TestSetupLogger:
     
@@ -217,6 +248,74 @@ class TestSetupLogger:
             # Проверяем, что логируются ошибки
             mock_logger.error.assert_called_once()
             mock_logger.warning.assert_called_once()
+
+
+class TestApplicationWideSettings:
+    """
+    Модули зовут setup_logger(__name__) на импорте, точка входа читает конфиг
+    позже. Явно переданные общие настройки должны догонять уже созданные логгеры
+    и применяться к создаваемым дальше.
+    """
+
+    def test_explicit_level_applies_to_already_configured_loggers(self):
+        """Уровень из конфига применяется к логгерам, настроенным до точки входа."""
+        module_logger = setup_logger("llb_level_test.module", log_to_file=False)
+        assert module_logger.level == logging.INFO
+
+        # Точка входа прочитала конфиг и настроила логирование
+        setup_logger("llb_level_test.main", log_level="DEBUG", log_to_file=False)
+
+        assert module_logger.level == logging.DEBUG
+        assert module_logger.isEnabledFor(logging.DEBUG)
+
+    def test_explicit_level_becomes_default_for_later_loggers(self):
+        """Уровень из конфига становится значением по умолчанию для новых логгеров."""
+        setup_logger("llb_default_test.main", log_level="DEBUG", log_to_file=False)
+
+        later_logger = setup_logger("llb_default_test.module", log_to_file=False)
+
+        assert later_logger.level == logging.DEBUG
+
+    def test_explicit_level_reconfigures_same_logger_without_duplicates(self):
+        """Повторный вызов с явным уровнем меняет уровень, но не плодит хендлеры."""
+        logger_name = "llb_reconfig_test.module"
+        module_logger = setup_logger(logger_name, log_to_file=False)
+        handlers_before = list(module_logger.handlers)
+        assert module_logger.level == logging.INFO
+
+        same_logger = setup_logger(logger_name, log_level="DEBUG", log_to_file=False)
+
+        assert same_logger is module_logger
+        assert module_logger.level == logging.DEBUG
+        assert list(module_logger.handlers) == handlers_before
+
+    def test_explicit_format_applies_to_already_configured_loggers(self):
+        """Формат из конфига применяется к логгерам, настроенным до точки входа."""
+        module_logger = setup_logger("llb_format_test.module", log_to_file=False)
+        custom_format = "%(name)s :: %(message)s"
+
+        setup_logger("llb_format_test.main", log_format=custom_format, log_to_file=False)
+
+        assert module_logger.handlers
+        for handler in module_logger.handlers:
+            assert handler.formatter._fmt == custom_format
+
+    def test_explicit_log_dir_moves_files_of_already_configured_loggers(self, tmp_path):
+        """Каталог логов из конфига применяется к логгерам, настроенным до точки входа."""
+        early_dir = tmp_path / "early"
+        configured_dir = tmp_path / "configured"
+
+        module_logger = setup_logger("llb_dir_test.module", log_dir=str(early_dir))
+        file_handlers = [h for h in module_logger.handlers if isinstance(h, RotatingFileHandler)]
+        assert len(file_handlers) == 1
+        assert os.path.dirname(file_handlers[0].baseFilename) == os.path.abspath(str(early_dir))
+
+        setup_logger("llb_dir_test.main", log_level="DEBUG", log_dir=str(configured_dir))
+
+        file_handlers = [h for h in module_logger.handlers if isinstance(h, RotatingFileHandler)]
+        assert len(file_handlers) == 1
+        assert os.path.dirname(file_handlers[0].baseFilename) == os.path.abspath(str(configured_dir))
+        assert os.path.basename(file_handlers[0].baseFilename) == "module.log"
 
 
 class TestGetModuleLogger:

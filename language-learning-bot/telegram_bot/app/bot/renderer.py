@@ -3,8 +3,11 @@ Renders a BLS card dict into Telegram-safe HTML text.
 No display logic here — just formatting of what BLS already decided.
 """
 
+import logging
 from html import escape
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 def _esc(item: Dict[str, Any]) -> str:
@@ -23,6 +26,14 @@ def _esc(item: Dict[str, Any]) -> str:
     return escape(item.get("text") or "", quote=False)
 
 
+def forbidden_pairs_count(card: Dict[str, Any]) -> int:
+    """Сколько комбинаций забанено для текущего слова (0 — если ни одной)."""
+    for item in card.get("extra_content") or []:
+        if item.get("type") == "forbidden_quiz_pairs":
+            return len(item.get("word_ids") or [])
+    return 0
+
+
 _ITEM_RENDERERS = {
     "label":         lambda i: f"\n{_esc(i)}",
     "foreign":       lambda i: f"<b>{_esc(i)}</b>",
@@ -31,11 +42,21 @@ _ITEM_RENDERERS = {
     "hint":          lambda i: f"<i>{_esc(i)}</i>",
     "notice":        lambda i: _esc(i),
     "extra":         lambda i: i["text"],
+    # card_builder кладёт сюда список запрещённых дистракторов (без "text").
+    # Пока рендерера не было, блок молча пропадал: пользователь Telegram не
+    # видел, что запреты копятся, и не мог их снять.
+    "forbidden_quiz_pairs":
+        lambda i: f"🚫 Запрещённые варианты в режиме выбора: {len(i.get('word_ids') or [])}",
 }
+
+# Типы, с которых начинается новое сообщение в extra_content: label открывает
+# очередную группу, а forbidden_quiz_pairs приходит отдельным блоком в конце и
+# не должен приклеиваться к предыдущей группе.
+_BLOCK_START_TYPES = {"label", "forbidden_quiz_pairs"}
 
 
 def render_card_text(card: Dict[str, Any]) -> str:
-    """Convert card.content items to Telegram HTML text with meta header and footer.
+    """Convert card.content items to Telegram HTML text with a meta header.
     Extra content (tones, references, radicals) is intentionally excluded — send via render_extra_texts()."""
     meta = card.get("meta") or {}
     lines = []
@@ -48,12 +69,17 @@ def render_card_text(card: Dict[str, Any]) -> str:
         renderer = _ITEM_RENDERERS.get(item.get("type", ""))
         if renderer:
             lines.append(renderer(item))
-
-    footer = _render_footer(meta)
-    if footer:
-        lines.append(f"\n<i>{footer}</i>")
+        else:
+            _warn_unknown_type(item)
 
     return "\n".join(lines).strip()
+
+
+def _warn_unknown_type(item: Dict[str, Any]) -> None:
+    """Расхождение с card_builder не должно проходить молча — иначе новый тип
+    просто исчезает с экрана, как это случилось с forbidden_quiz_pairs."""
+    logger.warning("renderer: неизвестный тип элемента карточки %r — пропущен",
+                   item.get("type", ""))
 
 
 def render_extra_texts(card: Dict[str, Any]) -> list:
@@ -71,10 +97,11 @@ def render_extra_texts(card: Dict[str, Any]) -> list:
     for item in extra:
         renderer = _ITEM_RENDERERS.get(item.get("type", ""))
         if not renderer:
+            _warn_unknown_type(item)
             continue
         chunk = renderer(item)
 
-        if item.get("type") == "label":
+        if item.get("type") in _BLOCK_START_TYPES:
             # Each label starts a new message block
             if current_block.strip():
                 messages.append(current_block.strip())
@@ -132,7 +159,3 @@ def _render_header(meta: Dict[str, Any]) -> str:
         lines.append(f"(правильных: {correct}, ошибок: {incorrect})")
 
     return "\n".join(lines)
-
-
-def _render_footer(meta: Dict[str, Any]) -> str:
-    return ""

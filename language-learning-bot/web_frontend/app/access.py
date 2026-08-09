@@ -19,10 +19,17 @@ def require_user(request: Request):
 
 
 def require_admin(request: Request):
-    """(user_id, None) для админа, иначе (None, редирект)."""
+    """
+    (user_id, None) для админа, иначе (None, редирект).
+
+    Собрана поверх require_user: не вошедшего отправляем на вход, вошедшего без
+    прав — на список языков (единственная страница, которая ему точно доступна).
+    Своя копия этой проверки жила в admin.py и расходилась с этой именно в месте
+    редиректа; ниже — то поведение, которое видит пользователь и проверяют тесты.
+    """
     user_id, redirect = require_user(request)
     if redirect:
         return None, redirect
     if not request.session.get("is_admin"):
-        return None, RedirectResponse("/", status_code=302)
+        return None, RedirectResponse("/languages", status_code=302)
     return user_id, None

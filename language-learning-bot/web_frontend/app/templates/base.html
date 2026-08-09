@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Language Learning{% endblock %}</title>
   <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {# htmx лежит рядом с bootstrap, а не тянется с unpkg: без внешней сети у
+     сервера или клиента страница отдавалась, но ни одна кнопка учёбы не
+     работала — все они на hx-post. #}
+  <script src="/static/vendor/htmx.min.js"></script>
   <style>
     .word-foreign { font-size: 3rem; font-weight: bold; }
     .word-big { font-size: 6rem; font-weight: bold; line-height: 1.1; }
@@ -44,5 +47,10 @@
     {% block content %}{% endblock %}
   </main>
   <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+  {# Скрипты страницы. Общими их делать нельзя: word_card.js вешает на document
+     обработчик htmx:responseError, который перезагружает страницу, — на
+     настройках и в админке это чужое поведение. Подключается только там, где
+     есть карточка. #}
+  {% block page_scripts %}{% endblock %}
 </body>
 </html>

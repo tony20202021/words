@@ -134,10 +134,19 @@ class OfflineEngine(private val bundle: StoredBundle) {
     var cursor = bundle.cursor
         private set
 
-    fun positionAtWord(wordId: String?) {
-        if (wordId.isNullOrEmpty()) return
+    /**
+     * Встать на слово [wordId]; пустой id означает «где стояли, там и стоим».
+     *
+     * @return false, если такого слова в офлайн-партии нет. Курсор тогда не
+     * двигается, и вызывающий обязан знать: на экране было одно слово, а движок
+     * стоит на другом — записывать за него оценку нельзя.
+     */
+    fun positionAtWord(wordId: String?): Boolean {
+        if (wordId.isNullOrEmpty()) return true
         val i = words.indexOfFirst { it.word_id == wordId }
-        if (i >= 0) cursor = i
+        if (i < 0) return false
+        cursor = i
+        return true
     }
 
     fun hasCurrent(): Boolean = cursor in words.indices

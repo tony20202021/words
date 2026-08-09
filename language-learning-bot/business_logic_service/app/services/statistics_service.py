@@ -78,16 +78,26 @@ async def update_daily_statistics(
     user_id: str,
     language_id: str,
     action_date: date,
-    progress: Dict[str, Any],
+    progress: Any,
     api_client,
 ) -> bool:
-    """Upsert daily statistics record. Returns True on success."""
+    """
+    Upsert daily statistics record. Returns True on success.
+
+    progress — либо готовый словарь прогресса, либо функция без аргументов,
+    возвращающая корутину с ним. Второй вариант нужен вызывающим, которые сами
+    прогресс не используют: снимок пишется только при создании дневной записи,
+    то есть раз в сутки, а тянуть ради этого полный прогресс (массивы номеров
+    слов на тысячи элементов) на каждое оценённое слово незачем.
+    """
     response = await api_client.get_daily_statistics(user_id, language_id, action_date)
     if (
         not response["success"]
         or response.get("status") == 404
         or response["result"] is None
     ):
+        if callable(progress):
+            progress = await progress()
         update_response = await api_client.update_daily_statistics(
             user_id, language_id, action_date, progress
         )

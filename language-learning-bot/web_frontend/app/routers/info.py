@@ -1,8 +1,9 @@
 import sys
 from pathlib import Path
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse, Response, FileResponse
+from fastapi.responses import Response, FileResponse
 from app.access import require_user as _require_user
+from app.stats import fetch_stats_for_languages
 from app.templating import templates
 from app.bls_client import get_bls_client
 
@@ -70,18 +71,13 @@ async def stats_page(request: Request, lang_id: str = None):
         return redirect
 
     bls = get_bls_client()
-    import asyncio as _asyncio
     languages = await bls.get_languages()
-
-    async def _fetch(lang):
-        s = await bls.get_statistics(user_id, lang["id"])
-        return lang, s
-
-    results = await _asyncio.gather(*[_fetch(lang) for lang in languages])
+    by_id = await fetch_stats_for_languages(bls, user_id, languages)
     stats_list = [
-        {"language": lang, "stats": s}
-        for lang, s in results
-        if s.get("words_studied", 0) > 0 or s.get("total_words", 0) > 0
+        {"language": lang, "stats": by_id[lang["id"]]}
+        for lang in languages
+        if by_id[lang["id"]].get("words_studied", 0) > 0
+        or by_id[lang["id"]].get("total_words", 0) > 0
     ]
 
     return templates.TemplateResponse("stats.html", {

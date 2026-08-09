@@ -4,9 +4,27 @@ Web admin router. All endpoints require session user to have admin rights.
 
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import RedirectResponse, Response
+from app.access import require_admin as _require_admin
 from app.templating import templates
-from typing import Optional
+from typing import Annotated, Optional
+from pydantic import BeforeValidator
 from app.bls_client import get_bls_client
+
+
+def _blank_to_none(value):
+    """
+    Пустое поле формы приходит как '' и для необязательного числа значит «не задано».
+
+    Форма экспорта шлёт start и end всегда, даже пустыми (<input type="number">
+    без значения), а Optional[int] на '' отвечал 422 — то есть кнопка «Скачать»
+    без указанного диапазона просто не работала.
+    """
+    return None if isinstance(value, str) and not value.strip() else value
+
+
+# Query() обязан лежать внутри Annotated: с Query в значении по умолчанию
+# FastAPI теряет BeforeValidator и снова отвечает 422 на пустую строку.
+OptionalNumber = Annotated[Optional[int], BeforeValidator(_blank_to_none), Query()]
 
 router = APIRouter(prefix="/admin")
 
@@ -26,15 +44,6 @@ WORD_FIELD_LABELS = {
     "sounds":        "Звуки",
     "number":        "Номер слова",
 }
-
-
-def _require_admin(request: Request):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None, RedirectResponse("/login", status_code=302)
-    if not request.session.get("is_admin"):
-        return None, RedirectResponse("/languages", status_code=302)
-    return user_id, None
 
 
 def _render(request: Request, template: str, ctx: dict):
@@ -177,16 +186,27 @@ async def export_words(
     request: Request,
     language_id: str,
     fmt: str = Query("xlsx"),
-    start: Optional[int] = Query(None),
-    end: Optional[int] = Query(None),
+    # Форма в language_detail.html шлёт поле «format», а ручка читала только
+    # «fmt» — выбор CSV/JSON молча игнорировался и всегда скачивался xlsx.
+    fmt_from_form: Optional[str] = Query(None, alias="format"),
+    start: OptionalNumber = None,
+    end: OptionalNumber = None,
 ):
     user_id, redirect = _require_admin(request)
     if redirect:
         return redirect
+    fmt = fmt_from_form or fmt
     bls = get_bls_client()
     data = await bls.admin_export_words(user_id, language_id, fmt, start, end)
     if data is None:
-        return _render(request, "admin/language_detail.html", {"error": "Экспорт не удался"})
+        # Шаблон страницы языка начинается с lang.name_ru и language_id: без них
+        # сообщение «Экспорт не удался» само падало на UndefinedError, и вместо
+        # него админ видел 500.
+        lang = await bls.admin_language_detail(user_id, language_id)
+        return _render(request, "admin/language_detail.html", {
+            "lang": lang, "language_id": language_id,
+            "error": "Экспорт не удался",
+        })
     mime = MIME_TYPES.get(fmt, "application/octet-stream")
     return Response(
         content=data, media_type=mime,

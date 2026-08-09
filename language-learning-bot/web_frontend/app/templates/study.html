@@ -47,3 +47,10 @@
   <div class="alert alert-info">Слова не загружены.</div>
 {% endif %}
 {% endblock %}
+
+{% block page_scripts %}
+{# Один раз на загрузку страницы. Внутрь partials/word_card.html возвращать
+   нельзя: тот фрагмент приезжает по hx-swap, и скрипт выполнялся бы заново на
+   каждый ответ, добавляя всё новые обработчики на document. #}
+<script src="/static/js/word_card.js"></script>
+{% endblock %}

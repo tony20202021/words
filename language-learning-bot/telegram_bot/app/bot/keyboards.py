@@ -4,8 +4,27 @@ No button logic here — BLS decides which buttons exist and what they do.
 """
 
 from typing import Dict, Any, List
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from app.bot.renderer import forbidden_pairs_count
+
+# Telegram отвергает кнопку, у которой callback_data длиннее 64 байт, и вместе с
+# ней не отправляет всё сообщение. language_id и word_id — это ObjectId по 24
+# символа, поэтому длинные имена действий ("pick_answer", "add_forbidden_pair")
+# в сумму не влезали: study:<24>:add_forbidden_pair:<24> = 74 байта. Действия
+# сокращены, парсер в study.py читает те же токены.
+ACTION_PICK = "pick"
+ACTION_BAN_PAIR = "ban"
+ACTION_CLEAR_PAIRS = "clear_pairs"
+
+# Как эти действия назывались до сокращения. Кнопки живут в истории чата: после
+# выкладки человек может нажать кнопку под старым сообщением, и она пришлёт
+# прежнее имя. Без этой таблицы такая кнопка молча перестала бы работать.
+LEGACY_ACTIONS = {
+    "pick_answer": ACTION_PICK,
+    "add_forbidden_pair": ACTION_BAN_PAIR,
+    "clear_forbidden_pairs": ACTION_CLEAR_PAIRS,
+}
 
 
 def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboardMarkup:
@@ -22,11 +41,11 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
             for i, opt in enumerate(options):
                 builder.button(text=f"▶ {i + 1}", callback_data=f"study:{language_id}:pick_sound:{i}")
             for i, opt in enumerate(options):
-                builder.button(text=f"Выбрать {i + 1}", callback_data=f"study:{language_id}:pick_answer:{opt['word_id']}")
+                builder.button(text=f"Выбрать {i + 1}", callback_data=f"study:{language_id}:{ACTION_PICK}:{opt['word_id']}")
         else:
             for opt in options:
-                builder.button(text=opt.get("target_text", "?"), callback_data=f"study:{language_id}:pick_answer:{opt['word_id']}")
-        builder.button(text="❓ Не знаю", callback_data=f"study:{language_id}:pick_answer:dont_know")
+                builder.button(text=opt.get("target_text", "?"), callback_data=f"study:{language_id}:{ACTION_PICK}:{opt['word_id']}")
+        builder.button(text="❓ Не знаю", callback_data=f"study:{language_id}:{ACTION_PICK}:dont_know")
         builder.adjust(1, repeat=True)
         return builder.as_markup()
 
@@ -56,7 +75,14 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
     last_wrong = card.get("last_wrong_distractor_id")
     if last_wrong:
         builder.button(text="🚫 Не показывать такую комбинацию",
-                       callback_data=f"study:{language_id}:add_forbidden_pair:{last_wrong}")
+                       callback_data=f"study:{language_id}:{ACTION_BAN_PAIR}:{last_wrong}")
+
+    # Запреты копятся молча, и снять их из Telegram было нечем — кнопка есть
+    # только в вебе. Показываем счётчик и способ откатить, как в web_frontend.
+    banned = forbidden_pairs_count(card)
+    if banned:
+        builder.button(text=f"🚫 Очистить запрещённые ({banned})",
+                       callback_data=f"study:{language_id}:{ACTION_CLEAR_PAIRS}")
 
     builder.adjust(2, repeat=True)
     return builder.as_markup()
@@ -74,16 +100,18 @@ def build_language_keyboard(languages: List[Dict[str, Any]]) -> InlineKeyboardMa
     return builder.as_markup()
 
 
-def build_welcome_keyboard(web_url: str = "", is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Navigation keyboard shown after the stats block in /start."""
+def build_welcome_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
+    """Navigation keyboard shown after the stats block in /start.
+
+    Кнопки «🔗 Веб-версия» здесь нет намеренно: голая ссылка не авторизует, а
+    вход в веб идёт через /web — одноразовый код со сроком жизни 10 минут.
+    """
     builder = InlineKeyboardBuilder()
     builder.button(text="🌐 Выбрать язык",  callback_data="welcome:language")
     builder.button(text="📊 Статистика",    callback_data="welcome:stats")
     builder.button(text="📱 Android",       callback_data="welcome:android")
     builder.button(text="💡 О подсказках",  callback_data="welcome:hints")
     builder.button(text="📚 Помощь",        callback_data="welcome:help")
-    if web_url:
-        builder.button(text="🔗 Веб-версия", url=web_url)
     if is_admin:
         # "admin:menu" is already handled by admin.admin_menu_back — no new handler needed.
         builder.button(text="⚙️ Админка",   callback_data="admin:menu")

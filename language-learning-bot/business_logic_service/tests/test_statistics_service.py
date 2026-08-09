@@ -250,3 +250,74 @@ class TestBgTaskSeparation:
 
         assert api.update_daily_first_finish_statistics.call_count == 3
         assert api.update_daily_last_finish_statistics.call_count == 3
+
+
+# ── ленивая загрузка прогресса ────────────────────────────────────────────────
+
+class TestLazyProgress:
+    """
+    Снимок прогресса нужен только при создании дневной записи — то есть раз в
+    сутки. Раньше _bg_update_daily тянул полный прогресс на каждое оценённое
+    слово, а он тяжёлый: word_numbers_for_today / word_numbers_unknown /
+    word_check_interval — массивы на тысячи чисел, которые тут же выбрасывались.
+    """
+
+    @staticmethod
+    def _loader(calls):
+        async def load():
+            calls.append(1)
+            return PROGRESS
+        return load
+
+    @pytest.mark.asyncio
+    async def test_loader_is_not_called_when_record_exists(self):
+        api = make_api(daily_exists=True)
+        calls = []
+        assert await update_daily_statistics(
+            "u1", "lang1", TODAY, self._loader(calls), api) is True
+        assert calls == []
+        api.update_daily_statistics.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_loader_is_called_once_when_record_is_missing(self):
+        api = make_api(daily_exists=False)
+        calls = []
+        assert await update_daily_statistics(
+            "u1", "lang1", TODAY, self._loader(calls), api) is True
+        assert calls == [1]
+        payload = api.update_daily_statistics.call_args.args[3]
+        assert payload == PROGRESS
+
+    @pytest.mark.asyncio
+    async def test_plain_dict_still_works(self):
+        api = make_api(daily_exists=False)
+        assert await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api) is True
+        assert api.update_daily_statistics.call_args.args[3] == PROGRESS
+
+
+class TestBgUpdateDaily:
+    """Проверяем сам фоновый обработчик роутера, а не только сервис под ним."""
+
+    @staticmethod
+    def _api(daily_exists):
+        api = make_api(daily_exists=daily_exists)
+        api.get_user_progress.return_value = {"success": True, "result": PROGRESS}
+        return api
+
+    @pytest.mark.asyncio
+    async def test_does_not_fetch_progress_when_daily_record_exists(self):
+        from app.routers.session import _bg_update_daily
+        api = self._api(daily_exists=True)
+        await _bg_update_daily("u1", "lang1", api, 450)
+        api.get_user_progress.assert_not_called()
+        # единственная запись — max_word_number
+        assert api.update_daily_statistics.call_count == 1
+        assert api.update_daily_statistics.call_args.args[3] == {"max_word_number": 450}
+
+    @pytest.mark.asyncio
+    async def test_fetches_progress_when_daily_record_is_missing(self):
+        from app.routers.session import _bg_update_daily
+        api = self._api(daily_exists=False)
+        await _bg_update_daily("u1", "lang1", api, 450)
+        api.get_user_progress.assert_called_once_with("u1", "lang1")
+        assert api.update_daily_statistics.call_count == 2

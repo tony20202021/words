@@ -1,7 +1,8 @@
 """Unit tests for Telegram bot admin handler."""
 
+import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 from aiogram.fsm.context import FSMContext
 from app.bot.handlers.admin import (
     cmd_admin, admin_stats, admin_users, admin_broadcast_start,
@@ -304,3 +305,198 @@ async def test_export_range_exec_invalid_input():
     msg.answer.assert_called()
     text = msg.answer.call_args[0][0]
     assert "формат" in text.lower() or "диапазон" in text.lower()
+
+
+# ── toggle_admin на настоящем aiogram-объекте ────────────────────────────────
+# MagicMock не воспроизводит frozen-валидацию pydantic, поэтому подмена
+# callback.data в тестах проходила, а в бою бросала «Instance is frozen».
+
+import datetime
+from aiogram.types import CallbackQuery, Message, User, Chat
+
+TARGET_ID = "507f1f77bcf86cd799439011"
+
+
+def _real_callback(data: str):
+    bot = AsyncMock()
+    user = User(id=111, is_bot=False, first_name="Admin")
+    chat = Chat(id=111, type="private")
+    msg = Message(message_id=1, date=datetime.datetime.now(),
+                  chat=chat, from_user=user).as_(bot)
+    cb = CallbackQuery(id="cb-1", from_user=user, chat_instance="ci",
+                       data=data, message=msg).as_(bot)
+    return cb, bot
+
+
+@pytest.mark.asyncio
+async def test_admin_toggle_admin_on_real_callback_query():
+    from app.bot.handlers.admin import admin_toggle_admin
+    bls = _make_bls()
+    bls.admin_toggle_admin = AsyncMock(return_value={"ok": True})
+    bls.admin_get_user_details = AsyncMock(return_value={
+        "id": TARGET_ID, "first_name": "Bob", "last_name": None,
+        "username": "bob", "telegram_id": 222, "is_admin": True,
+    })
+    cb, bot = _real_callback(f"admin:user_admin:{TARGET_ID}:1")
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls):
+        await admin_toggle_admin(cb, bls_user_id="u1")
+
+    bls.admin_toggle_admin.assert_called_once_with("u1", TARGET_ID, True)
+    methods = [type(c.args[0]).__name__ for c in bot.await_args_list]
+    # Карточка перерисована, а не «Сервер сейчас недоступен»
+    assert "EditMessageText" in methods
+
+
+@pytest.mark.asyncio
+async def test_admin_toggle_admin_revokes_rights_on_real_callback_query():
+    from app.bot.handlers.admin import admin_toggle_admin
+    bls = _make_bls()
+    bls.admin_toggle_admin = AsyncMock(return_value={"ok": True})
+    bls.admin_get_user_details = AsyncMock(return_value={
+        "id": TARGET_ID, "first_name": "Bob", "telegram_id": 222, "is_admin": False,
+    })
+    cb, bot = _real_callback(f"admin:user_admin:{TARGET_ID}:0")
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls):
+        await admin_toggle_admin(cb, bls_user_id="u1")
+
+    bls.admin_toggle_admin.assert_called_once_with("u1", TARGET_ID, False)
+
+
+# ── рассылка ─────────────────────────────────────────────────────────────────
+
+class _FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def json(self):
+        return self._payload
+
+
+class _FakeSessionFactory:
+    """Считает, сколько ClientSession открыто и сколько запросов ушло."""
+
+    def __init__(self, payloads=None):
+        self.payloads = list(payloads or [])
+        self.sessions = 0
+        self.posts = []
+
+    def __call__(self, *args, **kwargs):
+        self.sessions += 1
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def post(self, url, **kwargs):
+        self.posts.append((url, kwargs))
+        payload = self.payloads.pop(0) if self.payloads else {"ok": True}
+        return _FakeResponse(payload)
+
+
+def _broadcast_message():
+    msg = MagicMock()
+    msg.text = "привет всем"
+    msg.from_user = MagicMock(id=111)
+    msg.answer = AsyncMock(return_value=AsyncMock())
+    return msg
+
+
+def _bls_with_users(count: int):
+    bls = _make_bls()
+    bls.admin_list_users = AsyncMock(return_value={
+        "users": [{"id": f"u{i}", "telegram_id": 1000 + i} for i in range(count)],
+        "page": 1, "total_pages": 1,
+    })
+    return bls
+
+
+@pytest.mark.asyncio
+async def test_broadcast_reuses_one_http_session():
+    """Раньше ClientSession создавался внутри цикла по получателям — новое
+    TLS-рукопожатие к api.telegram.org на каждого."""
+    from app.bot.handlers.admin import admin_broadcast_send
+    bls = _bls_with_users(3)
+    fake = _FakeSessionFactory()
+    msg = _broadcast_message()
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls), \
+         patch("aiohttp.ClientSession", fake), \
+         patch("app.bot.handlers.admin.asyncio.sleep", AsyncMock()), \
+         patch.dict(os.environ, {"BOT_TOKEN": "token"}):
+        await admin_broadcast_send(msg, _make_state(), bls_user_id="u1")
+
+    assert fake.sessions == 1
+    assert len(fake.posts) == 3
+
+
+@pytest.mark.asyncio
+async def test_broadcast_throttles_between_messages():
+    """Без пауз рассылка на сотни адресатов упирается в лимит Telegram."""
+    from app.bot.handlers.admin import admin_broadcast_send, BROADCAST_DELAY
+    bls = _bls_with_users(3)
+    fake = _FakeSessionFactory()
+    sleep = AsyncMock()
+    msg = _broadcast_message()
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls), \
+         patch("aiohttp.ClientSession", fake), \
+         patch("app.bot.handlers.admin.asyncio.sleep", sleep), \
+         patch.dict(os.environ, {"BOT_TOKEN": "token"}):
+        await admin_broadcast_send(msg, _make_state(), bls_user_id="u1")
+
+    assert sleep.await_args_list.count(call(BROADCAST_DELAY)) == 3
+
+
+@pytest.mark.asyncio
+async def test_broadcast_retries_after_429():
+    """429 приходит с parameters.retry_after; раньше он молча становился ошибкой
+    и получатель просто не получал рассылку."""
+    from app.bot.handlers.admin import admin_broadcast_send
+    bls = _bls_with_users(1)
+    fake = _FakeSessionFactory(payloads=[
+        {"ok": False, "error_code": 429, "parameters": {"retry_after": 3}},
+        {"ok": True},
+    ])
+    sleep = AsyncMock()
+    msg = _broadcast_message()
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls), \
+         patch("aiohttp.ClientSession", fake), \
+         patch("app.bot.handlers.admin.asyncio.sleep", sleep), \
+         patch.dict(os.environ, {"BOT_TOKEN": "token"}):
+        await admin_broadcast_send(msg, _make_state(), bls_user_id="u1")
+
+    assert len(fake.posts) == 2
+    assert call(3.0) in sleep.await_args_list
+    status = msg.answer.return_value.edit_text.call_args.args[0]
+    assert "Отправлено: 1" in status
+    assert "ошибок: 0" in status
+
+
+@pytest.mark.asyncio
+async def test_broadcast_counts_permanent_failure_as_error():
+    from app.bot.handlers.admin import admin_broadcast_send
+    bls = _bls_with_users(1)
+    fake = _FakeSessionFactory(payloads=[{"ok": False, "error_code": 403}])
+    msg = _broadcast_message()
+
+    with patch("app.bot.handlers.admin.get_bls_client", return_value=bls), \
+         patch("aiohttp.ClientSession", fake), \
+         patch("app.bot.handlers.admin.asyncio.sleep", AsyncMock()), \
+         patch.dict(os.environ, {"BOT_TOKEN": "token"}):
+        await admin_broadcast_send(msg, _make_state(), bls_user_id="u1")
+
+    assert len(fake.posts) == 1
+    status = msg.answer.return_value.edit_text.call_args.args[0]
+    assert "ошибок: 1" in status

@@ -25,7 +25,6 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "show_tones": True,
     "show_sounds": True,
     "show_skip_button": True,
-    "random_foreign": True,
     "random_transcription": True,
     "random_sound": False,
     "receive_messages": True,

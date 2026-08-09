@@ -185,3 +185,41 @@ def test_settings_keyboard_contains_numeric_rows():
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
     assert any("set_num:lang1:start_word:1" in c for c in all_cbs)
     assert any("set_num:lang1:start_word:-1" in c for c in all_cbs)
+
+
+# ── лишние запросы на одно нажатие «+»/«−» ───────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_change_numeric_uses_response_of_set_setting():
+    """PUT /settings/... возвращает обновлённый словарь целиком, поэтому третий
+    запрос за одно нажатие не нужен."""
+    from app.bot.handlers.settings import change_numeric_setting
+    bls = _make_bls(settings={"start_word": 3})
+    bls.set_setting = AsyncMock(return_value={"start_word": 4})
+    cb = _make_callback("set_num:lang1:start_word:1")
+
+    with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
+        await change_numeric_setting(cb, bls_user_id="u1")
+
+    assert bls.get_settings.await_count == 1
+    kb = cb.message.edit_text.call_args.kwargs["reply_markup"]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    assert "✏️ 4" in labels
+
+
+@pytest.mark.asyncio
+async def test_change_numeric_falls_back_to_get_settings_when_write_failed():
+    """Если запись не удалась и вернула {}, клавиатуру нельзя строить из пустого
+    словаря — иначе все настройки на экране обнулятся."""
+    from app.bot.handlers.settings import change_numeric_setting
+    bls = _make_bls(settings={"start_word": 3})
+    bls.set_setting = AsyncMock(return_value={})
+    cb = _make_callback("set_num:lang1:start_word:1")
+
+    with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
+        await change_numeric_setting(cb, bls_user_id="u1")
+
+    assert bls.get_settings.await_count == 2
+    kb = cb.message.edit_text.call_args.kwargs["reply_markup"]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    assert "✏️ 3" in labels

@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from urllib.parse import quote
 import asyncio
 from aiogram import Router
 from aiogram.filters import Command
@@ -15,7 +14,6 @@ router = Router()
 
 async def _send_charts(message: Message, bls, user_id: str, lang_id: str, lang_name: str) -> None:
     """Fetch all available charts for a language and send them as photos."""
-    any_sent = False
     for section in CHART_SECTIONS:
         header = section["header"]
         names = section["charts"]
@@ -37,10 +35,6 @@ async def _send_charts(message: Message, bls, user_id: str, lang_id: str, lang_n
                 BufferedInputFile(img, filename=f"{chart_name}.png"),
                 caption=caption,
             )
-        any_sent = True
-
-    if not any_sent:
-        return
 
 
 @router.message(Command("stats"))
@@ -56,7 +50,6 @@ async def cmd_stats(message: Message, bls_user_id: str) -> None:
     stats_list = await asyncio.gather(*[bls.get_statistics(bls_user_id, l["id"]) for l in languages])
 
     sections = ["📊 <b>Статистика</b>"]
-    active_langs = []  # (lang, stats) for languages with data
 
     for lang, stats in zip(languages, stats_list):
         lang_name = lang.get("name_ru", lang.get("name_foreign", lang["id"]))
@@ -84,7 +77,6 @@ async def cmd_stats(message: Message, bls_user_id: str) -> None:
             lines.append("✨ На сегодня готово!")
 
         sections.append("\n".join(lines))
-        active_langs.append((lang, lang_name))
 
     if len(sections) == 1:
         sections.append("Нет данных — начните изучение.")

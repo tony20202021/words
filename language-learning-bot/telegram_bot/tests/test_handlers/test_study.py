@@ -498,3 +498,97 @@ async def test_failed_next_batch_is_not_reported_as_completed(mock_bls):
     cb.message.answer.assert_not_called()
     assert "не ответил" in cb.answer.call_args.args[0]
 
+
+
+# ── запрещённые комбинации ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_clear_forbidden_pairs_callback_calls_bls(mock_bls):
+    """Кнопка «Очистить запрещённые» была только в вебе: BLSClient.clear_forbidden_pairs
+    существовал, но ни один хендлер его не вызывал, и снять запреты из Telegram
+    было нечем."""
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.clear_forbidden_pairs = AsyncMock(
+        return_value=make_session_resp(show_answer=True))
+    cb = make_callback("study:lang1:clear_pairs")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    mock_bls.clear_forbidden_pairs.assert_called_once_with("sess-1")
+    cb.answer.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_clear_forbidden_pairs_failure_is_not_completion(mock_bls):
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.clear_forbidden_pairs = AsyncMock(
+        return_value={"_failed": True, "_status": 500})
+    cb = make_callback("study:lang1:clear_pairs")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.message.answer.assert_not_called()
+    assert "не ответил" in cb.answer.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_ban_pair_callback_uses_short_action(mock_bls):
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.add_forbidden_pair = AsyncMock(
+        return_value=make_session_resp(show_answer=True))
+    cb = make_callback("study:lang1:ban:bad-word")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    mock_bls.add_forbidden_pair.assert_called_once_with("sess-1", "bad-word")
+
+
+@pytest.mark.asyncio
+async def test_pick_callback_uses_short_action(mock_bls):
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.pick_answer = AsyncMock(return_value=make_session_resp(show_answer=True))
+    cb = make_callback("study:lang1:pick:w2")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    mock_bls.pick_answer.assert_called_once_with("sess-1", "w2")
+
+
+@pytest.mark.asyncio
+async def test_empty_ok_response_means_completion_not_silence(mock_bls):
+    """Пустой ответ БЕЗ пометки _failed — это честные «слова кончились»: сбой
+    клиент помечает сам (см. _payload), поэтому здесь поздравление уместно, а
+    молчаливый экран без реакции — нет."""
+    from app.bot.handlers.study import handle_study_callback, COMPLETED_TEXT
+    mock_bls.show_answer = AsyncMock(return_value={})
+    cb = make_callback("study:lang1:show_answer")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.answer.assert_called_once()
+    cb.message.answer.assert_called_once()
+    assert cb.message.answer.call_args.args[0] == COMPLETED_TEXT
+
+@pytest.mark.asyncio
+async def test_buttons_from_older_messages_still_work(mock_bls):
+    """
+    Имена действий сократились ради лимита Telegram в 64 байта на callback_data.
+    Но кнопки остаются в истории чата, и нажатие под старым сообщением шлёт
+    прежнее имя — без сопоставления такая кнопка просто перестала бы отвечать.
+    """
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.get_session = AsyncMock(return_value=make_session_resp())
+    mock_bls.pick_answer = AsyncMock(return_value=make_session_resp())
+    cb = make_callback("study:lang1:pick_answer:word-7")   # старое имя
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    mock_bls.pick_answer.assert_awaited_once()
+    assert mock_bls.pick_answer.await_args.args[1] == "word-7"
+

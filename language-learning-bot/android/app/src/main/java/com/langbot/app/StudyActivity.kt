@@ -172,7 +172,9 @@ class StudyActivity : AppCompatActivity() {
                 clearConnectionStatus()
                 if (resp == null) {
                     // Сервер недостижим — учимся из кеша, не заставляя ждать впустую.
-                    if (!enterOfflineFromStore()) {
+                    // Здесь нажатия пользователя не ждут применения, поэтому любое
+                    // положение курсора годится: лишь бы было что показать.
+                    if (enterOfflineFromStore() == OfflineEntry.NO_BUNDLE) {
                         showError("Нет сети и нет сохранённой сессии для офлайн-работы")
                     }
                     return@launch
@@ -184,7 +186,7 @@ class StudyActivity : AppCompatActivity() {
                 prefetchBundleInBackground()
             } catch (e: Exception) {
                 // Network is down — fall back to the cached bundle if we have one.
-                if (!enterOfflineFromStore()) {
+                if (enterOfflineFromStore() == OfflineEntry.NO_BUNDLE) {
                     showError("Нет сети и нет сохранённой сессии для офлайн-работы")
                     Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
                 }
@@ -238,19 +240,43 @@ class StudyActivity : AppCompatActivity() {
         binding.tvRestartNotice.visibility = View.GONE
     }
 
+    /** Чем закончилась попытка уйти в офлайн. */
+    private enum class OfflineEntry {
+        /** Кеша нет — офлайн невозможен. */
+        NO_BUNDLE,
+        /** Офлайн начат, но с сохранённого места: слова с экрана в партии нет. */
+        OTHER_WORD,
+        /** Офлайн начат ровно на том слове, что было на экране. */
+        SAME_WORD,
+    }
+
     /**
      * Switch to offline mode using the cached bundle, positioned at the current word.
-     * Returns false if there is no usable cached bundle (nothing to study offline).
+     *
+     * Возвращает [OfflineEntry.OTHER_WORD], если слова с экрана в кеше нет:
+     * движок тогда стоит на сохранённом курсоре, и применять к нему нажатие
+     * пользователя нельзя — оценка ушла бы в outbox (и дальше на сервер) за
+     * чужое слово, молча и без следов.
      */
-    private fun enterOfflineFromStore(): Boolean {
-        val eng = OfflineEngine.fromStore(userId, languageId) ?: return false
-        eng.positionAtWord(lastWordId)
-        if (!eng.hasCurrent()) return false
+    private fun enterOfflineFromStore(): OfflineEntry {
+        val eng = OfflineEngine.fromStore(userId, languageId) ?: return OfflineEntry.NO_BUNDLE
+        val sameWord = eng.positionAtWord(lastWordId)
+        if (!eng.hasCurrent()) return OfflineEntry.NO_BUNDLE
         offline = eng
         offlineCurrentRecorded = false
         renderOfflineCurrent(showAnswer = false)
         Toast.makeText(this, "Нет сети — занимаемся офлайн", Toast.LENGTH_SHORT).show()
-        return true
+        return if (sameWord) OfflineEntry.SAME_WORD else OfflineEntry.OTHER_WORD
+    }
+
+    /** Ответ на слово, которого нет в офлайн-партии, записывать некуда — объясняем. */
+    private fun warnOfflineWordMissing() {
+        Toast.makeText(
+            this,
+            "Нет сети, а это слово не сохранено для офлайна — ответ не записан. " +
+                    "Продолжаем с сохранённого места.",
+            Toast.LENGTH_LONG,
+        ).show()
     }
 
     /**
@@ -512,12 +538,10 @@ class StudyActivity : AppCompatActivity() {
         if (card.sounds.isNotEmpty()) {
             val preparedFlags = BooleanArray(card.sounds.size) { false }
             card.sounds.forEachIndexed { i, soundPath ->
-                // Сначала кеш, потом сеть — ровно как в playSoundSequence.
-                // Кнопки карточки всегда тянули звук по сети, поэтому офлайн
-                // они молчали, хотя файлы уже лежали на диске: AudioCache
-                // скачивает их заранее именно ради этого случая.
-                val url = AudioCache.cachedFile(soundPath)?.absolutePath
-                    ?: BLSClient.soundUrl(soundPath)
+                // Сначала кеш, потом сеть — общее правило на всех, кто заводит
+                // MediaPlayer. Кнопки карточки когда-то тянули звук по сети
+                // всегда, поэтому офлайн молчали при скачанных файлах.
+                val url = AudioCache.sourceFor(soundPath)
                 val player = MediaPlayer()
                 player.setAudioAttributes(
                     AudioAttributes.Builder()
@@ -920,8 +944,12 @@ class StudyActivity : AppCompatActivity() {
 
                 if (resp == null) {
                     // Сервер недостижим — работаем из кеша, действие применяем локально.
-                    if (enterOfflineFromStore()) handleOfflineAction(btn)
-                    else showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    when (enterOfflineFromStore()) {
+                        OfflineEntry.SAME_WORD  -> handleOfflineAction(btn)
+                        OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                        OfflineEntry.NO_BUNDLE  ->
+                            showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    }
                     return@launch
                 }
 
@@ -942,10 +970,12 @@ class StudyActivity : AppCompatActivity() {
                 flushOutboxInBackground()
             } catch (e: Exception) {
                 // Network dropped — switch to the cached bundle and apply this action locally.
-                if (enterOfflineFromStore()) {
-                    handleOfflineAction(btn)
-                } else {
-                    Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                when (enterOfflineFromStore()) {
+                    OfflineEntry.SAME_WORD  -> handleOfflineAction(btn)
+                    OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                    OfflineEntry.NO_BUNDLE  -> Toast.makeText(
+                        this@StudyActivity,
+                        "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             } finally {
                 setLoading(false)
@@ -983,7 +1013,7 @@ class StudyActivity : AppCompatActivity() {
             if (mine != playbackGen || idx >= paths.size) return
             val path = paths[idx]; idx++
             // Prefer the offline-cached file; fall back to streaming from BLS.
-            val source = AudioCache.cachedFile(path)?.absolutePath ?: BLSClient.soundUrl(path)
+            val source = AudioCache.sourceFor(path)
             val mp = MediaPlayer()
             fun done(released: MediaPlayer) {
                 if (activePlayer === released) activePlayer = null
@@ -1014,7 +1044,22 @@ class StudyActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
-                val resp = BLSClient.api.pickAnswer(sid, mapOf("selected_word_id" to selectedWordId))
+                // Как и в onButtonClick: короткая первая попытка с эскалацией.
+                // Общий BLSClient.api — самый терпеливый клиент, и ждать на нём
+                // 15 с, чтобы потом всё равно уйти в офлайн, пользователю незачем.
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                    api.pickAnswer(sid, mapOf("selected_word_id" to selectedWordId))
+                }
+                clearConnectionStatus()
+                if (resp == null) {
+                    when (enterOfflineFromStore()) {
+                        OfflineEntry.SAME_WORD  -> handleOfflinePick(selectedWordId)
+                        OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                        OfflineEntry.NO_BUNDLE  ->
+                            showError("Нет сети и нет сохранённой сессии для офлайн-работы")
+                    }
+                    return@launch
+                }
                 val body = resp.body() ?: return@launch
                 if (body.batch_exhausted) {
                     lastPickAnswerResult = null
@@ -1034,10 +1079,12 @@ class StudyActivity : AppCompatActivity() {
                 handleResponse(body)
                 flushOutboxInBackground()
             } catch (e: Exception) {
-                if (enterOfflineFromStore()) {
-                    handleOfflinePick(selectedWordId)
-                } else {
-                    Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
+                when (enterOfflineFromStore()) {
+                    OfflineEntry.SAME_WORD  -> handleOfflinePick(selectedWordId)
+                    OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                    OfflineEntry.NO_BUNDLE  -> Toast.makeText(
+                        this@StudyActivity,
+                        "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             } finally {
                 setLoading(false)
@@ -1054,7 +1101,17 @@ class StudyActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
-                val resp = BLSClient.api.addForbiddenPair(sid, mapOf("bad_word_id" to badWordId))
+                // Кнопка в цикле учёбы: ждать на терпеливом клиенте нечего,
+                // нужен быстрый провал с эскалацией, как у остальных нажатий.
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                    api.addForbiddenPair(sid, mapOf("bad_word_id" to badWordId))
+                }
+                clearConnectionStatus()
+                if (resp == null) {
+                    Toast.makeText(this@StudyActivity, "Нет связи с сервером — не сохранено",
+                        Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
                 val body = resp.body() ?: return@launch
                 handleResponse(body)
             } catch (e: Exception) {

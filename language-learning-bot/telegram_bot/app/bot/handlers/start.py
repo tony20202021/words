@@ -7,10 +7,8 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from app.bls_client.client import BLSClient, get_bls_client
-from app.bot.keyboards import build_language_keyboard, build_welcome_keyboard
-
-from app.bls_client.client import get_bls_client as _get_bls_client
+from app.bls_client.client import get_bls_client
+from app.bot.keyboards import build_welcome_keyboard
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 from common.version import __version__
@@ -266,10 +264,6 @@ async def cmd_language(message: Message, state: FSMContext, bls_user_id: str) ->
     await _send_language_selection(message, bls_user_id, state)
 
 
-def _bool(v: bool) -> str:
-    return "✅" if v else "❌"
-
-
 @router.callback_query(lambda c: c.data and c.data.startswith("lang:"))
 async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_id: str) -> None:
     language_id = callback.data.split(":", 1)[1]
@@ -356,7 +350,6 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
 
     # Сообщение 4 — действия с клавиатурой
     from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
     builder = InlineKeyboardBuilder()
     builder.button(text="📚 Начать заново",    callback_data=f"study_start:{language_id}")
     builder.button(text="⚙️ Настройки",       callback_data=f"nav:settings:{language_id}")
