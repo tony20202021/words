@@ -118,13 +118,22 @@ def main() -> int:
         word["niqqud"] = rec["niqqud"]
         applied_niq += 1
 
-    applied_ru = already_ru = 0
+    # Пометка, которой apply_homographs.py дописывает другие чтения слова.
+    HOMOGRAPH_MARK = "⚠ то же написание читается иначе:"
+
+    applied_ru = already_ru = kept_homograph = 0
     for rank, rec in sorted(ru.items()):
         word = by_rank.get(rank)
         if word is None:
             continue
         if word.get("russian") == rec["russian"]:
             already_ru += 1
+            continue
+        # У омографов перевод собран вручную и перечисляет несколько чтений.
+        # Стадия ru_out делалась до этого и хранит однострочную версию —
+        # применив её, мы бы молча откатили разбор омографов.
+        if HOMOGRAPH_MARK in (word.get("russian") or ""):
+            kept_homograph += 1
             continue
         word["russian"] = rec["russian"]
         applied_ru += 1
@@ -136,6 +145,8 @@ def main() -> int:
     print("перевод:")
     print(f"  уже было применено ранее: {already_ru}")
     print(f"  применяется сейчас:       {applied_ru}")
+    if kept_homograph:
+        print(f"  сохранено разборов омографов: {kept_homograph}")
 
     if rejected:
         print("\nотклонённые правки — проверить вручную:")
