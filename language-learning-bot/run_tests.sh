@@ -21,6 +21,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "scripts" else SCRIPT_DIR
 COMPONENT_DIRS = {
     "bls": PROJECT_ROOT / "business_logic_service",
     "android": PROJECT_ROOT / "android",
+    # Оснастка словаря иврита лежит вне language-learning-bot, но это рабочий
+    # код: за неделю в нём нашлись три тихих дефекта, каждый портил данные
+    # молча. «Все тесты» без него — снова неполный набор.
+    "hebrew": PROJECT_ROOT.parent / "words" / "hebrew_tools",
     "telegram": PROJECT_ROOT / "telegram_bot",
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
@@ -33,7 +37,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["bls", "telegram", "web", "backend", "common", "android", "all"],
+        choices=["bls", "telegram", "web", "backend", "common", "android", "hebrew", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -79,7 +83,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 310, "telegram": 237, "web": 152, "backend": 140, "common": 18, "android": 72,
+    "bls": 310, "telegram": 237, "web": 152, "backend": 140, "common": 18,
+    "hebrew": 32, "android": 72,
 }
 
 
@@ -199,6 +204,10 @@ def android_test_count(directory: Path) -> int | None:
     return total
 
 
+def run_hebrew_tests(args):
+    return run_component_tests("hebrew", COMPONENT_DIRS["hebrew"], args)
+
+
 def run_android_tests(args):
     """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
     directory = COMPONENT_DIRS["android"]
@@ -241,10 +250,11 @@ def main():
         "backend": run_backend_tests,
         "common": run_common_tests,
         "android": run_android_tests,
+        "hebrew": run_hebrew_tests,
     }
 
     if args.component == "all":
-        components = ["bls", "telegram", "web", "backend", "common", "android"]
+        components = ["bls", "telegram", "web", "backend", "common", "hebrew", "android"]
     else:
         components = [args.component]
 

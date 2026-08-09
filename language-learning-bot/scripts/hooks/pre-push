@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Прогон тестов перед push.
+#
+# CI здесь заводить не под что: машина одна, ревью нет. Единственной гарантией,
+# что тесты прогнаны, оставался ручной ритуал — и он же был единственным
+# доказательством, строкой счётчиков в теле коммита. Хук делает то же самое, но
+# не забывает.
+#
+# Лежит в репозитории намеренно: .git/hooks не версионируется, и хук,
+# положенный только туда, повторил бы судьбу скриптов, которые пряталсь под
+# gitignore и потерялись из истории.
+#
+# Включить один раз:
+#     git config core.hooksPath language-learning-bot/scripts/hooks
+#
+# Пропустить осознанно:
+#     git push --no-verify
+
+set -u
+
+LB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+if [ -n "${SKIP_TESTS:-}" ]; then
+  echo "pre-push: SKIP_TESTS задан — тесты пропущены" >&2
+  exit 0
+fi
+
+echo "pre-push: прогоняю все тесты (SKIP_TESTS=1 чтобы пропустить)…" >&2
+if ! python "$LB/run_tests.sh" >/tmp/langbot-pre-push.log 2>&1; then
+  echo "" >&2
+  echo "pre-push: ТЕСТЫ НЕ ПРОШЛИ — push остановлен." >&2
+  echo "Полный вывод: /tmp/langbot-pre-push.log" >&2
+  echo "" >&2
+  grep -E "❌|FAILED|Error|assert" /tmp/langbot-pre-push.log | head -20 >&2
+  exit 1
+fi
+
+echo "pre-push: тесты зелёные" >&2
+exit 0
