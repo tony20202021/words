@@ -6,6 +6,8 @@ import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
@@ -46,6 +48,15 @@ class StudyActivity : AppCompatActivity() {
 
     // MediaPlayer instances for the current card's sounds
     private val players = mutableListOf<MediaPlayer>()
+
+    // ── Звук: одна дорожка на экран ─────────────────────────────────────────
+    // Варианты произношения играются цепочкой с паузой между ними. Без общего
+    // владельца нажатие на другой вариант запускало вторую цепочку поверх
+    // первой — а нажимают именно потому, что по первому звуку уже понятно, что
+    // слово не то. Обрывать нужно и звук, и отложенный переход к следующему.
+    private var playbackGen = 0
+    private var activePlayer: MediaPlayer? = null
+    private val playbackHandler = Handler(Looper.getMainLooper())
 
     // Last pick-mode answer result: true=correct, false=wrong/dont_know, null=not a pick answer
     private var lastPickAnswerResult: Boolean? = null
@@ -521,7 +532,10 @@ class StudyActivity : AppCompatActivity() {
                         Toast.makeText(this, "Звук ещё загружается…", Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
-                    try { player.seekTo(0); player.start() } catch (_: Exception) {
+                    stopPlayback()
+                    try {
+                        player.seekTo(0); player.start(); activePlayer = player
+                    } catch (_: Exception) {
                         Toast.makeText(this, "Звук недоступен", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -537,15 +551,20 @@ class StudyActivity : AppCompatActivity() {
                 val allBtn = MaterialButton(this)
                 allBtn.text = "▶ Все"
                 allBtn.setOnClickListener {
+                    stopPlayback()
+                    val mine = playbackGen
                     fun playAt(idx: Int) {
-                        if (idx >= players.size) return
+                        if (mine != playbackGen || idx >= players.size) return
                         if (!preparedFlags[idx]) {
                             Toast.makeText(this, "Звуки ещё загружаются…", Toast.LENGTH_SHORT).show()
                             return
                         }
                         val p = players[idx]
-                        p.setOnCompletionListener { allBtn.postDelayed({ playAt(idx + 1) }, 350) }
-                        try { p.seekTo(0); p.start() } catch (_: Exception) {}
+                        p.setOnCompletionListener {
+                            if (activePlayer === it) activePlayer = null
+                            if (mine == playbackGen) playbackHandler.postDelayed({ playAt(idx + 1) }, 350)
+                        }
+                        try { p.seekTo(0); p.start(); activePlayer = p } catch (_: Exception) {}
                     }
                     playAt(0)
                 }
@@ -929,24 +948,56 @@ class StudyActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Оборвать текущее воспроизведение.
+     *
+     * Плееры карточки переиспользуются между нажатиями, поэтому им pause+seek:
+     * stop() перевёл бы их в состояние Stopped и потребовал повторной подготовки.
+     * Одноразовые плееры цепочки, наоборот, освобождаем — они могут быть ещё в
+     * состоянии Preparing, где pause() бросает, а release() безопасен всегда.
+     */
+    private fun stopPlayback() {
+        playbackGen++
+        playbackHandler.removeCallbacksAndMessages(null)
+        val p = activePlayer ?: return
+        activePlayer = null
+        if (players.contains(p)) {
+            try { if (p.isPlaying) p.pause(); p.seekTo(0) } catch (_: Exception) {}
+        } else {
+            try { p.release() } catch (_: Exception) {}
+        }
+    }
+
     /** Play a list of sound paths sequentially, with a short pause between them. */
     private fun playSoundSequence(paths: List<String>) {
         if (paths.isEmpty()) return
+        stopPlayback()
+        val mine = playbackGen
         var idx = 0
         fun playNext() {
-            if (idx >= paths.size) return
+            if (mine != playbackGen || idx >= paths.size) return
             val path = paths[idx]; idx++
             // Prefer the offline-cached file; fall back to streaming from BLS.
             val source = AudioCache.cachedFile(path)?.absolutePath ?: BLSClient.soundUrl(path)
             val mp = MediaPlayer()
+            fun done(released: MediaPlayer) {
+                if (activePlayer === released) activePlayer = null
+                if (mine == playbackGen) playbackHandler.postDelayed({ playNext() }, 350)
+            }
             try {
                 mp.setDataSource(source)
-                mp.setOnPreparedListener { it.start() }
-                mp.setOnCompletionListener { it.release(); binding.root.postDelayed({ playNext() }, 350) }
-                mp.setOnErrorListener { p, _, _ -> p.release(); binding.root.postDelayed({ playNext() }, 350); true }
+                // Подготовка асинхронная: пока она идёт, нас могли уже прервать.
+                mp.setOnPreparedListener {
+                    if (mine != playbackGen) { it.release() } else { it.start() }
+                }
+                mp.setOnCompletionListener { it.release(); done(it) }
+                mp.setOnErrorListener { p, _, _ -> p.release(); done(p); true }
+                activePlayer = mp
                 mp.prepareAsync()
             } catch (_: Exception) {
-                mp.release(); playNext()
+                mp.release()
+                if (activePlayer === mp) activePlayer = null
+                playNext()
             }
         }
         playNext()
@@ -1158,6 +1209,9 @@ class StudyActivity : AppCompatActivity() {
         (dp * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun releasePlayers() {
+        // Плееры цепочки вариантов не лежат в players, поэтому их обрывает именно
+        // это: без него звук предыдущей карточки доигрывал поверх следующей.
+        stopPlayback()
         for (p in players) {
             try { if (p.isPlaying) p.stop(); p.release() } catch (_: Exception) {}
         }

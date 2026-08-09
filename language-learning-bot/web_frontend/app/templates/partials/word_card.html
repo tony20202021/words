@@ -76,31 +76,18 @@
             <audio id="snd-{{ loop.index }}" src="/sound/{{ url }}" preload="auto"
                    onerror="document.getElementById('snd-wrap-{{ loop.index }}').style.display='none'"></audio>
             <button type="button" class="btn btn-outline-secondary btn-sm"
-              onclick="document.getElementById('snd-{{ loop.index }}').play()">
+              onclick="playSounds(['snd-{{ loop.index }}'])">
               🔊{% if card.sounds|length > 1 %} {{ loop.index }}{% endif %}
             </button>
           </span>
         {% endfor %}
         {% if card.sounds|length > 1 %}
           <button type="button" class="btn btn-outline-primary btn-sm" id="play-all-btn"
-            onclick="playAllSounds([{% for url in card.sounds %}'snd-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">
+            onclick="playSounds([{% for url in card.sounds %}'snd-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">
             ▶ Все
           </button>
         {% endif %}
       </div>
-      <script>
-      function playAllSounds(ids) {
-        var idx = 0;
-        function next() {
-          if (idx >= ids.length) return;
-          var a = document.getElementById(ids[idx++]);
-          if (!a || a.parentElement.style.display === 'none') { next(); return; }
-          a.onended = function() { setTimeout(next, 350); };
-          a.play().catch(next);
-        }
-        next();
-      }
-      </script>
     {% endif %}
 
     {# ── Loading overlay (shown while HTMX request is in flight) ─────────── #}
@@ -116,20 +103,6 @@
     <hr class="my-2">
     <div class="text-muted small mb-2">Выберите правильный вариант:</div>
     <div class="d-flex flex-column gap-2 mb-2">
-      {% if card.pick_options.target_modality == 'sound' %}
-      <script>
-      function playSeqSounds(ids) {
-        var i = 0;
-        (function next() {
-          if (i >= ids.length) return;
-          var a = document.getElementById(ids[i++]);
-          if (!a) { next(); return; }
-          a.onended = function() { setTimeout(next, 350); };
-          a.play().catch(next);
-        })();
-      }
-      </script>
-      {% endif %}
       {% for opt in card.pick_options.options %}
         {% if card.pick_options.target_modality == 'sound' %}
           {% set oi = loop.index %}
@@ -138,7 +111,7 @@
             <audio id="opt-snd-{{ oi }}-{{ loop.index }}" src="/sound/{{ surl }}" preload="auto"></audio>
             {% endfor %}
             <button type="button" class="btn btn-outline-secondary"
-              onclick="playSeqSounds([{% for surl in opt.target_text.split('|') %}'opt-snd-{{ oi }}-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">🔊 ▶ {{ oi }}</button>
+              onclick="playSounds([{% for surl in opt.target_text.split('|') %}'opt-snd-{{ oi }}-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">🔊 ▶ {{ oi }}</button>
             <button class="btn btn-outline-primary btn-lg flex-grow-1 btn-rate"
               hx-post="/study/{{ language_id }}/pick_answer"
               hx-vals='{"selected_word_id": "{{ opt.word_id }}"}'
@@ -318,10 +291,54 @@
 
 </div>
 <script>
+// ── Звук: одна дорожка на страницу ───────────────────────────────────────────
+// Варианты произношения проигрываются цепочкой с паузой между ними. Без общего
+// владельца нажатие на другой вариант просто запускало вторую цепочку, и они
+// звучали одновременно — а нажимают именно потому, что по первому звуку уже
+// понятно, что слово не то. Поэтому любое воспроизведение сначала обрывает
+// предыдущее: и сам звук, и отложенный переход к следующему в цепочке.
+var LBSounds = (function() {
+  var gen = 0, current = null, timer = null;
+
+  function stop() {
+    // Счётчик поколений, а не только pause(): цепочку держит ещё и таймер
+    // паузы, и без этого следующий звук всё равно зазвучал бы через 350 мс.
+    gen++;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (current) {
+      try { current.pause(); current.currentTime = 0; } catch (e) {}
+      current.onended = null;
+      current = null;
+    }
+  }
+
+  function play(ids) {
+    stop();
+    var mine = gen, i = 0;
+    (function next() {
+      if (mine !== gen || i >= ids.length) return;
+      var a = document.getElementById(ids[i++]);
+      // Пропускаем звуки, которые не загрузились: onerror прячет обёртку.
+      if (!a || (a.parentElement && a.parentElement.style.display === 'none')) { next(); return; }
+      current = a;
+      a.onended = function() { if (mine === gen) timer = setTimeout(next, 350); };
+      // play() отклоняется и когда мы сами прервали его — проверка поколения внутри next().
+      a.play().catch(function() { next(); });
+    })();
+  }
+
+  return { play: play, stop: stop };
+})();
+
+function playSounds(ids) { LBSounds.play(ids); }
+
 (function() {
   var _htmxTimeout = null;
 
   function onBtnClick() {
+    // Уходим с карточки — звук предыдущей не должен доигрывать поверх следующей.
+    // HTMX выбрасывает <audio> из DOM, но отсоединённый элемент продолжает играть.
+    LBSounds.stop();
     _htmxTimeout = setTimeout(function() { window.location.reload(); }, 8000);
     var overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'flex';

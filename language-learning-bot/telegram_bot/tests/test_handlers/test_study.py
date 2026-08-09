@@ -384,3 +384,67 @@ async def test_display_card_sends_big_word_photo(mock_bls):
 
     msg.answer_photo.assert_called_once()
     msg.answer.assert_called_once()
+
+# ── звук в пик-режиме ─────────────────────────────────────────────────────────
+
+def _session_with_sound_options(*target_texts):
+    """Сессия в пик-режиме со звуковой модальностью."""
+    resp = make_session_resp()
+    resp["card"]["pick_options"] = {
+        "target_modality": "sound",
+        "options": [{"word_id": f"w{i}", "target_text": t, "is_correct": i == 0}
+                    for i, t in enumerate(target_texts)],
+    }
+    return resp
+
+
+@pytest.mark.asyncio
+async def test_pick_sound_sends_every_variant_of_the_option(mock_bls):
+    """
+    target_text звуковой модальности — все варианты произношения через "|"
+    (так их собирает quiz_service). Раньше строка целиком уходила в get_sound,
+    и у слова с несколькими вариантами кнопка молча отвечала «Звук недоступен».
+    """
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.get_session = AsyncMock(
+        return_value=_session_with_sound_options("a/1.mp3|a/2.mp3", "b/1.mp3"))
+    mock_bls.get_sound = AsyncMock(return_value=b"MP3")
+    cb = make_callback("study:lang1:pick_sound:0")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    assert [c.args[0] for c in mock_bls.get_sound.call_args_list] == ["a/1.mp3", "a/2.mp3"]
+    assert cb.message.answer_audio.await_count == 2
+    cb.answer.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pick_sound_reports_when_nothing_could_be_fetched(mock_bls):
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.get_session = AsyncMock(return_value=_session_with_sound_options("a/1.mp3"))
+    mock_bls.get_sound = AsyncMock(return_value=None)
+    cb = make_callback("study:lang1:pick_sound:0")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    cb.message.answer_audio.assert_not_awaited()
+    cb.answer.assert_called_once_with("Звук недоступен", show_alert=True)
+
+
+@pytest.mark.asyncio
+async def test_pick_sound_survives_a_single_missing_variant(mock_bls):
+    """Один вариант не отдался — остальные всё равно должны прозвучать."""
+    from app.bot.handlers.study import handle_study_callback
+    mock_bls.get_session = AsyncMock(
+        return_value=_session_with_sound_options("a/1.mp3|a/2.mp3"))
+    mock_bls.get_sound = AsyncMock(side_effect=[None, b"MP3"])
+    cb = make_callback("study:lang1:pick_sound:0")
+
+    with patch("app.bot.handlers.study.get_bls_client", return_value=mock_bls):
+        await handle_study_callback(cb, make_state(), bls_user_id="user-1")
+
+    assert cb.message.answer_audio.await_count == 1
+    cb.answer.assert_called_once()
+

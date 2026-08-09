@@ -2,7 +2,10 @@
 """
 Script to run tests for the Language Learning Bot project.
 Runs tests for all active components: BLS, telegram_bot, web_frontend,
-backend, common.
+backend, common, android.
+
+Android-тесты идут через gradle, а не pytest, и раньше в этот скрипт не входили —
+из-за чего «прогнал все тесты» не включало клиент, где половина офлайн-логики.
 """
 
 import argparse
@@ -16,6 +19,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "scripts" else SCRIPT_DIR
 
 COMPONENT_DIRS = {
     "bls": PROJECT_ROOT / "business_logic_service",
+    "android": PROJECT_ROOT / "android",
     "telegram": PROJECT_ROOT / "telegram_bot",
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
@@ -28,7 +32,7 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["bls", "telegram", "web", "backend", "common", "all"],
+        choices=["bls", "telegram", "web", "backend", "common", "android", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -128,6 +132,25 @@ def run_web_tests(args):
     return run_component_tests("web", COMPONENT_DIRS["web"], args)
 
 
+def run_android_tests(args):
+    """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
+    directory = COMPONENT_DIRS["android"]
+    print("\n🔍 Running Android tests...\n")
+    if not (directory / "gradlew").exists():
+        print(f"⚠️ gradlew не найден в {directory}")
+        print("✅ Android tests: skipped!")
+        return 0
+
+    os.chdir(directory)
+    cmd = ["./gradlew", "testDebugUnitTest"]
+    if not args.verbose:
+        cmd.append("-q")
+    if args.specific:
+        cmd.extend(["--tests", args.specific])
+    print(f"Running command: {' '.join(cmd)}")
+    return subprocess.run(cmd).returncode
+
+
 def main():
     """Main function to run tests."""
     parser = setup_parser()
@@ -142,10 +165,11 @@ def main():
         "web": run_web_tests,
         "backend": run_backend_tests,
         "common": run_common_tests,
+        "android": run_android_tests,
     }
 
     if args.component == "all":
-        components = ["bls", "telegram", "web", "backend", "common"]
+        components = ["bls", "telegram", "web", "backend", "common", "android"]
     else:
         components = [args.component]
 

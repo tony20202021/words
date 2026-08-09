@@ -460,6 +460,8 @@ class StatisticsRepository:
                     "radicals": "$word.radicals",
                     "references": "$word.references",
                     "tones": "$word.tones",
+                    "part_of_speech": "$word.part_of_speech",
+                    "lemma": "$word.lemma",
                     "sounds": "$word.sounds",
                 }
             }
@@ -686,6 +688,8 @@ class StatisticsRepository:
                     "radicals": "$word.radicals",
                     "references": "$word.references",
                     "tones": "$word.tones",
+                    "part_of_speech": "$word.part_of_speech",
+                    "lemma": "$word.lemma",
                     "sounds": "$word.sounds",
                 }
             },

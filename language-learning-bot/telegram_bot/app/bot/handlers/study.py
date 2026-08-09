@@ -155,12 +155,21 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         if idx >= len(options):
             await callback.answer("Звук недоступен", show_alert=True)
             return
-        sound_url = options[idx].get("target_text", "")
-        sound_data = await bls.get_sound(sound_url) if sound_url else None
-        if not sound_data:
+        # target_text у звуковой модальности — все варианты произношения через "|"
+        # (quiz_service их так и собирает). Раньше строка целиком уходила в
+        # get_sound, и у любого слова с несколькими вариантами вариант ответа
+        # молча превращался в «Звук недоступен».
+        sound_urls = [u for u in options[idx].get("target_text", "").split("|") if u]
+        sent = 0
+        for url in sound_urls:
+            sound_data = await bls.get_sound(url)
+            if sound_data:
+                await callback.message.answer_audio(
+                    BufferedInputFile(sound_data, filename="sound.mp3"))
+                sent += 1
+        if not sent:
             await callback.answer("Звук недоступен", show_alert=True)
             return
-        await callback.message.answer_audio(BufferedInputFile(sound_data, filename="sound.mp3"))
         await callback.answer()
         return
     elif action == "pick_answer":
