@@ -63,7 +63,12 @@ _last_call = [0.0]
 MIN_GAP = 0.12  # с, между запросами к одному хосту — вежливость, не требование
 
 
+class FetchFailed(Exception):
+    """Запрос не удался. Отличается от «статьи нет»: результат неизвестен."""
+
+
 def _fetch(url: str, timeout: int = 25, tries: int = 3) -> str | None:
+    """Текст ответа, None если страницы нет, FetchFailed если не достучались."""
     for attempt in range(tries):
         with _throttle:
             gap = MIN_GAP - (time.time() - _last_call[0])
@@ -78,11 +83,11 @@ def _fetch(url: str, timeout: int = 25, tries: int = 3) -> str | None:
                 return None
             # 429 и 5xx — отступаем, остальное бессмысленно повторять.
             if e.code not in (429, 500, 502, 503, 504):
-                return None
+                raise FetchFailed(f"HTTP {e.code}")
         except Exception:
             pass
         time.sleep(1.5 * (attempt + 1))
-    return None
+    raise FetchFailed("исчерпаны попытки")
 
 
 def _cache_path(key: str) -> str:
@@ -90,8 +95,15 @@ def _cache_path(key: str) -> str:
 
 
 def cached(key: str, produce):
-    """Значение из кэша либо свежее. Кэшируем и отрицательный ответ: «статьи нет»
-    — это тоже результат, и перепроверять его каждый прогон незачем."""
+    """
+    Значение из кэша либо свежее.
+
+    «Статьи нет» кэшируется — это результат, и перепроверять его каждый прогон
+    незачем. А вот СБОЙ запроса кэшировать нельзя: раньше оба исхода выглядели
+    как None, сетевой сбой оседал на диске как «статьи нет» и повторным прогоном
+    уже не лечился. В кэше так осело 65 отрицательных ответов Викиданных, среди
+    них מים «вода» — лексема, которая там заведомо есть.
+    """
     path = _cache_path(key)
     if os.path.exists(path):
         try:
@@ -99,8 +111,12 @@ def cached(key: str, produce):
                 return json.load(fh)["value"]
         except Exception:
             pass
-    value = produce()
-    tmp = path + ".tmp"
+    try:
+        value = produce()
+    except FetchFailed as e:
+        print(f"  сбой запроса, не кэшируем: {key} — {e}", flush=True)
+        return None
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump({"key": key, "value": value}, fh, ensure_ascii=False)
     os.replace(tmp, path)
@@ -111,9 +127,9 @@ def wikitext(site: str, title: str) -> str | None:
     def go():
         url = (f"https://{site}/w/api.php?action=parse&format=json&prop=wikitext"
                f"&page={urllib.parse.quote(title)}")
-        raw = _fetch(url)
+        raw = _fetch(url)          # FetchFailed пролетает наверх, в cached()
         if not raw:
-            return None
+            return None            # страницы нет — это ответ, его кэшируем
         try:
             return json.loads(raw)["parse"]["wikitext"]["*"]
         except Exception:

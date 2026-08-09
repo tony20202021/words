@@ -87,6 +87,11 @@ def main() -> int:
             diffs.append(f"огласовка {row.get('niqqud')} -> {main['niqqud']}")
         if row.get("ipa") != main["ipa"]:
             diffs.append(f"ipa {row.get('ipa')} -> {main['ipa']}")
+        # Транслитерацию блок --apply пишет, но в diffs её не было: правка,
+        # затрагивающая ТОЛЬКО транслитерацию, давала пустой diffs, срабатывал
+        # continue, и до записи дело не доходило — молча, без строки в выводе.
+        if row.get("translit_ru") != main["translit_ru"]:
+            diffs.append(f"транслитерация {row.get('translit_ru')} -> {main['translit_ru']}")
         if (row.get("russian") or "") != want_translation:
             diffs.append(f"перевод: +{len(h['readings']) - 1} вариант(ов)")
 

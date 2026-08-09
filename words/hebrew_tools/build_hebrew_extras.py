@@ -61,10 +61,18 @@ def build_tones(entry: dict) -> str:
 
 def build_references(row: dict, family: list[dict]) -> str:
     """Слова того же корня, кроме самого слова."""
-    others = [w for w in family if w["rank"] != row["rank"]][:MAX_REFS]
+    others = [w for w in family if w["rank"] != row["rank"]]
     if not others:
         return ""
-    lines = [f"<b>{row['lemma']}</b>: <i>слов с этой основой: {len(others)}</i>"]
+    # Число берём ДО обрезки: считать после — значит утверждать «слов с этой
+    # основой: 12» там, где их 49. У 70 основ семья больше лимита, и такие
+    # заголовки стояли на 1433 карточках.
+    total = len(others)
+    others = others[:MAX_REFS]
+    head = f"<b>{row['lemma']}</b>: <i>слов с этой основой: {total}</i>"
+    if total > MAX_REFS:
+        head += f" <i>(показаны первые {MAX_REFS})</i>"
+    lines = [head]
     for w in others:
         form = (w.get("niqqud") or "").strip() or w["hebrew"]
         sense = (w.get("russian") or "").split("\n")[0]
@@ -131,9 +139,23 @@ def main() -> int:
         print("\nпробный прогон. Чтобы записать — запустите с --apply")
         return 0
 
+    # Затирать tones огулом нельзя: этот скрипт строит их только для записей из
+    # homographs.json, а поле пополняется и разбором по внешним источникам.
+    # Проход «r["tones"] = r.pop("_tones", "")» стёр бы все чужие блоки — на
+    # момент обнаружения таких было 36 из 54.
+    doomed = [r for r in rows if (r.get("tones") or "").strip() and not r.get("_tones")]
+    if doomed:
+        print(f"\nостановлено: {len(doomed)} записей имеют tones, построенные не этим "
+              f"скриптом — он их не тронет, но и не подтвердит:")
+        for r in doomed[:8]:
+            print(f"  №{r['rank']:5} {r['hebrew']}")
+        print("  (они сохраняются как есть)")
+
     shutil.copy2(FULL, FULL + ".bak")
     for r in rows:
-        r["tones"] = r.pop("_tones", "")
+        built = r.pop("_tones", "")
+        if built:
+            r["tones"] = built
         r["references"] = r.pop("_references", "")
     with open(FULL, "w", encoding="utf-8") as fh:
         json.dump(rows, fh, ensure_ascii=False, indent=2)

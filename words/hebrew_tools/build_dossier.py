@@ -49,8 +49,11 @@ def main() -> int:
     evidence = {e["rank"]: e for e in json.load(open(src, encoding="utf-8"))}
 
     out_path = os.path.join(HERE, f"dossier_{args.max_rank}.jsonl")
+    # Пишем через временный файл: досье читают агенты, и перезапись на месте
+    # отдала бы кому-то половину файла.
+    tmp_path = out_path + ".tmp"
     n_with_issues = 0
-    with open(out_path, "w", encoding="utf-8") as fh:
+    with open(tmp_path, "w", encoding="utf-8") as fh:
         for rank in sorted(evidence):
             row = rows.get(rank)
             if row is None:
@@ -74,6 +77,7 @@ def main() -> int:
             }
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
+    os.replace(tmp_path, out_path)
     size = os.path.getsize(out_path)
     print(f"досье: {os.path.basename(out_path)}  {len(evidence)} слов, {size // 1024} КБ")
     print(f"из них с расхождениями: {n_with_issues}")
