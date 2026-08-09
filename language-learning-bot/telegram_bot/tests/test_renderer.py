@@ -163,3 +163,42 @@ class TestRenderExtraTexts:
     def test_no_extra_content_key(self):
         card = {"content": [], "meta": {}}
         assert render_extra_texts(card) == []
+
+# ── экранирование ────────────────────────────────────────────────────────────
+
+def test_text_from_the_database_is_escaped():
+    """
+    Сообщение уходит с parse_mode="HTML", а перевод и подсказки приходят из БД.
+    Символ < или & ломал разбор — Telegram отвечал ошибкой, и карточка не
+    показывалась вовсе.
+    """
+    from app.bot.renderer import render_card_text
+
+    card = {
+        "meta": {},
+        "content": [
+            {"type": "foreign", "text": "a < b"},
+            {"type": "translation", "text": "Смит & сын"},
+            {"type": "hint", "text": "<script>alert(1)</script>"},
+        ],
+    }
+    out = render_card_text(card)
+    assert "a &lt; b" in out
+    assert "Смит &amp; сын" in out
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+    # Разметка, которую добавляет сам рендер, остаётся рабочей.
+    assert "<b>a &lt; b</b>" in out
+
+
+def test_prepared_markup_of_extra_blocks_is_not_escaped():
+    """
+    Варианты огласовки и однокоренные card_builder отдаёт уже с <b>/<i> — это его
+    разметка, а не пользовательский ввод, и экранировать её значило бы показать
+    учащемуся угловые скобки.
+    """
+    from app.bot.renderer import render_card_text
+
+    card = {"meta": {}, "content": [{"type": "extra", "text": "<b>עם</b>: <i>2</i>"}]}
+    assert "<b>עם</b>: <i>2</i>" in render_card_text(card)
+

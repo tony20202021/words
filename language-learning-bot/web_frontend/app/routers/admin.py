@@ -5,7 +5,6 @@ Web admin router. All endpoints require session user to have admin rights.
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import RedirectResponse, Response
 from app.templating import templates
-from pathlib import Path
 from typing import Optional
 from app.bls_client import get_bls_client
 
@@ -279,7 +278,10 @@ async def broadcast_send(request: Request, text: str = Form(...)):
         page_data = await bls.admin_list_users(user_id, page=pg)
         for u in page_data.get("users", []):
             tg_id = u.get("telegram_id")
-            if not tg_id or tg_id == int(user_id.split("-")[0] if "-" in user_id else 0):
+            # Сравнение шло с int(0): user_id — это ObjectId, дефиса в нём нет,
+            # так что условие «это я сам» не выполнялось никогда и админ всегда
+            # получал собственную рассылку. Сверяем по идентификатору пользователя.
+            if not tg_id or str(u.get("id") or u.get("user_id") or "") == str(user_id):
                 continue
             if not bot_token:
                 break

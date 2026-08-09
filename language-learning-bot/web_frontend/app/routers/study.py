@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 from fastapi import APIRouter, Request, Form, Query, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
+from app.access import require_user as _require_user
 from app.templating import templates
 import httpx
 from app.bls_client import get_bls_client
@@ -88,11 +89,6 @@ async def proxy_sound(sound_path: str):
     raise HTTPException(status_code=404, detail="Sound not found")
 
 
-def _require_user(request: Request):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None, RedirectResponse("/login", status_code=302)
-    return user_id, None
 
 
 async def _page_ctx(bls, user_id: str, language_id: str) -> dict:

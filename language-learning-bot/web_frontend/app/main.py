@@ -3,8 +3,8 @@ Web Frontend — FastAPI + Jinja2 + HTMX. Port: 8548
 """
 
 import logging
+import httpx
 import os
-import sys
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -63,7 +63,12 @@ async def unhandled_error(request: Request, exc: Exception):
     страницы, а не заменила её целиком.
     """
     logging.exception("необработанная ошибка на %s", request.url.path)
-    status = 503 if isinstance(exc, (ConnectionError, TimeoutError)) else 500
+    # httpx свои ошибки от встроенных ConnectionError/TimeoutError не наследует
+    # (httpx.ConnectError -> TransportError -> HTTPError -> Exception), поэтому
+    # проверка на встроенные типы не срабатывала никогда, и недоступность BLS —
+    # единственный случай, ради которого ветка и заводилась, — отдавала 500.
+    unreachable = (ConnectionError, TimeoutError, httpx.TransportError)
+    status = 503 if isinstance(exc, unreachable) else 500
     return templates.TemplateResponse(
         "error.html",
         {

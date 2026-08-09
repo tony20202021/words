@@ -79,7 +79,7 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 282, "telegram": 173, "web": 105, "backend": 140, "common": 11, "android": 64,
+    "bls": 287, "telegram": 175, "web": 105, "backend": 140, "common": 13, "android": 64,
 }
 
 
@@ -126,6 +126,14 @@ def run_component_tests(name: str, directory: Path, args, extra_pytest_args=None
         return 1
 
     cmd = ["pytest"]
+    # --coverage и --html объявлены в argparse с самого начала и никогда не
+    # читались: запуск с ними молча шёл без покрытия и рапортовал успех.
+    if args.coverage:
+        cmd.extend(["--cov=app", "--cov-report=term-missing"])
+        if args.html:
+            cmd.append("--cov-report=html")
+    elif args.html:
+        print("⚠️  --html без --coverage ничего не даёт")
     if args.verbose:
         cmd.append("-v")
     if args.exitfirst:

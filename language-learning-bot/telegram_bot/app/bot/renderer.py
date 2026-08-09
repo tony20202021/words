@@ -3,16 +3,33 @@ Renders a BLS card dict into Telegram-safe HTML text.
 No display logic here — just formatting of what BLS already decided.
 """
 
+from html import escape
 from typing import Dict, Any
 
 
+def _esc(item: Dict[str, Any]) -> str:
+    """
+    Текст из базы — не разметка.
+
+    Сообщение уходит с parse_mode="HTML", а слова, переводы и подсказки приходят
+    из БД и от пользователя. Символ < или & в них ломал разбор — Telegram
+    отвечал ошибкой и карточка не показывалась вовсе, — а сочетание вроде
+    <b> подменяло оформление.
+
+    Тип "extra" НЕ экранируется намеренно: варианты огласовки и однокоренные
+    card_builder отдаёт уже с <b>/<i>, это его разметка, а не пользовательский
+    ввод.
+    """
+    return escape(item.get("text") or "", quote=False)
+
+
 _ITEM_RENDERERS = {
-    "label":         lambda i: f"\n{i['text']}",
-    "foreign":       lambda i: f"<b>{i['text']}</b>",
-    "transcription": lambda i: f"<b>{i['text']}</b>",
-    "translation":   lambda i: f"<b>{i['text']}</b>",
-    "hint":          lambda i: f"<i>{i['text']}</i>",
-    "notice":        lambda i: i["text"],
+    "label":         lambda i: f"\n{_esc(i)}",
+    "foreign":       lambda i: f"<b>{_esc(i)}</b>",
+    "transcription": lambda i: f"<b>{_esc(i)}</b>",
+    "translation":   lambda i: f"<b>{_esc(i)}</b>",
+    "hint":          lambda i: f"<i>{_esc(i)}</i>",
+    "notice":        lambda i: _esc(i),
     "extra":         lambda i: i["text"],
 }
 

@@ -264,7 +264,11 @@
   </div>
 </div>
 {% endif %}
+{# Группа forbidden_quiz_pairs состоит из элементов типа forbidden_quiz_pairs,
+   которые ниже не отрисовываются (их показывает отдельная карточка и кнопка),
+   поэтому карточка выходила пустой — белый прямоугольник под словом. #}
 {% for extra_group in card.extra_groups or [] %}
+{% if extra_group['items'] | selectattr('type', 'in', ['label', 'extra']) | list %}
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 px-4">
     {% for item in extra_group['items'] %}
@@ -276,6 +280,7 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
 {% endfor %}
 
 {# ── Forbidden quiz pairs count (button is in the main buttons block above) ── #}

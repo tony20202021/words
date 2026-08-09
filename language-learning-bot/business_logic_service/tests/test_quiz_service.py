@@ -218,3 +218,34 @@ async def test_generate_quiz_options_no_valid_distractors():
     # Either way, should not crash
     if result is not None:
         assert len(result["options"]) >= 2
+
+def test_weighted_sample_stays_unique_with_a_boosted_pool():
+    """
+    Боевой вызов передаёт пул С ПОВТОРАМИ: boosted_pool дублирует нужные номера
+    PROB_MAX_RATIO-1 раз, чтобы поднять их вероятность. Выборка идёт без
+    повторений, но удалялся выбранный ИНДЕКС, а не значение, так что остальные
+    копии оставались и номер мог выпасть снова. Прежний тест этого не видел —
+    он проверял пул без повторов.
+    """
+    from app.services.quiz_service import _weighted_sample, PROB_MAX_RATIO
+
+    pool = list(range(1, 21)) + [3, 7] * (PROB_MAX_RATIO - 1)
+    for _ in range(100):
+        got = _weighted_sample(pool, 8, exclude=5)
+        assert len(got) == len(set(got)), got
+        assert len(got) == 8, got
+        assert 5 not in got
+
+
+def test_boost_survives_the_deduplication():
+    """Повторы сворачиваются в вес, а не выбрасываются — иначе буст исчез бы."""
+    from collections import Counter
+    from app.services.quiz_service import _weighted_sample, PROB_MAX_RATIO
+
+    pool = list(range(1, 21)) + [3, 7] * (PROB_MAX_RATIO - 1)
+    seen = Counter()
+    for _ in range(2000):
+        seen.update(_weighted_sample(pool, 4, exclude=5))
+    assert seen[3] > seen[2] * 2, (seen[3], seen[2])
+    assert seen[7] > seen[8] * 2, (seen[7], seen[8])
+

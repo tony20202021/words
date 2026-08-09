@@ -208,7 +208,15 @@ class SettingsActivity : AppCompatActivity() {
     private fun toggleSetting(key: String) {
         lifecycleScope.launch {
             try {
-                BLSClient.api.toggleSetting(userId, languageId, key)
+                // Исключение бросается только при обрыве связи; ответ 4xx/5xx
+                // Retrofit отдаёт спокойно. Игнорируя статус, мы оставляли
+                // переключатель в положении, которого на сервере нет.
+                val resp = BLSClient.api.toggleSetting(userId, languageId, key)
+                if (!resp.isSuccessful) {
+                    Toast.makeText(this@SettingsActivity,
+                        "Не удалось сохранить (${resp.code()})", Toast.LENGTH_SHORT).show()
+                    loadSettings()
+                }
             } catch (e: Exception) {
                 Toast.makeText(this@SettingsActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
                 loadSettings()

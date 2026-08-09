@@ -1,17 +1,12 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+from app.access import require_user as _require_user
 from app.templating import templates
-from pathlib import Path
 from app.bls_client import get_bls_client
 
 router = APIRouter()
 
 
-def _require_user(request: Request):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None, RedirectResponse("/login", status_code=302)
-    return user_id, None
 
 
 @router.get("/languages")

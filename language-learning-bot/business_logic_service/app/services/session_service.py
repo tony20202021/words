@@ -104,8 +104,18 @@ async def start_session(
 
     session["last_activity_at"] = datetime.utcnow().isoformat()
     if register:
+        key = _session_key(user_id, language_id)
+        # Индекс перезаписывался, а сам словарь прежней сессии оставался в
+        # _sessions навсегда: end_session снимает только текущий id. Каждое
+        # «начать заново» подвешивало батч слов (до BATCH_SIZE) и настройки до
+        # перезапуска процесса.
+        previous = _session_index.get(key)
+        if previous and previous != session_id:
+            _sessions.pop(previous, None)
+            logger.info(f"Session replaced: {previous} -> {session_id} "
+                        f"user={user_id} lang={language_id}")
         _sessions[session_id] = session
-        _session_index[_session_key(user_id, language_id)] = session_id
+        _session_index[key] = session_id
         logger.info(f"Session started: {session_id} user={user_id} lang={language_id} words={len(words)}")
     else:
         logger.info(f"Session snapshot built (unregistered): user={user_id} lang={language_id} words={len(words)}")

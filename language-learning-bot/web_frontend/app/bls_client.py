@@ -14,11 +14,6 @@ class BLSClient:
     def __init__(self, base_url: str = BLS_URL):
         self.base_url = base_url.rstrip("/")
 
-    async def get_settings(self, user_id: str, language_id: str) -> Dict[str, Any]:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{self.base_url}/settings/{user_id}/{language_id}")
-            return resp.json() if resp.is_success else {}
-
     async def get_or_create_user(
         self, telegram_id: int, username: Optional[str], first_name: str
     ) -> Dict[str, Any]:

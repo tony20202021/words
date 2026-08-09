@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from app.templating import templates
-from pathlib import Path
 from typing import Optional
 from app.bls_client import get_bls_client
 
@@ -148,7 +147,9 @@ async def connect_page(request: Request):
     result = await bls.mobile_create_token(user_id)
     code = result.get("code") if result else None
     web_url = request.base_url
-    connect_url = f"{str(web_url).rstrip('/')}login?code={code}" if code else None
+    # rstrip('/') снимал слэш, а обратно он не добавлялся: выходило
+    # «https://host:8444login?code=…» — QR вёл в никуда.
+    connect_url = f"{str(web_url).rstrip('/')}/login?code={code}" if code else None
     return templates.TemplateResponse("connect.html", {
         "request": request,
         "code": code,

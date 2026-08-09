@@ -70,8 +70,6 @@ interface BLSApi {
         @Body body: Map<String, String>,
     ): Response<SessionResponse>
 
-    @POST("session/{session_id}/clear_forbidden_pairs")
-    suspend fun clearForbiddenPairs(@Path("session_id") sessionId: String): Response<SessionResponse>
 
     @DELETE("session/{user_id}/{language_id}")
     suspend fun endSession(

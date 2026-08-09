@@ -512,7 +512,12 @@ class StudyActivity : AppCompatActivity() {
         if (card.sounds.isNotEmpty()) {
             val preparedFlags = BooleanArray(card.sounds.size) { false }
             card.sounds.forEachIndexed { i, soundPath ->
-                val url = BLSClient.soundUrl(soundPath)
+                // Сначала кеш, потом сеть — ровно как в playSoundSequence.
+                // Кнопки карточки всегда тянули звук по сети, поэтому офлайн
+                // они молчали, хотя файлы уже лежали на диске: AudioCache
+                // скачивает их заранее именно ради этого случая.
+                val url = AudioCache.cachedFile(soundPath)?.absolutePath
+                    ?: BLSClient.soundUrl(soundPath)
                 val player = MediaPlayer()
                 player.setAudioAttributes(
                     AudioAttributes.Builder()

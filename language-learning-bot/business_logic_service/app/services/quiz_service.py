@@ -130,12 +130,21 @@ def _weighted_sample(word_numbers: List[int], count: int, exclude: int) -> List[
     Ratio between word #1 and word #1000 is ~4x (log10 scale:
     1→×1, 10→×2, 100→×3, 1000→×4), much flatter than the old 1/n formula.
     """
-    pool = [n for n in word_numbers if n != exclude]
+    # Повторы в пуле — это способ поднять вероятность (boosted_pool дублирует
+    # нужные номера PROB_MAX_RATIO-1 раз). Но выборка идёт БЕЗ повторений, а из
+    # remaining удалялся выбранный ИНДЕКС, а не значение: остальные копии того
+    # же номера оставались, и он мог выпасть снова. Дистракторы дублировались,
+    # и их получалось меньше запрошенного. Сворачиваем повторы в вес.
+    counts: Dict[int, int] = {}
+    for n in word_numbers:
+        if n != exclude:
+            counts[n] = counts.get(n, 0) + 1
+    pool = list(counts)
     if not pool:
         return []
     count = min(count, len(pool))
 
-    raw = [1.0 / (math.log10(n) + 1) for n in pool]
+    raw = [counts[n] / (math.log10(n) + 1) for n in pool]
     max_w = max(raw)
     floor_w = max_w / PROB_MAX_RATIO
     weights = [max(w, floor_w) for w in raw]

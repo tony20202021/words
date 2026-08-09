@@ -54,8 +54,15 @@ class LanguagesActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        loadLanguages()
+        // onCreate уже загрузил список, и при первом запуске onResume идёт сразу
+        // за ним. Офлайн это давало ДВА подряд провала, счётчик мгновенно
+        // добирал до порога, и человек получал диалог «выйти и войти заново» —
+        // хотя всё, что случилось, это отсутствие сети.
+        if (loadedOnce) loadLanguages() else loadedOnce = true
     }
+
+    /** Список уже загружен из onCreate — первый onResume повторять его не должен. */
+    private var loadedOnce = false
 
     private fun loadLanguages() {
         binding.progress.visibility = View.VISIBLE
