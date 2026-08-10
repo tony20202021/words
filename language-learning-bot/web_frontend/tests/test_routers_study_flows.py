@@ -116,8 +116,13 @@ def test_pick_answer_forwards_the_chosen_word(client, bls):
     _login(client, bls)
     bls.pick_answer = AsyncMock(return_value={
         "session_id": "s1",
+        # Кнопка запрета теперь приходит в buttons[] — так же, как остальные.
         "card": _pick_card(show_answer=True, pick_answer_result="wrong",
-                           last_wrong_distractor_id="w-2"),
+                           buttons=[{"id": "rate", "rating": "dont_know",
+                                     "text": "➡️ Дальше", "style": "success"},
+                                    {"id": "ban_pair", "style": "outline-warning",
+                                     "text": "🚫 Не показывать такую комбинацию",
+                                     "bad_word_id": "w-2"}]),
     })
 
     with patch("app.routers.study.get_bls_client", return_value=bls):

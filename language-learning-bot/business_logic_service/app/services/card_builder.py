@@ -69,7 +69,8 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
                           session.get("language_name_ru", ""))
         _add_hints(content, word, uwd, settings)
         sounds = all_sounds
-        buttons = _buttons_after(is_skipped, score_changed, show_skip)
+        buttons = _buttons_after(is_skipped, score_changed, show_skip,
+                                 session.get("last_wrong_distractor_id"))
 
     big_word = None
     if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
@@ -354,13 +355,22 @@ def _skip_button(is_skipped: bool) -> Dict[str, Any]:
 
 
 def _buttons_before(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
-    btns = [
+    """
+    Вопросная сторона: только «знаю» и «не знаю».
+
+    «Пропускать» здесь не место. Решение исключить слово принимают, УВИДЕВ его
+    целиком — с переводом и произношением, — а на вопросной стороне перевода нет.
+    Кнопка там же путала: она появлялась на одних словах и не появлялась на
+    других (пик-режим включается случайно), и это выглядело как зависимость от
+    прошлого ответа. Теперь она живёт на экране ответа и всегда.
+
+    show_skip остаётся в сигнатуре: вызывающий код общий с _buttons_after, и
+    выкидывать параметр ради двух строк значило бы разводить их сигнатуры.
+    """
+    return [
         {"id": "know", "text": "✅ Знаю", "style": "success", **_offline("record_and_reveal", "know")},
         {"id": "show_answer", "text": "❓ Не знаю", "style": "outline-danger", **_offline("reveal_answer")},
     ]
-    if show_skip:
-        btns.append(_skip_button(is_skipped))
-    return btns
 
 
 def _buttons_pick(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
@@ -375,15 +385,24 @@ def _buttons_pick(is_skipped: bool, show_skip: bool = True) -> List[Dict[str, An
     клиент дополнительно показывает баннер из pick_answer_result. Обычный
     show_answer ничего не записывает — перепутав их, клиент потерял бы оценку.
     """
-    btns = [{"id": "pick_dont_know", "text": "❓ Не знаю", "style": "outline-secondary",
+    return [{"id": "pick_dont_know", "text": "❓ Не знаю", "style": "outline-secondary",
              **_offline("record_and_reveal", "dont_know")}]
-    if show_skip:
-        btns.append(_skip_button(is_skipped))
-    return btns
 
 
-def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True) -> List[Dict[str, Any]]:
+def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True,
+                   ban_distractor_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Ответная сторона: переход дальше, «Пропускать» и — в пик-режиме — запрет
+    комбинации.
+
+    Запрет показывается, только когда есть ЧТО запрещать: конкретный вариант,
+    который сбил с толку. После верного ответа такого варианта нет, и после
+    «не знаю» тоже — там учащегося никто не путал.
+    """
     skip_btn = _skip_button(is_skipped)
+    ban_btn = ({"id": "ban_pair", "text": "🚫 Не показывать такую комбинацию",
+                "style": "outline-warning", "bad_word_id": ban_distractor_id}
+               if ban_distractor_id else None)
     if score_changed:
         # Оценка уже записана кнопкой know — здесь только переход, иначе
         # офлайн запишет результат дважды.
@@ -398,11 +417,15 @@ def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True
                      "style": "outline-danger", **_offline("reveal_question")})
         if show_skip:
             btns.append(skip_btn)
+        if ban_btn:
+            btns.append(ban_btn)
         return btns
     btns = [{"id": "rate", "text": "➡️ Дальше", "style": "success",
              "rating": "dont_know", **_offline("submit", "dont_know")}]
     if show_skip:
         btns.append(skip_btn)
+    if ban_btn:
+        btns.append(ban_btn)
     return btns
 
 

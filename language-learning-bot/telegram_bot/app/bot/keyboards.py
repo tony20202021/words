@@ -80,12 +80,6 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
     if show_answer and word_id and hint_enabled:
         builder.button(text="💡 Подсказки", callback_data=f"hint:{language_id}:{word_id}:show")
 
-    # "Ban this distractor" button after wrong pick-mode answer
-    last_wrong = card.get("last_wrong_distractor_id")
-    if last_wrong:
-        builder.button(text="🚫 Не показывать такую комбинацию",
-                       callback_data=f"study:{language_id}:{ACTION_BAN_PAIR}:{last_wrong}")
-
     # Запреты копятся молча, и снять их из Telegram было нечем — кнопка есть
     # только в вебе. Показываем счётчик и способ откатить, как в web_frontend.
     banned = forbidden_pairs_count(card)
@@ -132,4 +126,8 @@ def _callback(btn: Dict[str, Any], language_id: str) -> str:
     btn_id = btn["id"]
     if btn_id == "rate":
         return f"study:{language_id}:rate:{btn['rating']}"
+    if btn_id == "ban_pair":
+        # Запрет комбинации приходит теперь общей кнопкой: правило «когда её
+        # показывать» лежит в card_builder, а не повторяется в трёх клиентах.
+        return f"study:{language_id}:{ACTION_BAN_PAIR}:{btn.get('bad_word_id', '')}"
     return f"study:{language_id}:{btn_id}"

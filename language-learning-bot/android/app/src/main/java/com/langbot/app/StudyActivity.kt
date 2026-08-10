@@ -610,6 +610,9 @@ class StudyActivity : AppCompatActivity() {
         // Action buttons / pick mode options
         binding.buttonRow.removeAllViews()
         val pickOptions = card.pick_options
+        // Кнопка запрета комбинации рисуется отдельной строкой ниже, поэтому в
+        // общий ряд она попасть не должна — иначе появилась бы дважды.
+        val mainButtons = card.buttons.filter { it.id != "ban_pair" }
         if (pickOptions != null && !card.show_answer) {
             // Pick mode: show option buttons vertically
             binding.buttonRow.orientation = LinearLayout.VERTICAL
@@ -681,10 +684,10 @@ class StudyActivity : AppCompatActivity() {
             for (btn in card.buttons) {
                 binding.buttonRow.addView(makeCardButton(btn))
             }
-        } else if (card.buttons.size >= 3) {
+        } else if (mainButtons.size >= 3) {
             binding.buttonRow.orientation = LinearLayout.VERTICAL
-            val row1 = buildButtonRow(card.buttons.take(2))
-            val row2 = buildButtonRow(card.buttons.drop(2))
+            val row1 = buildButtonRow(mainButtons.take(2))
+            val row2 = buildButtonRow(mainButtons.drop(2))
             val row2lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             row2lp.topMargin = dpToPx(4)
@@ -693,8 +696,8 @@ class StudyActivity : AppCompatActivity() {
             binding.buttonRow.addView(row2)
         } else {
             binding.buttonRow.orientation = LinearLayout.HORIZONTAL
-            val weight = 1f / card.buttons.size.coerceAtLeast(1)
-            for (btn in card.buttons) {
+            val weight = 1f / mainButtons.size.coerceAtLeast(1)
+            for (btn in mainButtons) {
                 val b = makeCardButton(btn)
                 val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
                 lp.marginStart = 4; lp.marginEnd = 4
@@ -721,12 +724,16 @@ class StudyActivity : AppCompatActivity() {
             binding.btnHints.visibility = View.GONE
         }
 
-        // "Ban this distractor" button after wrong pick-mode answer — placed below main buttons
-        val lastWrongId = card.last_wrong_distractor_id
+        // Запрет комбинации — отдельной строкой под основными кнопками: она
+        // шире и другого цвета, это осознанная вёрстка. Но КОГДА её показывать,
+        // решает card_builder, а не экран: кнопка приходит в buttons[] с
+        // id="ban_pair", и правило лежит в одном месте на все три клиента.
+        val banBtn0 = card.buttons.firstOrNull { it.id == "ban_pair" }
+        val lastWrongId = banBtn0?.bad_word_id
         binding.banButtonRow.removeAllViews()
         if (!lastWrongId.isNullOrEmpty()) {
             val banBtn = MaterialButton(this)
-            banBtn.text = "🚫 Не показывать такую комбинацию"
+            banBtn.text = banBtn0?.text ?: "🚫 Не показывать такую комбинацию"
             banBtn.textSize = 13f
             banBtn.setPadding(16, 14, 16, 14)
             banBtn.setBackgroundColor(ContextCompat.getColor(this, android.R.color.transparent))

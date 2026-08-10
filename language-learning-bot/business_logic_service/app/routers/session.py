@@ -257,8 +257,12 @@ async def pick_answer(session_id: str, req: PickAnswerRequest,
             await session_service.show_answer_word(session, api_client)
             incorrect_count = session.get("incorrect_count", 0)
             background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
-            # Store selected wrong distractor so card can show "ban this pair" button
-            session["last_wrong_distractor_id"] = req.selected_word_id
+            # Запоминаем ТОЛЬКО настоящий вариант, который сбил с толку.
+            # «Не знаю» тоже приходит сюда как «не тот ответ», и раньше в поле
+            # оседала строка "dont_know" — кнопка предлагала запретить
+            # комбинацию со словом, которого не существует.
+            session["last_wrong_distractor_id"] = (
+                req.selected_word_id if req.selected_word_id != "dont_know" else None)
             session["pick_answer_result"] = "wrong"
 
     session_service.touch_session(session)

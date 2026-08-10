@@ -92,8 +92,10 @@ class TestBeforeAnswer:
         ids = button_ids(card)
         assert "know" in ids
         assert "show_answer" in ids
-        assert "toggle_skip" in ids
         assert "rate" not in ids
+        # «Пропускать» переехала на экран ответа: исключать слово решают, увидев
+        # его целиком, а на вопросной стороне нет ни перевода, ни произношения.
+        assert "toggle_skip" not in ids
 
     def test_sound_mode_includes_sounds(self):
         import json
@@ -256,15 +258,19 @@ class TestRateButton:
 
 class TestSkipButton:
     def test_skip_text_when_not_skipped(self):
-        card = build_card(make_session(), make_word(is_skipped=False), show_answer=False)
+        card = build_card(make_session(), make_word(is_skipped=False), show_answer=True)
         skip_btn = next(b for b in card["buttons"] if b["id"] == "toggle_skip")
         assert "Пропускать" in skip_btn["text"]
         assert "Не пропускать" not in skip_btn["text"]
 
     def test_unskip_text_when_skipped(self):
-        card = build_card(make_session(), make_word(is_skipped=True), show_answer=False)
+        card = build_card(make_session(), make_word(is_skipped=True), show_answer=True)
         skip_btn = next(b for b in card["buttons"] if b["id"] == "toggle_skip")
         assert "Не пропускать" in skip_btn["text"]
+
+    def test_skip_absent_before_answer(self):
+        card = build_card(make_session(), make_word(), show_answer=False)
+        assert "toggle_skip" not in button_ids(card)
 
     def test_skip_present_after_answer_score_changed(self):
         card = build_card(make_session(score_changed=True), make_word(), show_answer=True)
@@ -775,7 +781,10 @@ def test_before_answer_buttons_carry_offline_semantics():
     show = _btn(card, "show_answer")
     assert show["offline_effect"] == "reveal_answer"
     assert "offline_rating" not in show
-    skip = _btn(card, "toggle_skip")
+    # Офлайн-семантику «Пропускать» проверяем на ответной стороне: там она
+    # теперь и живёт.
+    back = build_card(make_session(show_answer=True), make_word(), show_answer=True)
+    skip = _btn(back, "toggle_skip")
     assert skip["offline_effect"] == "submit"
     assert skip["offline_rating"] == "skip"
 
@@ -953,20 +962,22 @@ def test_pick_mode_sends_its_own_buttons():
     card = build_card(_pick_session(), word, show_answer=False)
 
     ids = [b["id"] for b in card["buttons"]]
-    assert ids == ["pick_dont_know", "toggle_skip"], ids
+    assert ids == ["pick_dont_know"], ids
     assert "know" not in ids and "show_answer" not in ids
 
 
-def test_pick_mode_keeps_the_skip_button_the_setting_asks_for():
-    """Настройка show_skip_button в пик-режиме молча не работала во всех трёх клиентах."""
+def test_pick_mode_shows_only_dont_know_next_to_the_options():
+    """
+    Рядом с вариантами — только «Не знаю». «Пропускать» здесь не место: решение
+    исключить слово принимают, увидев его целиком, а на вопросной стороне нет
+    ни перевода, ни произношения.
+    """
     word = make_word()
     word["user_word_data"] = {"is_skipped": False}
 
-    with_skip = build_card(_pick_session(show_skip=True), word, show_answer=False)
-    without = build_card(_pick_session(show_skip=False), word, show_answer=False)
-
-    assert [b["id"] for b in with_skip["buttons"]] == ["pick_dont_know", "toggle_skip"]
-    assert [b["id"] for b in without["buttons"]] == ["pick_dont_know"]
+    for show_skip in (True, False):
+        card = build_card(_pick_session(show_skip=show_skip), word, show_answer=False)
+        assert [b["id"] for b in card["buttons"]] == ["pick_dont_know"], show_skip
 
 
 def test_pick_dont_know_records_the_answer_offline():
@@ -983,14 +994,50 @@ def test_pick_dont_know_records_the_answer_offline():
     assert btn["offline_rating"] == "dont_know"
 
 
-def test_skip_state_is_reflected_in_pick_mode():
-    """Снять пометку «пропущено» из пик-режима было нечем — кнопки не существовало."""
+def test_skip_lives_on_the_answer_side_only():
+    """
+    «Пропускать» — на экране ответа и всегда (когда настройка включена). На
+    вопросной стороне её быть не должно ни в обычном режиме, ни в пик-режиме:
+    она появлялась то там, то тут (пик-режим включается случайно) и выглядела
+    как зависящая от прошлого ответа.
+    """
+    word = make_word()
+    word["user_word_data"] = {"is_skipped": False}
+
+    for session in (make_session(show_answer=False), _pick_session()):
+        front = build_card(session, word, show_answer=False)
+        assert "toggle_skip" not in [b["id"] for b in front["buttons"]]
+
+    for score_changed in (True, False):
+        s = make_session(show_answer=True)
+        s["session_score_changed"] = score_changed
+        back = build_card(s, word, show_answer=True)
+        assert "toggle_skip" in [b["id"] for b in back["buttons"]], score_changed
+
+
+def test_skip_state_is_visible_on_the_answer_side():
     word = make_word()
     word["user_word_data"] = {"is_skipped": True}
-    card = build_card(_pick_session(), word, show_answer=False)
+    card = build_card(make_session(show_answer=True), word, show_answer=True)
 
     skip = next(b for b in card["buttons"] if b["id"] == "toggle_skip")
     assert skip["text"] == "⏩ Не пропускать"
+
+
+def test_ban_combination_button_only_after_a_misleading_option():
+    """
+    Запрещать имеет смысл конкретный вариант, который сбил с толку. После
+    верного ответа такого нет, и после «не знаю» тоже — там никто не путал.
+    """
+    from app.services.card_builder import _buttons_after
+
+    misled = [b["id"] for b in _buttons_after(False, False, True, "w-2")]
+    assert "ban_pair" in misled
+    ban = next(b for b in _buttons_after(False, False, True, "w-2") if b["id"] == "ban_pair")
+    assert ban["bad_word_id"] == "w-2"
+
+    for no_target in (None, ""):
+        assert "ban_pair" not in [b["id"] for b in _buttons_after(False, False, True, no_target)]
 
 
 def test_answer_side_of_pick_mode_keeps_the_normal_buttons():

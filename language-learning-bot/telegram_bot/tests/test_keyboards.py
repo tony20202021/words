@@ -174,8 +174,11 @@ class TestPickModeKeyboard:
         assert "study:lang1:know" in cbs or any("rate" in c for c in cbs)
 
     def test_ban_distractor_button_shown(self):
+        """Кнопка приходит в buttons[] — правило «когда показывать» в card_builder."""
         card = make_card(show_answer=True)
-        card["last_wrong_distractor_id"] = "bad-word-id"
+        card["buttons"] = card.get("buttons", []) + [
+            {"id": "ban_pair", "text": "🚫 Не показывать такую комбинацию",
+             "style": "outline-warning", "bad_word_id": "bad-word-id"}]
         kb = build_card_keyboard(card, "lang1")
         cbs = callbacks(kb)
         assert "study:lang1:ban:bad-word-id" in cbs

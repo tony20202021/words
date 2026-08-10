@@ -174,6 +174,11 @@
           <button class="btn btn-{{ btn.style }} btn-rate"
             hx-post="/study/{{ language_id }}/toggle_skip"
             hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
+        {% elif btn.id == 'ban_pair' %}
+          <button class="btn btn-{{ btn.style }} btn-sm btn-rate"
+            hx-post="/study/{{ language_id }}/add_forbidden_pair"
+            hx-vals='{"bad_word_id": "{{ btn.bad_word_id }}"}'
+            hx-target="#word-area" hx-swap="outerHTML">{{ btn.text }}</button>
         {% elif btn.id == 'reconsider' %}
           <button class="btn btn-{{ btn.style }} btn-rate"
             hx-post="/study/{{ language_id }}/reconsider"
@@ -199,15 +204,7 @@
           </button>
         {% endif %}
       {% endfor %}
-      {# ── "Ban this distractor" button — shown after wrong pick-mode answer ── #}
-      {% if card.last_wrong_distractor_id %}
-        <button class="btn btn-outline-warning btn-sm"
-          hx-post="/study/{{ language_id }}/add_forbidden_pair"
-          hx-vals='{"bad_word_id": "{{ card.last_wrong_distractor_id }}"}'
-          hx-target="#word-area" hx-swap="outerHTML">
-          🚫 Не показывать такую комбинацию
-        </button>
-      {% endif %}
+
     </div>
 
     {# ── Hints panel — populated by HTMX ─────────────────────────────────── #}

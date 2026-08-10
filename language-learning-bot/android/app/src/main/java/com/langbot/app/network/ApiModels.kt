@@ -78,6 +78,9 @@ data class CardButton(
     // Server-declared offline semantics (source of truth; see BLS card_builder):
     val offline_effect: String? = null,   // reveal_answer | reveal_question | submit
     val offline_rating: String? = null,   // rating to record when effect == submit
+    // Для id="ban_pair": какой именно вариант запрещать. Правило «когда
+    // показывать» живёт в card_builder, клиент только рисует пришедшее.
+    val bad_word_id: String? = null,
 )
 
 data class CardMeta(
