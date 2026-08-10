@@ -272,6 +272,32 @@ class TestSkipButton:
         card = build_card(make_session(), make_word(), show_answer=False)
         assert "toggle_skip" not in button_ids(card)
 
+    def test_skip_obeys_the_setting_on_the_answer_side(self):
+        """
+        Кнопка показывается только при включённой галке show_skip_button.
+        Проверки на ВЫКЛЮЧЕННУЮ настройку не было ни одной, а именно этот случай
+        и ломался молча: в пик-режиме настройка не работала вовсе, и заметить
+        это было нечем — карточка выглядела правдоподобно в обоих положениях.
+        """
+        word = make_word()
+        for score_changed in (True, False):
+            on = build_card(make_session(show_answer=True, score_changed=score_changed,
+                                         settings={"show_skip_button": True}),
+                            word, show_answer=True)
+            off = build_card(make_session(show_answer=True, score_changed=score_changed,
+                                          settings={"show_skip_button": False}),
+                             word, show_answer=True)
+            assert "toggle_skip" in button_ids(on), score_changed
+            assert "toggle_skip" not in button_ids(off), score_changed
+            # Выключенная галка убирает ТОЛЬКО её: переход дальше обязан остаться.
+            assert "rate" in button_ids(off), score_changed
+
+    def test_skip_setting_defaults_to_shown(self):
+        """Умолчание — показывать: настройки может не быть вовсе."""
+        card = build_card(make_session(show_answer=True, settings={}), make_word(),
+                          show_answer=True)
+        assert "toggle_skip" in button_ids(card)
+
     def test_skip_present_after_answer_score_changed(self):
         card = build_card(make_session(score_changed=True), make_word(), show_answer=True)
         assert "toggle_skip" in button_ids(card)
