@@ -179,16 +179,52 @@ async def test_prerendered_answer_card_has_no_you_knew_it_badge():
     assert not any("Вы знали это слово" in n for n in notices), notices
 
 
-@pytest.mark.asyncio
-async def test_online_answer_card_still_shows_it_after_a_failure():
-    """Контроль: онлайн плашка обязана остаться — она отмечает откат."""
+async def _answer_online(action, user: str):
+    """
+    Прогнать НАСТОЯЩИЙ онлайн-переход и вернуть построенную карточку ответа.
+
+    Собирать сессию словарём вручную нельзя: именно так я дважды получил неверный
+    ответ. Словарь из головы не знает, что show_answer_word ПЕРЕД построением
+    карточки записывает score=0 и обнуляет интервал, — а от этого всё и зависит.
+    """
+    from app.services import session_service as ss
     from app.services.card_builder import build_card
 
     word = make_word(1)
-    word["user_word_data"] = {"score": 1, "check_interval": 5, "is_skipped": False}
-    session = {"settings": {}, "words": [], "current_index": 0, "score_changed": False}
+    word["user_word_data"] = {"score": 1, "check_interval": 5, "is_skipped": False,
+                              "next_check_date": "2026-08-14"}
+    api = make_mock_api(words=[word], settings={"random_pick_mode": False})
+    session = await ss.start_session(user, "lang1", api)
+    await action(session, api)
+    current = ss.get_current_word(session)
+    return build_card(session, current, show_answer=True)
 
-    card = build_card(session, word, show_answer=True)
-    notices = [c["text"] for c in card["content"] if c["type"] == "notice"]
-    assert any("Вы знали это слово" in n for n in notices), notices
+
+def _notices(card):
+    return [c["text"] for c in card["content"] if c["type"] == "notice"]
+
+
+@pytest.mark.asyncio
+async def test_badge_shows_the_interval_the_word_had_before_the_answer():
+    """
+    Плашка отмечает откат: слово знали, интервал дорос до 5 дней, и вот его не
+    вспомнили. Условие обязано смотреть на значения ДО ответа — «Не знаю»
+    записывает score=0 и обнуляет интервал раньше, чем строится карточка, так
+    что на текущих значениях плашка не появлялась никогда.
+    """
+    from app.services import session_service as ss
+
+    card = await _answer_online(ss.show_answer_word, "u_badge_online")
+    texts = _notices(card)
+    assert any("Вы знали это слово" in t for t in texts), texts
+    assert any("5 дн." in t for t in texts), texts
+
+
+@pytest.mark.asyncio
+async def test_badge_hidden_when_the_word_was_answered_correctly():
+    """После «Знаю» отката не было — отмечать нечего."""
+    from app.services import session_service as ss
+
+    card = await _answer_online(ss.know_word, "u_badge_known")
+    assert not any("Вы знали это слово" in t for t in _notices(card)), _notices(card)
 

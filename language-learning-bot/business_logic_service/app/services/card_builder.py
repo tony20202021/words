@@ -40,9 +40,15 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         # score_changed всегда False — плашка вылезала и после «Знаю», где онлайн
         # её прячет. Показать неверно хуже, чем не показать: пропущенная подсказка
         # ничего не портит, а ложная сообщает о провале, которого не было.
-        if not score_changed and score == 1 and interval > 0:
+        # Значения ДО ответа, а не после. Онлайн «Не знаю» записывает score=0 и
+        # обнуляет интервал ПРЕЖДЕ, чем строится карточка, поэтому условие на
+        # текущих значениях не выполнялось никогда: плашка молча не работала во
+        # всём онлайн-потоке и вылезала только офлайн, где карточка рисуется
+        # заранее, до всякой записи. prev_* сохраняются в session_service ровно
+        # для этого случая — и рядом, в score_badge, уже используются.
+        if not score_changed and badge_score == 1 and badge_interval > 0:
             content.append({"type": "notice", "variant": "info",
-                             "text": f"⏱ Вы знали это слово:\nПредыдущий интервал: {interval} дн."})
+                             "text": f"⏱ Вы знали это слово:\nПредыдущий интервал: {badge_interval} дн."})
 
     session_words = session.get("words", [])
     session_current = session.get("current_index", 0)
