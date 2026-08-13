@@ -157,3 +157,38 @@ async def test_apply_results_batch_applies_in_timestamp_order():
     # duplicates and assert the words were processed in ascending-ts order.
     ordered = [w for i, w in enumerate(seen) if i == 0 or w != seen[i - 1]]
     assert ordered == ["word-1", "word-2", "word-3"]
+
+# ── что зависит от нажатия, в снимок не попадает ─────────────────────────────
+
+@pytest.mark.asyncio
+async def test_prerendered_answer_card_has_no_you_knew_it_badge():
+    """
+    Плашка «⏱ Вы знали это слово» держится на score_changed — то есть на том,
+    ЧТО пользователь нажал. В партии ответная сторона рисуется заранее, одна на
+    оба исхода, и score_changed там всегда False: плашка вылезала и после
+    «Знаю», где онлайн её прячет. Офлайн сообщал о провале, которого не было.
+    """
+    word = make_word(1)
+    word["user_word_data"] = {"score": 1, "check_interval": 5, "is_skipped": False}
+    api = make_mock_api(words=[word], settings={"random_pick_mode": False})
+
+    bundle = await build_bundle("u_badge", "lang1", api)
+    answer = bundle["words"][0]["card_answer"]
+
+    notices = [c["text"] for c in answer["content"] if c["type"] == "notice"]
+    assert not any("Вы знали это слово" in n for n in notices), notices
+
+
+@pytest.mark.asyncio
+async def test_online_answer_card_still_shows_it_after_a_failure():
+    """Контроль: онлайн плашка обязана остаться — она отмечает откат."""
+    from app.services.card_builder import build_card
+
+    word = make_word(1)
+    word["user_word_data"] = {"score": 1, "check_interval": 5, "is_skipped": False}
+    session = {"settings": {}, "words": [], "current_index": 0, "score_changed": False}
+
+    card = build_card(session, word, show_answer=True)
+    notices = [c["text"] for c in card["content"] if c["type"] == "notice"]
+    assert any("Вы знали это слово" in n for n in notices), notices
+

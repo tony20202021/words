@@ -33,7 +33,13 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
         content.append({"type": "notice", "variant": "secondary",
                          "text": "⏩ Статус: это слово помечено для пропуска."})
 
-    if show_answer:
+    if show_answer and not session.get("prerendered"):
+        # Плашка значит «ты знал это слово, а сейчас не вспомнил»: она держится
+        # на score_changed, то есть на том, ЧТО пользователь нажал. В офлайн-партии
+        # ответная сторона рисуется заранее, одна на оба исхода, и там
+        # score_changed всегда False — плашка вылезала и после «Знаю», где онлайн
+        # её прячет. Показать неверно хуже, чем не показать: пропущенная подсказка
+        # ничего не портит, а ложная сообщает о провале, которого не было.
         if not score_changed and score == 1 and interval > 0:
             content.append({"type": "notice", "variant": "info",
                              "text": f"⏱ Вы знали это слово:\nПредыдущий интервал: {interval} дн."})
