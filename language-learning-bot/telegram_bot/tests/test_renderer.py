@@ -252,3 +252,28 @@ def test_unknown_content_type_is_logged(caplog):
     with caplog.at_level(logging.WARNING, logger="app.bot.renderer"):
         render_card_text(card)
     assert any("brand_new_type" in r.getMessage() for r in caplog.records)
+
+def test_extra_lines_get_left_to_right_direction():
+    """
+    В Telegram нельзя задать направление абзаца, а строка вида
+    «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается с ивритской буквы — клиент прижимал
+    её вправо вместе с русским хвостом. Направление задаёт метка LRM в начале
+    строки; сам текст не меняется.
+    """
+    from app.bot.renderer import render_extra_texts
+
+    card = {"extra_content": [
+        {"type": "label", "text": "🌱 Слова с той же основой:", "group": "references"},
+        {"type": "extra", "text": "<b>את</b>: <i>слов: 2</i>\n<i>[#28]</i>אוֹתְךָ тебя",
+         "group": "references"},
+    ]}
+    body = "\n".join(render_extra_texts(card))
+    content = [l for l in body.split("\n") if "את" in l or "אוֹתְךָ" in l]
+    assert content, body
+    for line in content:
+        assert line.startswith("\u200e"), repr(line)
+    # Текст не тронут — метка только в начале.
+    assert "אוֹתְךָ тебя" in body
+    # Подпись блока — обычный русский текст, метка ей не нужна.
+    assert "🌱 Слова с той же основой:" in body
+

@@ -283,7 +283,11 @@
       {% if item.type == 'label' %}
         <div class="text-muted small mb-1">{{ item.text }}</div>
       {% elif item.type == 'extra' %}
-        <div class="small mb-1" style="white-space: pre-wrap">{{ item.text | safe }}</div>
+        {# dir="ltr" обязателен. Строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается
+           с ивритской буквы, браузер берёт направление абзаца по первому сильному
+           символу и прижимает ВСЮ строку вправо — вместе с русским хвостом.
+           Ивритские слова внутри при этом остаются справа налево, как и должны. #}
+        <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
       {% endif %}
     {% endfor %}
   </div>

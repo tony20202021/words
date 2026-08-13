@@ -24,6 +24,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -75,6 +76,11 @@ class StudyActivityOfflineHandoffTest {
                 return if (path.startsWith("/session/") && request.method == "GET") {
                     MockResponse().setResponseCode(200).setBody(gson.toJson(
                         SessionResponse(session_id = "sid-1", card = frontCard(serverCardWordId, 3))
+                    ))
+                } else if (path.endsWith("/know") && request.method == "POST") {
+                    // Онлайн-ответ на слово: сервер отдаёт ответную сторону.
+                    MockResponse().setResponseCode(200).setBody(gson.toJson(
+                        SessionResponse(session_id = "sid-1", card = answerCard(serverCardWordId, 3))
                     ))
                 } else {
                     // Всё остальное (префетч бандла, флаш outbox) в этом тесте
@@ -211,4 +217,38 @@ class StudyActivityOfflineHandoffTest {
         assertEquals("w2", out.first().word_id)
         assertEquals("know", out.first().rating)
     }
+
+
+    @Test
+    fun first_step_into_offline_lands_on_the_question_of_the_next_word() {
+        // Сценарий из отчёта: онлайн ответили на первое слово (увидели его
+        // ответную сторону), нажали «Дальше» — и на этом пропала сеть.
+        // Ожидание: вопрос ВТОРОГО слова. Ответная сторона означала бы, что
+        // экран вопроса проскочили.
+        OfflineCache.saveBundle(bundleOf("w1", "w2", "w3"))
+        serverCardWordId = "w1"
+
+        val activity = launchStudy()
+        pumpUntil("вопрос первого слова") { buttonTexts(activity).contains("Знаю") }
+
+        // Отвечаем ОНЛАЙН — сервер ещё жив.
+        click(activity, "Знаю")
+        pumpUntil("ответная сторона первого слова") { buttonTexts(activity).contains("Дальше") }
+
+        // Сеть пропадает ровно на переходе к следующему слову.
+        server.shutdown()
+        click(activity, "Дальше")
+        pumpUntil("переход в офлайн") { offlineBannerShown(activity) }
+
+        val texts = buttonTexts(activity)
+        assertTrue(
+            "ожидался вопрос следующего слова, кнопки: $texts",
+            texts.contains("Знаю"),
+        )
+        assertFalse(
+            "показана ответная сторона — экран вопроса проскочили: $texts",
+            texts.any { it.contains("Дальше") },
+        )
+    }
+
 }

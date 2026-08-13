@@ -10,6 +10,14 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 
+LRM = "\u200e"
+
+
+def _ltr_lines(text: str) -> str:
+    """Задать строкам направление слева направо, не трогая сам текст."""
+    return "\n".join(LRM + line if line.strip() else line for line in (text or "").split("\n"))
+
+
 def _esc(item: Dict[str, Any]) -> str:
     """
     Текст из базы — не разметка.
@@ -41,7 +49,10 @@ _ITEM_RENDERERS = {
     "translation":   lambda i: f"<b>{_esc(i)}</b>",
     "hint":          lambda i: f"<i>{_esc(i)}</i>",
     "notice":        lambda i: _esc(i),
-    "extra":         lambda i: i["text"],
+    # Каждую строку начинаем с LEFT-TO-RIGHT MARK. В Telegram нет способа задать
+    # направление абзаца, а строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается с
+    # ивритской буквы, и клиент прижимает её вправо вместе с русским хвостом.
+    "extra":         lambda i: _ltr_lines(i["text"]),
     # card_builder кладёт сюда список запрещённых дистракторов (без "text").
     # Пока рендерера не было, блок молча пропадал: пользователь Telegram не
     # видел, что запреты копятся, и не мог их снять.

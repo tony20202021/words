@@ -258,13 +258,20 @@ class StudyActivity : AppCompatActivity() {
      * пользователя нельзя — оценка ушла бы в outbox (и дальше на сервер) за
      * чужое слово, молча и без следов.
      */
-    private fun enterOfflineFromStore(): OfflineEntry {
+    private fun enterOfflineFromStore(render: Boolean = true): OfflineEntry {
         val eng = OfflineEngine.fromStore(userId, languageId) ?: return OfflineEntry.NO_BUNDLE
         val sameWord = eng.positionAtWord(lastWordId)
         if (!eng.hasCurrent()) return OfflineEntry.NO_BUNDLE
         offline = eng
         offlineCurrentRecorded = false
-        renderOfflineCurrent(showAnswer = false)
+        // render=false, когда вызывающий тут же применит нажатие пользователя и
+        // отрисует результат сам. Иначе экран рисовался ДВАЖДЫ: сначала вопрос
+        // текущего слова, следом — результат действия. Со стороны это выглядело
+        // как проскочивший экран: нажал «Знаю» при пропавшей сети и увидел, как
+        // мимо мелькнул вопрос, прежде чем показался ответ.
+        if (render) {
+            renderOfflineCurrent(showAnswer = false)
+        }
         Toast.makeText(this, "Нет сети — занимаемся офлайн", Toast.LENGTH_SHORT).show()
         return if (sameWord) OfflineEntry.SAME_WORD else OfflineEntry.OTHER_WORD
     }
@@ -899,6 +906,13 @@ class StudyActivity : AppCompatActivity() {
                                 htmlText, android.text.Html.FROM_HTML_MODE_COMPACT)
                         }
                         tv.textSize = 15f
+                        // Строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается с
+                        // ивритской буквы, и система берёт направление абзаца по
+                        // первому сильному символу — весь блок уезжал вправо
+                        // вместе с русским хвостом. Сами ивритские слова внутри
+                        // при этом остаются справа налево, как и должны.
+                        tv.textDirection = View.TEXT_DIRECTION_LTR
+                        tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
                         val lp = LinearLayout.LayoutParams(
                             LinearLayout.LayoutParams.MATCH_PARENT,
                             LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -951,9 +965,14 @@ class StudyActivity : AppCompatActivity() {
 
                 if (resp == null) {
                     // Сервер недостижим — работаем из кеша, действие применяем локально.
-                    when (enterOfflineFromStore()) {
+                    // На ветке SAME_WORD рисует handleOfflineAction, поэтому сюда
+                    // промежуточный кадр не нужен; на остальных рисовать некому.
+                    when (enterOfflineFromStore(render = false)) {
                         OfflineEntry.SAME_WORD  -> handleOfflineAction(btn)
-                        OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                        OfflineEntry.OTHER_WORD -> {
+                            renderOfflineCurrent(showAnswer = false)
+                            warnOfflineWordMissing()
+                        }
                         OfflineEntry.NO_BUNDLE  ->
                             showError("Нет сети и нет сохранённой сессии для офлайн-работы")
                     }
@@ -977,9 +996,12 @@ class StudyActivity : AppCompatActivity() {
                 flushOutboxInBackground()
             } catch (e: Exception) {
                 // Network dropped — switch to the cached bundle and apply this action locally.
-                when (enterOfflineFromStore()) {
+                when (enterOfflineFromStore(render = false)) {
                     OfflineEntry.SAME_WORD  -> handleOfflineAction(btn)
-                    OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
+                    OfflineEntry.OTHER_WORD -> {
+                        renderOfflineCurrent(showAnswer = false)
+                        warnOfflineWordMissing()
+                    }
                     OfflineEntry.NO_BUNDLE  -> Toast.makeText(
                         this@StudyActivity,
                         "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
