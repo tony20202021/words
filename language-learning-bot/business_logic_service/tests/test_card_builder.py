@@ -170,12 +170,19 @@ class TestNotices:
         assert badge.get("new_interval") == 7
         assert badge.get("new_next_date") == "2026-06-02"
 
-    def test_previous_interval_notice_when_already_known(self):
+    def test_previous_interval_lives_in_the_badge_not_in_a_notice(self):
+        """
+        Большую плашку «Вы знали это слово» убрали: компактный бейдж в шапке
+        говорит то же самое («знал · N дн.»), а два сообщения об одном и том же
+        на одном экране лишние.
+        """
         session = make_session(score_changed=False)
         word = make_word(score=1, interval=14)
         card = build_card(session, word, show_answer=True)
+
         notices = [i for i in card["content"] if i["type"] == "notice" and i["variant"] == "info"]
-        assert any("14" in n["text"] for n in notices)
+        assert notices == [], notices
+        assert "14" in str(card["meta"]["score_badge"]), card["meta"]["score_badge"]
 
     def test_no_interval_notice_before_answer(self):
         session = make_session(score_changed=True)

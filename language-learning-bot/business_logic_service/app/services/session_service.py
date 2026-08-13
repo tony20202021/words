@@ -498,10 +498,6 @@ async def build_bundle(
         ctx["quiz_options"] = None
         ctx["word_processed"] = False
         ctx["score_changed"] = False
-        # Снимок: ответная сторона рисуется одна на оба исхода, и что нажмёт
-        # пользователь, здесь неизвестно. card_builder по этому признаку убирает
-        # то, что зависит от нажатия.
-        ctx["prerendered"] = True
         if ctx["pick_mode_active"]:
             opts = await quiz_service.generate_quiz_options(ctx, w, api_client)
             if opts:
