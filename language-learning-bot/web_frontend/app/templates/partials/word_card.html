@@ -253,8 +253,8 @@
   </div>
   <div class="d-flex justify-content-between align-items-end mt-1" style="font-size:1rem; color:#888;">
     <div class="d-flex flex-column lh-1" style="gap:3px;">
-      <span><span class="text-success fw-semibold">{{ meta.correct_count }}</span> правильных</span>
-      <span><span class="text-danger fw-semibold">{{ meta.incorrect_count }}</span> ошибок</span>
+      <span><span class="text-success fw-semibold">{{ meta.correct_count }}</span> {{ meta.correct_count | plural('правильный', 'правильных', 'правильных') }}</span>
+      <span><span class="text-danger fw-semibold">{{ meta.incorrect_count }}</span> {{ meta.incorrect_count | plural('ошибка', 'ошибки', 'ошибок') }}</span>
     </div>
     <span>готово <strong>{{ meta.correct_count + meta.incorrect_count }}</strong> из <strong>{{ bar_total }}</strong></span>
   </div>

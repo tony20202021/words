@@ -83,8 +83,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 330, "telegram": 245, "web": 164, "backend": 140, "common": 18,
-    "hebrew": 32, "android": 78,
+    "bls": 330, "telegram": 245, "web": 176, "backend": 140, "common": 18,
+    "hebrew": 32, "android": 82,
 }
 
 
@@ -265,7 +265,10 @@ def main():
             print(f"\n❌ {comp} tests failed!")
             failed.append(comp)
         else:
-            print(f"\n✅ {comp} tests passed or no tests found!")
+            # Раньше здесь стояло "passed or no tests found" — формулировка от
+            # тех времён, когда пустой прогон считался успехом. Он больше им не
+            # считается, и текст не должен намекать, что считается.
+            print(f"\n✅ {comp} tests passed!")
 
     if failed:
         print(f"\n❌ Failed components: {', '.join(failed)}")

@@ -21,6 +21,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.langbot.app.util.correct
+import com.langbot.app.util.mistakes
 import com.langbot.app.databinding.ActivityStudyBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.network.NetworkRetry
@@ -837,13 +839,13 @@ class StudyActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
 
             val tvCorrect = TextView(this)
-            tvCorrect.text = "${meta.correct_count} правильных"
+            tvCorrect.text = correct(meta.correct_count)
             tvCorrect.textSize = 12f
             tvCorrect.setTextColor(Color.parseColor("#28a745"))
             leftCol.addView(tvCorrect)
 
             val tvIncorrect = TextView(this)
-            tvIncorrect.text = "${meta.incorrect_count} ошибок"
+            tvIncorrect.text = mistakes(meta.incorrect_count)
             tvIncorrect.textSize = 12f
             tvIncorrect.setTextColor(Color.parseColor("#dc3545"))
             leftCol.addView(tvIncorrect)

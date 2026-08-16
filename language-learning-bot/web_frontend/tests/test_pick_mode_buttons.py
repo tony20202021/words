@@ -11,15 +11,16 @@
 import re
 
 import pytest
-from jinja2 import Environment, FileSystemLoader
+from app.templating import templates
 
-TEMPLATES = "app/templates"
 
 
 @pytest.fixture(scope="module")
 def render():
-    env = Environment(loader=FileSystemLoader(TEMPLATES))
-    tpl = env.get_template("partials/word_card.html")
+    # Берём НАСТОЯЩЕЕ окружение приложения, а не своё: у своего нет
+    # зарегистрированных фильтров, и шаблон мог сломаться у пользователя,
+    # пока эти тесты оставались зелёными. Ровно так и вышло с plural.
+    tpl = templates.env.get_template("partials/word_card.html")
 
     def _render(buttons):
         card = {

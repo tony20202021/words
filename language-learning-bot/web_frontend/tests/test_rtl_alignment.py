@@ -16,9 +16,8 @@ import re
 from pathlib import Path
 
 import pytest
-from jinja2 import Environment, FileSystemLoader
+from app.templating import templates
 
-TEMPLATES = "app/templates"
 
 ROWS = [
     {"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
@@ -28,8 +27,10 @@ ROWS = [
 
 @pytest.fixture(scope="module")
 def render():
-    env = Environment(loader=FileSystemLoader(TEMPLATES))
-    tpl = env.get_template("partials/word_card.html")
+    # Берём НАСТОЯЩЕЕ окружение приложения, а не своё: у своего нет
+    # зарегистрированных фильтров, и шаблон мог сломаться у пользователя,
+    # пока эти тесты оставались зелёными. Ровно так и вышло с plural.
+    tpl = templates.env.get_template("partials/word_card.html")
 
     def _render(extra_item):
         card = {
