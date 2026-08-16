@@ -44,14 +44,48 @@ def render():
     return _render
 
 
+HEADER = {"header": "<b>את</b>: <i>слов: 2</i>",
+          "header_foreign": "<b>את</b>", "header_ru": "слов: 2"}
+
+
 def test_rows_are_rendered_as_a_table(render):
     html = render({"type": "extra", "group": "references", "text": "старый текст",
-                   "header": "<b>את</b>: <i>слов: 2</i>", "rows": ROWS})
+                   **HEADER, "rows": ROWS})
     assert "<table" in html
-    assert html.count("<tr>") == 2
+    assert html.count("<tr>") == 3, "две строки данных плюс заголовочная"
     assert "אוֹתְךָ" in html and "тебя" in html
     # Старый текст одной строкой больше не рисуется — иначе блок задвоился бы.
     assert "старый текст" not in html
+
+
+def test_table_has_cell_borders(render):
+    html = render({"type": "extra", "group": "references", "text": "", **HEADER, "rows": ROWS})
+    m = re.search(r"<table[^>]*>", html)
+    assert m and "table-bordered" in m.group(0), m.group(0) if m else html[:200]
+    assert "table-borderless" not in html
+
+
+def test_header_is_split_into_the_same_two_cells(render):
+    """
+    Заголовок тоже двуязычный и отдельной строкой уезжал вправо по первой
+    ивритской букве — ровно как строки данных до таблицы.
+    """
+    html = render({"type": "extra", "group": "references", "text": "", **HEADER, "rows": ROWS})
+    head = html[html.index("<thead"):html.index("</thead>")]
+    assert 'dir="rtl"' in head and 'dir="ltr"' in head, head
+    assert "את" in head and "слов: 2" in head
+
+
+def test_foreign_column_is_enlarged(render):
+    """Огласовка — мелкие знаки под буквами, в общем кегле её не разглядеть."""
+    html = render({"type": "extra", "group": "references", "text": "", **HEADER, "rows": ROWS})
+    cells = [c for c in re.findall(r"<td[^>]*>", html) if 'dir="rtl"' in c]
+    assert cells and all("word-extra-foreign" in c for c in cells), cells
+
+    base = (Path(__file__).resolve().parents[1] / "app" / "templates" / "base.html").read_text(encoding="utf-8")
+    m = re.search(r"\.word-extra-foreign\s*\{([^}]*)\}", base)
+    assert m, "класс объявлен, но стиля для него нет"
+    assert "font-size" in m.group(1), m.group(1)
 
 
 def test_hebrew_column_is_right_to_left_and_russian_is_not(render):

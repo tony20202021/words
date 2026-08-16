@@ -537,6 +537,7 @@ async def apply_results_batch(
     max_interval = int(settings.get("max_check_interval", MAX_INTERVAL_DAYS))
 
     acks: List[Dict[str, Any]] = []
+    applied: List[tuple] = []
     for ev in sorted(events, key=lambda e: e.get("ts", "")):
         eid = ev.get("event_id", "")
         word_id = ev.get("word_id", "")
@@ -556,6 +557,49 @@ async def apply_results_batch(
         )
         if ok and eid:
             _processed_event_ids.add(eid)
+        if ok:
+            applied.append((word_id, rating))
         acks.append({"event_id": eid, "status": "ok" if ok else "error"})
 
+    _advance_session_past(user_id, language_id, applied)
     return {"acks": acks}
+
+
+def _advance_session_past(user_id: str, language_id: str,
+                          applied: List[tuple]) -> None:
+    """
+    Сдвинуть онлайн-сессию за слова, отвеченные офлайн.
+
+    Раньше пачка результатов записывала оценки и не трогала сессию — та так и
+    стояла на слове, где пропала сеть. Вернувшись в онлайн, человек попадал
+    назад, на это слово, и заново проходил всё, что уже сделал офлайн; счётчики
+    внизу тоже не знали про эту работу.
+
+    Двигаем не на N шагов, а до первого слова, которого нет среди отвеченных:
+    порядок в партии свой, и слепой сдвиг перескочил бы через непройденное.
+    """
+    if not applied:
+        return
+    session = get_session(user_id, language_id)
+    if session is None:
+        return
+    done = {wid: rating for wid, rating in applied}
+    words = session.get("words") or []
+    moved = 0
+    while session.get("current_index", 0) < len(words):
+        word = words[session["current_index"]]
+        wid = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
+        rating = done.get(wid)
+        if rating is None:
+            break
+        if rating == "know":
+            session["correct_count"] = session.get("correct_count", 0) + 1
+        elif rating == "dont_know":
+            session["incorrect_count"] = session.get("incorrect_count", 0) + 1
+        session.setdefault("result_history", []).append(rating)
+        _advance(session)
+        moved += 1
+    if moved:
+        touch_session(session)
+        logger.info(f"Session advanced past {moved} offline result(s): "
+                    f"user={user_id} lang={language_id} index={session.get('current_index')}")

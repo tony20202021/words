@@ -162,6 +162,14 @@ class StudyActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
+                // Накопленное офлайном отправляем ДО того, как спросить сессию.
+                // Иначе сервер отвечает со старого места — того, где пропала
+                // сеть, — мы его показываем, а пачка долетает следом и двигает
+                // сессию. Со стороны это выглядит как возврат назад, а потом
+                // перескок через слово.
+                if (OfflineCache.pendingCount() > 0) {
+                    runCatching { OutboxSync.flush() }
+                }
                 val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
                     var r = api.getSession(userId, languageId)
                     if (!r.isSuccessful || r.body()?.session_id == null) {
@@ -181,7 +189,8 @@ class StudyActivity : AppCompatActivity() {
                 }
                 offline = null  // back online
                 handleResponse(resp.body())
-                // Best-effort background chores once we're online again.
+                // Оставшееся (если что-то не подтвердилось) и свежая партия —
+                // фоном, экран их не ждёт.
                 flushOutboxInBackground()
                 prefetchBundleInBackground()
             } catch (e: Exception) {
@@ -353,8 +362,33 @@ class StudyActivity : AppCompatActivity() {
         val eng = offline ?: return
         val card = if (showAnswer) eng.answerCard() else eng.frontCard()
         if (card == null) { showOfflineDone(); return }
-        renderCard(card)
+        renderCard(withOfflineProgress(card))
         showOfflineBanner()
+    }
+
+    /**
+     * Дописать в карточку то, что сделано офлайн: счётчики и полоску прогресса.
+     *
+     * Карточки партии отрисованы заранее, и счётчики в них заморожены на момент
+     * скачивания — одинаковые у всех слов, потому что build_bundle двигает
+     * вперёд только позицию. Внизу экрана поэтому ничего не менялось, сколько бы
+     * слов человек ни прошёл офлайн.
+     *
+     * Считаем по outbox: там лежат ровно ответы, данные офлайн и ещё не
+     * отправленные. Пропуски в счётчики не идут — онлайн они тоже не считаются
+     * ни правильными, ни ошибками.
+     */
+    private fun withOfflineProgress(card: Card): Card {
+        val done = OfflineCache.loadOutbox()
+            .filter { it.userId == userId && it.languageId == languageId }
+            .map { it.rating }
+        if (done.isEmpty()) return card
+        val meta = card.meta
+        return card.copy(meta = meta.copy(
+            correct_count = meta.correct_count + done.count { it == "know" },
+            incorrect_count = meta.incorrect_count + done.count { it == "dont_know" },
+            result_history = meta.result_history + done.filter { it != "skip" },
+        ))
     }
 
     private fun showOfflineBanner() {
@@ -903,7 +937,7 @@ class StudyActivity : AppCompatActivity() {
                             // выстраиваются, а весь блок уезжает вправо по
                             // первому сильному символу. С колонками выравнивание
                             // становится свойством вёрстки, а не догадкой.
-                            addExtraTable(inner, item.header, rows)
+                            addExtraTable(inner, item.header_foreign, item.header_ru, item.header, rows)
                         } else {
                             // Радикалы (моноширинный столбик) и старые
                             // офлайн-партии, где разобранных строк ещё нет.
@@ -1312,55 +1346,81 @@ class StudyActivity : AppCompatActivity() {
      * уезжал вправо вместе с русским хвостом. Направление, выставленное на View,
      * этого не исправляло: иврит и русский всё равно шли одной строкой.
      */
-    private fun addExtraTable(parent: LinearLayout, header: String?, rows: List<com.langbot.app.network.ExtraRow>) {
-        if (!header.isNullOrBlank()) {
-            val tv = TextView(this)
-            tv.text = android.text.Html.fromHtml(header, android.text.Html.FROM_HTML_MODE_COMPACT)
-            tv.textSize = 14f
-            tv.setTextColor(Color.parseColor("#666666"))
-            tv.textDirection = View.TEXT_DIRECTION_LTR
-            tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-            val hlp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            hlp.bottomMargin = dpToPx(4)
-            tv.layoutParams = hlp
-            parent.addView(tv)
+    /**
+     * Блок огласовок/однокоренных таблицей: иврит в своей колонке, русский в своей.
+     *
+     * Так выравнивание задаёт вёрстка, а не двунаправленный алгоритм. Раньше это
+     * был один TextView со всеми строками, и каждая строка получала направление
+     * по первому сильному символу — ивритской букве, — из-за чего весь блок
+     * уезжал вправо вместе с русским хвостом. Направление, выставленное на View,
+     * этого не исправляло: иврит и русский всё равно шли одной строкой.
+     */
+    private fun addExtraTable(
+        parent: LinearLayout,
+        headerForeign: String?,
+        headerRu: String?,
+        header: String?,
+        rows: List<com.langbot.app.network.ExtraRow>,
+    ) {
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            background = GradientDrawable().apply {
+                setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
+                setColor(Color.TRANSPARENT)
+            }
+        }
+        // Заголовок — такая же строка таблицы: он тоже двуязычный и отдельной
+        // строкой уезжал вправо по первой ивритской букве.
+        if (!headerForeign.isNullOrBlank() || !headerRu.isNullOrBlank()) {
+            table.addView(extraTableRow(headerForeign ?: "", "", headerRu ?: "",
+                                        headerCell = true))
+        } else if (!header.isNullOrBlank()) {
+            table.addView(extraTableRow(header, "", "", headerCell = true))
         }
         for (row in rows) {
-            val line = LinearLayout(this)
-            line.orientation = LinearLayout.HORIZONTAL
-            // Ряд слева направо независимо от содержимого ячеек.
-            line.layoutDirection = View.LAYOUT_DIRECTION_LTR
-
-            // Иврит: своя ячейка, внутри неё справа налево и прижат вправо —
-            // так столбик читается как ивритский текст.
-            val heb = TextView(this)
-            heb.text = android.text.Html.fromHtml(
-                row.foreign, android.text.Html.FROM_HTML_MODE_COMPACT)
-            heb.textSize = 15f
-            heb.textDirection = View.TEXT_DIRECTION_RTL
-            heb.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
-            heb.layoutParams = LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-
-            // Русский: своя ячейка, слева направо и прижат влево.
-            val ru = TextView(this)
-            ru.text = if (row.marker.isBlank()) row.ru else "${row.marker} ${row.ru}"
-            ru.textSize = 15f
-            ru.textDirection = View.TEXT_DIRECTION_LTR
-            ru.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-            val rlp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            rlp.marginStart = dpToPx(8)
-            ru.layoutParams = rlp
-
-            line.addView(heb)
-            line.addView(ru)
-            val llp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            llp.topMargin = dpToPx(3)
-            line.layoutParams = llp
-            parent.addView(line)
+            table.addView(extraTableRow(row.foreign, row.marker, row.ru, headerCell = false))
         }
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = dpToPx(4)
+        table.layoutParams = lp
+        parent.addView(table)
+    }
+
+    /** Одна строка таблицы: две ячейки с границами, у каждой своё направление. */
+    private fun extraTableRow(foreign: String, marker: String, ru: String,
+                              headerCell: Boolean): LinearLayout {
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+
+        fun cell(html: String, rtl: Boolean, big: Boolean): TextView {
+            val tv = TextView(this)
+            tv.text = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_COMPACT)
+            // Иврит крупнее: огласовка — мелкие знаки под буквами, и в общем
+            // кегле её просто не разглядеть, а ради неё блок и заводился.
+            tv.textSize = if (big) 22f else 15f
+            tv.textDirection = if (rtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
+            tv.textAlignment = if (rtl) View.TEXT_ALIGNMENT_VIEW_END else View.TEXT_ALIGNMENT_VIEW_START
+            if (headerCell) tv.setTextColor(Color.parseColor("#666666"))
+            tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            tv.background = GradientDrawable().apply {
+                setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
+                setColor(if (headerCell) Color.parseColor("#f5f5f5") else Color.TRANSPARENT)
+            }
+            tv.layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            return tv
+        }
+
+        line.addView(cell(foreign, rtl = true, big = !headerCell))
+        val right = if (marker.isBlank()) ru else "$marker $ru"
+        line.addView(cell(right, rtl = false, big = false))
+        line.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        return line
     }
 
     private fun dpToPx(dp: Int): Int =

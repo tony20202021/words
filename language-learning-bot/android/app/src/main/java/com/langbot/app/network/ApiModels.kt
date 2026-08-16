@@ -74,6 +74,9 @@ data class ExtraContentItem(
     // Могут отсутствовать: офлайн-партии, скачанные до этой версии, хранят
     // только text — на них работает старая отрисовка одним TextView.
     val header: String? = null,
+    // Заголовок тоже двуязычный, поэтому разрезан на те же две колонки.
+    val header_foreign: String? = null,
+    val header_ru: String? = null,
     val rows: List<ExtraRow>? = null,
 )
 

@@ -288,15 +288,28 @@
              вёрстка, а не двунаправленный алгоритм. Одной строкой они уезжали
              вправо целиком: строка начинается с ивритской буквы, и браузер брал
              по ней направление всего абзаца вместе с русским хвостом. #}
-          {% if item.header %}
-            <div class="small text-muted mb-1" dir="ltr">{{ item.header | safe }}</div>
-          {% endif %}
-          <table class="table table-sm table-borderless mb-1 small" dir="ltr">
+          <table class="table table-sm table-bordered mb-2 small" dir="ltr">
+            {% if item.header_foreign or item.header_ru %}
+              {# Заголовок — такая же строка таблицы: он тоже двуязычный и
+                 отдельной строкой уезжал вправо по первой ивритской букве. #}
+              <thead class="table-light">
+                <tr>
+                  <th class="text-end align-top fw-normal" dir="rtl" style="width:45%">{{ item.header_foreign | safe }}</th>
+                  <th class="text-start align-top fw-normal text-muted" dir="ltr">{{ item.header_ru }}</th>
+                </tr>
+              </thead>
+            {% elif item.header %}
+              <thead class="table-light">
+                <tr><th colspan="2" class="fw-normal" dir="ltr">{{ item.header | safe }}</th></tr>
+              </thead>
+            {% endif %}
             <tbody>
             {% for row in item.rows %}
               <tr>
-                <td class="text-end align-top" dir="rtl" style="width:45%">{{ row.foreign | safe }}</td>
-                <td class="text-start align-top" dir="ltr">
+                {# Иврит крупнее: огласовка — мелкие знаки под буквами, и в
+                   основном кегле её просто не разглядеть. #}
+                <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:45%">{{ row.foreign | safe }}</td>
+                <td class="text-start align-middle" dir="ltr">
                   {% if row.marker %}<span class="text-muted">{{ row.marker }}</span> {% endif %}{{ row.ru }}
                 </td>
               </tr>

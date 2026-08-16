@@ -300,7 +300,7 @@ def _extra_rows(text: str) -> Dict[str, Any]:
     rows как одна ячейка «ru»: терять её нельзя, а угадывать структуру — тем
     более.
     """
-    header, rows = "", []
+    header, header_foreign, header_ru, rows = "", "", "", []
     for line in (text or "").split("\n"):
         if not line.strip():
             continue
@@ -316,9 +316,17 @@ def _extra_rows(text: str) -> Dict[str, Any]:
             continue
         if not header:
             header = line.strip()
+            # Заголовок тоже двуязычный: «<b>עם</b>: вариантов огласовки: 2».
+            # Отдельной строкой он уезжал вправо ровно по той же причине, что и
+            # остальные, — начинается с ивритской буквы. Режем на те же колонки.
+            m = re.match(r"^(<b>.*?</b>)\s*:\s*(.*)$", header)
+            if m:
+                header_foreign = m.group(1)
+                header_ru = re.sub(r"</?i>", "", m.group(2)).strip()
         else:
             rows.append({"marker": "", "foreign": "", "ru": line.strip()})
-    return {"header": header, "rows": rows}
+    return {"header": header, "header_foreign": header_foreign,
+            "header_ru": header_ru, "rows": rows}
 
 
 def _extra_label(language_ru: str, key: str) -> str:

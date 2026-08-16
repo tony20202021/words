@@ -212,3 +212,69 @@ async def test_the_compact_badge_still_carries_the_interval():
     badge = card["meta"]["score_badge"]
     assert badge, card["meta"]
     assert "5" in str(badge), badge
+
+# ── возврат в онлайн после офлайна ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_online_session_resumes_where_offline_left_off():
+    """
+    Пачка офлайн-результатов записывала оценки и не трогала сессию — та стояла
+    на слове, где пропала сеть. Вернувшись в онлайн, человек попадал назад и
+    заново проходил всё, что уже сделал офлайн.
+    """
+    from app.services import session_service as ss
+
+    words = [make_word(i) for i in range(1, 5)]
+    api = make_mock_api(words=words, settings={"random_pick_mode": False})
+    session = await ss.start_session("u_resume", "lang1", api)
+    assert session["current_index"] == 0
+
+    # Офлайн ответили на первые два слова партии.
+    events = [
+        {"event_id": "e1", "word_id": "word-1", "rating": "know", "ts": "2026-08-15T10:00:00"},
+        {"event_id": "e2", "word_id": "word-2", "rating": "dont_know", "ts": "2026-08-15T10:01:00"},
+    ]
+    await ss.apply_results_batch("u_resume", "lang1", events, api)
+
+    assert session["current_index"] == 2, "сессия осталась на пройденном слове"
+    assert session["correct_count"] == 1
+    assert session["incorrect_count"] == 1
+    assert session["result_history"] == ["know", "dont_know"]
+    current = ss.get_current_word(session)
+    assert str(current["_id"]) == "word-3", "вернулись не на то слово"
+
+
+@pytest.mark.asyncio
+async def test_advance_stops_at_the_first_unanswered_word():
+    """
+    Сдвигаем до первого слова, которого нет среди отвеченных, а не на N шагов:
+    порядок в партии свой, и слепой сдвиг перескочил бы через непройденное.
+    """
+    from app.services import session_service as ss
+
+    words = [make_word(i) for i in range(1, 5)]
+    api = make_mock_api(words=words, settings={"random_pick_mode": False})
+    session = await ss.start_session("u_gap", "lang1", api)
+
+    # Отвечено первое и ТРЕТЬЕ — второе пропущено.
+    events = [
+        {"event_id": "g1", "word_id": "word-1", "rating": "know", "ts": "2026-08-15T10:00:00"},
+        {"event_id": "g3", "word_id": "word-3", "rating": "know", "ts": "2026-08-15T10:02:00"},
+    ]
+    await ss.apply_results_batch("u_gap", "lang1", events, api)
+
+    assert session["current_index"] == 1, "перескочили через неотвеченное слово"
+    assert str(ss.get_current_word(session)["_id"]) == "word-2"
+
+
+@pytest.mark.asyncio
+async def test_batch_without_an_active_session_is_harmless():
+    """Пачка может прийти, когда сессии уже нет — это не повод падать."""
+    from app.services import session_service as ss
+
+    api = make_mock_api(words=[make_word(1)], settings={})
+    res = await ss.apply_results_batch("u_nosession", "lang1", [
+        {"event_id": "n1", "word_id": "word-1", "rating": "know", "ts": "2026-08-15T10:00:00"},
+    ], api)
+    assert res["acks"][0]["status"] == "ok"
+

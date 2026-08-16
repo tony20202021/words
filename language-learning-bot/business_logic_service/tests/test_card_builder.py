@@ -1144,3 +1144,26 @@ def test_card_carries_rows_for_hebrew_extras():
     # Исходный текст остаётся: по нему рисуют старые офлайн-партии.
     assert block["text"].strip()
 
+def test_header_is_split_into_the_same_columns():
+    """
+    «<b>עם</b>: вариантов огласовки: 2» — тоже двуязычная строка, и отдельной
+    строкой она уезжала вправо по первой ивритской букве, как и остальные до
+    таблицы. Режем на те же две колонки.
+    """
+    from app.services.card_builder import _extra_rows
+
+    d = _extra_rows("<b>את</b>: <i>слов с этой основой: 15</i> <i>(показаны первые 12)</i>\n"
+                    "<i>[#28]</i>אוֹתְךָ [ʔotˈχa] тебя")
+    assert d["header_foreign"] == "<b>את</b>"
+    assert d["header_ru"] == "слов с этой основой: 15 (показаны первые 12)"
+    # Целый заголовок остаётся: по нему рисуют старые офлайн-партии.
+    assert d["header"].startswith("<b>את</b>")
+
+
+def test_header_without_the_expected_shape_is_kept_whole():
+    from app.services.card_builder import _extra_rows
+
+    d = _extra_rows("просто заголовок\n - <b>עִם</b> [ʔim]: с")
+    assert d["header"] == "просто заголовок"
+    assert d["header_foreign"] == "" and d["header_ru"] == ""
+
