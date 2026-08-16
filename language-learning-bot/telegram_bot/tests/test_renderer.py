@@ -277,3 +277,32 @@ def test_extra_lines_get_left_to_right_direction():
     # Подпись блока — обычный русский текст, метка ей не нужна.
     assert "🌱 Слова с той же основой:" in body
 
+def test_extra_block_uses_the_parsed_rows():
+    """
+    Таблиц в Telegram нет, но колонки уже разобраны сервером — из них собирается
+    ровная строка «иврит — русский», а не сырой текст блока.
+    """
+    from app.bot.renderer import render_extra_texts
+
+    card = {"extra_content": [
+        {"type": "label", "text": "🌱 Слова с той же основой:", "group": "references"},
+        {"type": "extra", "text": "СЫРОЙ ТЕКСТ", "group": "references",
+         "header": "<b>את</b>: <i>слов: 2</i>",
+         "rows": [{"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"}]},
+    ]}
+    body = "\n".join(render_extra_texts(card))
+    assert "אוֹתְךָ [ʔotˈχa] — тебя" in body
+    assert "[#28]" in body
+    assert "СЫРОЙ ТЕКСТ" not in body
+
+
+def test_extra_block_without_rows_still_renders():
+    """Офлайн-партии, скачанные до этой версии, разобранных строк не имеют."""
+    from app.bot.renderer import render_extra_texts
+
+    card = {"extra_content": [
+        {"type": "label", "text": "🈶 Радикалы:", "group": "radicals"},
+        {"type": "extra", "text": "水 — вода", "group": "radicals"},
+    ]}
+    assert "水 — вода" in "\n".join(render_extra_texts(card))
+

@@ -1,36 +1,84 @@
 """
-Блок дополнительной информации: направление строки.
+Блок дополнительной информации: таблица, а не строка текста.
 
-Строки вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинаются с ивритской буквы. Браузер
-берёт направление абзаца по первому сильному символу, поэтому ВСЯ строка
-прижималась вправо — вместе с русским хвостом, и читать список однокоренных было
-неудобно. Ивритские слова внутри при этом должны оставаться справа налево:
-направление задаётся блоку, а не отменяется у слов.
+Строки вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинаются с ивритской буквы. Пока это
+была одна строка текста, любой рендерер брал направление абзаца по первому
+сильному символу и уводил ВСЮ строку вправо — вместе с русским хвостом. Задать
+направление абзацу оказалось мало: иврит и русский всё равно шли одной строкой,
+и колонки не выстраивались.
+
+Теперь сервер отдаёт разобранные строки, а клиент рисует таблицу: у иврита своя
+колонка (справа налево, прижата вправо), у русского своя (слева направо, прижата
+влево). Выравнивание стало свойством вёрстки, а не догадкой о направлении.
 """
 
 import re
 from pathlib import Path
 
 import pytest
+from jinja2 import Environment, FileSystemLoader
 
-TEMPLATE = (Path(__file__).resolve().parents[1]
-            / "app" / "templates" / "partials" / "word_card.html")
+TEMPLATES = "app/templates"
+
+ROWS = [
+    {"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
+    {"marker": "[#33]", "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
+]
 
 
 @pytest.fixture(scope="module")
-def html() -> str:
-    return TEMPLATE.read_text(encoding="utf-8")
+def render():
+    env = Environment(loader=FileSystemLoader(TEMPLATES))
+    tpl = env.get_template("partials/word_card.html")
+
+    def _render(extra_item):
+        card = {
+            "meta": {"score_badge": {"variant": "secondary", "text": "новое"},
+                     "word_number": 7, "result_history": [], "correct_count": 0,
+                     "incorrect_count": 0, "words_for_today": 5},
+            "content": [], "sounds": [], "buttons": [], "show_answer": True,
+            "extra_groups": [{"items": [extra_item]}],
+        }
+        return tpl.render(card=card, lang={"name_ru": "Иврит"}, language_id="l1")
+
+    return _render
 
 
-def test_extra_block_sets_left_to_right_direction(html):
-    line = next(l for l in html.split("\n") if "item.text | safe" in l)
-    assert 'dir="ltr"' in line, line
+def test_rows_are_rendered_as_a_table(render):
+    html = render({"type": "extra", "group": "references", "text": "старый текст",
+                   "header": "<b>את</b>: <i>слов: 2</i>", "rows": ROWS})
+    assert "<table" in html
+    assert html.count("<tr>") == 2
+    assert "אוֹתְךָ" in html and "тебя" in html
+    # Старый текст одной строкой больше не рисуется — иначе блок задвоился бы.
+    assert "старый текст" not in html
 
 
-def test_direction_is_set_on_the_block_not_on_words(html):
+def test_hebrew_column_is_right_to_left_and_russian_is_not(render):
+    html = render({"type": "extra", "group": "references", "text": "",
+                   "header": "", "rows": ROWS})
+    cells = re.findall(r"<td[^>]*>", html)
+    rtl = [c for c in cells if 'dir="rtl"' in c]
+    ltr = [c for c in cells if 'dir="ltr"' in c]
+    assert len(rtl) == 2, cells
+    assert len(ltr) == 2, cells
+    assert all("text-end" in c for c in rtl), rtl
+    assert all("text-start" in c for c in ltr), ltr
+
+
+def test_table_itself_runs_left_to_right(render):
+    """Ряды должны идти слева направо, иначе колонки поменяются местами."""
+    html = render({"type": "extra", "group": "references", "text": "",
+                   "header": "", "rows": ROWS})
+    m = re.search(r"<table[^>]*>", html)
+    assert m and 'dir="ltr"' in m.group(0), m.group(0) if m else html[:200]
+
+
+def test_block_without_rows_falls_back_to_text(render):
     """
-    Ивритские слова обязаны остаться RTL. Попытка «починить» это, перевернув
-    сами слова, сломала бы их чтение.
+    Радикалы и офлайн-партии, скачанные до этой версии, разобранных строк не
+    имеют — они обязаны продолжать рисоваться, а не исчезнуть.
     """
-    assert "unicode-bidi" not in html
-    assert 'dir="rtl"' not in html
+    html = render({"type": "extra", "group": "radicals", "text": "水 — вода"})
+    assert "水 — вода" in html
+    assert "<table" not in html

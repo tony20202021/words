@@ -283,11 +283,30 @@
       {% if item.type == 'label' %}
         <div class="text-muted small mb-1">{{ item.text }}</div>
       {% elif item.type == 'extra' %}
-        {# dir="ltr" обязателен. Строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается
-           с ивритской буквы, браузер берёт направление абзаца по первому сильному
-           символу и прижимает ВСЮ строку вправо — вместе с русским хвостом.
-           Ивритские слова внутри при этом остаются справа налево, как и должны. #}
-        <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
+        {% if item.rows %}
+          {# Таблица: иврит в своей колонке, русский в своей. Выравнивание задаёт
+             вёрстка, а не двунаправленный алгоритм. Одной строкой они уезжали
+             вправо целиком: строка начинается с ивритской буквы, и браузер брал
+             по ней направление всего абзаца вместе с русским хвостом. #}
+          {% if item.header %}
+            <div class="small text-muted mb-1" dir="ltr">{{ item.header | safe }}</div>
+          {% endif %}
+          <table class="table table-sm table-borderless mb-1 small" dir="ltr">
+            <tbody>
+            {% for row in item.rows %}
+              <tr>
+                <td class="text-end align-top" dir="rtl" style="width:45%">{{ row.foreign | safe }}</td>
+                <td class="text-start align-top" dir="ltr">
+                  {% if row.marker %}<span class="text-muted">{{ row.marker }}</span> {% endif %}{{ row.ru }}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          {# Радикалы и всё, что не разобралось в строки: направление задаём блоку. #}
+          <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
+        {% endif %}
       {% endif %}
     {% endfor %}
   </div>

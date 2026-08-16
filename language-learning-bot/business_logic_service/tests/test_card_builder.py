@@ -1083,3 +1083,64 @@ def test_answer_side_of_pick_mode_keeps_the_normal_buttons():
     assert "pick_dont_know" not in ids
     assert card["pick_options"] is None
 
+# ── блок доп. информации разбирается в строки таблицы ────────────────────────
+
+def test_extra_blocks_are_parsed_into_table_rows():
+    """
+    Клиенты рисуют таблицу, а не текст: иврит и русский в одной строке уводили
+    весь блок вправо, потому что направление абзаца берётся по первому сильному
+    символу. Разбор здесь, а не в трёх клиентах — иначе это три копии знания об
+    одном формате, а такие копии в этом проекте уже дважды расходились.
+    """
+    from app.services.card_builder import _extra_rows
+
+    refs = _extra_rows("<b>את</b>: <i>слов с этой основой: 15</i>\n"
+                       "<i>[#28]</i>אוֹתְךָ [ʔotˈχa] тебя\n"
+                       "<i>[#33]</i>אוֹתִי [ʔoˈti] меня")
+    assert "слов с этой основой" in refs["header"]
+    assert refs["rows"] == [
+        {"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
+        {"marker": "[#33]", "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
+    ]
+
+    tones = _extra_rows("<b>עם</b>: <i>вариантов огласовки: 2</i>\n"
+                        " - <b>עִם</b> [ʔim]: с, вместе с\n"
+                        " - <b>עַם</b> [ʔam]: народ")
+    assert "вариантов огласовки" in tones["header"]
+    assert tones["rows"] == [
+        {"marker": "", "foreign": "עִם [ʔim]", "ru": "с, вместе с"},
+        {"marker": "", "foreign": "עַם [ʔam]", "ru": "народ"},
+    ]
+
+
+def test_unparsed_line_is_kept_not_dropped():
+    """
+    Строку незнакомой формы теряем только через мой недосмотр — поэтому она
+    попадает в русскую ячейку целиком. Молча выбросить кусок словаря хуже, чем
+    показать его неровно.
+    """
+    from app.services.card_builder import _extra_rows
+
+    d = _extra_rows("заголовок\nсовсем другая строка")
+    assert d["header"] == "заголовок"
+    assert d["rows"] == [{"marker": "", "foreign": "", "ru": "совсем другая строка"}]
+
+
+def test_card_carries_rows_for_hebrew_extras():
+    word = make_word()
+    word["tones"] = ("<b>עם</b>: <i>вариантов огласовки: 2</i>\n"
+                     " - <b>עִם</b> [ʔim]: с, вместе с\n"
+                     " - <b>עַם</b> [ʔam]: народ")
+    session = make_session(show_answer=True)
+    session["language_name_ru"] = "Иврит"
+    session["settings"]["show_tones"] = True
+    session["words_studied"] = 100
+
+    card = build_card(session, word, show_answer=True)
+    block = next(e for e in card["extra_content"]
+                 if e["type"] == "extra" and e.get("group") == "tones")
+    assert len(block["rows"]) == 2
+    assert block["rows"][0]["foreign"] == "עִם [ʔim]"
+    # Исходный текст остаётся: по нему рисуют старые офлайн-партии.
+    assert block["text"].strip()
+

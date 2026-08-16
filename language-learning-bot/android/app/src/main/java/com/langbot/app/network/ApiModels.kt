@@ -59,10 +59,22 @@ data class CardItem(
     val align: String? = null,
 )
 
+data class ExtraRow(
+    val marker: String = "",
+    val foreign: String = "",
+    val ru: String = "",
+)
+
 data class ExtraContentItem(
     val type: String,    // label, extra
     val text: String,
     val group: String? = null,
+    // Разобранные строки блока. Приходят с сервера, потому что формат один на
+    // три клиента и разбирать его в каждом значило бы держать три копии знания.
+    // Могут отсутствовать: офлайн-партии, скачанные до этой версии, хранят
+    // только text — на них работает старая отрисовка одним TextView.
+    val header: String? = null,
+    val rows: List<ExtraRow>? = null,
 )
 
 data class BigWord(

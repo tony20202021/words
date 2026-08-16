@@ -896,29 +896,36 @@ class StudyActivity : AppCompatActivity() {
                         inner.addView(tv)
                     }
                     "extra" -> {
-                        val tv = TextView(this)
-                        if (item.group == "radicals") {
-                            tv.text = item.text
-                            tv.typeface = android.graphics.Typeface.MONOSPACE
+                        val rows = item.rows
+                        if (item.group != "radicals" && !rows.isNullOrEmpty()) {
+                            // Таблица. Задать направление абзацу мало: иврит и
+                            // русский идут одной строкой, и колонки не
+                            // выстраиваются, а весь блок уезжает вправо по
+                            // первому сильному символу. С колонками выравнивание
+                            // становится свойством вёрстки, а не догадкой.
+                            addExtraTable(inner, item.header, rows)
                         } else {
-                            val htmlText = item.text.replace("\n", "<br>")
-                            tv.text = android.text.Html.fromHtml(
-                                htmlText, android.text.Html.FROM_HTML_MODE_COMPACT)
+                            // Радикалы (моноширинный столбик) и старые
+                            // офлайн-партии, где разобранных строк ещё нет.
+                            val tv = TextView(this)
+                            if (item.group == "radicals") {
+                                tv.text = item.text
+                                tv.typeface = android.graphics.Typeface.MONOSPACE
+                            } else {
+                                val htmlText = item.text.replace("\n", "<br>")
+                                tv.text = android.text.Html.fromHtml(
+                                    htmlText, android.text.Html.FROM_HTML_MODE_COMPACT)
+                            }
+                            tv.textSize = 15f
+                            tv.textDirection = View.TEXT_DIRECTION_LTR
+                            tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                            val lp = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT)
+                            lp.topMargin = dpToPx(4)
+                            tv.layoutParams = lp
+                            inner.addView(tv)
                         }
-                        tv.textSize = 15f
-                        // Строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается с
-                        // ивритской буквы, и система берёт направление абзаца по
-                        // первому сильному символу — весь блок уезжал вправо
-                        // вместе с русским хвостом. Сами ивритские слова внутри
-                        // при этом остаются справа налево, как и должны.
-                        tv.textDirection = View.TEXT_DIRECTION_LTR
-                        tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-                        val lp = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT)
-                        lp.topMargin = dpToPx(4)
-                        tv.layoutParams = lp
-                        inner.addView(tv)
                     }
                 }
             }
@@ -1294,6 +1301,66 @@ class StudyActivity : AppCompatActivity() {
             bar.addView(seg)
         }
         return bar
+    }
+
+    /**
+     * Блок огласовок/однокоренных таблицей: иврит в своей колонке, русский в своей.
+     *
+     * Так выравнивание задаёт вёрстка, а не двунаправленный алгоритм. Раньше это
+     * был один TextView со всеми строками, и каждая строка получала направление
+     * по первому сильному символу — ивритской букве, — из-за чего весь блок
+     * уезжал вправо вместе с русским хвостом. Направление, выставленное на View,
+     * этого не исправляло: иврит и русский всё равно шли одной строкой.
+     */
+    private fun addExtraTable(parent: LinearLayout, header: String?, rows: List<com.langbot.app.network.ExtraRow>) {
+        if (!header.isNullOrBlank()) {
+            val tv = TextView(this)
+            tv.text = android.text.Html.fromHtml(header, android.text.Html.FROM_HTML_MODE_COMPACT)
+            tv.textSize = 14f
+            tv.setTextColor(Color.parseColor("#666666"))
+            tv.textDirection = View.TEXT_DIRECTION_LTR
+            tv.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            val hlp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            hlp.bottomMargin = dpToPx(4)
+            tv.layoutParams = hlp
+            parent.addView(tv)
+        }
+        for (row in rows) {
+            val line = LinearLayout(this)
+            line.orientation = LinearLayout.HORIZONTAL
+            // Ряд слева направо независимо от содержимого ячеек.
+            line.layoutDirection = View.LAYOUT_DIRECTION_LTR
+
+            // Иврит: своя ячейка, внутри неё справа налево и прижат вправо —
+            // так столбик читается как ивритский текст.
+            val heb = TextView(this)
+            heb.text = android.text.Html.fromHtml(
+                row.foreign, android.text.Html.FROM_HTML_MODE_COMPACT)
+            heb.textSize = 15f
+            heb.textDirection = View.TEXT_DIRECTION_RTL
+            heb.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+            heb.layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+            // Русский: своя ячейка, слева направо и прижат влево.
+            val ru = TextView(this)
+            ru.text = if (row.marker.isBlank()) row.ru else "${row.marker} ${row.ru}"
+            ru.textSize = 15f
+            ru.textDirection = View.TEXT_DIRECTION_LTR
+            ru.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            val rlp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            rlp.marginStart = dpToPx(8)
+            ru.layoutParams = rlp
+
+            line.addView(heb)
+            line.addView(ru)
+            val llp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            llp.topMargin = dpToPx(3)
+            line.layoutParams = llp
+            parent.addView(line)
+        }
     }
 
     private fun dpToPx(dp: Int): Int =

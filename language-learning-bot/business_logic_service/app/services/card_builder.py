@@ -277,6 +277,50 @@ EXTRA_LABELS_BY_LANGUAGE = {
 }
 
 
+
+# Разбор блоков огласовок и однокоренных в строки таблицы.
+#
+# Зачем это здесь, а не в клиентах. Строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя»
+# начинается с ивритской буквы, и любой рендерер берёт направление абзаца по
+# первому сильному символу — весь блок уезжал вправо вместе с русским хвостом.
+# Задать направление всему абзацу мало: иврит и русский всё равно идут одной
+# строкой, и колонки не выстраиваются. Нужны настоящие колонки, а тогда
+# выравнивание становится свойством вёрстки, а не догадкой о направлении.
+#
+# Разбирать в каждом клиенте значило бы держать три копии знания о формате —
+# ровно то, что уже дважды расходилось (кнопки пик-режима, запрет комбинации).
+# Формат наш собственный, его порождают words/hebrew_tools, и форм всего четыре.
+_REF_ROW = re.compile(r"^<i>\[#(\d+)\]</i>(.+?)\s*(\[[^\]]*\])\s*(.*)$")
+_TONE_ROW = re.compile(r"^\s*-\s*<b>(.+?)</b>\s*(\[[^\]]*\])\s*:\s*(.*)$")
+
+
+def _extra_rows(text: str) -> Dict[str, Any]:
+    """
+    Блок -> {header, rows}. Строка, которую не удалось разобрать, попадает в
+    rows как одна ячейка «ru»: терять её нельзя, а угадывать структуру — тем
+    более.
+    """
+    header, rows = "", []
+    for line in (text or "").split("\n"):
+        if not line.strip():
+            continue
+        m = _REF_ROW.match(line.strip())
+        if m:
+            rows.append({"marker": f"[#{m.group(1)}]", "foreign": f"{m.group(2)} {m.group(3)}".strip(),
+                         "ru": m.group(4).strip()})
+            continue
+        m = _TONE_ROW.match(line)
+        if m:
+            rows.append({"marker": "", "foreign": f"{m.group(1)} {m.group(2)}".strip(),
+                         "ru": m.group(3).strip()})
+            continue
+        if not header:
+            header = line.strip()
+        else:
+            rows.append({"marker": "", "foreign": "", "ru": line.strip()})
+    return {"header": header, "rows": rows}
+
+
 def _extra_label(language_ru: str, key: str) -> str:
     per_language = EXTRA_LABELS_BY_LANGUAGE.get(language_ru or "", {})
     return per_language.get(key) or EXTRA_LABELS_DEFAULT[key]
@@ -300,12 +344,14 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
         tones = _filter_refs(word.get("tones", ""), words_studied)
         if tones.strip():
             extra.append({"type": "label", "text": _extra_label(language_ru, "tones"), "group": "tones"})
-            extra.append({"type": "extra", "text": tones, "group": "tones"})
+            extra.append({"type": "extra", "text": tones, "group": "tones",
+                          **_extra_rows(tones)})
     if settings.get("show_references") and (word.get("references") or "").strip():
         refs = _filter_refs(word.get("references", ""), words_studied)
         if refs.strip():
             extra.append({"type": "label", "text": _extra_label(language_ru, "references"), "group": "references"})
-            extra.append({"type": "extra", "text": refs, "group": "references"})
+            extra.append({"type": "extra", "text": refs, "group": "references",
+                          **_extra_rows(refs)})
     if settings.get("show_radicals") and (word.get("radicals") or "").strip():
         extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})

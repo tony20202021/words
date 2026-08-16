@@ -10,6 +10,24 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 
+def _extra_text(item: Dict[str, Any]) -> str:
+    """
+    Блок из разобранных строк, а при их отсутствии — исходный текст.
+
+    Строки приходят с сервера: формат один на три клиента, и разбирать его в
+    каждом значило бы держать три копии знания о нём.
+    """
+    rows = item.get("rows")
+    if not rows:
+        return item.get("text") or ""
+    out = [item.get("header") or ""]
+    for row in rows:
+        left = (row.get("marker") or "").strip()
+        parts = [p for p in (left, row.get("foreign") or "", "—", row.get("ru") or "") if p]
+        out.append(" ".join(parts))
+    return "\n".join(p for p in out if p.strip())
+
+
 LRM = "\u200e"
 
 
@@ -49,10 +67,11 @@ _ITEM_RENDERERS = {
     "translation":   lambda i: f"<b>{_esc(i)}</b>",
     "hint":          lambda i: f"<i>{_esc(i)}</i>",
     "notice":        lambda i: _esc(i),
-    # Каждую строку начинаем с LEFT-TO-RIGHT MARK. В Telegram нет способа задать
-    # направление абзаца, а строка вида «[#28] אוֹתְךָ [ʔotˈχa] тебя» начинается с
-    # ивритской буквы, и клиент прижимает её вправо вместе с русским хвостом.
-    "extra":         lambda i: _ltr_lines(i["text"]),
+    # Таблиц в Telegram нет, но колонки уже разобраны сервером — собираем из них
+    # ровные строки «иврит — русский». Каждую начинаем с LEFT-TO-RIGHT MARK:
+    # направление абзаца задать нечем, а строка начинается с ивритской буквы, и
+    # клиент прижимает её вправо вместе с русским хвостом.
+    "extra":         lambda i: _ltr_lines(_extra_text(i)),
     # card_builder кладёт сюда список запрещённых дистракторов (без "text").
     # Пока рендерера не было, блок молча пропадал: пользователь Telegram не
     # видел, что запреты копятся, и не мог их снять.
