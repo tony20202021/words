@@ -945,6 +945,19 @@ def test_extra_block_labels_depend_on_the_language():
     assert _extra_label("", "radicals") == "🔍 Радикалы:"
 
 
+def test_language_lookup_survives_renaming():
+    """
+    Название языка редактируется администратором, а промах по ключу отказывает
+    молча: изучающий иврит просто увидит «Тоны:» над списком огласовок и вряд ли
+    поймёт, что это сбой. Поэтому регистр и пробелы значения иметь не должны.
+    """
+    from app.services.card_builder import _extra_label
+
+    for name in ("иврит", "ИВРИТ", "  Иврит  ", "иВрИт"):
+        assert "огласовк" in _extra_label(name, "tones"), name
+        assert "основой" in _extra_label(name, "references"), name
+
+
 def test_hebrew_card_labels_its_extra_blocks_in_hebrew_terms():
     word = make_word()
     word["references"] = "<b>את</b>: <i>слов с этой основой: 2</i>\n<i>[#1]</i>אֵת [ʔet] знак"

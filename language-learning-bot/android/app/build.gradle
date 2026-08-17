@@ -56,6 +56,12 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true   // required by Robolectric
+            all {
+                // Пересъёмка эталонных снимков вместо сверки с ними:
+                //   ./gradlew :app:testDebugUnitTest -Pscreenshots.update=true
+                systemProperty 'screenshots.update',
+                        project.findProperty('screenshots.update') ?: 'false'
+            }
         }
     }
     kotlinOptions {

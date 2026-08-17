@@ -330,8 +330,15 @@ def _extra_rows(text: str) -> Dict[str, Any]:
 
 
 def _extra_label(language_ru: str, key: str) -> str:
-    per_language = EXTRA_LABELS_BY_LANGUAGE.get(language_ru or "", {})
-    return per_language.get(key) or EXTRA_LABELS_DEFAULT[key]
+    # Ищем без учёта регистра и пробелов: название языка редактируется админом,
+    # а промах по ключу здесь ничего не ломает заметно — просто изучающий иврит
+    # видит «Тоны:» вместо «То же написание с другой огласовкой:». Такой отказ
+    # молчаливый, поэтому лучше не зависеть от точного совпадения строки.
+    needle = (language_ru or "").strip().casefold()
+    for name, labels in EXTRA_LABELS_BY_LANGUAGE.items():
+        if name.casefold() == needle:
+            return labels.get(key) or EXTRA_LABELS_DEFAULT[key]
+    return EXTRA_LABELS_DEFAULT[key]
 
 
 def _add_after_answer(content: list, word: dict, settings: dict, extra: list,

@@ -1,21 +1,10 @@
 package com.langbot.app
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
 import android.content.Intent
-import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import androidx.test.core.app.ApplicationProvider
-import com.google.gson.Gson
 import com.langbot.app.network.BLSClient
-import com.langbot.app.network.Card
-import com.langbot.app.network.CardButton
-import com.langbot.app.network.CardItem
-import com.langbot.app.network.CardMeta
-import com.langbot.app.network.ExtraContentItem
-import com.langbot.app.network.ExtraRow
-import com.langbot.app.network.SessionResponse
 import com.langbot.app.offline.OfflineCache
 import com.langbot.app.prefs.UserPrefs
 import okhttp3.mockwebserver.Dispatcher
@@ -29,29 +18,27 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * Снимок экрана карточки в PNG — без эмулятора и телефона.
+ * Рисует экраны в PNG и сверяет оформление с эталоном — без эмулятора.
  *
- * Зачем
- * -----
- * Больше половины дефектов этой недели были из разряда «на экране не так»:
- * блок доп. информации уезжал вправо, счётчики не двигались, кнопка стояла не
- * там. Ни один из них не ловился тестами, и каждый находил владелец, глядя на
- * телефон. Проверить это чтением кода нельзя — я дважды писал «починено», не
- * увидев экрана, и дважды ошибался.
+ * Что здесь проверяется
+ * ---------------------
+ * 1. Экран вообще рисуется (не белый лист).
+ * 2. Механика вёрстки: обрезанный текст, нулевой размер, выход за правый край.
+ * 3. Оформление совпадает с эталоном — то есть вёрстка не съехала.
  *
- * Robolectric 4.11 умеет рисовать по-настоящему (GraphicsMode.NATIVE), поэтому
- * View можно измерить, разложить и вывести в Bitmap. Получается картинка, на
- * которую можно посмотреть — не замена живому телефону, но ловит именно то, что
- * не ловится структурными проверками: наложения, обрезку, уехавшее выравнивание.
+ * Чего здесь НЕ проверяется: правильность содержимого. «1 ошибок» вместо
+ * «1 ошибка» такой тест пропустит — эталон снимут с ошибкой, и она станет
+ * нормой. Содержимое проверяет человек, глядя на картинки в build/screenshots,
+ * и структурные утверждения в CardStructureTest.
  *
- * Файлы кладутся в app/build/screenshots/ — это каталог сборки, в репозиторий
- * не попадает.
+ * Карточки берутся из фикстур, снятых настоящим card_builder
+ * (resources/make_card_fixtures.py). Слова в них заморожены, поэтому любое
+ * расхождение пикселей означает изменение оформления, а не словаря.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -59,29 +46,33 @@ import java.io.File
 class ScreenshotTest {
 
     private lateinit var server: MockWebServer
-    private val u = "user-1"
-    private val l = "lang-1"
-    private val gson = Gson()
+    private var cardJson: String = "{}"
+    private val fixturesDir = File("src/test/resources/cards")
 
-    private val outDir = File("build/screenshots")
+    private val problems = mutableListOf<String>()
 
     @Before
     fun setUp() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         OfflineCache.init(ctx)
-        UserPrefs.saveUserId(ctx, u)
-        outDir.mkdirs()
+        UserPrefs.saveUserId(ctx, "user-1")
+        Screenshots.outDir.mkdirs()
 
         server = MockWebServer()
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path ?: ""
-                return if (path.startsWith("/session/") && request.method == "GET") {
-                    MockResponse().setResponseCode(200)
-                        .setBody(gson.toJson(SessionResponse(session_id = "sid-1", card = hebrewCard())))
-                } else {
-                    MockResponse().setResponseCode(404)
+                val body = when {
+                    path.startsWith("/session/") -> """{"session_id":"sid-1","card":$cardJson}"""
+                    path.startsWith("/languages") -> LANGUAGES
+                    path.startsWith("/settings/") -> SETTINGS
+                    path.contains("chart_manifest") -> CHART_MANIFEST
+                    path.startsWith("/statistics/") -> STATISTICS
+                    path.startsWith("/version") -> VERSION
+                    else -> null
                 }
+                return if (body == null) MockResponse().setResponseCode(404)
+                else MockResponse().setResponseCode(200).setBody(body)
             }
         }
         server.start()
@@ -93,122 +84,112 @@ class ScreenshotTest {
         runCatching { server.shutdown() }
     }
 
-    /** Ответная сторона ивритского слова с блоками огласовок и однокоренных. */
-    private fun hebrewCard() = Card(
-        show_answer = true,
-        content = listOf(
-            CardItem("foreign", "עִם"),
-            CardItem("transcription", "/ʔim/\nим"),
-            CardItem("translation", "с, вместе с"),
-            CardItem("label", "📚 предлог"),
-        ),
-        buttons = listOf(
-            CardButton("rate", "➡️ Дальше", "success", "dont_know", "submit", "dont_know"),
-            CardButton("toggle_skip", "⏩ Пропускать", "outline-secondary", null, "submit", "skip"),
-        ),
-        meta = CardMeta(
-            word_id = "w1", word_number = 15, session_pos = 3, session_total = 10,
-            correct_count = 2, incorrect_count = 1,
-            result_history = listOf("know", "know", "dont_know"),
-            pending_result = null, score_badge = null, words_for_today = 10,
-        ),
-        extra_content = listOf(
-            ExtraContentItem("label", "🔤 То же написание с другой огласовкой:", "tones"),
-            ExtraContentItem(
-                "extra", "запасной текст", "tones",
-                header = "<b>עם</b>: <i>вариантов огласовки: 2</i>",
-                header_foreign = "<b>עם</b>", header_ru = "вариантов огласовки: 2",
-                rows = listOf(
-                    ExtraRow("", "עִם [ʔim]", "с, вместе с"),
-                    ExtraRow("", "עַם [ʔam]", "народ"),
-                ),
-            ),
-            ExtraContentItem("label", "🌱 Слова с той же основой:", "references"),
-            ExtraContentItem(
-                "extra", "запасной текст", "references",
-                header = "<b>עם</b>: <i>слов с этой основой: 3</i>",
-                header_foreign = "<b>עם</b>", header_ru = "слов с этой основой: 3",
-                rows = listOf(
-                    ExtraRow("[#27]", "אוֹתוֹ [ʔoˈto]", "его; тот самый"),
-                    ExtraRow("[#33]", "אוֹתִי [ʔoˈti]", "меня"),
-                ),
-            ),
-        ),
-    )
+    /** Снять вид, проверить непустоту, вёрстку и совпадение с эталоном. */
+    private fun shoot(view: View, name: String) {
+        val bmp = Screenshots.render(view)
+        Screenshots.write(bmp, File(Screenshots.outDir, "$name.png"))
 
-    private fun pumpUntil(what: String, timeoutMs: Long = 15_000, cond: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            shadowOf(Looper.getMainLooper()).idle()
-            if (cond()) return
-            Thread.sleep(10)
+        val painted = Screenshots.paintedRatio(bmp)
+        if (painted < 0.005) {
+            // Первая версия этого теста сняла голый заголовок и осталась
+            // зелёной — проверка «хоть что-то нарисовано» стоит именно здесь.
+            problems += "$name: экран пуст (закрашено ${"%.2f".format(painted * 100)}%)"
+            return
         }
-        throw AssertionError("не дождались: $what")
+        Screenshots.layoutProblems(view, bmp.width).forEach { problems += "$name: $it" }
+        Screenshots.checkBaseline(name, bmp)?.let { problems += "$name: $it" }
     }
 
-    /**
-     * Колонка внутри ScrollView — у неё нет id, добираемся по дереву.
-     * Снимать сам ScrollView бесполезно: он отдаст только видимый кусок, а
-     * блоки огласовок живут ниже сгиба — то есть ровно то, что нужно увидеть.
-     */
-    private fun scrollColumn(activity: StudyActivity): View {
-        val swipe = activity.findViewById<android.view.ViewGroup>(R.id.swipeRefresh)
-        // Ищем по типу, а не по индексу: нулевой ребёнок SwipeRefreshLayout —
-        // это кружок индикатора обновления, ScrollView идёт после него.
-        val scroll = (0 until swipe.childCount).map { swipe.getChildAt(it) }
-            .filterIsInstance<android.widget.ScrollView>()
-            .firstOrNull() ?: throw AssertionError("в swipeRefresh нет ScrollView")
-        return scroll.getChildAt(0)
-    }
-
-    /** Снять вид в PNG. Возвращает долю незакрашенных фоном пикселей — мера «что-то нарисовано». */
-    private fun capture(view: View, name: String): Double {
-        // Высота UNSPECIFIED: колонка разворачивается на всё содержимое, и в
-        // картинку попадает то, что на телефоне видно только прокруткой.
-        view.measure(
-            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-        )
-        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
-        val w = view.measuredWidth.coerceAtLeast(1)
-        val h = view.measuredHeight.coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        bitmap.eraseColor(Color.WHITE)
-        view.draw(Canvas(bitmap))
-
-        val file = File(outDir, "$name.png")
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-
-        // Доля пикселей, отличных от фона: пустой экран означает, что рисование
-        // не сработало, и молчать об этом нельзя — картинка тогда бесполезна.
-        var painted = 0
-        val step = 4
-        var total = 0
-        for (y in 0 until h step step) {
-            for (x in 0 until w step step) {
-                total++
-                if (bitmap.getPixel(x, y) != Color.WHITE) painted++
-            }
+    private fun studyWith(fixture: File): StudyActivity {
+        cardJson = fixture.readText()
+        val intent = Intent(ApplicationProvider.getApplicationContext(), StudyActivity::class.java)
+            .putExtra("language_id", "lang-1")
+            .putExtra("language_name", "Иврит")
+        val activity = Robolectric.buildActivity(StudyActivity::class.java, intent).setup().get()
+        Screenshots.pumpUntil("${fixture.nameWithoutExtension}: карточка отрисована") {
+            activity.findViewById<ViewGroup>(R.id.cardContent).childCount > 0 ||
+                activity.findViewById<ViewGroup>(R.id.buttonRow).childCount > 0
         }
-        println("снимок: ${file.absolutePath} (${w}x$h, закрашено ${painted * 100 / total}%)")
-        return painted.toDouble() / total
+        return activity
     }
 
     @Test
-    fun hebrew_answer_card_is_rendered_to_a_png() {
-        val intent = Intent(ApplicationProvider.getApplicationContext(), StudyActivity::class.java)
-            .putExtra("language_id", l)
-            .putExtra("language_name", "Иврит")
-        val activity = Robolectric.buildActivity(StudyActivity::class.java, intent).setup().get()
+    fun card_states_match_their_baselines() {
+        val fixtures = fixturesDir.listFiles { f -> f.name.endsWith(".json") }
+            ?.sortedBy { it.name } ?: emptyList()
+        assertTrue(
+            "нет фикстур в ${fixturesDir.absolutePath} — сначала make_card_fixtures.py",
+            fixtures.isNotEmpty(),
+        )
 
-        // Ждём именно содержимое, а не «активность существует»: первая версия
-        // этой проверки была всегда истинной и сняла голый заголовок.
-        pumpUntil("карточка и блоки доп. информации отрисованы") {
-            activity.findViewById<android.view.ViewGroup>(R.id.cardContent).childCount > 0 &&
-                activity.findViewById<android.view.ViewGroup>(R.id.extraCardsArea).childCount > 0
+        for (fixture in fixtures) {
+            val activity = studyWith(fixture)
+            shoot(Screenshots.scrollColumnOrRoot(activity, R.id.swipeRefresh), fixture.nameWithoutExtension)
+            activity.finish()
         }
+        report()
+    }
 
-        val painted = capture(scrollColumn(activity), "hebrew_answer_card")
-        assertTrue("экран пустой — рисование не сработало, картинка бесполезна", painted > 0.01)
+    @Test
+    fun other_key_screens_match_their_baselines() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val languages = Robolectric.buildActivity(LanguagesActivity::class.java).setup().get()
+        Screenshots.pumpUntil("список языков загружен") {
+            Screenshots.texts(languages.findViewById(android.R.id.content)).size > 1
+        }
+        shoot(languages.findViewById(android.R.id.content), "screen_languages")
+        languages.finish()
+
+        val settingsIntent = Intent(ctx, SettingsActivity::class.java)
+            .putExtra("language_id", "lang-1").putExtra("language_name", "Иврит")
+        val settings = Robolectric.buildActivity(SettingsActivity::class.java, settingsIntent).setup().get()
+        Screenshots.pumpUntil("настройки загружены") {
+            Screenshots.texts(settings.findViewById(android.R.id.content)).size > 3
+        }
+        shoot(Screenshots.contentColumn(settings), "screen_settings")
+        settings.finish()
+
+        val statsIntent = Intent(ctx, StatsActivity::class.java)
+            .putExtra("language_id", "lang-1").putExtra("language_name", "Иврит")
+        val stats = Robolectric.buildActivity(StatsActivity::class.java, statsIntent).setup().get()
+        Screenshots.pumpUntil("статистика загружена") {
+            Screenshots.texts(stats.findViewById(android.R.id.content)).size > 3
+        }
+        shoot(Screenshots.contentColumn(stats), "screen_stats")
+        stats.finish()
+
+        report()
+    }
+
+    private fun report() {
+        assertTrue(problems.joinToString("\n", prefix = "\n"), problems.isEmpty())
+    }
+
+    companion object {
+        private const val LANGUAGES = """
+        [{"id":"lang-1","name_ru":"Иврит","name_foreign":"עברית"},
+         {"id":"lang-2","name_ru":"Китайский","name_foreign":"中文"}]"""
+
+        private const val SETTINGS = """
+        {"start_word":1,"skip_marked":false,"use_check_date":true,"show_check_date":true,
+         "show_big":false,"show_sounds":true,"show_tones":true,"show_references":true,
+         "show_radicals":false,"show_skip_button":true,"show_hint_meaning":true,
+         "show_hint_phoneticassociation":true,"show_hint_phoneticsound":false,
+         "show_hint_writing":false,"random_pick_mode":true,"random_sound":true,
+         "random_transcription":true,"quiz_options_count":4,"unknown_limit_new_words":10,
+         "max_check_interval":90,"reset_same_day_hours":4,"reset_cross_midnight_hours":8}"""
+
+        // progress_percentage сервер считает как words_known / total_words
+        // (statistics_repository), поэтому число здесь обязано сходиться с
+        // остальными: 410 / 9995 = 4.1. С несогласованными числами эталон
+        // выглядел бы так, будто клиент считает процент неправильно.
+        private const val STATISTICS = """
+        {"words_studied":523,"words_known":410,"words_skipped":12,"words_unknown":101,
+         "total_words":9995,"words_for_today":10,"progress_percentage":4.1}"""
+
+        private const val CHART_MANIFEST = """{"sections":[],"captions":{}}"""
+
+        private const val VERSION = """{"version":"4.1.1","version_code":40101}"""
     }
 }

@@ -1,0 +1,93 @@
+{
+ "show_answer": true,
+ "restart_notice": null,
+ "content": [
+  {
+   "type": "label",
+   "text": "🔍 Перевод:"
+  },
+  {
+   "type": "translation",
+   "text": "с, вместе с"
+  },
+  {
+   "type": "label",
+   "text": "🔊 Транскрипция:"
+  },
+  {
+   "type": "transcription",
+   "text": "[ʔim]"
+  },
+  {
+   "type": "label",
+   "text": "📝 Слово на иностранном:"
+  },
+  {
+   "type": "foreign",
+   "text": "עִם"
+  },
+  {
+   "type": "label",
+   "text": "📚 предлог"
+  }
+ ],
+ "extra_content": [],
+ "sounds": [],
+ "buttons": [
+  {
+   "id": "rate",
+   "text": "➡️ Дальше",
+   "style": "success",
+   "rating": "dont_know",
+   "offline_effect": "submit",
+   "offline_rating": "dont_know"
+  },
+  {
+   "id": "toggle_skip",
+   "text": "⏩ Пропускать",
+   "style": "outline-secondary",
+   "offline_effect": "submit",
+   "offline_rating": "skip"
+  }
+ ],
+ "big_word": null,
+ "pick_options": null,
+ "last_wrong_distractor_id": null,
+ "pick_answer_result": null,
+ "meta": {
+  "word_id": "",
+  "hint_enabled_types": [],
+  "word_number": 15,
+  "score": 1,
+  "interval": 4,
+  "next_check_date": "2026-08-20",
+  "is_skipped": false,
+  "session_pos": 4,
+  "session_total": 10,
+  "show_session_counter": true,
+  "session_counter_text": "(в сессии: 4 из 10)",
+  "is_new_word": false,
+  "new_word_label": "",
+  "correct_count": 2,
+  "incorrect_count": 1,
+  "result_history": [
+   "know",
+   "know",
+   "dont_know"
+  ],
+  "pending_result": "dont_know",
+  "score_badge": {
+   "text": "✓ знал · 4д",
+   "variant": "success",
+   "next_date": "2026-08-20",
+   "new_interval": 4,
+   "new_next_date": "2026-08-20",
+   "new_variant": "success"
+  },
+  "language_name_ru": "Иврит",
+  "language_name_foreign": "",
+  "words_studied": 500,
+  "total_words": 0,
+  "words_for_today": 10
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "show_answer": false,
+ "restart_notice": null,
+ "content": [
+  {
+   "type": "label",
+   "text": "📝 Слово на иностранном:"
+  },
+  {
+   "type": "foreign",
+   "text": "עִם"
+  }
+ ],
+ "extra_content": [],
+ "sounds": [],
+ "buttons": [
+  {
+   "id": "know",
+   "text": "✅ Знаю",
+   "style": "success",
+   "offline_effect": "record_and_reveal",
+   "offline_rating": "know"
+  },
+  {
+   "id": "show_answer",
+   "text": "❓ Не знаю",
+   "style": "outline-danger",
+   "offline_effect": "reveal_answer"
+  }
+ ],
+ "big_word": null,
+ "pick_options": null,
+ "last_wrong_distractor_id": null,
+ "pick_answer_result": null,
+ "meta": {
+  "word_id": "",
+  "hint_enabled_types": [],
+  "word_number": 15,
+  "score": 1,
+  "interval": 4,
+  "next_check_date": "2026-08-20",
+  "is_skipped": false,
+  "session_pos": 3,
+  "session_total": 10,
+  "show_session_counter": true,
+  "session_counter_text": "(в сессии: 3 из 10)",
+  "is_new_word": false,
+  "new_word_label": "",
+  "correct_count": 1,
+  "incorrect_count": 1,
+  "result_history": [
+   "know",
+   "dont_know"
+  ],
+  "pending_result": null,
+  "score_badge": {
+   "text": "✓ знал · 4д",
+   "variant": "success",
+   "next_date": "2026-08-20"
+  },
+  "language_name_ru": "Иврит",
+  "language_name_foreign": "",
+  "words_studied": 500,
+  "total_words": 0,
+  "words_for_today": 10
+ }
+}
