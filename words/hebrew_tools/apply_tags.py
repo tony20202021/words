@@ -20,6 +20,8 @@ import json
 import os
 import sys
 
+from tag_defs import load_tags
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.abspath(os.path.join(HERE, "..", "data", "hebrew_freq"))
 FULL = os.path.join(DATA, "hebrew_freq_10000_full.json")
@@ -29,9 +31,9 @@ TAGS = os.path.join(DATA, "tags.json")
 def load():
     with open(FULL, encoding="utf-8") as fh:
         rows = json.load(fh)
-    with open(TAGS, encoding="utf-8") as fh:
-        defs = json.load(fh)["tags"]
-    return rows, defs
+    # Порядок участников считает общий модуль: его же читает build_tag_groups.
+    # Пока правило жило в двух местах, оно могло разъехаться молча.
+    return rows, load_tags(TAGS)
 
 
 def validate(rows, defs):

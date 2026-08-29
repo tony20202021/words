@@ -22,6 +22,8 @@ import json
 import os
 import sys
 
+from tag_defs import load_tags
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.abspath(os.path.join(HERE, "..", "data", "hebrew_freq"))
 FULL = os.path.join(DATA, "hebrew_freq_10000_full.json")
@@ -75,8 +77,7 @@ def main() -> int:
 
     with open(FULL, encoding="utf-8") as fh:
         rows = json.load(fh)
-    with open(TAGS, encoding="utf-8") as fh:
-        defs = json.load(fh)["tags"]
+    defs = load_tags(TAGS)
 
     built, composition = build(rows, defs)
 

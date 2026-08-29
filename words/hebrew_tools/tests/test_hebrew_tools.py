@@ -247,3 +247,58 @@ def test_niqqud_validation_matches_apply_review():
         merged, _ = merge_reviews.niqqud_matches(hebrew, niqqud)
         applied, _ = apply_review.check({"hebrew": hebrew}, "niqqud", niqqud)
         assert merged == applied, (hebrew, niqqud, merged, applied)
+
+
+# ── порядок внутри тегов ──────────────────────────────────────────────────────
+
+def test_every_tag_declares_how_it_is_sorted():
+    """
+    Порядок показа обязан быть объявлен, а не подразумеваться. Ручной ставится
+    только там, где он очевиден читателю — числа по значению, лица по парадигме;
+    остальным по рангу, потому что выдуманная последовательность хуже
+    отсутствия: в ней ищут смысл, которого нет.
+    """
+    from tag_defs import load_tags, SORTS
+    import json
+    import os
+
+    raw = json.load(open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "..", "data", "hebrew_freq", "tags.json"), encoding="utf-8"))["tags"]
+    for tag, spec in raw.items():
+        assert spec.get("sort") in SORTS, f"{tag}: порядок не объявлен"
+        assert spec.get("note"), f"{tag}: порядок не объяснён"
+
+
+def test_rank_sorted_tags_come_out_in_rank_order():
+    from tag_defs import load_tags
+    defs = load_tags()
+    for tag, spec in defs.items():
+        if spec["sort"] != "ранг":
+            continue
+        members = spec["members"]
+        assert members == sorted(members), f"{tag}: ранги не по возрастанию"
+
+
+def test_manual_order_is_preserved_verbatim():
+    """Ручной порядок нельзя молча пересортировать — в нём весь смысл."""
+    from tag_defs import load_tags
+    defs = load_tags()
+    nums = defs["числительные"]["members"]
+    # «один» частотнее «десяти», но идёт первым не поэтому, а по значению.
+    assert nums[0] == 40 and nums[-1] == 781
+    assert nums != sorted(nums), "числительные не должны идти по рангу"
+
+
+def test_both_scripts_would_see_the_same_order():
+    """
+    Порядок читают два скрипта: apply_tags пишет его в слово, build_tag_groups
+    раскладывает по нему строки. Расходиться они не должны — общий загрузчик
+    для того и заведён.
+    """
+    import apply_tags
+    import build_tag_groups
+    from tag_defs import load_tags
+
+    assert apply_tags.load_tags is load_tags
+    assert build_tag_groups.load_tags is load_tags
