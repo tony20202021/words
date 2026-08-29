@@ -34,10 +34,23 @@ def rendered():
 
 
 def test_all_four_columns_are_present(rendered):
-    assert "#40" in rendered and "#890" in rendered      # номер в словаре
+    # Номер без «#»: в узкой колонке он занимал место, из-за которого «1105»
+    # переносилось на две строки.
+    assert ">40<" in rendered and ">890<" in rendered    # номер в словаре
+    assert "#40" not in rendered
     assert "один" in rendered and "десять" in rendered   # перевод
     assert "[ʔeˈχad]" in rendered                        # транскрипция
     assert "אֶחָד" in rendered                            # слово
+
+
+def test_the_word_comes_before_its_transcription(rendered):
+    """Читают слово, транскрипция его уточняет — значит она правее."""
+    assert rendered.index("אֶחָד") < rendered.index("[ʔeˈχad]")
+
+
+def test_the_number_column_never_wraps(rendered):
+    # «1105» рвалось на «11» и «05», пока колонке было позволено переносить.
+    assert "text-nowrap" in rendered
 
 
 def test_the_current_word_is_highlighted(rendered):

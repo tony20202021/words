@@ -50,24 +50,24 @@
      "self": false
     },
     {
-     "rank": 130,
-     "ru": "одна",
-     "ipa": "ʔaˈχat",
-     "foreign": "אַחַת",
+     "rank": 1105,
+     "ru": "два, двое",
+     "ipa": "ˈʃnajim",
+     "foreign": "שְׁנַיִים",
      "self": false
     },
     {
      "rank": 417,
-     "ru": "три",
+     "ru": "три (ж)",
      "ipa": "ʃaˈloʃ",
      "foreign": "שָׁלוֹשׁ",
      "self": true
     },
     {
-     "rank": 890,
-     "ru": "десять",
-     "ipa": "ˈʔeseʁ",
-     "foreign": "עֶשֶׂר",
+     "rank": 5862,
+     "ru": "девять (м)",
+     "ipa": "tiˈʃa",
+     "foreign": "תִּשְׁעָה",
      "self": false
     }
    ]

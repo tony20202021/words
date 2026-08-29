@@ -327,11 +327,14 @@
         <table class="table table-sm table-bordered mb-2 small" dir="ltr">
           <tbody>
           {% for row in item.rows %}
+            {# Порядок: номер, перевод, слово, транскрипция. Слово перед
+               транскрипцией — читают его, транскрипция уточняет. Номер без «#»
+               и без переноса: в узкой колонке «1105» рвалось на «11» и «05». #}
             <tr{% if row.self %} class="table-warning"{% endif %}>
-              <td class="text-end align-middle text-muted" style="width:12%">#{{ row.rank }}</td>
-              <td class="text-start align-middle" dir="ltr" style="width:33%">{{ row.ru }}</td>
-              <td class="text-start align-middle text-muted" dir="ltr" style="width:25%">[{{ row.ipa }}]</td>
-              <td class="text-end align-middle word-extra-foreign" dir="rtl">{{ row.foreign }}</td>
+              <td class="text-end align-middle text-muted text-nowrap" style="width:12%">{{ row.rank }}</td>
+              <td class="text-start align-middle" dir="ltr" style="width:30%">{{ row.ru }}</td>
+              <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:33%">{{ row.foreign }}</td>
+              <td class="text-start align-middle text-muted" dir="ltr">[{{ row.ipa }}]</td>
             </tr>
           {% endfor %}
           </tbody>

@@ -1424,9 +1424,17 @@ class StudyActivity : AppCompatActivity() {
         // сеткой таблицы.
         val bg = if (row.self) Color.parseColor("#fff3cd") else Color.TRANSPARENT
 
-        fun cell(text: String, weight: Float, rtl: Boolean, big: Boolean, muted: Boolean): TextView {
+        fun cell(text: String, weight: Float, rtl: Boolean, big: Boolean, muted: Boolean,
+                 single: Boolean = false): TextView {
             val tv = TextView(this)
             tv.text = text
+            // Номер не переносится: «1105» разрывалось на «11» и «05». Если места
+            // всё же не хватит, текст обрежется многоточием, а это ловит проверка
+            // вёрстки в ScreenshotTest — молча испорченным он не останется.
+            if (single) {
+                tv.maxLines = 1
+                tv.ellipsize = android.text.TextUtils.TruncateAt.END
+            }
             tv.textSize = if (big) 20f else 14f
             if (muted) tv.setTextColor(Color.parseColor("#777777"))
             if (row.self) tv.setTypeface(null, android.graphics.Typeface.BOLD)
@@ -1442,11 +1450,14 @@ class StudyActivity : AppCompatActivity() {
             return tv
         }
 
-        line.addView(cell(row.rank?.let { "#$it" } ?: "", 1.2f, rtl = false, big = false, muted = true))
+        // Порядок колонок: номер, перевод, слово, транскрипция. Слово стоит
+        // перед транскрипцией — читают его, а транскрипция уточняет.
+        line.addView(cell(row.rank?.toString() ?: "", 1.5f,
+            rtl = false, big = false, muted = true, single = true))
         line.addView(cell(row.ru, 3f, rtl = false, big = false, muted = false))
-        line.addView(cell(if (row.ipa.isBlank()) "" else "[${row.ipa}]", 2.4f,
-            rtl = false, big = false, muted = true))
         line.addView(cell(row.foreign, 3f, rtl = true, big = true, muted = false))
+        line.addView(cell(if (row.ipa.isBlank()) "" else "[${row.ipa}]", 2.5f,
+            rtl = false, big = false, muted = true))
         return line
     }
 

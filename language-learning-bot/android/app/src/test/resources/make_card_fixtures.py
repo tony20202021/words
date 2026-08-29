@@ -68,11 +68,13 @@ def session(**over):
 TAG_GROUPS = [{
     "tag": "числительные",
     "label": "🔢 Числительные",
+    # Ранги четырёхзначные намеренно: в настоящей группе числительных есть
+    # #1105 и #5862, и именно на них колонка номера переносила строку.
     "rows": [
         {"rank": 40, "ru": "один", "ipa": "ʔeˈχad", "foreign": "אֶחָד", "self": False},
-        {"rank": 130, "ru": "одна", "ipa": "ʔaˈχat", "foreign": "אַחַת", "self": False},
-        {"rank": 417, "ru": "три", "ipa": "ʃaˈloʃ", "foreign": "שָׁלוֹשׁ", "self": True},
-        {"rank": 890, "ru": "десять", "ipa": "ˈʔeseʁ", "foreign": "עֶשֶׂר", "self": False},
+        {"rank": 1105, "ru": "два, двое", "ipa": "ˈʃnajim", "foreign": "שְׁנַיִים", "self": False},
+        {"rank": 417, "ru": "три (ж)", "ipa": "ʃaˈloʃ", "foreign": "שָׁלוֹשׁ", "self": True},
+        {"rank": 5862, "ru": "девять (м)", "ipa": "tiˈʃa", "foreign": "תִּשְׁעָה", "self": False},
     ],
 }]
 

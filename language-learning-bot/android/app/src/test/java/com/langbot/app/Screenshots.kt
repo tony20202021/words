@@ -80,7 +80,18 @@ object Screenshots {
         return find(root) ?: root
     }
 
-    fun render(view: View, widthPx: Int = 1080): Bitmap {
+    /**
+     * Ширина экрана из настроек Robolectric (@Config qualifiers), а не число.
+     *
+     * Раньше здесь стояло 1080, а настроенный экран w411dp-xhdpi — это 822.
+     * Снимки выходили шире телефона на треть, и перенос текста в узких колонках
+     * на них не воспроизводился: владелец видел на телефоне разорванный номер,
+     * а на снимке номер стоял в строку.
+     */
+    fun screenWidthPx(): Int =
+        android.content.res.Resources.getSystem().displayMetrics.widthPixels
+
+    fun render(view: View, widthPx: Int = screenWidthPx()): Bitmap {
         // UNSPECIFIED по высоте: колонка разворачивается на всё содержимое, и в
         // картинку попадает то, что на телефоне видно только прокруткой.
         view.measure(

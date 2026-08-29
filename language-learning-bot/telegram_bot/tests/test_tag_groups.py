@@ -10,12 +10,19 @@ ROWS = [
 def test_line_carries_all_four_columns():
     out = _tag_group_text({"rows": ROWS})
     first = out.split("\n")[0]
-    assert "#40" in first and "один" in first and "[ʔeˈχad]" in first and "אֶחָד" in first
+    assert "40" in first and "один" in first and "[ʔeˈχad]" in first and "אֶחָד" in first
+    # Номер без «#» — как в таблицах остальных клиентов.
+    assert "#" not in first
+
+
+def test_the_word_comes_before_its_transcription():
+    first = _tag_group_text({"rows": ROWS}).split("\n")[0]
+    assert first.index("אֶחָד") < first.index("[ʔeˈχad]")
 
 
 def test_the_current_word_is_bold():
     out = _tag_group_text({"rows": ROWS})
-    assert "<b>#417  три" in out
+    assert "<b>417  три" in out
 
 
 def test_markup_characters_are_escaped():

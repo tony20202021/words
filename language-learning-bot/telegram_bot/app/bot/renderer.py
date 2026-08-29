@@ -44,12 +44,14 @@ def _tag_group_text(item: Dict[str, Any]) -> str:
     lines = []
     for row in item.get("rows") or []:
         rank = row.get("rank")
-        num = f"#{rank}" if rank else ""
         ipa = (row.get("ipa") or "").strip()
-        parts = [num, escape(row.get("ru") or "", quote=False)]
+        # Порядок тот же, что в таблицах веба и андроида: номер, перевод, слово,
+        # транскрипция. Номер без «#» — в колонке он занимал место, а здесь
+        # держать своё обозначение значило бы разойтись с остальными клиентами.
+        parts = [str(rank) if rank else "", escape(row.get("ru") or "", quote=False)]
+        parts.append(escape(row.get("foreign") or "", quote=False))
         if ipa:
             parts.append(f"[{escape(ipa, quote=False)}]")
-        parts.append(escape(row.get("foreign") or "", quote=False))
         line = "  ".join(p for p in parts if p)
         lines.append(f"<b>{line}</b>" if row.get("self") else line)
     return "\n".join(lines)
