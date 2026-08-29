@@ -77,6 +77,10 @@ words/data/*
 !words/data/hebrew_freq/
 words/data/hebrew_freq/*
 !words/data/hebrew_freq/*.py
+# Определения тегов — ручная курация, а не выгрузка: состав групп и порядок
+# показа внутри них заданы человеком и по словарю не восстанавливаются.
+# Сам словарь (9995 записей) остаётся вне репозитория, он генерируется.
+!words/data/hebrew_freq/tags.json
 *.db
 .DS_Store
 *.pid
