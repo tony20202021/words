@@ -370,6 +370,32 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
     if settings.get("show_radicals") and (word.get("radicals") or "").strip():
         extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})
+    _add_tag_groups(word, extra)
+
+
+def _add_tag_groups(word: dict, extra: list) -> None:
+    """Группы слов для совместного повторения — числительные, родственники, части тела.
+
+    Состав группы собран заранее (words/hebrew_tools/build_tag_groups.py) и лежит
+    в самом слове, поэтому здесь только перекладывается в карточку: собирать его
+    на каждый показ значило бы искать по всему словарю ради строки таблицы.
+
+    В отличие от однокоренных группа НЕ обрезается по прогрессу. Однокоренные —
+    про уже встреченное, а тег — про набор, который учат целиком: числовой ряд с
+    дырами на месте непройденных чисел пользы не имеет.
+
+    Тип свой, tag_group, а не общий extra: у таблицы четыре колонки вместо двух,
+    и подмешивать её в двухколоночный разбор значило бы ломать его для всех.
+    """
+    for group in (word.get("tag_groups") or []):
+        rows = group.get("rows") or []
+        if not rows:
+            continue
+        extra.append({"type": "label", "text": group.get("label") or group.get("tag", ""),
+                      "group": "tags"})
+        extra.append({"type": "tag_group", "group": "tags",
+                      "tag": group.get("tag", ""),
+                      "rows": rows})
 
 
 def _add_hints(content: list, word: dict, uwd: dict, settings: dict) -> None:

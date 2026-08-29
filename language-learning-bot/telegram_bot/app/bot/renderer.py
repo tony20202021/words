@@ -31,6 +31,30 @@ def _extra_text(item: Dict[str, Any]) -> str:
 LRM = "\u200e"
 
 
+def _tag_group_text(item: Dict[str, Any]) -> str:
+    """Группа тега строками: номер, перевод, транскрипция, слово.
+
+    Таблиц в Telegram нет, поэтому колонки складываются в строку. Текущее слово
+    выделено жирным — в списке из двадцати одного числительного своё иначе не
+    найти; в вебе и андроиде ту же роль играет подсветка строки.
+
+    Перевод и транскрипция приходят из базы и экранируются: символ < или & в них
+    ломает разбор HTML, и тогда Telegram не показывает сообщение целиком.
+    """
+    lines = []
+    for row in item.get("rows") or []:
+        rank = row.get("rank")
+        num = f"#{rank}" if rank else ""
+        ipa = (row.get("ipa") or "").strip()
+        parts = [num, escape(row.get("ru") or "", quote=False)]
+        if ipa:
+            parts.append(f"[{escape(ipa, quote=False)}]")
+        parts.append(escape(row.get("foreign") or "", quote=False))
+        line = "  ".join(p for p in parts if p)
+        lines.append(f"<b>{line}</b>" if row.get("self") else line)
+    return "\n".join(lines)
+
+
 def _ltr_lines(text: str) -> str:
     """Задать строкам направление слева направо, не трогая сам текст."""
     return "\n".join(LRM + line if line.strip() else line for line in (text or "").split("\n"))
@@ -72,6 +96,10 @@ _ITEM_RENDERERS = {
     # направление абзаца задать нечем, а строка начинается с ивритской буквы, и
     # клиент прижимает её вправо вместе с русским хвостом.
     "extra":         lambda i: _ltr_lines(_extra_text(i)),
+    # Группа тега — свой тип, потому что колонок четыре, а не две. Без рендерера
+    # блок молча исчезал бы: _warn_unknown_type сообщает о таком в лог, но
+    # пользователь всё равно ничего бы не увидел.
+    "tag_group":     lambda i: _ltr_lines(_tag_group_text(i)),
     # card_builder кладёт сюда список запрещённых дистракторов (без "text").
     # Пока рендерера не было, блок молча пропадал: пользователь Telegram не
     # видел, что запреты копятся, и не мог их снять.

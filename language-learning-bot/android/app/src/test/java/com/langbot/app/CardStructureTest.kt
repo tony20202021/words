@@ -222,6 +222,31 @@ class CardStructureTest {
     }
 
     @Test
+    fun the_tag_group_shows_four_columns_and_marks_the_current_word() {
+        val a = open("tag_group")
+        val cells = Screenshots.texts(extras(a)).map { it.text.toString() }
+
+        // Четыре колонки: номер в частотном словаре, перевод, транскрипция, слово.
+        assertTrue("нет номера в словаре: $cells", cells.any { it == "#40" })
+        assertTrue("нет перевода: $cells", cells.any { it == "один" })
+        assertTrue("нет транскрипции: $cells", cells.any { it == "[ʔeˈχad]" })
+        assertTrue("нет слова на иврите: $cells", cells.any { it.contains("אֶחָד") })
+        assertTrue("нет подписи группы: $cells", cells.any { it.contains("Числительные") })
+
+        // Порядок задан в определениях тегов вручную — частотный список к нему
+        // безразличен: «один» стоит 40-м, «десять» 890-м.
+        val ranks = cells.filter { it.startsWith("#") }.mapNotNull { it.drop(1).toIntOrNull() }
+        assertEquals("порядок строк не тот: $ranks", listOf(40, 130, 417, 890), ranks)
+
+        // Своё слово выделено жирным: в списке из двадцати одного числительного
+        // иначе его не найти.
+        val own = Screenshots.texts(extras(a)).filter { it.text.toString() == "три" }
+        assertTrue("строки текущего слова нет", own.isNotEmpty())
+        assertTrue("текущее слово должно быть выделено",
+            own.all { it.typeface?.isBold == true })
+    }
+
+    @Test
     fun every_question_variant_shows_its_own_modality() {
         // У каждого варианта вопроса своя подпись, и перепутать их — значит
         // показать учащемуся ответ. Проверяем, что показано именно ожидаемое.

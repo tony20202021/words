@@ -16,7 +16,10 @@ from common.hint_catalog import hint_types_ordered, setting_key_for
 HINT_TYPES = hint_types_ordered()
 
 # Desired display order for extra_content groups in the web UI
-_EXTRA_ORDER = ["radicals", "references", "tones"]
+# Группы тегов идут последними: пользователь просил их «внизу после экстра
+# инфо». Это самый длинный блок — числительные это 21 строка, — и выше он
+# отодвигал бы огласовки с однокоренными за нижний край экрана.
+_EXTRA_ORDER = ["radicals", "references", "tones", "tags"]
 
 
 def _group_extra_items(items: list) -> list:

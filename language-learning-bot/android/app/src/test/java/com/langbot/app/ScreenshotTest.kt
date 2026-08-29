@@ -138,7 +138,11 @@ class ScreenshotTest {
         Screenshots.pumpUntil("список языков загружен") {
             Screenshots.texts(languages.findViewById(android.R.id.content)).size > 1
         }
-        shoot(languages.findViewById(android.R.id.content), "screen_languages")
+        // Снимаем список, а не весь экран: в шапке ActionBar стоит подпись
+        // «v4.2.0», и эталон разъезжался бы при КАЖДОМ поднятии версии. Такой
+        // эталон приучает пересматривать картинки не глядя, то есть отменяет
+        // сам себя.
+        shoot(languages.findViewById(R.id.recycler), "screen_languages")
         languages.finish()
 
         val settingsIntent = Intent(ctx, SettingsActivity::class.java)

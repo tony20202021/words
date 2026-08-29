@@ -63,6 +63,13 @@ data class ExtraRow(
     val marker: String = "",
     val foreign: String = "",
     val ru: String = "",
+    // Ниже — поля строки группы тега (type="tag_group"). Тип строки один на оба
+    // вида таблиц намеренно: ключ в JSON у них общий ("rows"), и раздельные
+    // типы Gson различить бы не смог — молча заполнил бы совпадающие поля и
+    // потерял остальные.
+    val rank: Int? = null,
+    val ipa: String = "",
+    val self: Boolean = false,
 )
 
 data class ExtraContentItem(
@@ -78,6 +85,8 @@ data class ExtraContentItem(
     val header_foreign: String? = null,
     val header_ru: String? = null,
     val rows: List<ExtraRow>? = null,
+    // Только у type="tag_group": имя группы («числительные», «родственники»).
+    val tag: String? = null,
 )
 
 data class BigWord(

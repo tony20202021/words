@@ -110,8 +110,14 @@ async def main() -> int:
             # build_hebrew_extras.py.
             ("tones", row.get("tones") or ""),
             ("references", row.get("references") or ""),
+            # Теги и собранные по ним группы. В отличие от остальных полей это
+            # не строка, а список словарей: разбирать текст в трёх клиентах
+            # значило бы держать три копии парсера, а его уже приходилось
+            # чинить шесть раз на блоках огласовок.
+            ("tags", row.get("tags") or []),
+            ("tag_groups", row.get("tag_groups") or []),
         ):
-            if (doc.get(field) or "") != want:
+            if (doc.get(field) or (type(want)())) != want:
                 diffs.append((doc["word_number"], field, doc.get(field) or "", want))
 
     by_field: dict[str, int] = {}
@@ -169,6 +175,10 @@ async def main() -> int:
                     # Поля китайские по происхождению, задача та же.
                     "tones": row.get("tones") or "",
                     "references": row.get("references") or "",
+                    # Теги — группы слов для совместного повторения;
+                    # tag_groups — уже собранный состав, см. build_tag_groups.py.
+                    "tags": row.get("tags") or [],
+                    "tag_groups": row.get("tag_groups") or [],
                     "word_foreign_unit_count": unit_count(form),
                     "transcription_unit_count": unit_count(trans),
                     "updated_at": now,

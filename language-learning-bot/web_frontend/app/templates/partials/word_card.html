@@ -276,7 +276,7 @@
    которые ниже не отрисовываются (их показывает отдельная карточка и кнопка),
    поэтому карточка выходила пустой — белый прямоугольник под словом. #}
 {% for extra_group in card.extra_groups or [] %}
-{% if extra_group['items'] | selectattr('type', 'in', ['label', 'extra']) | list %}
+{% if extra_group['items'] | selectattr('type', 'in', ['label', 'extra', 'tag_group']) | list %}
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 px-4">
     {% for item in extra_group['items'] %}
@@ -320,6 +320,22 @@
           {# Радикалы и всё, что не разобралось в строки: направление задаём блоку. #}
           <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
         {% endif %}
+      {% elif item.type == 'tag_group' %}
+        {# Группа тега — четыре колонки: номер в частотном словаре, перевод,
+           транскрипция, само слово. Строка текущего слова выделена: иначе в
+           списке из двадцати одного числительного своё не найти. #}
+        <table class="table table-sm table-bordered mb-2 small" dir="ltr">
+          <tbody>
+          {% for row in item.rows %}
+            <tr{% if row.self %} class="table-warning"{% endif %}>
+              <td class="text-end align-middle text-muted" style="width:12%">#{{ row.rank }}</td>
+              <td class="text-start align-middle" dir="ltr" style="width:33%">{{ row.ru }}</td>
+              <td class="text-start align-middle text-muted" dir="ltr" style="width:25%">[{{ row.ipa }}]</td>
+              <td class="text-end align-middle word-extra-foreign" dir="rtl">{{ row.foreign }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
       {% endif %}
     {% endfor %}
   </div>

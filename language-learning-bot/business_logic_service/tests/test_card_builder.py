@@ -1180,3 +1180,77 @@ def test_header_without_the_expected_shape_is_kept_whole():
     assert d["header"] == "просто заголовок"
     assert d["header_foreign"] == "" and d["header_ru"] == ""
 
+
+
+# ── теги: группы слов для совместного повторения ──────────────────────────────
+
+TAG_GROUPS = [{
+    "tag": "числительные",
+    "label": "🔢 Числительные",
+    "rows": [
+        {"rank": 40, "ru": "один", "ipa": "ʔeˈχad", "foreign": "אֶחָד", "self": False},
+        {"rank": 417, "ru": "три", "ipa": "ʃaˈloʃ", "foreign": "שָׁלוֹשׁ", "self": True},
+        {"rank": 890, "ru": "десять", "ipa": "ˈʔeseʁ", "foreign": "עֶשֶׂר", "self": False},
+    ],
+}]
+
+
+def _tag_extra(card):
+    return [i for i in card["extra_content"] if i["type"] == "tag_group"]
+
+
+def test_tag_group_reaches_the_card_after_the_answer():
+    word = make_word(foreign="שָׁלוֹשׁ", translation="три")
+    word["tag_groups"] = TAG_GROUPS
+    card = build_card(make_session(show_answer=True), word, show_answer=True)
+
+    blocks = _tag_extra(card)
+    assert len(blocks) == 1, card["extra_content"]
+    assert blocks[0]["tag"] == "числительные"
+    assert [r["rank"] for r in blocks[0]["rows"]] == [40, 417, 890]
+    # Подпись идёт отдельным элементом — так же, как у огласовок и однокоренных.
+    labels = [i["text"] for i in card["extra_content"] if i["type"] == "label"]
+    assert "🔢 Числительные" in labels
+
+
+def test_tag_group_is_absent_before_the_answer():
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    card = build_card(make_session(), word, show_answer=False)
+    assert _tag_extra(card) == []
+
+
+def test_tag_group_is_not_trimmed_by_progress():
+    """
+    Однокоренные обрезаются по пройденному, а группа тега — нет: числовой ряд с
+    дырами на месте непройденных чисел учить нельзя. Слово #890 стоит далеко за
+    прогрессом, и оно обязано остаться.
+    """
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    session = make_session(show_answer=True)
+    session["words_studied"] = 50
+    card = build_card(session, word, show_answer=True)
+    assert [r["rank"] for r in _tag_extra(card)[0]["rows"]] == [40, 417, 890]
+
+
+def test_the_current_word_is_marked_in_its_group():
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    card = build_card(make_session(show_answer=True), word, show_answer=True)
+    marked = [r["rank"] for r in _tag_extra(card)[0]["rows"] if r.get("self")]
+    assert marked == [417]
+
+
+def test_a_word_without_tags_gets_no_block():
+    card = build_card(make_session(show_answer=True), make_word(), show_answer=True)
+    assert _tag_extra(card) == []
+
+
+def test_empty_group_is_skipped():
+    """Пустая рамка на месте группы — тоже дефект: место занято, смысла нет."""
+    word = make_word()
+    word["tag_groups"] = [{"tag": "пустая", "label": "пусто", "rows": []}]
+    card = build_card(make_session(show_answer=True), word, show_answer=True)
+    assert _tag_extra(card) == []
+    assert "пусто" not in [i.get("text") for i in card["extra_content"]]

@@ -872,7 +872,10 @@ class StudyActivity : AppCompatActivity() {
         // big_word gets its own card at the top
         binding.extraCardsArea.removeAllViews()
         val extraOrdered = run {
-            val groupOrder = listOf("radicals", "references", "tones")
+            // Группы тегов идут последними: это самый длинный блок (числительные
+            // — 21 строка), и выше он отодвигал бы огласовки с однокоренными за
+            // нижний край экрана.
+            val groupOrder = listOf("radicals", "references", "tones", "tags")
             val byGroup = card.extra_content.groupBy { it.group ?: "" }
             val sorted = groupOrder.flatMap { byGroup[it] ?: emptyList() }
             val rest = card.extra_content.filter { (it.group ?: "") !in groupOrder }
@@ -930,6 +933,13 @@ class StudyActivity : AppCompatActivity() {
                         tv.textSize = 12f
                         tv.setTextColor(Color.parseColor("#888888"))
                         inner.addView(tv)
+                    }
+                    "tag_group" -> {
+                        // Четыре колонки: номер в частотном словаре, перевод,
+                        // транскрипция, само слово. Строка текущего слова
+                        // подсвечена — иначе в списке из двадцати одного
+                        // числительного своё не найти.
+                        addTagTable(inner, item.rows ?: emptyList())
                     }
                     "extra" -> {
                         val rows = item.rows
@@ -1391,6 +1401,55 @@ class StudyActivity : AppCompatActivity() {
     }
 
     /** Одна строка таблицы: две ячейки с границами, у каждой своё направление. */
+    /** Таблица группы тега: № | перевод | транскрипция | слово. */
+    private fun addTagTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = dpToPx(4)
+        table.layoutParams = lp
+        rows.forEach { table.addView(tagTableRow(it)) }
+        parent.addView(table)
+    }
+
+    private fun tagTableRow(row: com.langbot.app.network.ExtraRow): LinearLayout {
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+        // Подсветка своей строки: фон ячеек, а не рамка — рамка спорила бы с
+        // сеткой таблицы.
+        val bg = if (row.self) Color.parseColor("#fff3cd") else Color.TRANSPARENT
+
+        fun cell(text: String, weight: Float, rtl: Boolean, big: Boolean, muted: Boolean): TextView {
+            val tv = TextView(this)
+            tv.text = text
+            tv.textSize = if (big) 20f else 14f
+            if (muted) tv.setTextColor(Color.parseColor("#777777"))
+            if (row.self) tv.setTypeface(null, android.graphics.Typeface.BOLD)
+            tv.textDirection = if (rtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
+            tv.textAlignment = if (rtl) View.TEXT_ALIGNMENT_VIEW_END else View.TEXT_ALIGNMENT_VIEW_START
+            tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            tv.background = GradientDrawable().apply {
+                setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
+                setColor(bg)
+            }
+            tv.layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.MATCH_PARENT, weight)
+            return tv
+        }
+
+        line.addView(cell(row.rank?.let { "#$it" } ?: "", 1.2f, rtl = false, big = false, muted = true))
+        line.addView(cell(row.ru, 3f, rtl = false, big = false, muted = false))
+        line.addView(cell(if (row.ipa.isBlank()) "" else "[${row.ipa}]", 2.4f,
+            rtl = false, big = false, muted = true))
+        line.addView(cell(row.foreign, 3f, rtl = true, big = true, muted = false))
+        return line
+    }
+
     private fun extraTableRow(foreign: String, marker: String, ru: String,
                               headerCell: Boolean): LinearLayout {
         val line = LinearLayout(this).apply {

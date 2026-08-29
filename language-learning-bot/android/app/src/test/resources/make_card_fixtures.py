@@ -62,6 +62,21 @@ def session(**over):
     return s
 
 
+# Группа тега — состав собирается заранее (build_tag_groups.py) и лежит в самом
+# слове. Здесь короткий срез настоящей группы «числительные»: полная в 21 строку
+# сделала бы снимок экрана нечитаемым.
+TAG_GROUPS = [{
+    "tag": "числительные",
+    "label": "🔢 Числительные",
+    "rows": [
+        {"rank": 40, "ru": "один", "ipa": "ʔeˈχad", "foreign": "אֶחָד", "self": False},
+        {"rank": 130, "ru": "одна", "ipa": "ʔaˈχat", "foreign": "אַחַת", "self": False},
+        {"rank": 417, "ru": "три", "ipa": "ʃaˈloʃ", "foreign": "שָׁלוֹשׁ", "self": True},
+        {"rank": 890, "ru": "десять", "ipa": "ˈʔeseʁ", "foreign": "עֶשֶׂר", "self": False},
+    ],
+}]
+
+
 def word(**over):
     w = {
         "word_number": 15, "word_foreign": "עִם", "translation": "с, вместе с",
@@ -136,6 +151,14 @@ CASES = {
                                  tones="", references=""), True),
     "no_extras":           (session(show_answer=True, word_processed=True),
                             word(tones="", references=""), True),
+    "tag_group":           (session(show_answer=True, word_processed=True),
+                            word(word_foreign="שָׁלוֹשׁ", translation="три",
+                                 transcription="ʃaˈloʃ", tones="", references="",
+                                 # Часть речи и лемма тоже свои: с наследством от
+                                 # базовой заготовки снимок подписывал числительное
+                                 # предлогом со словарной формой עם.
+                                 part_of_speech="числ", lemma="שלוש",
+                                 tag_groups=TAG_GROUPS), True),
 }
 
 
