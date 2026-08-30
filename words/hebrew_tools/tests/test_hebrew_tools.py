@@ -328,10 +328,38 @@ def test_spelling_variants_are_not_synonyms():
     Перестановку букв (דיוויד против דייויד) это правило не ловит — такие пары
     отсеиваются другим условием, фильтром имён собственных, см. тест ниже.
     """
-    from build_synonym_tags import same_spelling
+    from build_synonym_tags import same_spelling, skeleton
+    # Матери чтения א,ה,ו,י пишутся или нет по традиции — костяк у вариантов один.
+    assert skeleton("מאלה") == skeleton("מאלו")
     assert same_spelling("עסקה", "עיסקה")
-    assert same_spelling("בלי", "בלבי")
+    assert same_spelling("אימא", "האמא")     # то же слово с артиклем
+    assert same_spelling("בשני", "בשתי")     # мужской и женский род, не синонимы
+    # А это настоящие пары, и разойтись они не должны.
     assert not same_spelling("כאן", "פה")
+    assert not same_spelling("בלי", "ללא")   # костяки «בל» и «לל» — разные слова
+
+
+def test_short_skeletons_are_judged_strictly():
+    """
+    У двухбуквенного костяка расхождение в букву — половина слова. בלי и ללא
+    дают «בל» и «לל»: по расстоянию это описка, по смыслу — два разных слова,
+    оба «без». Поэтому послабление в одну букву только от трёх букв.
+    """
+    from build_synonym_tags import same_spelling
+    assert not same_spelling("בלי", "ללא")
+    assert same_spelling("בשני", "בשתי")
+
+
+def test_proper_names_are_found_by_the_capital_letter():
+    """
+    Значения pos="имя" в словаре нет вовсе — у имён стоит «сущ», и прежний
+    фильтр по части речи был мёртвым кодом. Заглавная буква в переводе
+    отличает их надёжно: все остальные переводы строчные.
+    """
+    from build_synonym_tags import is_proper_name
+    assert is_proper_name("Том")
+    assert is_proper_name("Говард")
+    assert not is_proper_name("только, лишь")
 
 
 def test_proper_names_never_form_a_group():

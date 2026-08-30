@@ -51,19 +51,72 @@ def lemma_of(row: dict) -> str:
     return word[1:] if word.startswith("ה") and len(word) > 2 else word
 
 
-def same_spelling(a: str, b: str) -> bool:
-    """Одно слово, записанное по-разному: ktiv male отличается вставкой вав/йод."""
-    if abs(len(a) - len(b)) > 2:
+MATRES = "אהוי"   # матери чтения: пишутся или нет по орфографической традиции
+
+
+def skeleton(word: str) -> str:
+    """Согласный костяк: без артикля и без матерей чтения.
+
+    Именно они и различают варианты написания одного слова — מאלה и מאלו,
+    אימא и האמא. Сравнение подпоследовательностью такие пары не ловило:
+    буквы не вставлены, а заменены.
+    """
+    return "".join(ch for ch in word if ch not in MATRES)
+
+
+def _edit_distance_le_1(a: str, b: str) -> bool:
+    if abs(len(a) - len(b)) > 1:
         return False
+    if a == b:
+        return True
     short, long = (a, b) if len(a) <= len(b) else (b, a)
-    it = iter(long)
-    return all(ch in it for ch in short)
+    i = j = 0
+    used = False
+    while i < len(short) and j < len(long):
+        if short[i] == long[j]:
+            i += 1
+            j += 1
+            continue
+        if used:
+            return False
+        used = True
+        j += 1
+        if len(short) == len(long):
+            i += 1
+    return True
+
+
+def same_spelling(a: str, b: str) -> bool:
+    """Одно слово, записанное по-разному."""
+    sa, sb = skeleton(a), skeleton(b)
+    # Слова целиком из матерей чтения костяка не имеют (הוא, היא) — там сравнивать
+    # нечего, сравниваем как есть. Костяк из одной буквы уже показателен: אימא и
+    # האמא обе дают «מ», и это одно слово с артиклем.
+    if not sa or not sb:
+        return a == b
+    if sa == sb:
+        return True
+    # Расхождение в одну букву считаем опиской только у костяков подлиннее.
+    # У двухбуквенных это половина слова: בלי и ללא дают «בל» и «לל», а это
+    # разные слова, оба означающие «без», — настоящая синонимическая пара.
+    return len(sa) >= 3 and len(sb) >= 3 and _edit_distance_le_1(sa, sb)
+
+
+def is_proper_name(translation: str) -> bool:
+    """Имя собственное: перевод с заглавной буквы.
+
+    Значения pos="имя" в словаре нет вовсе — часть речи у имён стоит «сущ», и
+    прежний фильтр по ней был мёртвым кодом. Зато переводы у всех остальных
+    слов строчные, а «Том», «Говард», «Диана» — с заглавной.
+    """
+    head = (translation or "").strip()
+    return bool(head) and head[0].isupper()
 
 
 def build(rows: list) -> dict:
     by_sense = collections.defaultdict(list)
     for row in rows:
-        if row.get("pos") == "имя":       # имена собственные синонимов не образуют
+        if is_proper_name(row.get("russian", "")):   # имена синонимов не образуют
             continue
         key = sense(row.get("russian", ""))
         if len(key) > 1:
