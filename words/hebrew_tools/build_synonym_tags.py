@@ -96,6 +96,12 @@ def same_spelling(a: str, b: str) -> bool:
         return a == b
     if sa == sb:
         return True
+    # Род и число одного слова: כּוֹאֵב и כּוֹאֶבֶת дают костяки «כב» и «כבת».
+    # По лемме такое не поймать — у женской формы в словаре леммой записана
+    # мужская, а не корень.
+    for suffix in ("ת", "ם", "ן", "תם", "תן"):
+        if sa == sb + suffix or sb == sa + suffix:
+            return True
     # Расхождение в одну букву считаем опиской только у костяков подлиннее.
     # У двухбуквенных это половина слова: בלי и ללא дают «בל» и «לל», а это
     # разные слова, оба означающие «без», — настоящая синонимическая пара.
@@ -113,7 +119,34 @@ def is_proper_name(translation: str) -> bool:
     return bool(head) and head[0].isupper()
 
 
-def build(rows: list) -> dict:
+def curated_membership(path: str = None) -> dict:
+    """Ранг → множество ручных тегов, в которых он уже состоит."""
+    path = path or os.path.join(DATA, "tags.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        manual = json.load(fh)["tags"]
+    out = collections.defaultdict(set)
+    for name, spec in manual.items():
+        for rank in list(spec.get("members", [])) + list(spec.get("also", [])):
+            out[rank].add(name)
+    return out
+
+
+def already_together(words: list, curated: dict) -> bool:
+    """
+    Все участники уже стоят рядом в одной ручной группе — тогда синонимический
+    ряд ничего не добавляет, а на карточке появляется вторым блоком с тем же
+    содержимым. Так было у «здесь», «сюда», «отсюда», «назад»: все они и так
+    лежат в «Здесь, сюда, отсюда».
+    """
+    if not curated:
+        return False
+    sets = [curated.get(w["rank"], set()) for w in words]
+    return bool(set.intersection(*sets)) if all(sets) else False
+
+
+def build(rows: list, curated: dict = None) -> dict:
     by_sense = collections.defaultdict(list)
     for row in rows:
         if is_proper_name(row.get("russian", "")):   # имена синонимов не образуют
@@ -132,7 +165,7 @@ def build(rows: list) -> dict:
             if any(same_spelling(w["hebrew"], k["hebrew"]) for k in kept):
                 continue
             kept.append(w)
-        if len(kept) > 1:
+        if len(kept) > 1 and not already_together(kept, curated):
             tags[f"синонимы: {key}"] = {
                 "label": LABEL,
                 "note": "по частотности: между синонимами естественного порядка нет",
@@ -152,7 +185,7 @@ def main() -> int:
     with open(FULL, encoding="utf-8") as fh:
         rows = json.load(fh)
     by_rank = {r["rank"]: r for r in rows}
-    tags = build(rows)
+    tags = build(rows, curated_membership())
 
     covered = {rk for spec in tags.values() for rk in spec["members"]}
     print(f"  групп синонимов: {len(tags)}, слов в них: {len(covered)}")

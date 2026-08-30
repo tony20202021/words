@@ -397,3 +397,39 @@ def test_manual_and_generated_tags_do_not_collide():
     auto = {k for k in defs if k.startswith("синонимы:")}
     assert manual and auto
     assert not (manual & auto)
+
+
+def test_gender_pairs_of_one_verb_are_not_synonyms():
+    """
+    כּוֹאֵב и כּוֹאֶבֶת — «болит» в мужском и женском роде, а русский перевод рода
+    не различает. По лемме такое не поймать: у женской формы леммой записана
+    мужская, а не корень — несогласованность в самих данных.
+    """
+    from build_synonym_tags import same_spelling
+    assert same_spelling("כואב", "כואבת")
+    assert not same_spelling("בלי", "ללא")
+
+
+def test_a_group_already_covered_by_a_manual_tag_is_dropped():
+    """
+    Если все участники и так стоят рядом в ручной группе, синонимический ряд
+    добавляет на карточку второй блок с тем же содержимым. Так было у «здесь»,
+    «сюда», «отсюда» — все они лежат в «Здесь, сюда, отсюда».
+    """
+    from build_synonym_tags import build
+    rows = [
+        {"rank": 1, "hebrew": "כאן", "russian": "здесь", "pos": "нареч", "lemma": ""},
+        {"rank": 2, "hebrew": "פה", "russian": "здесь", "pos": "нареч", "lemma": ""},
+    ]
+    assert build(rows, curated={}) , "без ручных групп ряд обязан остаться"
+    assert build(rows, curated={1: {"где-то"}, 2: {"где-то"}}) == {}
+
+
+def test_partial_overlap_keeps_the_group():
+    """Один участник в ручной группе, другой нет — ряд ещё нужен: он и добавляет второго."""
+    from build_synonym_tags import build
+    rows = [
+        {"rank": 1, "hebrew": "איפה", "russian": "где", "pos": "нареч", "lemma": ""},
+        {"rank": 2, "hebrew": "היכן", "russian": "где", "pos": "нареч", "lemma": ""},
+    ]
+    assert build(rows, curated={1: {"вопросительные слова"}})
