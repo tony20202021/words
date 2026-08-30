@@ -178,7 +178,7 @@ class ScreenshotTest {
         private const val SETTINGS = """
         {"start_word":1,"skip_marked":false,"use_check_date":true,"show_check_date":true,
          "show_big":false,"show_sounds":true,"show_tones":true,"show_references":true,
-         "show_radicals":false,"show_skip_button":true,"show_hint_meaning":true,
+         "show_radicals":false,"show_skip_button":true,"show_tags":true,"show_hint_meaning":true,
          "show_hint_phoneticassociation":true,"show_hint_phoneticsound":false,
          "show_hint_writing":false,"random_pick_mode":true,"random_sound":true,
          "random_transcription":true,"quiz_options_count":4,"unknown_limit_new_words":10,

@@ -101,6 +101,7 @@ class UserLanguageSettingsRepository:
             "show_big": settings_dict.get("show_big", False),
             "show_radicals": settings_dict.get("show_radicals", True),
             "show_references": settings_dict.get("show_references", True),
+            "show_tags": settings_dict.get("show_tags", True),
             "show_tones": settings_dict.get("show_tones", True),
             "show_sounds": settings_dict.get("show_sounds", True),
             "random_foreign": settings_dict.get("random_foreign", True),

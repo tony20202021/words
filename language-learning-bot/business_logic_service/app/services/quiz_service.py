@@ -47,6 +47,11 @@ def _unit_count(text: str) -> int:
     return len(text.split())
 
 
+def _is_cjk(text: str) -> bool:
+    """Иероглифика: только там число единиц ответа предсказуемо по вопросу."""
+    return any('一' <= c <= '\u9fff' for c in (text or ""))
+
+
 def _strip_tones(text: str) -> str:
     """Remove combining diacritical marks (tone marks) from pinyin/transcription text."""
     return ''.join(
@@ -236,7 +241,12 @@ async def generate_quiz_options(
     """
     settings = session.get("settings", {})
     words_studied = session.get("words_studied", 0)
-    n_distractors = int(settings.get("quiz_options_count", 3))
+    # Настройка подписана «Вариантов в режиме выбора» и означает столько,
+    # сколько кнопок увидит человек. Правильный ответ — одна из них, поэтому
+    # отвлекающих на один меньше. Раньше настройка бралась как число
+    # отвлекающих, и при «5» на экране выходило шесть кнопок.
+    n_options = max(2, int(settings.get("quiz_options_count", 3)))
+    n_distractors = n_options - 1
     language_id = session.get("language_id", "")
     show_mode = session.get("show_mode", "foreign")
     current_word_number = (word or {}).get("word_number", 0)
@@ -257,9 +267,22 @@ async def generate_quiz_options(
     correct_id = str(word.get("_id") or word.get("id") or word.get("word_id") or "")
     forbidden_ids = set((word.get("user_word_data") or {}).get("forbidden_quiz_pairs") or [])
 
-    # When source is foreign or transcription, distractors must match the word
-    # count of the correct answer — otherwise trivial to guess by counting words.
-    apply_word_count_filter = show_mode in ("foreign", "transcription")
+    # Фильтр по числу единиц осмыслен только там, где длина ответа предсказуема
+    # по вопросу. Это китайский: иероглиф — слог, и «你好» из двух знаков имеет
+    # ровно двухсложную транскрипцию. Не зная слова, можно посчитать и угадать.
+    #
+    # Для алфавитных языков такого соответствия нет. У иврита в словаре на 9995
+    # слов НИ ОДНОГО многословного написания или транскрипции — фильтр там
+    # просто не срабатывает ни разу. Зато переводов из нескольких слов 71%, и
+    # пока условие смотрело на модальность ВОПРОСА, фильтр применялся к
+    # вариантам-переводам: отвлекающие подбирались по числу русских слов —
+    # признаку, который ничего не выдаёт, — и вместо пяти вариантов человек
+    # получал четыре.
+    #
+    # Поэтому проверяем не модальность, а само свойство: считаются ли единицы
+    # посимвольно, то есть иероглифика ли это.
+    apply_word_count_filter = (target_modality in ("foreign", "transcription")
+                               and _is_cjk(correct_text))
     correct_word_count = _unit_count(correct_text) if apply_word_count_filter else 0
 
     # Shared-unit boost: prefer distractors sharing chars (CJK) or syllables (transcription)
@@ -321,9 +344,13 @@ async def generate_quiz_options(
         unit_count_filter=correct_word_count if apply_word_count_filter else None,
     )
 
-    # If unit-count filter left too few distractors, retry without it.
-    if apply_word_count_filter and len(distractors) < max(1, n_distractors // 2):
-        logger.info(f"quiz: unit-count filter yielded only {len(distractors)} distractors, retrying without")
+    # Недобор добираем без фильтра. Раньше это делалось только при падении ниже
+    # половины запрошенного: три отвлекающих из пяти считались достаточными, и
+    # человек молча получал меньше кнопок, чем просил в настройках.
+    if apply_word_count_filter and len(distractors) < n_distractors:
+        logger.info(
+            f"quiz: фильтр по числу единиц дал {len(distractors)} из {n_distractors} "
+            f"отвлекающих, добираем без него")
         distractors = _collect_distractors(
             candidates, correct_id, correct_text, forbidden_ids,
             n_distractors, target_modality, correct_units,

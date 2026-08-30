@@ -370,11 +370,15 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
     if settings.get("show_radicals") and (word.get("radicals") or "").strip():
         extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})
-    _add_tag_groups(word, extra)
+    if settings.get("show_tags", True):
+        _add_tag_groups(word, extra)
 
 
 def _add_tag_groups(word: dict, extra: list) -> None:
     """Группы слов для совместного повторения — числительные, родственники, части тела.
+
+    Показ выключается настройкой show_tags, как у огласовок и однокоренных:
+    группа числительных это 21 строка, и кому-то она на карточке лишняя.
 
     Состав группы собран заранее (words/hebrew_tools/build_tag_groups.py) и лежит
     в самом слове, поэтому здесь только перекладывается в карточку: собирать его

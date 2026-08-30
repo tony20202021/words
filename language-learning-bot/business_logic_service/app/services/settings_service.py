@@ -22,6 +22,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "show_short_captions": True,
     "show_radicals": True,
     "show_references": True,
+    "show_tags": True,
     "show_tones": True,
     "show_sounds": True,
     "show_skip_button": True,

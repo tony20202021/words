@@ -302,3 +302,70 @@ def test_both_scripts_would_see_the_same_order():
 
     assert apply_tags.load_tags is load_tags
     assert build_tag_groups.load_tags is load_tags
+
+
+# ── синонимы, выведенные из словаря ───────────────────────────────────────────
+
+def test_forms_of_one_word_are_not_synonyms():
+    """אותו и אותה — падежные формы, а не синонимы; однокоренные показывает свой блок."""
+    from build_synonym_tags import lemma_of
+    assert lemma_of({"hebrew": "הילד", "lemma": ""}) == "ילד"
+    assert lemma_of({"hebrew": "ילד", "lemma": "ילד"}) == "ילד"
+
+
+def test_gender_marks_keep_words_apart():
+    """«они (м)» и «они (ж)» — הם и הן — разные слова, а не синонимический ряд."""
+    from build_synonym_tags import sense
+    assert sense("они (м)") != sense("они (ж)")
+    assert sense("сейчас, теперь; ныне") == "сейчас, теперь"
+
+
+def test_spelling_variants_are_not_synonyms():
+    """
+    Ktiv male отличается вставленными вав и йод: עסקה и עיסקה — одно слово.
+    Ловится как подпоследовательность.
+
+    Перестановку букв (דיוויד против דייויד) это правило не ловит — такие пары
+    отсеиваются другим условием, фильтром имён собственных, см. тест ниже.
+    """
+    from build_synonym_tags import same_spelling
+    assert same_spelling("עסקה", "עיסקה")
+    assert same_spelling("בלי", "בלבי")
+    assert not same_spelling("כאן", "פה")
+
+
+def test_proper_names_never_form_a_group():
+    """Четыре написания имени «Дэвид» — не синонимический ряд."""
+    from build_synonym_tags import build
+    rows = [
+        {"rank": 1, "hebrew": "דיוויד", "russian": "дэвид", "pos": "имя", "lemma": ""},
+        {"rank": 2, "hebrew": "דייויד", "russian": "дэвид", "pos": "имя", "lemma": ""},
+        {"rank": 3, "hebrew": "כאן", "russian": "здесь", "pos": "нареч", "lemma": ""},
+        {"rank": 4, "hebrew": "פה", "russian": "здесь", "pos": "нареч", "lemma": ""},
+    ]
+    tags = build(rows)
+    assert list(tags) == ["синонимы: здесь"], tags
+
+
+def test_generated_groups_hold_at_least_two_lemmas():
+    import json
+    import os
+    from build_synonym_tags import build
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    tags = build(json.load(open(data, encoding="utf-8")))
+    assert tags, "ни одной группы синонимов не выведено"
+    for name, spec in tags.items():
+        assert len(spec["members"]) >= 2, name
+        assert len(set(spec["members"])) == len(spec["members"]), f"{name}: повтор ранга"
+        assert spec["sort"] == "ранг", name
+
+
+def test_manual_and_generated_tags_do_not_collide():
+    """Совпадение имён тегов молча перетёрло бы курированную группу."""
+    from tag_defs import load_tags
+    defs = load_tags()
+    manual = {k for k in defs if not k.startswith("синонимы:")}
+    auto = {k for k in defs if k.startswith("синонимы:")}
+    assert manual and auto
+    assert not (manual & auto)

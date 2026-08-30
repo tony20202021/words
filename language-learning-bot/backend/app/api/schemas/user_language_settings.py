@@ -19,6 +19,7 @@ class UserLanguageSettingsBase(BaseModel):
     show_big: bool = Field(False, description="Whether to show big word")
     show_radicals: bool = Field(True, description="Whether to show radicals")
     show_references: bool = Field(True, description="Whether to show references")
+    show_tags: bool = Field(True, description="Показывать группы слов по тегам")
     show_tones: bool = Field(True, description="Whether to show tones")
     show_sounds: bool = Field(True, description="Whether to show sounds")
     show_skip_button: bool = Field(True, description="Whether to show skip button")
@@ -58,6 +59,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_big: Optional[bool] = None
     show_radicals: Optional[bool] = None
     show_references: Optional[bool] = None
+    show_tags: Optional[bool] = None
     show_tones: Optional[bool] = None
     show_sounds: Optional[bool] = None
     show_skip_button: Optional[bool] = None

@@ -32,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
             "show_big"                      to "Крупное написание",
             "show_radicals"                 to "Показывать радикалы",
             "show_references"               to "Показывать ссылки",
+        "show_tags"                     to "Показывать группы слов",
             "show_tones"                    to "Показывать тоны",
             "show_sounds"                   to "Показывать звуки",
             "random_transcription"          to "Доп. использовать транскрипцию",

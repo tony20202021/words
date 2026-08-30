@@ -23,6 +23,7 @@ SETTING_LABELS = {
     "show_big":                      "Показывать крупное написание",
     "show_radicals":                 "Показывать радикалы",
     "show_references":               "Показывать ссылки",
+    "show_tags":                     "Показывать группы слов",
     "show_tones":                    "Показывать тоны",
     "show_sounds":                   "Показывать звуки",
     "random_transcription":          "Дополнительно использовать транскрипцию",

@@ -249,3 +249,82 @@ def test_boost_survives_the_deduplication():
     assert seen[3] > seen[2] * 2, (seen[3], seen[2])
     assert seen[7] > seen[8] * 2, (seen[7], seen[8])
 
+
+
+# ── сколько вариантов на экране ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_setting_counts_buttons_not_distractors():
+    """
+    Настройка подписана «Вариантов в режиме выбора» и означает столько кнопок,
+    сколько человек увидит. Раньше она бралась как число отвлекающих, и при «5»
+    на экране выходило шесть.
+    """
+    current = make_word("w1", "hello", "привет", word_number=9)
+    pool = [make_word(f"w{i}", f"f{i}", f"перевод{i}", word_number=i) for i in range(1, 9)]
+    settings = {"quiz_options_count": 5, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=20, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(pool))
+    assert len(result["options"]) == 5, [o["target_text"] for o in result["options"]]
+    assert sum(1 for o in result["options"] if o["is_correct"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_translation_options_are_not_filtered_by_word_count():
+    """
+    Фильтр по числу единиц оправдан, когда варианты — слово или транскрипция:
+    там длина ответа видна и по ней можно угадать. У вариантов-переводов такого
+    признака нет, а фильтр резал выбор до нескольких кандидатов.
+
+    Здесь у правильного ответа перевод из четырёх слов, а у всех отвлекающих —
+    из одного, и все они обязаны дойти до экрана.
+
+    show_mode="foreign" выбран ради однозначности: при отключённых транскрипции
+    и звуке остаётся единственная возможная модальность ответа — перевод. С
+    show_mode="transcription" она выбиралась случайно между переводом и словом,
+    и тест падал через раз.
+    """
+    current = make_word("w1", "hayiti", "я был, я была", word_number=9)
+    pool = [make_word(f"w{i}", f"f{i}", f"слово{i}", word_number=i) for i in range(1, 9)]
+    settings = {"quiz_options_count": 5, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=20, show_mode="foreign", settings=settings)
+    api = make_api_client(pool)
+
+    result = await generate_quiz_options(session, current, api)
+    assert result["target_modality"] == "translation"
+    assert len(result["options"]) == 5, [o["target_text"] for o in result["options"]]
+    # Однозначный признак, что фильтр не включался: запрос слов по числу единиц
+    # делается только под ним.
+    api.get_words_by_unit_count.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_short_pool_is_topped_up_instead_of_silently_shrinking():
+    """
+    Когда фильтр не набирает нужного числа, добираем без него. Раньше добор шёл
+    только при падении ниже половины: три отвлекающих из пяти считались
+    достаточными, и человек молча получал меньше кнопок, чем просил.
+    """
+    # Правильный ответ из двух единиц, отвлекающие — из одной: фильтр по числу
+    # единиц отсеет всех, и добор обязан вернуть их обратно.
+    current = make_word("w1", "два слова", "перевод", word_number=9)
+    pool = [make_word(f"w{i}", f"одно{i}", f"перевод{i}", word_number=i) for i in range(1, 9)]
+    settings = {"quiz_options_count": 5, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=20, show_mode="translation", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(pool))
+    assert result["target_modality"] == "foreign"
+    assert len(result["options"]) == 5, [o["target_text"] for o in result["options"]]
+
+
+@pytest.mark.asyncio
+async def test_two_is_the_floor():
+    """Меньше двух кнопок выбор не выбор — даже если в настройке единица."""
+    current = make_word("w1", "hello", "привет", word_number=9)
+    pool = [make_word(f"w{i}", f"f{i}", f"перевод{i}", word_number=i) for i in range(1, 9)]
+    settings = {"quiz_options_count": 1, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=20, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(pool))
+    assert len(result["options"]) == 2

@@ -1254,3 +1254,24 @@ def test_empty_group_is_skipped():
     card = build_card(make_session(show_answer=True), word, show_answer=True)
     assert _tag_extra(card) == []
     assert "пусто" not in [i.get("text") for i in card["extra_content"]]
+
+
+def test_tag_group_can_be_switched_off():
+    """
+    У огласовок и однокоренных переключатель есть, а у групп не было: блок
+    показывался всегда. Числительные это 21 строка — кому-то на карточке лишняя.
+    """
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    session = make_session(show_answer=True, settings={"show_sounds": True, "show_tags": False})
+    card = build_card(session, word, show_answer=True)
+    assert _tag_extra(card) == []
+
+
+def test_tag_group_is_shown_when_the_setting_is_absent():
+    """Старые настройки без ключа не должны прятать блок."""
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    session = make_session(show_answer=True, settings={"show_sounds": True})
+    card = build_card(session, word, show_answer=True)
+    assert len(_tag_extra(card)) == 1
