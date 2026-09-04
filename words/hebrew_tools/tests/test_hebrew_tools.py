@@ -433,3 +433,56 @@ def test_partial_overlap_keeps_the_group():
         {"rank": 2, "hebrew": "היכן", "russian": "где", "pos": "нареч", "lemma": ""},
     ]
     assert build(rows, curated={1: {"вопросительные слова"}})
+
+
+# ── огласовка против транскрипции ─────────────────────────────────────────────
+
+# Обрывки иностранных имён: в них гласные передаются вольно, и сверка по
+# гласным для них не работает по устройству, а не по ошибке.
+NIQQUD_IPA_EXPECTED = {
+    615,   # ורג — часть имени «Верг»
+    690,   # מייקל — Майкл
+    911,   # יימס — Джеймс
+}
+
+
+def test_vocalization_agrees_with_transcription_in_the_first_thousand():
+    """
+    Огласовка и IPA получены независимо, и гласные обязаны совпадать. Скрипт
+    check_niqqud_vs_ipa это считает, но его надо было запустить и открыть отчёт
+    — а расхождение по словам 69 и 669 пролежало в нём непрочитанным, пока
+    владелец не заметил его глазами на карточке.
+
+    Поэтому теперь это тест: находка не может остаться незамеченной, а новый
+    обрывок имени придётся внести в список осознанно.
+    """
+    import json
+    import os
+    import sys
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, here)
+    from check_niqqud_vs_ipa import niqqud_pattern, ipa_vowels
+
+    data = os.path.join(here, "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    rows = [r for r in json.load(open(data, encoding="utf-8")) if r["rank"] <= 1000]
+    assert len(rows) == 1000, "первая тысяча неполна"
+
+    # Сравнение — регулярным выражением, а не строкой: у камаца два чтения
+    # («a» или «o»), у шва и хатафов гласная может и не звучать, и шаблон это
+    # выражает. Сначала я сравнил как строки и получил 200 «расхождений» на
+    # ровном месте.
+    import re
+    mismatched = []
+    for row in rows:
+        niqqud, ipa = row.get("niqqud") or "", row.get("ipa") or ""
+        if not niqqud or not ipa:
+            continue
+        pattern, vowels = niqqud_pattern(niqqud), ipa_vowels(ipa)
+        if not pattern and not vowels:
+            continue
+        if not re.fullmatch(pattern, vowels) and row["rank"] not in NIQQUD_IPA_EXPECTED:
+            mismatched.append((row["rank"], row["niqqud"], ipa, pattern, vowels))
+
+    assert not mismatched, "огласовка расходится с транскрипцией:\n" + "\n".join(
+        f"  #{r} {n} [{i}] огласовка даёт {w!r}, транскрипция {g!r}" for r, n, i, w, g in mismatched)
