@@ -110,8 +110,11 @@
             {% for surl in opt.target_text.split('|') %}
             <audio id="opt-snd-{{ oi }}-{{ loop.index }}" src="/sound/{{ surl }}" preload="auto"></audio>
             {% endfor %}
-            <button type="button" class="btn btn-outline-secondary"
-              onclick="playSounds([{% for surl in opt.target_text.split('|') %}'opt-snd-{{ oi }}-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">🔊 ▶ {{ oi }}</button>
+            {# Отметка прослушанного: кнопки по звуку неразличимы, звук отзвучал
+               и следа не оставил, и после второго-третьего нажатия уже не
+               вспомнить, что именно играло. #}
+            <button type="button" class="btn btn-outline-secondary btn-listen" data-opt="{{ oi }}"
+              onclick="markListened(this); playSounds([{% for surl in opt.target_text.split('|') %}'opt-snd-{{ oi }}-{{ loop.index }}'{% if not loop.last %},{% endif %}{% endfor %}])">🔊 ▶ {{ oi }}</button>
             <button class="btn btn-outline-primary btn-lg flex-grow-1 btn-rate"
               hx-post="/study/{{ language_id }}/pick_answer"
               hx-vals='{"selected_word_id": "{{ opt.word_id }}"}'

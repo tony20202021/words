@@ -656,6 +656,11 @@ class StudyActivity : AppCompatActivity() {
         // Кнопка запрета комбинации рисуется отдельной строкой ниже, поэтому в
         // общий ряд она попасть не должна — иначе появилась бы дважды.
         val mainButtons = card.buttons.filter { it.id != "ban_pair" }
+        // Какой звуковой вариант уже прослушали. Кнопки одинаковые, звук
+        // отзвучал и не оставил следа — без отметки после второго-третьего
+        // прослушивания уже не вспомнить, что где.
+        listenButtons.clear()
+        playedSoundOption = null
         if (pickOptions != null && !card.show_answer) {
             // Pick mode: show option buttons vertically
             binding.buttonRow.orientation = LinearLayout.VERTICAL
@@ -675,7 +680,12 @@ class StudyActivity : AppCompatActivity() {
                     listenBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnSecondary)
                     listenBtn.strokeWidth = 2
                     val soundPaths = opt.target_text.split("|").filter { it.isNotBlank() }
-                    listenBtn.setOnClickListener { playSoundSequence(soundPaths) }
+                    listenButtons.add(listenBtn)
+                    listenBtn.setOnClickListener {
+                        playedSoundOption = i
+                        markPlayedOption()
+                        playSoundSequence(soundPaths)
+                    }
                     val listenLp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                     listenLp.marginEnd = dpToPx(4)
@@ -1402,6 +1412,29 @@ class StudyActivity : AppCompatActivity() {
 
     /** Одна строка таблицы: две ячейки с границами, у каждой своё направление. */
     /** Таблица группы тега: № | перевод | транскрипция | слово. */
+    /** Кнопки прослушивания звуковых вариантов и та, которую уже нажали. */
+    private val listenButtons = mutableListOf<MaterialButton>()
+    private var playedSoundOption: Int? = null
+
+    /**
+     * Отметить прослушанный вариант.
+     *
+     * Кнопки в пик-режиме по звуку неразличимы — «▶ 1», «▶ 2», «▶ 3», — а звук
+     * отзвучал и следа не оставил. После второго-третьего прослушивания уже не
+     * вспомнить, что именно только что играло. Залитый фон держит ответ на
+     * экране, пока варианты не сменятся.
+     */
+    private fun markPlayedOption() {
+        listenButtons.forEachIndexed { i, btn ->
+            val played = i == playedSoundOption
+            btn.setBackgroundColor(ContextCompat.getColor(
+                this, if (played) R.color.btnSecondary else android.R.color.white))
+            btn.setTextColor(ContextCompat.getColor(
+                this, if (played) android.R.color.white else R.color.btnSecondary))
+            btn.text = if (played) "🔊 ${i + 1}" else "🔊 ▶ ${i + 1}"
+        }
+    }
+
     private fun addTagTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {
         val table = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

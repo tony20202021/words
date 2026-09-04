@@ -1,3 +1,5 @@
+from contextlib import suppress
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -180,6 +182,11 @@ async def handle_study_callback(callback: CallbackQuery, state: FSMContext, bls_
         if not sent:
             await callback.answer("Звук недоступен", show_alert=True)
             return
+        # Перерисовываем клавиатуру с отметкой: аудио уходит отдельными
+        # сообщениями и в списке вариантов не видно, какое из них чьё.
+        with suppress(Exception):
+            await callback.message.edit_reply_markup(
+                reply_markup=build_card_keyboard(card, language_id, played_sound=idx))
         await callback.answer()
         return
     elif action == ACTION_PICK:

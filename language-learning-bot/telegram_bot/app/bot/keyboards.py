@@ -27,8 +27,15 @@ LEGACY_ACTIONS = {
 }
 
 
-def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboardMarkup:
-    """Convert card.buttons list to InlineKeyboardMarkup, with optional sound, hint, and pick-mode buttons."""
+def build_card_keyboard(card: Dict[str, Any], language_id: str,
+                        played_sound: int = None) -> InlineKeyboardMarkup:
+    """Convert card.buttons list to InlineKeyboardMarkup, with optional sound, hint, and pick-mode buttons.
+
+    played_sound — номер уже прослушанного звукового варианта. Кнопки «▶ 1»,
+    «▶ 2» между собой неразличимы, звук отзвучал и следа не оставил, и после
+    второго-третьего нажатия не вспомнить, что именно играло. Отмеченная кнопка
+    держит ответ на экране, пока варианты не сменятся.
+    """
     builder = InlineKeyboardBuilder()
     pick_options = card.get("pick_options")
     show_answer = card.get("show_answer", False)
@@ -39,7 +46,9 @@ def build_card_keyboard(card: Dict[str, Any], language_id: str) -> InlineKeyboar
         target_modality = pick_options.get("target_modality", "translation")
         if target_modality == "sound":
             for i, opt in enumerate(options):
-                builder.button(text=f"▶ {i + 1}", callback_data=f"study:{language_id}:pick_sound:{i}")
+                mark = "🔊" if i == played_sound else "▶"
+                builder.button(text=f"{mark} {i + 1}",
+                               callback_data=f"study:{language_id}:pick_sound:{i}")
             for i, opt in enumerate(options):
                 builder.button(text=f"Выбрать {i + 1}", callback_data=f"study:{language_id}:{ACTION_PICK}:{opt['word_id']}")
         else:

@@ -46,7 +46,10 @@ def test_every_sound_button_goes_through_the_shared_owner(html):
     sound_clicks = [c for c in onclicks if "play" in c.lower() or "snd-" in c]
     assert sound_clicks, "кнопки звука не найдены — тест смотрит не туда"
     for click in sound_clicks:
-        assert click.startswith("playSounds("), click
+        # Важно, что вызов идёт через владельца, а не то, что он первый: у
+        # кнопки прослушивания в пик-режиме перед ним стоит markListened,
+        # отмечающая, какой вариант играл.
+        assert "playSounds(" in click, click
 
     # Прямой вызов .play() на элементе мимо владельца.
     assert not re.search(r"getElementById\([^)]*\)\.play\(\)", html)
@@ -55,7 +58,7 @@ def test_every_sound_button_goes_through_the_shared_owner(html):
 def test_all_three_kinds_of_sound_button_are_wired(html):
     """Одиночный звук, «все звуки слова» и вариант пик-режима — все три места."""
     assert "onclick=\"playSounds(['snd-{{ loop.index }}'])\"" in html
-    assert html.count("onclick=\"playSounds(") == 3
+    assert html.count("playSounds(") == 3
 
 
 def test_starting_playback_stops_whatever_was_playing(js):

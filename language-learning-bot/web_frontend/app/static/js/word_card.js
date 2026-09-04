@@ -53,6 +53,24 @@ var LBSounds = (function () {
 
 function playSounds(ids) { LBSounds.play(ids); }
 
+/**
+ * Отметить прослушанный вариант в пик-режиме по звуку.
+ *
+ * Кнопки там неразличимы — «🔊 ▶ 1», «🔊 ▶ 2», — звук отзвучал и следа не
+ * оставил, и после второго-третьего нажатия уже не вспомнить, что именно
+ * играло. Заливка держит ответ на экране, пока варианты не сменятся.
+ */
+function markListened(btn) {
+  document.querySelectorAll('.btn-listen').forEach(function (b) {
+    b.classList.remove('btn-secondary');
+    b.classList.add('btn-outline-secondary');
+    b.textContent = '🔊 ▶ ' + b.dataset.opt;
+  });
+  btn.classList.remove('btn-outline-secondary');
+  btn.classList.add('btn-secondary');
+  btn.textContent = '🔊 ' + btn.dataset.opt;
+}
+
 (function () {
   var _htmxTimeout = null;
 
