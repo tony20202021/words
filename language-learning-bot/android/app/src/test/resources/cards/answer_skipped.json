@@ -77,18 +77,24 @@
    "rows": [
     {
      "marker": "[#27]",
+     "rank": 27,
      "foreign": "אוֹתוֹ [ʔoˈto]",
-     "ru": "его; тот самый"
+     "ru": "его; тот самый",
+     "studied": true
     },
     {
      "marker": "[#33]",
+     "rank": 33,
      "foreign": "אוֹתִי [ʔoˈti]",
-     "ru": "меня"
+     "ru": "меня",
+     "studied": true
     },
     {
      "marker": "[#41]",
+     "rank": 41,
      "foreign": "עִמָּנוּ [ʔiˈmanu]",
-     "ru": "с нами"
+     "ru": "с нами",
+     "studied": true
     }
    ]
   }

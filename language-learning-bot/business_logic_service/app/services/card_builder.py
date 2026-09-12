@@ -208,20 +208,6 @@ def _add_before_answer(content: list, word: dict, show_mode: str) -> None:
         content.append({"type": "foreign", "text": word.get("word_foreign", "")})
 
 
-def _filter_refs(text: str, words_studied: int) -> str:
-    """Filter out reference lines whose [#N] word number exceeds words_studied."""
-    if words_studied <= 0:
-        return text
-    lines = text.split("\n")
-    kept = []
-    for line in lines:
-        m = re.search(r"\[#(\d+)\]", line)
-        if m and int(m.group(1)) > words_studied:
-            continue
-        kept.append(line)
-    return "\n".join(kept)
-
-
 POS_FULL = {
     "сущ": "существительное", "глаг": "глагол", "прил": "прилагательное",
     "нареч": "наречие", "предл": "предлог", "мест": "местоимение",
@@ -306,7 +292,8 @@ def _extra_rows(text: str) -> Dict[str, Any]:
             continue
         m = _REF_ROW.match(line.strip())
         if m:
-            rows.append({"marker": f"[#{m.group(1)}]", "foreign": f"{m.group(2)} {m.group(3)}".strip(),
+            rows.append({"marker": f"[#{m.group(1)}]", "rank": int(m.group(1)),
+                         "foreign": f"{m.group(2)} {m.group(3)}".strip(),
                          "ru": m.group(4).strip()})
             continue
         m = _TONE_ROW.match(line)
@@ -327,6 +314,20 @@ def _extra_rows(text: str) -> Dict[str, Any]:
             rows.append({"marker": "", "foreign": "", "ru": line.strip()})
     return {"header": header, "header_foreign": header_foreign,
             "header_ru": header_ru, "rows": rows}
+
+
+def _mark_studied(parsed: Dict[str, Any], words_studied: int) -> Dict[str, Any]:
+    """Отметить строки, до которых человек ещё не дошёл.
+
+    Слова изучаются по порядку частотности, поэтому номер строки против
+    счётчика пройденных и есть ответ. Клиент такую строку гасит; правило
+    считается здесь, чтобы не держать три копии в клиентах.
+    """
+    rows = []
+    for row in parsed.get("rows") or []:
+        rank = row.get("rank")
+        rows.append(dict(row, studied=(words_studied <= 0 or rank is None or rank <= words_studied)))
+    return {**parsed, "rows": rows}
 
 
 def _extra_label(language_ru: str, key: str) -> str:
@@ -356,17 +357,25 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
     if grammar:
         content.append({"type": "label", "text": f"📚 {grammar}"})
     if settings.get("show_tones") and (word.get("tones") or "").strip():
-        tones = _filter_refs(word.get("tones", ""), words_studied)
+        # Обрезки по прогрессу здесь не было никогда: у огласовок нет номеров
+        # строк — ни в одной из 108 записей с непустым tones, — и _filter_refs
+        # на них ничего не делал. Вызов убран, чтобы не выглядел работающим.
+        tones = word.get("tones", "")
         if tones.strip():
             extra.append({"type": "label", "text": _extra_label(language_ru, "tones"), "group": "tones"})
             extra.append({"type": "extra", "text": tones, "group": "tones",
                           **_extra_rows(tones)})
     if settings.get("show_references") and (word.get("references") or "").strip():
-        refs = _filter_refs(word.get("references", ""), words_studied)
+        # Однокоренные показываем целиком, а непройденные гасим — как в группах
+        # по тегам. Раньше строки дальше прогресса просто вырезались, и от
+        # глагольной парадигмы почти ничего не оставалось: у «знаю» из двенадцати
+        # форм на экран попадала одна, у «хочу» — ни одной. Парадигма была, но
+        # увидеть её было нельзя.
+        refs = word.get("references", "")
         if refs.strip():
             extra.append({"type": "label", "text": _extra_label(language_ru, "references"), "group": "references"})
             extra.append({"type": "extra", "text": refs, "group": "references",
-                          **_extra_rows(refs)})
+                          **_mark_studied(_extra_rows(refs), words_studied)})
     if settings.get("show_radicals") and (word.get("radicals") or "").strip():
         extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})

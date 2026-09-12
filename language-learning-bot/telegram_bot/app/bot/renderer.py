@@ -24,7 +24,11 @@ def _extra_text(item: Dict[str, Any]) -> str:
     for row in rows:
         left = (row.get("marker") or "").strip()
         parts = [p for p in (left, row.get("foreign") or "", "—", row.get("ru") or "") if p]
-        out.append(" ".join(parts))
+        line = " ".join(parts)
+        # Непройденное — курсивом: заливки в Telegram нет, а отличать «уже
+        # встречал» от «ещё не дошёл» нужно так же, как в таблицах остальных
+        # клиентов. Строку не вырезаем: у глагола так пропадала вся парадигма.
+        out.append(f"<i>{line}</i>" if not row.get("studied", True) else line)
     return "\n".join(p for p in out if p.strip())
 
 

@@ -1414,7 +1414,8 @@ class StudyActivity : AppCompatActivity() {
             table.addView(extraTableRow(header, "", "", headerCell = true))
         }
         for (row in rows) {
-            table.addView(extraTableRow(row.foreign, row.marker, row.ru, headerCell = false))
+            table.addView(extraTableRow(row.foreign, row.marker, row.ru,
+                headerCell = false, studied = row.studied))
         }
         val lp = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -1517,7 +1518,7 @@ class StudyActivity : AppCompatActivity() {
     }
 
     private fun extraTableRow(foreign: String, marker: String, ru: String,
-                              headerCell: Boolean): LinearLayout {
+                              headerCell: Boolean, studied: Boolean = true): LinearLayout {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -1532,10 +1533,17 @@ class StudyActivity : AppCompatActivity() {
             tv.textDirection = if (rtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
             tv.textAlignment = if (rtl) View.TEXT_ALIGNMENT_VIEW_END else View.TEXT_ALIGNMENT_VIEW_START
             if (headerCell) tv.setTextColor(Color.parseColor("#666666"))
+            // До этого слова человек ещё не дошёл: строку гасим, но оставляем —
+            // у глагола иначе от парадигмы почти ничего не видно.
+            if (!studied) tv.setTextColor(Color.parseColor("#9a9a9a"))
             tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
             tv.background = GradientDrawable().apply {
                 setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
-                setColor(if (headerCell) Color.parseColor("#f5f5f5") else Color.TRANSPARENT)
+                setColor(when {
+                    headerCell -> Color.parseColor("#f5f5f5")
+                    !studied -> Color.parseColor("#f2f2f2")
+                    else -> Color.TRANSPARENT
+                })
             }
             tv.layoutParams = LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.MATCH_PARENT, 1f)

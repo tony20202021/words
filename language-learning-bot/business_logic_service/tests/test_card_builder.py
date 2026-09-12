@@ -726,49 +726,60 @@ class TestRestartNotice:
 # ── References filtering ──────────────────────────────────────────────────────
 
 class TestReferencesFiltering:
+    """
+    Однокоренные больше НЕ обрезаются по прогрессу — строки дальше пройденного
+    остаются на месте и помечаются, а гасит их клиент.
+
+    Обрезка стоила слишком дорого: у «знаю» из двенадцати форм парадигмы на
+    экран попадала одна, у «хочу» — ни одной. Блок был, глагольной парадигмы в
+    нём не было. Класс оставлен под тем же именем, но проверяет обратное.
+    """
+
     def _word_with_refs(self, refs: str):
         w = make_word()
         w["references"] = refs
         return w
 
-    def test_refs_shown_unfiltered_when_words_studied_zero(self):
-        """words_studied=0 → no filtering, all refs shown."""
-        refs = "[#5]word5\n[#100]word100"
+    def _rows(self, refs: str, studied: int):
         session = make_session(settings={"show_references": True})
+        session["words_studied"] = studied
         card = build_card(session, self._word_with_refs(refs), show_answer=True)
-        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
-        assert any("word100" in t for t in extra_texts)
+        for item in card["extra_content"]:
+            if item["type"] == "extra" and item.get("group") == "references":
+                return item["rows"]
+        return []
 
-    def test_refs_filtered_by_words_studied(self):
-        """Lines with [#N] > words_studied are hidden."""
-        refs = "[#5]word5\n[#100]word100\n[#20]word20"
-        session = make_session(settings={"show_references": True})
-        session["words_studied"] = 25
-        card = build_card(session, self._word_with_refs(refs), show_answer=True)
-        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
-        combined = "\n".join(extra_texts)
-        assert "word5" in combined
-        assert "word20" in combined
-        assert "word100" not in combined
+    def test_every_line_survives_regardless_of_progress(self):
+        refs = ("<b>ידע</b>: <i>слов: 3</i>\n"
+                "<i>[#5]</i>אָלֶף [a] пять\n"
+                "<i>[#100]</i>בֵּית [b] сто\n"
+                "<i>[#20]</i>גִּימֶל [g] двадцать")
+        rows = self._rows(refs, studied=25)
+        assert [r["rank"] for r in rows] == [5, 100, 20]
 
-    def test_refs_fully_filtered_leave_no_extra_block(self):
-        """All ref lines filtered out → no 'references' block in extra_content."""
-        refs = "[#999]word999"
-        session = make_session(settings={"show_references": True})
-        session["words_studied"] = 10
-        card = build_card(session, self._word_with_refs(refs), show_answer=True)
-        assert not any(i.get("group") == "references" for i in card["extra_content"])
+    def test_lines_beyond_progress_are_marked_not_removed(self):
+        refs = ("<b>ידע</b>: <i>слов: 3</i>\n"
+                "<i>[#5]</i>אָלֶף [a] пять\n"
+                "<i>[#100]</i>בֵּית [b] сто\n"
+                "<i>[#20]</i>גִּימֶל [g] двадцать")
+        rows = self._rows(refs, studied=25)
+        assert [(r["rank"], r["studied"]) for r in rows] == [(5, True), (100, False), (20, True)]
 
-    def test_refs_line_without_number_always_shown(self):
-        """Lines without [#N] marker are never filtered."""
-        refs = "generic reference line\n[#500]numbered"
-        session = make_session(settings={"show_references": True})
-        session["words_studied"] = 10
-        card = build_card(session, self._word_with_refs(refs), show_answer=True)
-        extra_texts = [i["text"] for i in card["extra_content"] if i["type"] == "extra"]
-        combined = "\n".join(extra_texts)
-        assert "generic reference line" in combined
-        assert "numbered" not in combined
+    def test_a_block_of_only_unreached_words_still_appears(self):
+        """
+        Раньше такой блок исчезал целиком: все строки вырезались. Именно так и
+        пропадала парадигма у частотного глагола, все формы которого стоят
+        дальше по списку.
+        """
+        refs = "<b>ידע</b>: <i>слов: 1</i>\n<i>[#999]</i>תָּו [t] тысяча"
+        rows = self._rows(refs, studied=10)
+        assert [(r["rank"], r["studied"]) for r in rows] == [(999, False)]
+
+    def test_zero_progress_marks_everything_studied(self):
+        """Счётчика ещё нет — гасить весь блок целиком незачем."""
+        refs = "<b>ידע</b>: <i>слов: 1</i>\n<i>[#100]</i>בֵּית [b] сто"
+        rows = self._rows(refs, studied=0)
+        assert all(r["studied"] for r in rows)
 
 
 class TestSessionCounterMeta:
@@ -1111,9 +1122,12 @@ def test_extra_blocks_are_parsed_into_table_rows():
                        "<i>[#28]</i>אוֹתְךָ [ʔotˈχa] тебя\n"
                        "<i>[#33]</i>אוֹתִי [ʔoˈti] меня")
     assert "слов с этой основой" in refs["header"]
+    # rank рядом с marker: по нему решается, дошёл ли человек до этого слова,
+    # и клиент гасит непройденную строку. Из текста «[#28]» это каждый раз
+    # выковыривали бы заново.
     assert refs["rows"] == [
-        {"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
-        {"marker": "[#33]", "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
+        {"marker": "[#28]", "rank": 28, "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
+        {"marker": "[#33]", "rank": 33, "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
     ]
 
     tones = _extra_rows("<b>עם</b>: <i>вариантов огласовки: 2</i>\n"
@@ -1298,4 +1312,55 @@ def test_without_progress_nothing_is_greyed_out():
     session = make_session(show_answer=True)
     session["words_studied"] = 0
     rows = _tag_extra(build_card(session, word, show_answer=True))[0]["rows"]
+    assert all(r["studied"] for r in rows)
+
+
+# ── однокоренные: показываем всё, непройденное гасим ──────────────────────────
+
+REFS = ("<b>ידע</b>: <i>слов с этой основой: 3</i>\n"
+        "<i>[#54]</i>יוֹדַעַת [joˈdaat] знаю, знает (ж)\n"
+        "<i>[#178]</i>לָדַעַת [laˈdaat] знать, узнать\n"
+        "<i>[#330]</i>יָדַעְתִּי [jaˈdaʔti] я знал")
+
+
+def _refs_rows(card):
+    for item in card["extra_content"]:
+        if item["type"] == "extra" and item.get("group") == "references":
+            return item["rows"]
+    return []
+
+
+def test_the_whole_paradigm_is_shown_not_just_what_you_reached():
+    """
+    Раньше строки дальше прогресса вырезались, и от глагольной парадигмы почти
+    ничего не оставалось: у «знаю» из двенадцати форм видна была одна, у
+    «хочу» — ни одной. Парадигма существовала, но увидеть её было нельзя.
+    """
+    word = make_word()
+    word["references"] = REFS
+    session = make_session(show_answer=True, settings={"show_sounds": True, "show_references": True})
+    session["words_studied"] = 100
+    rows = _refs_rows(build_card(session, word, show_answer=True))
+    assert [r["rank"] for r in rows] == [54, 178, 330]
+
+
+def test_rows_beyond_progress_are_marked_instead_of_cut():
+    word = make_word()
+    word["references"] = REFS
+    session = make_session(show_answer=True, settings={"show_sounds": True, "show_references": True})
+    session["words_studied"] = 100
+    rows = _refs_rows(build_card(session, word, show_answer=True))
+    assert [(r["rank"], r["studied"]) for r in rows] == [(54, True), (178, False), (330, False)]
+
+
+def test_a_row_without_a_number_counts_as_studied():
+    """
+    Строку без номера погасить не за что: у огласовок номеров нет вовсе, и
+    гасить их целиком было бы хуже, чем не гасить.
+    """
+    word = make_word()
+    word["references"] = "<b>ידע</b>: <i>слов: 1</i>\nстрока без номера"
+    session = make_session(show_answer=True, settings={"show_sounds": True, "show_references": True})
+    session["words_studied"] = 10
+    rows = _refs_rows(build_card(session, word, show_answer=True))
     assert all(r["studied"] for r in rows)

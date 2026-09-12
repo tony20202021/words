@@ -308,7 +308,9 @@
             {% endif %}
             <tbody>
             {% for row in item.rows %}
-              <tr>
+              {# Непройденное гасим, но оставляем: обрезка съедала у глагола
+                 почти всю парадигму. #}
+              <tr{% if row.studied is defined and not row.studied %} class="table-secondary text-muted"{% endif %}>
                 {# Иврит крупнее: огласовка — мелкие знаки под буквами, и в
                    основном кегле её просто не разглядеть. #}
                 <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:45%">{{ row.foreign | safe }}</td>
