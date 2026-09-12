@@ -11,8 +11,21 @@
         android:theme="@style/Theme.LangBot"
         android:usesCleartextTraffic="true">
 
+        <!--
+            Портрет закреплён у всех экранов.
+
+            По умолчанию поворот телефона УНИЧТОЖАЕТ активность и создаёт её
+            заново: экран учёбы на этом заново ходил в сеть за сессией из
+            onCreate, терял отметку прослушанного варианта в пик-режиме и
+            обрывал звук. То есть поворот стоил сетевого запроса.
+
+            Карточка — вертикальная колонка с крупным ивритом и таблицами
+            огласовок; в альбомной ориентации по высоте места вдвое меньше, а
+            отдельной вёрстки под неё нет.
+        -->
         <activity
             android:name=".LoginActivity"
+            android:screenOrientation="portrait"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -20,12 +33,12 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".LanguagesActivity" android:exported="false" />
-        <activity android:name=".StudyActivity" android:exported="false" />
-        <activity android:name=".StatsActivity" android:exported="false" />
-        <activity android:name=".HintsActivity" android:exported="false" />
-        <activity android:name=".SettingsActivity" android:exported="false" />
-        <activity android:name=".HelpActivity" android:exported="false" />
+        <activity android:name=".LanguagesActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".StudyActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".StatsActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".HintsActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".HelpActivity" android:screenOrientation="portrait" android:exported="false" />
 
     </application>
 </manifest>

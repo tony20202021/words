@@ -84,7 +84,7 @@ def setup_parser():
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
     "bls": 348, "telegram": 251, "web": 185, "backend": 140, "common": 143,
-    "hebrew": 48, "android": 96,
+    "hebrew": 48, "android": 98,
 }
 
 
