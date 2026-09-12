@@ -1275,3 +1275,27 @@ def test_tag_group_is_shown_when_the_setting_is_absent():
     session = make_session(show_answer=True, settings={"show_sounds": True})
     card = build_card(session, word, show_answer=True)
     assert len(_tag_extra(card)) == 1
+
+
+def test_rows_beyond_progress_are_marked_unstudied():
+    """
+    В группе видно весь набор, включая непройденное, — иначе числовой ряд
+    учить нельзя. Но человек должен различать, докуда дошёл: непройденные
+    строки клиент гасит серым, а признак считает сервер.
+    """
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS          # ранги 40, 417, 890
+    session = make_session(show_answer=True)
+    session["words_studied"] = 500
+    rows = _tag_extra(build_card(session, word, show_answer=True))[0]["rows"]
+    assert [(r["rank"], r["studied"]) for r in rows] == [(40, True), (417, True), (890, False)]
+
+
+def test_without_progress_nothing_is_greyed_out():
+    """Ноль пройденных — счётчика ещё нет, и гасить всю группу целиком незачем."""
+    word = make_word()
+    word["tag_groups"] = TAG_GROUPS
+    session = make_session(show_answer=True)
+    session["words_studied"] = 0
+    rows = _tag_extra(build_card(session, word, show_answer=True))[0]["rows"]
+    assert all(r["studied"] for r in rows)

@@ -70,6 +70,10 @@ data class ExtraRow(
     val rank: Int? = null,
     val ipa: String = "",
     val self: Boolean = false,
+    // Дошёл ли человек до этого слова. Считает сервер по номеру в частотном
+    // списке; по умолчанию true, чтобы партии, скачанные до этой версии, не
+    // погасли целиком.
+    val studied: Boolean = true,
 )
 
 data class ExtraContentItem(

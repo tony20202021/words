@@ -47,28 +47,32 @@
      "ru": "один",
      "ipa": "ʔeˈχad",
      "foreign": "אֶחָד",
-     "self": false
+     "self": false,
+     "studied": true
     },
     {
      "rank": 1105,
      "ru": "два, двое",
      "ipa": "ˈʃnajim",
      "foreign": "שְׁנַיִים",
-     "self": false
+     "self": false,
+     "studied": false
     },
     {
      "rank": 417,
      "ru": "три (ж)",
      "ipa": "ʃaˈloʃ",
      "foreign": "שָׁלוֹשׁ",
-     "self": true
+     "self": true,
+     "studied": true
     },
     {
      "rank": 5862,
      "ru": "девять (м)",
      "ipa": "tiˈʃa",
      "foreign": "תִּשְׁעָה",
-     "self": false
+     "self": false,
+     "studied": false
     }
    ]
   }

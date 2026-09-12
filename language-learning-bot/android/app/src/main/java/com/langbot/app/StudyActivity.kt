@@ -153,7 +153,10 @@ class StudyActivity : AppCompatActivity() {
             // lastWordId — so "начать заново" landed back on the very same word and
             // looked like it did nothing.
             lastWordId = null
-            OfflineCache.saveCursor(userId, languageId, 0)
+            // Не просто в начало партии, а в начало ОСТАВШЕГОСЯ: онлайн сервер
+            // пересчитывает набор на день и уже отвеченное не выдаёт, офлайн
+            // должен вести себя так же.
+            OfflineCache.excludeAnswered(userId, languageId)
             loadSession()
         }
     }
@@ -381,15 +384,25 @@ class StudyActivity : AppCompatActivity() {
      * ни правильными, ни ошибками.
      */
     private fun withOfflineProgress(card: Card): Card {
+        val eng = offline
+        // Ответы прошлых кругов в счёт не идут: перезапуск вывел их из партии,
+        // и засчитывать их в «готово» нового круга значило бы показывать
+        // прогресс, которого в нём нет.
         val done = OfflineCache.loadOutbox()
             .filter { it.userId == userId && it.languageId == languageId }
+            .filterNot { eng != null && eng.isExcluded(it.word_id) }
             .map { it.rating }
-        if (done.isEmpty()) return card
         val meta = card.meta
+        // Размер круга берём у движка: в партии лежат все слова дня, а круг
+        // после перезапуска короче на уже отвеченные.
+        val total = eng?.total?.takeIf { it > 0 }
+        if (done.isEmpty() && total == null) return card
         return card.copy(meta = meta.copy(
             correct_count = meta.correct_count + done.count { it == "know" },
             incorrect_count = meta.incorrect_count + done.count { it == "dont_know" },
             result_history = meta.result_history + done.filter { it != "skip" },
+            session_total = total ?: meta.session_total,
+            words_for_today = total ?: meta.words_for_today,
         ))
     }
 
@@ -1455,7 +1468,13 @@ class StudyActivity : AppCompatActivity() {
         }
         // Подсветка своей строки: фон ячеек, а не рамка — рамка спорила бы с
         // сеткой таблицы.
-        val bg = if (row.self) Color.parseColor("#fff3cd") else Color.TRANSPARENT
+        // Своя строка жёлтым, непройденные серым: видно и где ты сейчас, и
+        // докуда дошёл по набору.
+        val bg = when {
+            row.self -> Color.parseColor("#fff3cd")
+            !row.studied -> Color.parseColor("#f2f2f2")
+            else -> Color.TRANSPARENT
+        }
 
         fun cell(text: String, weight: Float, rtl: Boolean, big: Boolean, muted: Boolean,
                  single: Boolean = false): TextView {
@@ -1470,6 +1489,9 @@ class StudyActivity : AppCompatActivity() {
             }
             tv.textSize = if (big) 20f else 14f
             if (muted) tv.setTextColor(Color.parseColor("#777777"))
+            // Текст непройденного тоже бледнее — одной заливки мало, если
+            // строка стоит между двумя такими же.
+            if (!row.studied && !row.self) tv.setTextColor(Color.parseColor("#9a9a9a"))
             if (row.self) tv.setTypeface(null, android.graphics.Typeface.BOLD)
             tv.textDirection = if (rtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
             tv.textAlignment = if (rtl) View.TEXT_ALIGNMENT_VIEW_END else View.TEXT_ALIGNMENT_VIEW_START

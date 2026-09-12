@@ -333,7 +333,9 @@
             {# Порядок: номер, перевод, слово, транскрипция. Слово перед
                транскрипцией — читают его, транскрипция уточняет. Номер без «#»
                и без переноса: в узкой колонке «1105» рвалось на «11» и «05». #}
-            <tr{% if row.self %} class="table-warning"{% endif %}>
+            {# Своя строка жёлтым, непройденная серой и бледной: видно и где ты
+               сейчас, и докуда дошёл по набору. #}
+            <tr{% if row.self %} class="table-warning"{% elif row.studied is defined and not row.studied %} class="table-secondary text-muted"{% endif %}>
               <td class="text-end align-middle text-muted text-nowrap" style="width:12%">{{ row.rank }}</td>
               <td class="text-start align-middle" dir="ltr" style="width:30%">{{ row.ru }}</td>
               <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:33%">{{ row.foreign }}</td>

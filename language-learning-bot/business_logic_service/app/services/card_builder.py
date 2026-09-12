@@ -371,10 +371,10 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
         extra.append({"type": "label", "text": _extra_label(language_ru, "radicals"), "group": "radicals"})
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})
     if settings.get("show_tags", True):
-        _add_tag_groups(word, extra)
+        _add_tag_groups(word, extra, words_studied)
 
 
-def _add_tag_groups(word: dict, extra: list) -> None:
+def _add_tag_groups(word: dict, extra: list, words_studied: int = 0) -> None:
     """Группы слов для совместного повторения — числительные, родственники, части тела.
 
     Показ выключается настройкой show_tags, как у огласовок и однокоренных:
@@ -397,9 +397,15 @@ def _add_tag_groups(word: dict, extra: list) -> None:
             continue
         extra.append({"type": "label", "text": group.get("label") or group.get("tag", ""),
                       "group": "tags"})
+        # Отметка «пройдено» — по номеру в частотном списке: слова изучаются
+        # по порядку, и всё, что дальше счётчика, человек ещё не видел. Клиент
+        # такую строку гасит серым, чтобы в группе было видно, докуда дошли.
+        # Считает сервер: правило одно на три клиента.
+        marked = [dict(r, studied=(words_studied <= 0 or r.get("rank", 0) <= words_studied))
+                  for r in rows]
         extra.append({"type": "tag_group", "group": "tags",
                       "tag": group.get("tag", ""),
-                      "rows": rows})
+                      "rows": marked})
 
 
 def _add_hints(content: list, word: dict, uwd: dict, settings: dict) -> None:

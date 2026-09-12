@@ -16,6 +16,15 @@ data class StoredBundle(
     val languageId: String,
     val words: List<BundleWord>,
     val cursor: Int = 0,
+    // Слова, отвеченные до перезапуска сессии: в новый круг они не входят.
+    // Онлайн сервер пересчитывает набор на день и уже отвеченное не выдаёт;
+    // офлайн партия скачана целиком, и без этого списка «начать заново»
+    // показывало их по второму разу, а счётчик оставался прежним.
+    //
+    // Тип обнуляемый намеренно: Gson обходит умолчания Kotlin, когда не у всех
+    // полей есть значения по умолчанию, и в партиях, сохранённых до этой
+    // версии, здесь оказался бы null вопреки типу.
+    val excluded: Set<String>? = null,
 )
 
 /** One accumulated, not-yet-synced study result. */
@@ -56,6 +65,19 @@ object OfflineCache {
         val f = bundleFile(u, l)
         if (!f.exists()) return null
         return runCatching { gson.fromJson(f.readText(), StoredBundle::class.java) }.getOrNull()
+    }
+
+    /**
+     * Перезапуск круга: всё, что уже отвечено, выводится из партии.
+     *
+     * Онлайн «начать заново» отдаёт только оставшиеся на сегодня слова. Офлайн
+     * партия скачана целиком и о прошедшем ответе ничего не знает, поэтому
+     * список отвеченного берём из outbox — он ровно для этого и накапливается.
+     */
+    fun excludeAnswered(u: String, l: String) = synchronized(lock) {
+        val answered = loadOutbox().filter { it.userId == u && it.languageId == l }
+            .map { it.word_id }.toSet()
+        loadBundle(u, l)?.let { saveBundle(it.copy(cursor = 0, excluded = answered)) }
     }
 
     fun saveCursor(u: String, l: String, cursor: Int) = synchronized(lock) {
@@ -130,7 +152,15 @@ object OutboxSync {
 class OfflineEngine(private val bundle: StoredBundle) {
     val userId get() = bundle.userId
     val languageId get() = bundle.languageId
-    private val words = bundle.words
+    // Слова круга: отвеченные до перезапуска в него не входят, иначе «начать
+    // заново» показывало бы их снова.
+    private val words = bundle.words.filter { it.word_id !in (bundle.excluded ?: emptySet()) }
+
+    /** Сколько слов в этом круге — без выведенных перезапуском. */
+    val total: Int get() = words.size
+
+    /** Отвечено ли слово в прошлом круге. */
+    fun isExcluded(wordId: String): Boolean = wordId in (bundle.excluded ?: emptySet())
     var cursor = bundle.cursor
         private set
 

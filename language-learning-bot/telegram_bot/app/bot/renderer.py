@@ -53,7 +53,14 @@ def _tag_group_text(item: Dict[str, Any]) -> str:
         if ipa:
             parts.append(f"[{escape(ipa, quote=False)}]")
         line = "  ".join(p for p in parts if p)
-        lines.append(f"<b>{line}</b>" if row.get("self") else line)
+        if row.get("self"):
+            lines.append(f"<b>{line}</b>")
+        elif row.get("studied", True):
+            lines.append(line)
+        else:
+            # Непройденное — курсивом: заливки в Telegram нет, а отличать
+            # «уже встречал» от «ещё нет» нужно так же, как в таблицах.
+            lines.append(f"<i>{line}</i>")
     return "\n".join(lines)
 
 
