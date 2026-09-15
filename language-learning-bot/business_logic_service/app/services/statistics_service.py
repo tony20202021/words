@@ -188,17 +188,35 @@ async def get_monthly_statistics(
         return [], [], []
 
     monthly = response["result"]
-    all_days: List[Dict[str, Any]] = []
-    prev_studied = None
-    for day in monthly.get("daily_stats", []):
+    all_days: List[Dict[str, Any]] = list(monthly.get("daily_stats", []))
+    for day in all_days:
         day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
-        if prev_studied is None:
+
+    # «Новых слов в день».
+    #
+    # Снимок words_studied за день пишется ОДИН раз — на первом ответе дня, до
+    # того как выучены новые слова: update_daily_statistics создаёт запись и
+    # больше её не обновляет. Значит снимок дня D — это итог дня D−1, и разница
+    # двух соседних снимков описывает слова, выученные в более РАННИЙ из дней.
+    #
+    # Раньше её относили к более позднему, и весь график ехал на сутки. Нули
+    # переезжали туда, где новые слова точно были: 13.08 новых не было, 14.08
+    # выучено пять — а график ставил ноль на 14.08. По 56 парам соседних дней
+    # разница совпала с датами создания слов в 55 случаях именно при таком
+    # отнесении и лишь в 16 — при прежнем.
+    #
+    # У последнего дня следующего снимка ещё нет, и точки у него не будет, пока
+    # завтрашний первый ответ его не создаст. Отсутствующая точка лучше неверной,
+    # а тянуть ради неё полный прогресс на каждую картинку незачем.
+    #
+    # Снимки при этом не трогаются: words_unknown выше считается по утреннему
+    # состоянию, и график «Неизвестных до завершения» этим и правилен.
+    for i, day in enumerate(all_days):
+        if i + 1 >= len(all_days):
             day["words_new"] = None
-        else:
-            delta = day["words_studied"] - prev_studied
-            day["words_new"] = delta if delta >= 0 else None
-        prev_studied = day["words_studied"]
-        all_days.append(day)
+            continue
+        delta = all_days[i + 1]["words_studied"] - day["words_studied"]
+        day["words_new"] = delta if delta >= 0 else None
 
     def _annotate_finish(raw_response) -> List[Dict[str, Any]]:
         if not raw_response["success"] or raw_response.get("status") == 404 or raw_response["result"] is None:

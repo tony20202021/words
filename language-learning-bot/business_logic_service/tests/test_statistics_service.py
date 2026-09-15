@@ -321,3 +321,73 @@ class TestBgUpdateDaily:
         await _bg_update_daily("u1", "lang1", api, 450)
         api.get_user_progress.assert_called_once_with("u1", "lang1")
         assert api.update_daily_statistics.call_count == 2
+
+
+# ── «Новых слов в день»: к какому дню относить разницу снимков ────────────────
+
+def _monthly_api(studied_by_day):
+    """Клиент, отдающий дневные снимки в порядке дат, как их отдаёт бэкенд."""
+    days = [
+        {"date": f"2026-08-{13 + i:02d}T00:00:00", "words_studied": s,
+         "words_known": s, "words_skipped": 0}
+        for i, s in enumerate(studied_by_day)
+    ]
+    empty = {"success": True, "status": 200, "result": {"daily_stats": []}}
+    api = AsyncMock()
+    api.get_monthly_statistics.return_value = {
+        "success": True, "status": 200, "result": {"daily_stats": days}}
+    api.get_monthly_first_finish_statistics.return_value = empty
+    api.get_monthly_last_finish_statistics.return_value = empty
+    return api
+
+
+async def _new_words(studied_by_day):
+    from app.services.statistics_service import get_monthly_statistics
+    all_days, _, _ = await get_monthly_statistics(
+        "u1", "l1", date(2026, 8, 20), _monthly_api(studied_by_day), show_all=False)
+    return [d["words_new"] for d in all_days]
+
+
+class TestNewWordsPerDay:
+    """
+    Снимок «изучено» пишется один раз — на первом ответе дня, до занятий. Значит
+    снимок дня D равен итогу дня D−1, и разница соседних снимков — это слова,
+    выученные в более РАННИЙ из двух дней.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_owners_case_zero_stays_on_the_day_without_new_words(self):
+        """
+        13.08 новых слов не было, 14.08 выучено пять. Утренние снимки: 51, 51, 56.
+        Раньше график ставил ноль на 14.08 — ровно в день, где новые были, — и
+        пятёрку на 15.08.
+        """
+        assert await _new_words([51, 51, 56]) == [0, 5, None]
+
+    @pytest.mark.asyncio
+    async def test_every_delta_lands_one_day_earlier_than_before(self):
+        # Прежний расчёт дал бы [None, 0, 2, 5] — тот же ряд, сдвинутый на сутки.
+        assert await _new_words([5, 5, 7, 12]) == [0, 2, 5, None]
+
+    @pytest.mark.asyncio
+    async def test_the_last_day_has_no_point_until_the_next_snapshot(self):
+        """Итог сегодняшнего дня появится с завтрашним первым ответом, не раньше."""
+        result = await _new_words([10, 12])
+        assert result[-1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_drop_in_studied_is_not_shown_as_negative_new_words(self):
+        assert await _new_words([10, 8, 9]) == [None, 1, None]
+
+    @pytest.mark.asyncio
+    async def test_unknown_before_finish_still_uses_the_morning_snapshot(self):
+        """
+        Сдвиг касается только «новых слов». «Неизвестных до завершения» обязан
+        считаться по утреннему снимку того же дня — в этом его смысл.
+        """
+        from app.services.statistics_service import get_monthly_statistics
+        api = _monthly_api([100, 100])
+        api.get_monthly_statistics.return_value["result"]["daily_stats"][0]["words_known"] = 90
+        all_days, _, _ = await get_monthly_statistics(
+            "u1", "l1", date(2026, 8, 20), api, show_all=False)
+        assert [d["words_unknown"] for d in all_days] == [10, 0]
