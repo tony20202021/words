@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.logger import setup_logger
 from app.api.client import init_api_client
 from app.routers import session, user, settings, statistics, languages, auth, admin, hints, sounds, info, results
+from common.version import __version__
 
 logger = setup_logger(__name__)
 
@@ -22,7 +23,9 @@ async def lifespan(app: FastAPI):
     logger.info("BLS shutting down.")
 
 
-app = FastAPI(title="Business Logic Service", version="0.1.0", lifespan=lifespan)
+# Версия одна на весь проект: common/version.py. Здесь стояла
+# константа "0.1.0" — второй источник версии, расходившийся с ней.
+app = FastAPI(title="Business Logic Service", version=__version__, lifespan=lifespan)
 
 app.include_router(session.router)
 app.include_router(user.router)
