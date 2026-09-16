@@ -424,6 +424,31 @@ class TestFinishStatsTrigger:
         api.update_daily_first_finish_statistics.assert_not_called()
 
 
+class TestDailyUpdateEndpoint:
+    """
+    POST .../daily отвечал {"ok": true} не глядя на результат записи. Неудачная
+    запись выглядела как успешная — на этом при проверке выкладки 4.4.0 молча
+    не записалось ничего, а ответ был «ок».
+    """
+
+    def _url(self):
+        return "/statistics/u1/lang1/daily?action_date=2020-01-05"
+
+    def test_success_reports_ok(self, client, api):
+        api.get_daily_statistics.return_value = {"success": True, "status": 404, "result": None}
+        api.update_daily_statistics.return_value = {"success": True, "result": {}}
+        resp = client.post(self._url())
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+
+    def test_failed_write_is_not_reported_as_success(self, client, api):
+        api.get_daily_statistics.return_value = {"success": True, "status": 404, "result": None}
+        api.update_daily_statistics.return_value = {"success": False, "error": "boom"}
+        resp = client.post(self._url())
+        assert resp.status_code == 502
+        assert resp.json().get("ok") is not True
+
+
 # ── Pick answer endpoint ──────────────────────────────────────────────────────
 
 class TestPickAnswerEndpoint:

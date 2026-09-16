@@ -276,9 +276,9 @@ def generate_monthly_charts(
         (all_days_stats,    "words_studied",            "words_studied",   "last"),
         (all_days_stats,    "words_new",                "words_new",       "max"),
         (all_days_stats,    "words_known",              "words_known",     "last"),
-        # Утренние счётчики недоученного — два раздельных вместо прежнего
-        # «до завершения», которое смешивало их в одно число и после
-        # законченного дня всегда давало ноль.
+        # Первый счётчик — продолжение прежнего «до завершения»: та же величина,
+        # но взятая из базы, а не пересчитанная из трёх полей. Второй считает
+        # просроченные по дате проверки — этого прежде не было вовсе.
         (all_days_stats,    "words_unknown_morning",    "words_unknown_now", "max"),
         (all_days_stats,    "words_overdue_morning",    "words_overdue",     "max"),
         (first_finish_stats,"words_unknown_first_finish","words_unknown",    "max"),

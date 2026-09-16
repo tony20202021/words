@@ -2,7 +2,7 @@ import asyncio
 import time
 from functools import partial
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from starlette.status import HTTP_404_NOT_FOUND
+from starlette.status import HTTP_502_BAD_GATEWAY, HTTP_404_NOT_FOUND
 from datetime import date
 from typing import Optional, Dict, Any
 from app.services import statistics_service
@@ -101,5 +101,15 @@ async def update_daily(
     if action_date is None:
         action_date = statistics_service.study_day()
     progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
-    await statistics_service.update_daily_statistics(user_id, language_id, action_date, progress, api_client)
+    written = await statistics_service.update_daily_statistics(
+        user_id, language_id, action_date, progress, api_client
+    )
+    if not written:
+        # Прежде здесь стоял безусловный {"ok": true}: результат записи никто не
+        # смотрел, и неудача выглядела как успех. Именно на этом молча ничего не
+        # записалось при проверке выкладки 4.4.0 — а ответ был «ок».
+        raise HTTPException(
+            status_code=HTTP_502_BAD_GATEWAY,
+            detail="Failed to write daily statistics",
+        )
     return {"ok": True}
