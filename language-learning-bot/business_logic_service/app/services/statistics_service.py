@@ -11,12 +11,30 @@ from app.chart_generator import ProgressChartGenerator
 
 logger = setup_logger(__name__)
 
+
+def study_day(now: Optional[datetime] = None) -> date:
+    """
+    Учебные сутки: смена в полночь по Гринвичу.
+
+    Занятие после полуночи по местному времени — это ещё вчерашняя сессия, и
+    относить его к новой дате неверно. По Москве граница приходится на 3 часа
+    ночи, что и требовалось.
+
+    Раньше BLS брал date.today() — локальную дату СЕРВЕРА, а агрегация бэкенда
+    считала «сегодня» по UTC. Две разные точки смены суток в одной системе:
+    дневной снимок мог попасть в один день, а счётчик «слов на сегодня» в нём —
+    относиться к другому.
+    """
+    return (now or datetime.utcnow()).date()
+
 EMPTY_PROGRESS: Dict[str, Any] = {
     "words_studied": 0,
     "words_known": 0,
     "words_skipped": 0,
     "total_words": 0,
     "words_for_today": 0,
+    "words_unknown_now": 0,
+    "words_overdue": 0,
     "progress_percentage": 0,
     "word_numbers_for_today": [],
     "word_numbers_unknown": [],
@@ -110,40 +128,41 @@ async def update_daily_statistics(
     return True
 
 
-async def update_daily_first_finish_statistics(
+async def write_first_finish_if_missing(
     user_id: str,
     language_id: str,
     action_date: date,
-    progress: Dict[str, Any],
+    words_unknown: int,
     api_client,
 ) -> bool:
-    """Write first_finish if current unknown > stored max. Backend handles the comparison."""
+    """
+    Записать «первый финиш за день» — ровно один раз в сутки.
+
+    Смысл величины: сколько слов человек не знал, впервые дойдя до конца дневной
+    порции. Набор слов каждый день почти новый, поэтому число сравнимо изо дня в
+    день — это и есть объективная оценка знаний.
+
+    С 10 июня по 16 сентября здесь было другое: запись шла на КАЖДОЕ «не знаю»,
+    а значением был счётчик ошибок сессии. Он считал ответы, а не слова (одно
+    слово, отвеченное неверно дважды, давало два), жил внутри сессии, а сессия
+    за день начинается заново от двух до десяти раз. В итоге график показывал
+    максимум ошибок одной сессии вместо незнания на первом проходе.
+    """
+    existing = await api_client.get_daily_first_finish_statistics(user_id, language_id, action_date)
+    already = (
+        existing["success"]
+        and existing.get("status") != 404
+        and existing["result"] is not None
+    )
+    if already:
+        return True
+
     update_response = await api_client.update_daily_first_finish_statistics(
-        user_id, language_id, action_date, progress
+        user_id, language_id, action_date, {"words_unknown": words_unknown}
     )
     if not update_response["success"]:
         logger.error(
-            f"Failed to update first-finish statistics user={user_id} lang={language_id}: "
-            f"{update_response.get('error')}"
-        )
-        return False
-    return True
-
-
-async def update_daily_last_finish_statistics(
-    user_id: str,
-    language_id: str,
-    action_date: date,
-    progress: Dict[str, Any],
-    api_client,
-) -> bool:
-    """Always overwrites last-finish record with most recent session completion data."""
-    update_response = await api_client.update_daily_last_finish_statistics(
-        user_id, language_id, action_date, progress
-    )
-    if not update_response["success"]:
-        logger.error(
-            f"Failed to update last-finish statistics user={user_id} lang={language_id}: "
+            f"Failed to write first-finish statistics user={user_id} lang={language_id}: "
             f"{update_response.get('error')}"
         )
         return False
@@ -173,10 +192,14 @@ async def get_monthly_statistics(
     action_date: date,
     api_client,
     show_all: bool = False,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Fetch and annotate monthly statistics.
-    Returns (all_days_stats, first_finish_stats, last_finish_stats) with computed fields.
+    Returns (all_days_stats, first_finish_stats) with computed fields.
+
+    «Последний финиш» больше не запрашивается: график убран как избыточный —
+    сколько слов осталось после последней сессии, видно в утреннем счётчике
+    следующего дня. Лишний запрос на каждую картинку тоже ни к чему.
     """
     if show_all:
         response = await api_client.get_all_monthly_statistics(user_id, language_id, action_date)
@@ -185,13 +208,10 @@ async def get_monthly_statistics(
 
     if not response["success"] or response.get("status") == 404 or response["result"] is None:
         logger.error(f"No monthly statistics user={user_id} lang={language_id}")
-        return [], [], []
+        return [], []
 
     monthly = response["result"]
     all_days: List[Dict[str, Any]] = list(monthly.get("daily_stats", []))
-    for day in all_days:
-        day["words_unknown"] = day["words_studied"] - day["words_known"] - day["words_skipped"]
-
     # «Новых слов в день».
     #
     # Снимок words_studied за день пишется ОДИН раз — на первом ответе дня, до
@@ -209,8 +229,8 @@ async def get_monthly_statistics(
     # завтрашний первый ответ его не создаст. Отсутствующая точка лучше неверной,
     # а тянуть ради неё полный прогресс на каждую картинку незачем.
     #
-    # Снимки при этом не трогаются: words_unknown выше считается по утреннему
-    # состоянию, и график «Неизвестных до завершения» этим и правилен.
+    # Утренние счётчики недоученного при этом не трогаются: они и так снимаются
+    # с состояния базы на первом ответе дня, то есть по вчерашнему итогу.
     for i, day in enumerate(all_days):
         if i + 1 >= len(all_days):
             day["words_new"] = None
@@ -230,23 +250,18 @@ async def get_monthly_statistics(
         return result
 
     if show_all:
-        ff_resp, lf_resp = await asyncio.gather(
-            api_client.get_all_monthly_first_finish_statistics(user_id, language_id, action_date),
-            api_client.get_all_monthly_last_finish_statistics(user_id, language_id, action_date),
-        )
+        ff_resp = await api_client.get_all_monthly_first_finish_statistics(
+            user_id, language_id, action_date)
     else:
-        ff_resp, lf_resp = await asyncio.gather(
-            api_client.get_monthly_first_finish_statistics(user_id, language_id, action_date),
-            api_client.get_monthly_last_finish_statistics(user_id, language_id, action_date),
-        )
+        ff_resp = await api_client.get_monthly_first_finish_statistics(
+            user_id, language_id, action_date)
 
-    return all_days, _annotate_finish(ff_resp), _annotate_finish(lf_resp)
+    return all_days, _annotate_finish(ff_resp)
 
 
 def generate_monthly_charts(
     all_days_stats: List[Dict[str, Any]],
     first_finish_stats: List[Dict[str, Any]],
-    last_finish_stats: List[Dict[str, Any]],
     show_all: bool = False,
 ) -> Dict[str, bytes]:
     """Build monthly-view charts. Returns mapping of chart name → PNG bytes."""
@@ -261,9 +276,12 @@ def generate_monthly_charts(
         (all_days_stats,    "words_studied",            "words_studied",   "last"),
         (all_days_stats,    "words_new",                "words_new",       "max"),
         (all_days_stats,    "words_known",              "words_known",     "last"),
-        (all_days_stats,    "words_unknown_before",     "words_unknown",   "max"),
-        (first_finish_stats,"words_unknown_first_finish","words_unknown",  "max"),
-        (last_finish_stats, "words_unknown_last_finish", "words_unknown",  "max"),
+        # Утренние счётчики недоученного — два раздельных вместо прежнего
+        # «до завершения», которое смешивало их в одно число и после
+        # законченного дня всегда давало ноль.
+        (all_days_stats,    "words_unknown_morning",    "words_unknown_now", "max"),
+        (all_days_stats,    "words_overdue_morning",    "words_overdue",     "max"),
+        (first_finish_stats,"words_unknown_first_finish","words_unknown",    "max"),
         (all_days_stats,    "words_for_today",          "words_for_today", "max"),
         (all_days_stats,    "max_word_number",          "max_word_number", "max"),
     ]

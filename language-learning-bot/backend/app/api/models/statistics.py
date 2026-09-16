@@ -72,6 +72,12 @@ class UserProgress(BaseModel):
     words_known: int = Field(0, description="Number of words known")
     words_skipped: int = Field(0, description="Number of words skipped")
     words_for_today: int = Field(0, description="Number of words for today")
+    # Два независимых счётчика «что осталось недоученным».
+    # Непересекающиеся намеренно: слову, отвеченному «не знаю», дата проверки
+    # ставится на сегодня, и назавтра оно станет просроченным — попав бы сразу
+    # в оба счётчика. Поэтому просроченные считаются только среди известных.
+    words_unknown_now: int = Field(0, description="Слов со статусом «не знаю» (score=0, не пропущено)")
+    words_overdue: int = Field(0, description="Известных слов, у которых срок повторения прошёл — недопройденные")
     progress_percentage: float = Field(0.0, description="Percentage of progress")
     last_study_date: Optional[datetime] = Field(None, description="Last study date")
     word_numbers_for_today: List[int] = Field(default_factory=list, description="Word numbers for today review")
@@ -108,6 +114,11 @@ class UserDailyStatsBase(BaseModel):
     words_for_today: int = Field(0, description="Number of words for today")
     max_word_number: Optional[int] = Field(None, description="Max word_number processed this day")
     words_unknown: Optional[int] = Field(None, description="Directly stored unknown count (finish types only)")
+    # Утренние счётчики недоученного. Необязательные: в днях, записанных до их
+    # появления, значения нет, и точку на графике рисовать нельзя — иначе
+    # получится ноль там, где данных просто не было.
+    words_unknown_now: Optional[int] = Field(None, description="Слов со статусом «не знаю» на утро")
+    words_overdue: Optional[int] = Field(None, description="Недопройденных с прошлых дней на утро")
 
 class UserDailyStatsCreate(UserDailyStatsBase):
     """Create model for user daily statistics."""
@@ -121,6 +132,8 @@ class UserDailyStatsUpdate(BaseModel):
     words_for_today: int = Field(0, description="Number of words for today")
     max_word_number: Optional[int] = Field(None, description="Max word_number processed this day")
     words_unknown: Optional[int] = Field(None, description="Directly stored unknown count (finish types only)")
+    words_unknown_now: Optional[int] = Field(None, description="Слов со статусом «не знаю» на утро")
+    words_overdue: Optional[int] = Field(None, description="Недопройденных с прошлых дней на утро")
 
 class UserDailyStatsInDB(UserDailyStatsBase):
     """Database model for user daily statistics."""

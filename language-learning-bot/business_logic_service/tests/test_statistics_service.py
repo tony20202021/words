@@ -4,20 +4,20 @@ Unit tests for statistics_service — no I/O, no DB, pure logic with mocked api_
 Covers:
 - update_daily_statistics: create-if-missing snapshot
 - update_daily_max_word_number: updates only daily record
-- update_daily_first_finish_statistics: backend decides whether to update (max-unknown guard)
-- update_daily_last_finish_statistics: always overwrites
-- _bg_update_daily / _bg_update_finish_on_unknown separation
+- write_first_finish_if_missing: одна запись за сутки, не перезапись
+- study_day: граница суток по Гринвичу
+- «новых слов в день»: разница относится к более раннему дню
 """
 
 import pytest
-from datetime import date
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, call
 
 from app.services.statistics_service import (
     update_daily_statistics,
     update_daily_max_word_number,
-    update_daily_first_finish_statistics,
-    update_daily_last_finish_statistics,
+    write_first_finish_if_missing,
+    study_day,
 )
 
 
@@ -34,7 +34,7 @@ PROGRESS = {
 }
 
 
-def make_api(*, daily_exists=False):
+def make_api(*, daily_exists=False, finish_exists=None):
     """Return a mock api_client for statistics operations."""
     api = AsyncMock()
     api.get_daily_statistics.return_value = {
@@ -43,8 +43,16 @@ def make_api(*, daily_exists=False):
     }
     api.update_daily_statistics.return_value = {"success": True, "result": {}}
     api.update_daily_first_finish_statistics.return_value = {"success": True, "result": {}}
-    api.update_daily_last_finish_statistics.return_value = {"success": True, "result": {}}
+    api.get_daily_first_finish_statistics.return_value = (
+        {"success": True, "status": 200, "result": finish_exists} if finish_exists is not None
+        else {"success": True, "status": 404, "result": None}
+    )
     return api
+
+
+def _finish_payload(api):
+    call = api.update_daily_first_finish_statistics.call_args
+    return call.args[3] if len(call.args) > 3 else call.kwargs.get("stats_update", {})
 
 
 # ── update_daily_statistics ───────────────────────────────────────────────────
@@ -116,140 +124,122 @@ class TestUpdateDailyMaxWordNumber:
         assert api.update_daily_statistics.call_count == 3
 
 
-# ── update_daily_first_finish_statistics ──────────────────────────────────────
+# ── write_first_finish_if_missing ─────────────────────────────────────────────
 
-class TestUpdateDailyFirstFinishStatistics:
-    @pytest.mark.asyncio
-    async def test_calls_api_without_get_check(self):
-        """Calls PUT directly — no GET check (backend performs max-unknown comparison)."""
-        api = make_api()
-        result = await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is True
-        api.get_daily_statistics.assert_not_called()
-        api.update_daily_first_finish_statistics.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_passes_incorrect_count_as_words_unknown(self):
-        """incorrect_count is sent as words_unknown — field name matches semantic meaning."""
-        api = make_api()
-        progress = {"words_unknown": 7}  # incorrect_count=7
-        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
-        call_args = api.update_daily_first_finish_statistics.call_args
-        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert payload.get("words_unknown") == 7
-
-    @pytest.mark.asyncio
-    async def test_returns_false_on_api_error(self):
-        api = make_api()
-        api.update_daily_first_finish_statistics.return_value = {"success": False, "error": "fail"}
-        result = await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_called_on_every_dont_know(self):
-        """Called on every 'don't know' answer — backend skips when unknown did not increase."""
-        api = make_api()
-        for _ in range(5):
-            await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert api.update_daily_first_finish_statistics.call_count == 5
-
-
-# ── update_daily_last_finish_statistics ───────────────────────────────────────
-
-class TestUpdateDailyLastFinishStatistics:
-    @pytest.mark.asyncio
-    async def test_calls_api_unconditionally(self):
-        """Always overwrites regardless of current vs stored unknown."""
-        api = make_api()
-        result = await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is True
-        api.update_daily_last_finish_statistics.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_returns_false_on_api_error(self):
-        api = make_api()
-        api.update_daily_last_finish_statistics.return_value = {"success": False, "error": "fail"}
-        result = await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_called_on_every_dont_know(self):
-        api = make_api()
-        for _ in range(3):
-            await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        assert api.update_daily_last_finish_statistics.call_count == 3
-
-
-# ── Separation: _bg_update_daily vs _bg_update_finish_on_unknown ──────────────
-
-class TestBgTaskSeparation:
+class TestFirstFinishWrite:
     """
-    _bg_update_daily  fires on every word rating (know/skip/dont_know):
-      → update_daily_statistics + update_daily_max_word_number
-
-    _bg_update_finish_on_unknown  fires only on 'don't know' (show_answer):
-      → update_daily_first_finish_statistics + update_daily_last_finish_statistics
+    «Первый финиш за день»: сколько слов человек не знал, впервые за сутки дойдя
+    до конца дневной порции. Ключевое слово — впервые: за день порция кончается
+    много раз, и записать надо самый первый результат, пока он не улучшен
+    повторениями. Поэтому запись идёт только при отсутствии записи за эти сутки.
     """
 
     @pytest.mark.asyncio
-    async def test_bg_update_daily_does_not_touch_first_or_last_finish(self):
-        """Simulates _bg_update_daily: only daily and max_word_number are written."""
-        api = make_api(daily_exists=False)
-
-        await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api)
-        await update_daily_max_word_number("u1", "lang1", TODAY, 300, api)
-
-        api.update_daily_statistics.assert_called()
-        api.update_daily_first_finish_statistics.assert_not_called()
-        api.update_daily_last_finish_statistics.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_bg_update_finish_writes_both_finish_records(self):
-        """Simulates _bg_update_finish_on_unknown: both finish types are written with words_unknown."""
+    async def test_writes_when_there_is_no_record_for_the_day(self):
         api = make_api()
-        progress = {"words_unknown": 5}  # incorrect_count=5 passed as words_unknown
-
-        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
-        await update_daily_last_finish_statistics("u1", "lang1", TODAY, progress, api)
-
+        assert await write_first_finish_if_missing("u1", "lang1", TODAY, 7, api) is True
         api.update_daily_first_finish_statistics.assert_called_once()
-        api.update_daily_last_finish_statistics.assert_called_once()
+        assert _finish_payload(api) == {"words_unknown": 7}
 
     @pytest.mark.asyncio
-    async def test_bg_update_finish_does_not_call_get_user_progress(self):
-        """_bg_update_finish_on_unknown uses session incorrect_count directly — no DB fetch."""
-        api = make_api()
-        progress = {"words_unknown": 5}
-
-        await update_daily_first_finish_statistics("u1", "lang1", TODAY, progress, api)
-        await update_daily_last_finish_statistics("u1", "lang1", TODAY, progress, api)
-
-        api.get_daily_statistics.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_finish_records_not_updated_on_know_or_skip(self):
-        """On 'know' or 'skip', finish records must not be touched."""
-        api = make_api(daily_exists=True)
-
-        # Simulate two 'know' words and one 'skip' word — only bg_update_daily fires
-        for _ in range(3):
-            await update_daily_statistics("u1", "lang1", TODAY, PROGRESS, api)
-            await update_daily_max_word_number("u1", "lang1", TODAY, 100, api)
-
+    async def test_keeps_the_first_value_of_the_day(self):
+        """Второй финиш за те же сутки не трогает записанное — даже если стало лучше."""
+        api = make_api(finish_exists={"words_unknown": 9})
+        assert await write_first_finish_if_missing("u1", "lang1", TODAY, 3, api) is True
         api.update_daily_first_finish_statistics.assert_not_called()
-        api.update_daily_last_finish_statistics.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_finish_records_updated_on_each_dont_know(self):
-        """On 3 'don't know' answers, finish stats are updated 3 times."""
+    async def test_zero_is_a_value_and_gets_written(self):
+        """
+        Ноль законен: порция пройдена без ошибок. Прежний код в этом случае не
+        писал ничего (он срабатывал только на «не знаю»), и такой день выпадал из
+        графика вовсе — а это как раз лучший день.
+        """
         api = make_api()
+        await write_first_finish_if_missing("u1", "lang1", TODAY, 0, api)
+        api.update_daily_first_finish_statistics.assert_called_once()
+        assert _finish_payload(api) == {"words_unknown": 0}
 
-        for _ in range(3):
-            await update_daily_first_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
-            await update_daily_last_finish_statistics("u1", "lang1", TODAY, PROGRESS, api)
+    @pytest.mark.asyncio
+    async def test_missing_record_reported_as_404_result_none(self):
+        """Бэкенд отвечает на отсутствие записи по-разному — оба ответа значат «нет»."""
+        api = make_api()
+        api.get_daily_first_finish_statistics.return_value = {
+            "success": False, "status": 404, "result": None}
+        await write_first_finish_if_missing("u1", "lang1", TODAY, 2, api)
+        api.update_daily_first_finish_statistics.assert_called_once()
 
-        assert api.update_daily_first_finish_statistics.call_count == 3
-        assert api.update_daily_last_finish_statistics.call_count == 3
+    @pytest.mark.asyncio
+    async def test_returns_false_when_write_fails(self):
+        api = make_api()
+        api.update_daily_first_finish_statistics.return_value = {
+            "success": False, "error": "fail"}
+        assert await write_first_finish_if_missing("u1", "lang1", TODAY, 5, api) is False
+
+
+# ── study_day ─────────────────────────────────────────────────────────────────
+
+class TestStudyDay:
+    """
+    Занятие после полуночи по Москве — это ещё вчерашний день учёбы: набор слов
+    вчерашний, сессия вчерашняя. Граница проведена по Гринвичу, то есть в 3 часа
+    ночи по Москве — между занятиями, а не посреди них.
+    """
+
+    def _moscow(self, hour, minute=0, day=16):
+        """Московское время → наивный UTC, каким его видит сервер."""
+        return datetime(2026, 9, day, hour, minute) - timedelta(hours=3)
+
+    def test_after_midnight_moscow_still_belongs_to_the_previous_day(self):
+        assert study_day(self._moscow(1, 30)) == date(2026, 9, 15)
+
+    def test_night_owl_session_at_two_fifty_nine_is_previous_day(self):
+        assert study_day(self._moscow(2, 59)) == date(2026, 9, 15)
+
+    def test_early_morning_starts_the_new_day(self):
+        assert study_day(self._moscow(4)) == date(2026, 9, 16)
+
+    def test_daytime_is_its_own_date(self):
+        assert study_day(self._moscow(14)) == date(2026, 9, 16)
+
+    def test_defaults_to_current_time(self):
+        assert study_day() == datetime.utcnow().date()
+
+
+
+
+# ── месячная статистика: путь «данных нет» ────────────────────────────────────
+
+class TestMonthlyStatisticsWithoutData:
+    """
+    У нового пользователя месячной статистики ещё нет. Этот путь не проверял
+    никто — и когда функция стала возвращать две величины вместо трёх, пустой
+    возврат остался тройным. Весь набор тестов при этом оставался зелёным, а
+    экран графиков у такого пользователя упал бы на распаковке.
+    """
+
+    @pytest.mark.asyncio
+    async def test_returns_as_many_values_as_callers_unpack(self):
+        from app.services.statistics_service import get_monthly_statistics
+        api = AsyncMock()
+        api.get_monthly_statistics.return_value = {
+            "success": True, "status": 404, "result": None}
+        all_days, first_finish = await get_monthly_statistics("u1", "lang1", TODAY, api)
+        assert all_days == []
+        assert first_finish == []
+
+    @pytest.mark.asyncio
+    async def test_failed_request_also_unpacks(self):
+        from app.services.statistics_service import get_monthly_statistics
+        api = AsyncMock()
+        api.get_monthly_statistics.return_value = {
+            "success": False, "status": 500, "result": None, "error": "boom"}
+        all_days, first_finish = await get_monthly_statistics("u1", "lang1", TODAY, api)
+        assert (all_days, first_finish) == ([], [])
+
+    def test_no_days_means_no_charts(self):
+        from app.services.statistics_service import generate_monthly_charts
+        assert generate_monthly_charts([], []) == {}
 
 
 # ── ленивая загрузка прогресса ────────────────────────────────────────────────
@@ -325,25 +315,26 @@ class TestBgUpdateDaily:
 
 # ── «Новых слов в день»: к какому дню относить разницу снимков ────────────────
 
-def _monthly_api(studied_by_day):
+def _monthly_api(studied_by_day, morning=None):
     """Клиент, отдающий дневные снимки в порядке дат, как их отдаёт бэкенд."""
-    days = [
-        {"date": f"2026-08-{13 + i:02d}T00:00:00", "words_studied": s,
-         "words_known": s, "words_skipped": 0}
-        for i, s in enumerate(studied_by_day)
-    ]
-    empty = {"success": True, "status": 200, "result": {"daily_stats": []}}
+    days = []
+    for i, st in enumerate(studied_by_day):
+        day = {"date": f"2026-08-{13 + i:02d}T00:00:00", "words_studied": st,
+               "words_known": st, "words_skipped": 0}
+        if morning:
+            day.update(morning[i])
+        days.append(day)
     api = AsyncMock()
     api.get_monthly_statistics.return_value = {
         "success": True, "status": 200, "result": {"daily_stats": days}}
-    api.get_monthly_first_finish_statistics.return_value = empty
-    api.get_monthly_last_finish_statistics.return_value = empty
+    api.get_monthly_first_finish_statistics.return_value = {
+        "success": True, "status": 200, "result": {"daily_stats": []}}
     return api
 
 
 async def _new_words(studied_by_day):
     from app.services.statistics_service import get_monthly_statistics
-    all_days, _, _ = await get_monthly_statistics(
+    all_days, _ = await get_monthly_statistics(
         "u1", "l1", date(2026, 8, 20), _monthly_api(studied_by_day), show_all=False)
     return [d["words_new"] for d in all_days]
 
@@ -380,14 +371,88 @@ class TestNewWordsPerDay:
         assert await _new_words([10, 8, 9]) == [None, 1, None]
 
     @pytest.mark.asyncio
-    async def test_unknown_before_finish_still_uses_the_morning_snapshot(self):
+    async def test_morning_counters_pass_through_untouched(self):
         """
-        Сдвиг касается только «новых слов». «Неизвестных до завершения» обязан
-        считаться по утреннему снимку того же дня — в этом его смысл.
+        Сдвиг касается только «новых слов». Утренние счётчики недоученного
+        приходят из дневной записи как есть — сервис их не пересчитывает.
+
+        Прежде здесь считалось «неизвестных до завершения» как
+        studied − known − skipped. Эта величина смешивала оставшиеся «не знаю» с
+        недопройденными и после законченного дня всегда давала ноль; вместо неё
+        бэкенд пишет два раздельных счётчика.
         """
         from app.services.statistics_service import get_monthly_statistics
-        api = _monthly_api([100, 100])
-        api.get_monthly_statistics.return_value["result"]["daily_stats"][0]["words_known"] = 90
-        all_days, _, _ = await get_monthly_statistics(
+        api = _monthly_api([100, 100], morning=[
+            {"words_unknown_now": 3, "words_overdue": 2},
+            {"words_unknown_now": 0, "words_overdue": 0},
+        ])
+        all_days, _ = await get_monthly_statistics(
             "u1", "l1", date(2026, 8, 20), api, show_all=False)
-        assert [d["words_unknown"] for d in all_days] == [10, 0]
+        assert [(d["words_unknown_now"], d["words_overdue"]) for d in all_days] == [(3, 2), (0, 0)]
+        # Старого сводного поля больше нет — чтобы никто не строил по нему график.
+        assert "words_unknown" not in all_days[0]
+
+
+# ── первый финиш за день и граница учебных суток ──────────────────────────────
+
+class TestFirstFinishOnce:
+    """
+    «Первый финиш» — сколько слов человек не знал, впервые дойдя до конца дневной
+    порции. Набор слов каждый день почти новый, поэтому число сравнимо изо дня в
+    день.
+
+    С 10 июня по 16 сентября здесь писался счётчик ошибок сессии на КАЖДОЕ
+    «не знаю»: он считал ответы, а не слова, и обнулялся при каждом новом сеансе,
+    а сессия за день начинается заново от двух до десяти раз.
+    """
+
+    def _api(self, exists: bool):
+        api = AsyncMock()
+        api.get_daily_first_finish_statistics.return_value = (
+            {"success": True, "status": 200, "result": {"words_unknown": 5}} if exists
+            else {"success": True, "status": 404, "result": None})
+        api.update_daily_first_finish_statistics.return_value = {"success": True, "result": {}}
+        return api
+
+    @pytest.mark.asyncio
+    async def test_writes_when_no_record_yet(self):
+        api = self._api(exists=False)
+        assert await write_first_finish_if_missing("u1", "l1", TODAY, 7, api) is True
+        api.update_daily_first_finish_statistics.assert_called_once()
+        payload = api.update_daily_first_finish_statistics.call_args.args[3]
+        assert payload == {"words_unknown": 7}
+
+    @pytest.mark.asyncio
+    async def test_second_completion_of_the_day_changes_nothing(self):
+        """Именно ПЕРВЫЙ финиш: повторные завершения порции запись не трогают."""
+        api = self._api(exists=True)
+        assert await write_first_finish_if_missing("u1", "l1", TODAY, 2, api) is True
+        api.update_daily_first_finish_statistics.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_reports_failure(self):
+        api = self._api(exists=False)
+        api.update_daily_first_finish_statistics.return_value = {"success": False, "error": "fail"}
+        assert await write_first_finish_if_missing("u1", "l1", TODAY, 1, api) is False
+
+
+class TestStudyDay:
+    """
+    Учебные сутки меняются в полночь по Гринвичу — по Москве это 3 часа ночи.
+    Занятие после полуночи по местному времени остаётся вчерашней сессией.
+    """
+
+    def test_after_local_midnight_is_still_the_previous_day(self):
+        from datetime import datetime as dt
+        # 00:30 по Москве = 21:30 UTC предыдущих суток.
+        assert study_day(dt(2026, 9, 14, 21, 30)) == date(2026, 9, 14)
+
+    def test_morning_starts_the_new_day(self):
+        from datetime import datetime as dt
+        # 07:00 по Москве = 04:00 UTC.
+        assert study_day(dt(2026, 9, 15, 4, 0)) == date(2026, 9, 15)
+
+    def test_boundary_is_utc_midnight(self):
+        from datetime import datetime as dt
+        assert study_day(dt(2026, 9, 14, 23, 59)) == date(2026, 9, 14)
+        assert study_day(dt(2026, 9, 15, 0, 1)) == date(2026, 9, 15)

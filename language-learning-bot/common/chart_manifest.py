@@ -6,9 +6,12 @@ MONTHLY_CHART_NAMES = [
     "words_studied",
     "words_new",
     "words_known",
-    "words_unknown_before",
+    # Два раздельных счётчика недоученного на утро вместо прежнего
+    # «до завершения»: тот считал остаток «не знаю» и недопройденные в одном
+    # числе, и после законченного дня всегда давал ноль.
+    "words_unknown_morning",
+    "words_overdue_morning",
     "words_unknown_first_finish",
-    "words_unknown_last_finish",
     "words_for_today",
 ]
 
@@ -21,9 +24,11 @@ CHART_CAPTIONS: Dict[str, str] = {
     "words_studied":              "📈 Изучено слов",
     "words_new":                  "🆕 Новых слов в день",
     "words_known":                "✅ Известных слов",
-    "words_unknown_before":       "❌ Неизвестных (до завершения)",
-    "words_unknown_first_finish": "❌ Неизвестных (1-й финиш за день)",
-    "words_unknown_last_finish":  "❌ Неизвестных (последний финиш)",
+    "words_unknown_morning":      "❌ Осталось «не знаю» со вчера",
+    "words_overdue_morning":      "⏳ Недопройдено со вчера",
+    # «Объективная» оценка: первое завершение сессии за день, на почти новом
+    # наборе слов. Пишется один раз в сутки, значение берётся из базы.
+    "words_unknown_first_finish": "🎯 Не знал на первом финише",
 }
 
 # type: today | monthly_recent | monthly_all

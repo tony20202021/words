@@ -22,12 +22,19 @@ class StatsActivity : AppCompatActivity() {
     private lateinit var languageId: String
 
     companion object {
+        // Запасной список на случай, когда манифест недоступен. Имена обязаны
+        // совпадать с common/chart_manifest.py: сервер рисует график по имени и
+        // на незнакомое отвечает 404, то есть пустым местом на экране.
+        private val MONTHLY_CHARTS = listOf(
+            "words_studied", "words_new", "words_known",
+            "words_unknown_morning", "words_overdue_morning",
+            "words_unknown_first_finish", "words_for_today",
+        )
+
         private val FALLBACK_SECTIONS = listOf(
             Triple("📅 Распределение слов", listOf("words_for_today", "words_unknown", "check_interval"), "today"),
-            Triple("📆 Прогресс за месяц", listOf("words_studied", "words_new", "words_known",
-                "words_unknown_before", "words_unknown_first_finish", "words_unknown_last_finish", "words_for_today"), "monthly_recent"),
-            Triple("📊 Прогресс за всё время", listOf("words_studied", "words_new", "words_known",
-                "words_unknown_before", "words_unknown_first_finish", "words_unknown_last_finish", "words_for_today"), "monthly_all"),
+            Triple("📆 Прогресс за месяц", MONTHLY_CHARTS, "monthly_recent"),
+            Triple("📊 Прогресс за всё время", MONTHLY_CHARTS, "monthly_all"),
         )
     }
 

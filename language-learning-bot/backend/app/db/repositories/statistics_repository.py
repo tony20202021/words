@@ -297,10 +297,28 @@ class StatisticsRepository:
                         "words_skipped": {
                             "$sum": {"$cond": [{"$eq": ["$is_skipped", True]}, 1, 0]}
                         },
-                        "words_for_today": {                        
+                        "words_for_today": {
                             "$sum": {"$cond": [{"$lte": ["$next_check_date", today]}, 1, 0]}
                         },
-                        
+                        # Два независимых счётчика недоученного.
+                        # Слову, отвеченному «не знаю», дата проверки ставится на
+                        # сегодня, и назавтра оно станет просроченным — попав бы
+                        # сразу в оба. Поэтому просроченные считаются только среди
+                        # известных: это слова, до которых не дошли.
+                        "words_unknown_now": {
+                            "$sum": {"$cond": [{"$and": [
+                                {"$eq": ["$score", 0]},
+                                {"$ne": ["$is_skipped", True]}
+                            ]}, 1, 0]}
+                        },
+                        "words_overdue": {
+                            "$sum": {"$cond": [{"$and": [
+                                {"$lt": ["$next_check_date", today]},
+                                {"$eq": ["$score", 1]},
+                                {"$ne": ["$is_skipped", True]}
+                            ]}, 1, 0]}
+                        },
+
                         # 🆕 списки номеров слов
                         "word_numbers_for_today": {
                             "$push": {
@@ -361,6 +379,8 @@ class StatisticsRepository:
                 "words_known": result[0]["words_known"], 
                 "words_skipped": result[0]["words_skipped"],
                 "words_for_today": result[0]["words_for_today"],
+                "words_unknown_now": result[0]["words_unknown_now"],
+                "words_overdue": result[0]["words_overdue"],
                 "word_numbers_for_today": result[0]["word_numbers_for_today"],
                 "word_numbers_unknown": result[0]["word_numbers_unknown"],
                 "word_check_interval": result[0]["word_check_interval"]
@@ -371,6 +391,8 @@ class StatisticsRepository:
                 "words_known": 0,
                 "words_skipped": 0,
                 "words_for_today": 0,
+                "words_unknown_now": 0,
+                "words_overdue": 0,
                 "word_numbers_for_today": [],
                 "word_numbers_unknown": [],
                 "word_check_interval": []
@@ -770,6 +792,8 @@ class StatisticsRepository:
                 words_known=stats_data["words_known"],
                 words_skipped=stats_data["words_skipped"],
                 words_for_today=stats_data["words_for_today"],
+                words_unknown_now=stats_data["words_unknown_now"],
+                words_overdue=stats_data["words_overdue"],
                 progress_percentage=round(progress_percentage, 2),
                 last_study_date=last_study_date,
                 word_numbers_for_today=stats_data["word_numbers_for_today"],
@@ -788,6 +812,8 @@ class StatisticsRepository:
                 total_words=0,
                 words_studied=0,
                 words_known=0,
+                words_unknown_now=0,
+                words_overdue=0,
                 words_skipped=0,
                 words_for_today=0,
                 progress_percentage=0.0,
@@ -867,8 +893,10 @@ class StatisticsRepository:
             # ✅ Запись существует - обновляем
 
             if type == "first_finish":
-                # first_finish stores the daily MAXIMUM unknown count.
-                # Only update when incoming unknown > existing unknown.
+                # С 16.09.2026 BLS пишет первый финиш РОВНО ОДИН раз в сутки и
+                # при существующей записи не приходит сюда вовсе. Проверка ниже
+                # осталась защитой от повторной записи мимо этого правила: она
+                # не даёт затереть первый результат дня более поздним и лучшим.
                 # Prefer words_unknown field if provided directly; fall back to computation.
                 if stats_update.words_unknown is not None:
                     incoming_unknown = stats_update.words_unknown

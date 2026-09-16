@@ -47,6 +47,9 @@ def make_api_client(words=None, user_id="user-1"):
         "result": [{"id": "lang1", "name_ru": "Китайский", "name_foreign": "中文"}],
     }
     api.get_user_progress.return_value = {"success": True, "result": {}}
+    api.get_daily_first_finish_statistics.return_value = {
+        "success": True, "status": 404, "result": None,
+    }
     return api
 
 
@@ -302,12 +305,19 @@ class TestAuthEndpoints:
 
 class TestFinishStatsTrigger:
     """
-    _bg_update_finish_on_unknown must fire on every 'don't know' event,
-    regardless of path:
-      - direct rate{dont_know} (no prior show_answer)
-      - show_answer → rate{dont_know}  (both trigger; second is harmless duplicate)
-      - reconsider (know → change mind)
-    rate{know}, rate{skip} must NOT trigger finish stats.
+    «Первый финиш за день» пишется по одному событию — когда пройдена порция
+    слов на сегодня, и ровно один раз в сутки.
+
+    Величина отвечает на вопрос «сколько слов я не знаю, дойдя до конца дневной
+    порции». Набор слов каждый день почти новый, поэтому число сравнимо изо дня
+    в день.
+
+    С 10 июня по 16 сентября 2026 договор был другим: запись шла на КАЖДОЕ
+    «не знаю», значением был счётчик ошибок сессии. Тот счётчик считал ответы, а
+    не слова, и жил внутри сессии, а сессия за день начинается заново много раз —
+    график показывал максимум ошибок одной сессии. Тесты ниже закрепляют именно
+    то, что отличает новый договор от старого, поэтому проверяют и обратное:
+    «не знаю» само по себе не пишет ничего.
     """
 
     def _start(self, client):
@@ -315,67 +325,103 @@ class TestFinishStatsTrigger:
         assert resp.status_code == 200
         return resp.json()["session_id"]
 
-    def test_rate_dont_know_without_show_answer_triggers_finish_stats(self, client, api):
-        """Direct rate{dont_know} must trigger first_finish + last_finish."""
+    def _progress(self, api, words_unknown_now):
+        """Состояние базы: столько разных слов сейчас в статусе «не знаю»."""
+        api.get_user_progress.return_value = {
+            "success": True,
+            "result": {"words_studied": 100, "words_known": 93, "words_skipped": 0,
+                       "words_unknown_now": words_unknown_now, "words_overdue": 0},
+        }
+
+    def _written(self, api):
+        """Значение words_unknown из единственного вызова записи финиша."""
+        api.update_daily_first_finish_statistics.assert_called_once()
+        call = api.update_daily_first_finish_statistics.call_args
+        payload = call.args[3] if len(call.args) > 3 else call.kwargs.get("stats_update", {})
+        return payload.get("words_unknown")
+
+    def _exhaust(self, client, sid, rating="dont_know", words=3):
+        """Пройти порцию до конца; последний ответ обязан вернуть batch_exhausted."""
+        last = None
+        for _ in range(words):
+            last = client.post(f"/session/{sid}/rate", json={"rating": rating})
+            assert last.status_code == 200
+        assert last.json().get("batch_exhausted") is True
+        return last
+
+    def test_dont_know_mid_batch_writes_nothing(self, client, api):
+        """Одно «не знаю» посреди порции — не финиш, писать нечего."""
         sid = self._start(client)
         resp = client.post(f"/session/{sid}/rate", json={"rating": "dont_know"})
         assert resp.status_code == 200
-        api.update_daily_first_finish_statistics.assert_called_once()
-        api.update_daily_last_finish_statistics.assert_called_once()
-
-    def test_rate_dont_know_sends_incorrect_count_as_words_unknown(self, client, api):
-        """finish stats receive the session incorrect_count (=1 after first error)."""
-        sid = self._start(client)
-        client.post(f"/session/{sid}/rate", json={"rating": "dont_know"})
-        call_args = api.update_daily_last_finish_statistics.call_args
-        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert payload.get("words_unknown") == 1
-
-    def test_rate_know_does_not_trigger_finish_stats(self, client, api):
-        """rate{know} must NOT trigger finish stats."""
-        sid = self._start(client)
-        client.post(f"/session/{sid}/know")
-        client.post(f"/session/{sid}/rate", json={"rating": "know"})
+        assert resp.json().get("batch_exhausted") is not True
         api.update_daily_first_finish_statistics.assert_not_called()
-        api.update_daily_last_finish_statistics.assert_not_called()
 
-    def test_rate_skip_does_not_trigger_finish_stats(self, client, api):
-        """rate{skip} must NOT trigger finish stats."""
-        sid = self._start(client)
-        resp = client.post(f"/session/{sid}/rate", json={"rating": "skip"})
-        assert resp.status_code == 200
-        api.update_daily_first_finish_statistics.assert_not_called()
-        api.update_daily_last_finish_statistics.assert_not_called()
-
-    def test_reconsider_triggers_finish_stats(self, client, api):
-        """reconsider (know → dont_know) must trigger first_finish + last_finish."""
+    def test_reconsider_mid_batch_writes_nothing(self, client, api):
+        """«Передумал» — тоже обычный ответ, а не конец порции."""
         sid = self._start(client)
         client.post(f"/session/{sid}/know")
         resp = client.post(f"/session/{sid}/reconsider")
         assert resp.status_code == 200
-        api.update_daily_first_finish_statistics.assert_called()
-        api.update_daily_last_finish_statistics.assert_called()
+        api.update_daily_first_finish_statistics.assert_not_called()
 
-    def test_reconsider_sends_incorrect_count_as_words_unknown(self, client, api):
-        """reconsider: finish stats receive incorrect_count=1."""
+    def test_know_and_skip_mid_batch_write_nothing(self, client, api):
         sid = self._start(client)
         client.post(f"/session/{sid}/know")
-        client.post(f"/session/{sid}/reconsider")
-        call_args = api.update_daily_last_finish_statistics.call_args
-        payload = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("stats_update", {})
-        assert payload.get("words_unknown") == 1
+        client.post(f"/session/{sid}/rate", json={"rating": "know"})
+        client.post(f"/session/{sid}/rate", json={"rating": "skip"})
+        api.update_daily_first_finish_statistics.assert_not_called()
 
-    def test_show_answer_then_rate_dont_know_triggers_finish_stats_twice(self, client, api):
-        """show_answer + rate{dont_know}: both fire (second is harmless duplicate with same count)."""
-        api.create_user_word_data.return_value = {
-            "success": True,
-            "result": {"score": 0, "check_interval": 0, "next_check_date": "2026-06-01", "is_skipped": False},
+    def test_exhausted_batch_writes_finish_once(self, client, api):
+        """Дошли до конца порции — одна запись за день."""
+        self._progress(api, 7)
+        sid = self._start(client)
+        self._exhaust(client, sid)
+        assert self._written(api) == 7
+
+    def test_value_comes_from_database_not_from_session_errors(self, client, api):
+        """
+        Тот самый дефект: три «не знаю» подряд давали три, хотя в базе незнакомых
+        слов семь. Значение обязано приходить из базы, а не из счётчика сессии.
+        """
+        self._progress(api, 7)
+        sid = self._start(client)
+        self._exhaust(client, sid, rating="dont_know")
+        assert self._written(api) == 7
+
+    def test_batch_finished_without_errors_still_writes(self, client, api):
+        """
+        Порция, пройденная без единой ошибки, — тоже финиш. Старый договор в этом
+        случае не писал ничего, и день просто выпадал из графика.
+        """
+        self._progress(api, 0)
+        sid = self._start(client)
+        self._exhaust(client, sid, rating="know")
+        assert self._written(api) == 0
+
+    def test_reconsider_on_last_word_writes_finish(self, client, api):
+        """Порция может кончиться и на «передумал» — это тот же финиш."""
+        self._progress(api, 4)
+        sid = self._start(client)
+        client.post(f"/session/{sid}/rate", json={"rating": "know"})
+        client.post(f"/session/{sid}/rate", json={"rating": "know"})
+        client.post(f"/session/{sid}/know")
+        resp = client.post(f"/session/{sid}/reconsider")
+        assert resp.json().get("batch_exhausted") is True
+        assert self._written(api) == 4
+
+    def test_second_finish_of_the_day_writes_nothing(self, client, api):
+        """
+        За день порция кончается много раз. Записывается ПЕРВЫЙ финиш — значит
+        при уже существующей записи за сегодня новая не пишется.
+        """
+        self._progress(api, 5)
+        api.get_daily_first_finish_statistics.return_value = {
+            "success": True, "status": 200, "result": {"words_unknown": 9},
         }
         sid = self._start(client)
-        client.post(f"/session/{sid}/show_answer")
-        client.post(f"/session/{sid}/rate", json={"rating": "dont_know"})
-        assert api.update_daily_first_finish_statistics.call_count == 2
-        assert api.update_daily_last_finish_statistics.call_count == 2
+        self._exhaust(client, sid)
+        api.update_daily_first_finish_statistics.assert_not_called()
 
 
 # ── Pick answer endpoint ──────────────────────────────────────────────────────

@@ -679,6 +679,26 @@ class APIClient:
         return await self._make_request("GET", endpoint)
 
 
+    async def get_daily_first_finish_statistics(
+        self, 
+        user_id: str, 
+        language_id: str, 
+        date: datetime.date
+    ) -> Dict[str, Any]:
+        """Прочитать запись первого финиша за день.
+
+        Нужна, чтобы писать её ровно один раз — при ПЕРВОМ завершении
+        порции слов за день. Метод убрали в июне вместе с этой логикой,
+        когда финиш переподключили на каждое «не знаю».
+        """
+        endpoint = f"/users/{user_id}/languages/{language_id}/daily-first-finish-stats/{date.isoformat()}"
+        
+        logger.info(f"Getting daily statistics for user_id={user_id}, language_id={language_id}, "
+                   f"date={date}")
+        
+        return await self._make_request("GET", endpoint)
+
+
     async def update_daily_statistics(
         self,
         user_id: str,

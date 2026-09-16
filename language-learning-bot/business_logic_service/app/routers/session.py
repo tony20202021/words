@@ -17,7 +17,7 @@ logger = setup_logger(__name__)
 async def _bg_update_daily(user_id: str, language_id: str, api_client, word_number: int = 0) -> None:
     """Update daily record and max_word_number after each word rating."""
     try:
-        today = date.today()
+        today = statistics_service.study_day()
         # Прогресс нужен только когда дневной записи ещё нет (раз в сутки), а
         # ответ у него тяжёлый — массивы номеров слов на тысячи элементов.
         # Поэтому передаём загрузчик, а не результат.
@@ -31,19 +31,21 @@ async def _bg_update_daily(user_id: str, language_id: str, api_client, word_numb
         logger.warning(f"bg daily stats update failed for {user_id}/{language_id}: {e}")
 
 
-async def _bg_update_finish_on_unknown(user_id: str, language_id: str, api_client, incorrect_count: int) -> None:
-    """Update finish stats on every 'don't know' answer.
-    Uses session incorrect_count as words_unknown (not DB aggregation).
-    first_finish keeps daily max; last_finish always overwrites."""
+async def _bg_first_finish_on_completion(user_id: str, language_id: str, api_client) -> None:
+    """Первое за день завершение порции слов — записать, сколько слов осталось незнакомыми.
+
+    Раньше финиш писался на каждое «не знаю» и хранил счётчик ошибок сессии.
+    Теперь — по событию, которым он и назван, и значением из базы: число разных
+    слов со статусом «не знаю». Внутри пишется только если записи за день ещё нет.
+    """
     try:
-        today = date.today()
-        progress = {"words_unknown": incorrect_count}
-        await statistics_service.update_daily_first_finish_statistics(
-            user_id, language_id, today, progress, api_client)
-        await statistics_service.update_daily_last_finish_statistics(
-            user_id, language_id, today, progress, api_client)
+        progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
+        await statistics_service.write_first_finish_if_missing(
+            user_id, language_id, statistics_service.study_day(),
+            progress.get("words_unknown_now", 0), api_client)
     except Exception as e:
-        logger.warning(f"bg finish stats update failed for {user_id}/{language_id}: {e}")
+        logger.warning(f"bg first finish update failed for {user_id}/{language_id}: {e}")
+
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -143,8 +145,6 @@ async def show_answer(session_id: str,
     await session_service.show_answer_word(session, api_client)
     user_id = session.get("user_id", "")
     language_id = session.get("language_id", "")
-    incorrect_count = session.get("incorrect_count", 0)
-    background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     return await _card_response(session, api_client)
 
 
@@ -164,11 +164,10 @@ async def rate_word(session_id: str, req: RateRequest,
     session = await session_service.rate_word(session, req.rating, api_client)
     session_service.touch_session(session)
     background_tasks.add_task(_bg_update_daily, user_id, language_id, api_client, rated_wn)
-    if req.rating == "dont_know":
-        incorrect_count = session.get("incorrect_count", 0)
-        background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     word = session_service.get_current_word(session)
     if word is None:
+        # Порция слов на сегодня пройдена — это и есть «финиш».
+        background_tasks.add_task(_bg_first_finish_on_completion, user_id, language_id, api_client)
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}
     return await _card_response(session, api_client)
 
@@ -212,10 +211,10 @@ async def reconsider_word(session_id: str,
     language_id = session.get("language_id", "")
     session = await session_service.reconsider_word(session, api_client)
     session = await session_service.rate_word(session, "dont_know", api_client)
-    incorrect_count = session.get("incorrect_count", 0)
-    background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
     word = session_service.get_current_word(session)
     if word is None:
+        # Порция слов на сегодня пройдена — это и есть «финиш».
+        background_tasks.add_task(_bg_first_finish_on_completion, user_id, language_id, api_client)
         return {"session_id": session["session_id"], "card": None, "batch_exhausted": True}
     return await _card_response(session, api_client)
 
@@ -237,8 +236,6 @@ async def pick_answer(session_id: str, req: PickAnswerRequest,
     if req.selected_word_id == "dont_know":
         # Treat as "show answer" — score 0
         await session_service.show_answer_word(session, api_client)
-        incorrect_count = session.get("incorrect_count", 0)
-        background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
         session["pick_answer_result"] = "wrong"
     else:
         # Determine correctness from stored quiz options
@@ -255,8 +252,6 @@ async def pick_answer(session_id: str, req: PickAnswerRequest,
             session["pick_answer_result"] = "correct"
         else:
             await session_service.show_answer_word(session, api_client)
-            incorrect_count = session.get("incorrect_count", 0)
-            background_tasks.add_task(_bg_update_finish_on_unknown, user_id, language_id, api_client, incorrect_count)
             # Запоминаем ТОЛЬКО настоящий вариант, который сбил с толку.
             # «Не знаю» тоже приходит сюда как «не тот ответ», и раньше в поле
             # оседала строка "dont_know" — кнопка предлагала запретить
