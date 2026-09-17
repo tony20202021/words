@@ -190,12 +190,16 @@ class ProgressChartGenerator:
         ax.set_xticklabels([dates[i] for i in tick_indices], rotation=45, ha='right')
 
         ax.set_ylabel('Количество слов')
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True, prune='both'))
-        if y_axis_limits == "min_max":
+        # prune='both' срезал крайние метки. Пока точек много, это лишь убирало
+        # подписи у краёв; но когда значения почти не расходятся — например один
+        # день со значением 0, — крайними оказываются ВСЕ метки, и ось остаётся
+        # вовсе без чисел. Читать такой график нельзя: точка есть, а величины нет.
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        if y_axis_limits == "zero_max" and counts:
+            ax.set_ylim(0, int(max(counts)) + 1)
+        elif counts:
             y_min, y_max = ax.get_ylim()
             ax.set_ylim(int(y_min), int(y_max) + 1)
-        elif y_axis_limits == "zero_max" and counts:
-            ax.set_ylim(0, int(max(counts)) + 1)
 
         ax.grid(True, alpha=0.3)
         fig.tight_layout()

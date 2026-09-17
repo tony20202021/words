@@ -272,6 +272,12 @@ def generate_monthly_charts(
     y_limits = "zero_max" if show_all else "min_max"
     charts: Dict[str, bytes] = {}
 
+    # Ось от нуля обязательна там, где величина — счётчик за день: «слов на
+    # сегодня» колеблется от 13 до 33, и без нуля это выглядит как размах в разы.
+    # Накопительным (изучено, известно) нуль, наоборот, вреден: они прижмутся к
+    # верхнему краю и перестанут показывать движение.
+    ZERO_BASED_CHARTS = {"words_for_today"}
+
     specs = [
         (all_days_stats,    "words_studied",            "words_studied",   "last"),
         (all_days_stats,    "words_new",                "words_new",       "max"),
@@ -293,7 +299,7 @@ def generate_monthly_charts(
                 field,
                 title=chart_key.replace("_", " ").capitalize(),
                 title_value=title_value,
-                y_axis_limits=y_limits,
+                y_axis_limits="zero_max" if chart_key in ZERO_BASED_CHARTS else y_limits,
             ).getvalue()
 
     return charts

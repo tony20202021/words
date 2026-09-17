@@ -486,3 +486,69 @@ def test_vocalization_agrees_with_transcription_in_the_first_thousand():
 
     assert not mismatched, "огласовка расходится с транскрипцией:\n" + "\n".join(
         f"  #{r} {n} [{i}] огласовка даёт {w!r}, транскрипция {g!r}" for r, n, i, w, g in mismatched)
+
+
+def _modal_fixture():
+    """Тег с представителем и его же формой женского рода в also."""
+    rows = [
+        {"rank": 19, "hebrew": "רוצה", "niqqud": "רוֹצֶה", "lemma": "רצה",
+         "ipa": "ʁoˈtse", "russian": "хочу, хочет",
+         "tags": [{"tag": "модальные", "order": 1, "shown": True}]},
+        {"rank": 29, "hebrew": "יכול", "niqqud": "יָכוֹל", "lemma": "יכל",
+         "ipa": "jaˈχol", "russian": "могу, может (м)",
+         "tags": [{"tag": "модальные", "order": 2, "shown": True}]},
+        {"rank": 43, "hebrew": "צריך", "niqqud": "צָרִיךְ", "lemma": "צרך",
+         "ipa": "tsaˈʁiχ", "russian": "нужно, надо",
+         "tags": [{"tag": "модальные", "order": 3, "shown": True}]},
+        {"rank": 80, "hebrew": "יכולה", "niqqud": "יְכוֹלָה", "lemma": "יכל",
+         "ipa": "jeχoˈla", "russian": "могу, может (ж)",
+         "tags": [{"tag": "модальные", "order": 0, "shown": False}]},
+    ]
+    defs = {"модальные": {"label": "🔑 Модальные слова", "sort": "ранг",
+                          "members": [19, 29, 43], "also": [80]}}
+    return rows, defs
+
+
+def _group_of(rows, rank):
+    return next(r for r in rows if r["rank"] == rank)["tag_groups"][0]["rows"]
+
+
+def test_a_word_outside_the_group_still_finds_itself_in_it():
+    """
+    Слово из "also" получает тег и видит группу, но в состав не входит — иначе
+    родственники содержали бы «ребёнок» трижды. Из-за этого в собственной
+    таблице слова не было ни одной строки с self: открыв слово 80 «могу (ж)»,
+    человек не находил в модальных самого себя. Своя строка обязана быть всегда.
+    """
+    import build_tag_groups
+    rows, defs = _modal_fixture()
+    build_tag_groups.build(rows, defs)
+
+    own = _group_of(rows, 80)
+    assert [r["rank"] for r in own if r["self"]] == [80]
+    assert any(r["rank"] == 80 for r in own)
+
+
+def test_own_row_stands_next_to_its_lemma_not_by_rank():
+    """
+    Место строки задаёт лемма, а не ранг. По рангу «могу (ж)» (80) встала бы
+    после «нужно» (43) и оторвалась бы от «могу (м)» (29), с которым он и
+    составляет пару.
+    """
+    import build_tag_groups
+    rows, defs = _modal_fixture()
+    build_tag_groups.build(rows, defs)
+
+    ranks = [r["rank"] for r in _group_of(rows, 80)]
+    assert ranks == [19, 29, 80, 43], ranks
+
+
+def test_words_inside_the_group_get_no_extra_row():
+    """Представителю добавлять нечего: он и так в составе, с ним ничего не меняется."""
+    import build_tag_groups
+    rows, defs = _modal_fixture()
+    build_tag_groups.build(rows, defs)
+
+    own = _group_of(rows, 29)
+    assert [r["rank"] for r in own] == [19, 29, 43]
+    assert [r["rank"] for r in own if r["self"]] == [29]

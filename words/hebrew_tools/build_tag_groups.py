@@ -11,9 +11,15 @@
     "tag_groups": [{"tag": "...", "label": "...", "rows": [
         {"rank": 40, "ru": "один", "ipa": "ʔeˈχad", "foreign": "אֶחָד", "self": false}]}]
 
-Строки с shown=false в состав не входят: формы с артиклем ה и притяжательные
-получают тег и показывают группу, но сами в ней не значатся — иначе
+Строки из "also" в состав не входят: формы с артиклем ה, притяжательные и формы
+по родам получают тег и показывают группу, но сами в ней не значатся — иначе
 «родственники» содержали бы «ребёнок» трижды.
+
+Исключение — само открытое слово. Если оно из "also", в его собственной таблице
+не было ни одной строки с self, и на вопрос «а где тут я» таблица не отвечала:
+слово 80 «могу (ж)» не находило себя среди модальных. Поэтому своя строка
+добавляется всегда, и ставится сразу за представителем той же леммы — «могу (ж)»
+идёт за «могу (м)», а не уезжает по рангу в середину списка.
 
 Запуск:  python words/hebrew_tools/build_tag_groups.py [--dry]
 """
@@ -34,6 +40,37 @@ def primary(translation: str) -> str:
     """Первое значение: в колонке таблицы длинному перечислению не место."""
     head = (translation or "").split(";")[0].strip()
     return head or (translation or "").strip()
+
+
+def own_row(r):
+    """Строка самого открытого слова — для таблицы, где его нет в составе."""
+    return {
+        "rank": r["rank"],
+        "ru": primary(r.get("russian", "")),
+        "ipa": r.get("ipa", ""),
+        "foreign": r.get("niqqud") or r.get("hebrew", ""),
+        "self": True,
+    }
+
+
+def insert_own(rows_out, own, by_rank, lemma, sort):
+    """Поставить свою строку рядом с представителем той же леммы.
+
+    По рангу вставлять нельзя: «могу (ж)» (80) уехала бы за «нужно» (43) и
+    оторвалась от «могу (м)» (29). По лемме — встаёт туда, где её и ищут.
+    Если лемма не совпала ни с кем, для групп с порядком по рангу встраиваем по
+    рангу, а для ручных дописываем в конец: ручной порядок задан смыслом
+    (числа по значению), и вклинивать в него по номеру частотности нельзя.
+    """
+    if lemma:
+        for i in range(len(rows_out) - 1, -1, -1):
+            if by_rank.get(rows_out[i]["rank"], {}).get("lemma") == lemma:
+                return rows_out[:i + 1] + [own] + rows_out[i + 1:]
+    if sort == "ранг":
+        pos = next((i for i, row in enumerate(rows_out) if row["rank"] > own["rank"]),
+                   len(rows_out))
+        return rows_out[:pos] + [own] + rows_out[pos:]
+    return rows_out + [own]
 
 
 def build(rows, defs):
@@ -59,6 +96,9 @@ def build(rows, defs):
         for t in sorted(tags, key=lambda x: x["tag"]):
             rows_out = [dict(row, self=(row["rank"] == r["rank"]))
                         for row in composition[t["tag"]]]
+            if not any(row["self"] for row in rows_out):
+                rows_out = insert_own(rows_out, own_row(r), by_rank,
+                                      r.get("lemma"), defs[t["tag"]].get("sort", "ручной"))
             groups.append({
                 "tag": t["tag"],
                 "label": defs[t["tag"]]["label"],
