@@ -18,7 +18,10 @@ import kotlinx.coroutines.launch
  * watcher that flushes the results outbox whenever connectivity returns — so
  * results accumulated offline sync up on their own, even without opening a screen.
  */
-class LangBotApp : Application() {
+// open — чтобы тесты могли подставить наследника, нацеленного не на боевой
+// сервер. Адрес по умолчанию в UserPrefs — это production, и onCreate ниже
+// инициализирует им клиента, а затем сам же отправляет накопленное.
+open class LangBotApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

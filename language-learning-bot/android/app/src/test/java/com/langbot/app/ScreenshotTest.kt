@@ -135,8 +135,11 @@ class ScreenshotTest {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val languages = Robolectric.buildActivity(LanguagesActivity::class.java).setup().get()
+        // Ждём строки в САМОМ списке. Прежнее условие считало любые тексты на
+        // экране, а их хватает уже от заголовка в шапке: снимок иногда делался,
+        // пока список пуст, и тест падал «экран пуст» через раз.
         Screenshots.pumpUntil("список языков загружен") {
-            Screenshots.texts(languages.findViewById(android.R.id.content)).size > 1
+            languages.findViewById<ViewGroup>(R.id.recycler).childCount > 0
         }
         // Снимаем список, а не весь экран: в шапке ActionBar стоит подпись
         // «v4.2.0», и эталон разъезжался бы при КАЖДОМ поднятии версии. Такой
