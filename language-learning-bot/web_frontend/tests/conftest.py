@@ -1,6 +1,7 @@
 """Shared fixtures for web_frontend tests."""
 
 import os
+import sys
 
 # Приложение отказывается стартовать без SECRET_KEY или с заглушкой — этим
 # ключом подписывается сессионная кука с user_id и is_admin. Тестам нужен свой,
@@ -46,8 +47,37 @@ def make_mock_bls(
     bls.reconsider = AsyncMock(return_value={"session_id": session_id, "card": _make_card(show_answer=True)})
     bls.get_progress = AsyncMock(return_value={"total_words_processed": 5, "remaining_in_batch": 3})
     bls.end_session = AsyncMock(return_value=None)
+    # Права спрашиваются при каждом входе; без заглушки этот вызов уходил в сеть.
+    bls.is_admin = AsyncMock(return_value=False)
 
     return bls
+
+
+@pytest.fixture(autouse=True)
+def never_touch_the_live_bls(monkeypatch):
+    """Ни один тест не должен ходить в рабочий BLS.
+
+    Тесты подменяют клиента по одному модулю: patch("app.routers.X.get_bls_client").
+    Любой вызов мимо такой подмены уходил на localhost:8531 — в живой сервис. За
+    прогон туда улетало под шесть десятков запросов о несуществующем
+    пользователе, и журнал рабочего BLS засорялся словом ERROR ровно там, где по
+    нему ищут настоящие сбои.
+
+    Здесь подменяется и сам источник (app.bls_client), и имя во всех уже
+    импортированных модулях приложения — чтобы вызов не проскочил ни через
+    импорт внутри функции, ни через модуль, о котором тест не знал.
+    """
+    default = make_mock_bls()
+
+    def factory():
+        return default
+
+    import app.bls_client as bls_module
+    monkeypatch.setattr(bls_module, "get_bls_client", factory)
+    for name, module in list(sys.modules.items()):
+        if name.startswith("app.") and getattr(module, "get_bls_client", None) is not None:
+            monkeypatch.setattr(module, "get_bls_client", factory, raising=False)
+    return default
 
 
 def _make_card(show_answer: bool = False, score_changed: bool = False):

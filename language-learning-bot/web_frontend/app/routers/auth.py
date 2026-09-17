@@ -166,12 +166,15 @@ async def logout(request: Request):
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 async def _store_session(request: Request, user_id: str, telegram_id=None, first_name: str = ""):
-    from app.bls_client import get_bls_client as _get_bls
+    # Клиент берётся из имени, импортированного НАВЕРХУ модуля. Здесь стоял
+    # импорт внутри функции — он читал имя заново из app.bls_client и потому
+    # обходил подмену в тестах: каждый вход в тестах уходил спрашивать права у
+    # рабочего BLS, и за прогон набегало под шесть десятков живых запросов.
     request.session["user_id"] = user_id
     request.session["first_name"] = first_name or ""
     if telegram_id:
         request.session["telegram_id"] = int(telegram_id)
-    request.session["is_admin"] = await _get_bls().is_admin(user_id)
+    request.session["is_admin"] = await get_bls_client().is_admin(user_id)
 
 
 def _render_login(request: Request, error: str = None, not_found: bool = False,
