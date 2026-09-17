@@ -88,7 +88,10 @@ async def start_session(
         "word_processed": False,
         "show_answer": False,
         "score_changed": False,
-        "settings": settings,
+        # Копия, а не ссылка: снимок обязан быть неподвижным. По ссылке любой,
+        # кто изменит словарь настроек, незаметно менял бы и снимок сессии —
+        # и тогда «что изменилось» вычислить уже нельзя.
+        "settings": dict(settings),
         "show_mode": _pick_show_mode(settings),
         "pick_mode_active": _pick_quiz_mode(settings),
         "quiz_options": None,
@@ -120,6 +123,52 @@ async def start_session(
     else:
         logger.info(f"Session snapshot built (unregistered): user={user_id} lang={language_id} words={len(words)}")
     return session
+
+
+# Настройки, от которых зависит СОСТАВ порции. Остальные влияют только на показ
+# уже выбранных слов. Список ровно повторяет параметры _load_words_with_slide:
+# если добавится четвёртый — добавлять и сюда, иначе смена снова не подействует.
+SELECTION_SETTINGS = frozenset({"start_word", "skip_marked", "use_check_date"})
+
+
+def apply_settings_change(user_id: str, language_id: str,
+                          settings: Dict[str, Any],
+                          changed_key: Optional[str] = None) -> str:
+    """Донести изменённые настройки до активной сессии.
+
+    Сессия держит СНИМОК настроек, сделанный при старте, а клиент, возвращаясь
+    на экран учёбы, сначала просит существующую сессию и только при неудаче
+    создаёт новую. Без этого переключатель не действовал до конца порции:
+    человек выключал «учитывать дату», получал слова подряд с первого, возвращал
+    настройку обратно — и продолжал получать их подряд, потому что сессия жила
+    со старым снимком.
+
+    Настройки показа доносятся обновлением снимка: _advance перечитывает их на
+    каждом слове. Настройки отбора так донести нельзя — список слов уже набран,
+    поэтому сессия завершается, и следующий заход наберёт порцию заново.
+    """
+    session = get_session(user_id, language_id)
+    if session is None:
+        return "нет активной сессии"
+
+    if changed_key is not None:
+        # Роутер знает ключ из адреса — это надёжнее сравнения словарей.
+        changed = {changed_key}
+    else:
+        old = session.get("settings") or {}
+        changed = {k for k in set(old) | set(settings) if old.get(k) != settings.get(k)}
+    if not changed:
+        return "без изменений"
+
+    if changed & SELECTION_SETTINGS:
+        end_session(user_id, language_id)
+        logger.info(f"Session dropped after settings change {sorted(changed & SELECTION_SETTINGS)} "
+                    f"user={user_id} lang={language_id}")
+        return "сессия завершена"
+
+    session["settings"] = dict(settings)
+    logger.info(f"Session settings refreshed {sorted(changed)} user={user_id} lang={language_id}")
+    return "снимок обновлён"
 
 
 def get_session(user_id: str, language_id: str) -> Optional[Dict[str, Any]]:

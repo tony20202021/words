@@ -449,6 +449,79 @@ class TestDailyUpdateEndpoint:
         assert resp.json().get("ok") is not True
 
 
+class TestSettingsReachTheRunningSession:
+    """
+    Сессия держит снимок настроек, сделанный при старте, а клиент, возвращаясь
+    на экран учёбы, сначала просит существующую сессию. Из-за этого переключатель
+    не действовал до конца порции: человек выключал «учитывать дату», получал
+    слова подряд с первого, возвращал настройку обратно — и продолжал получать
+    их подряд. В журнале это видно как сессия на 100 слов, начатая ДО того, как
+    настройку вернули.
+    """
+
+    def _start(self, client, user):
+        resp = client.post("/session/start", json={"user_id": user, "language_id": "lang1"})
+        assert resp.status_code == 200
+        return resp.json()["session_id"]
+
+    def test_display_setting_reaches_the_session_without_dropping_it(self, client, api):
+        """Показ меняется на лету: список слов от него не зависит, терять его незачем."""
+        from app.services import session_service
+        user = "u-display"
+        session_service.end_session(user, "lang1")
+        api.get_user_language_settings.return_value = {
+            "success": True, "result": {"show_tags": True, "use_check_date": True}}
+        self._start(client, user)
+        assert session_service.get_session(user, "lang1")["settings"]["show_tags"] is True
+
+        resp = client.post(f"/settings/{user}/lang1/show_tags/toggle")
+        assert resp.status_code == 200
+        session = session_service.get_session(user, "lang1")
+        assert session is not None, "настройка показа не должна ронять сессию"
+        assert session["settings"]["show_tags"] is False
+
+    def test_selection_setting_drops_the_session(self, client, api):
+        """
+        «Учитывать дату» меняет СОСТАВ порции, а она уже набрана. Обновить снимок
+        мало — сессию надо завершить, чтобы следующий заход набрал слова заново.
+        """
+        from app.services import session_service
+        user = "u-selection"
+        session_service.end_session(user, "lang1")
+        api.get_user_language_settings.return_value = {
+            "success": True, "result": {"use_check_date": False}}
+        self._start(client, user)
+        assert session_service.get_session(user, "lang1") is not None
+
+        resp = client.post(f"/settings/{user}/lang1/use_check_date/toggle")
+        assert resp.status_code == 200
+        assert session_service.get_session(user, "lang1") is None
+
+    def test_every_selection_setting_drops_the_session(self, client, api):
+        """Все три настройки отбора — ровно параметры загрузки слов."""
+        from app.services import session_service
+        for key in sorted(session_service.SELECTION_SETTINGS):
+            user = f"u-sel-{key}"
+            session_service.end_session(user, "lang1")
+            api.get_user_language_settings.return_value = {
+                "success": True, "result": {"start_word": 1, "skip_marked": False,
+                                            "use_check_date": True}}
+            self._start(client, user)
+            assert session_service.get_session(user, "lang1") is not None
+            value = 7 if key == "start_word" else True
+            resp = client.put(f"/settings/{user}/lang1/{key}", json={"value": value})
+            assert resp.status_code == 200
+            assert session_service.get_session(user, "lang1") is None, key
+
+    def test_change_without_a_session_is_harmless(self, client, api):
+        """Настройки меняют и не начав учиться — падать тут нечему."""
+        from app.services import session_service
+        user = "u-nosession"
+        session_service.end_session(user, "lang1")
+        resp = client.post(f"/settings/{user}/lang1/use_check_date/toggle")
+        assert resp.status_code == 200
+
+
 # ── Pick answer endpoint ──────────────────────────────────────────────────────
 
 class TestPickAnswerEndpoint:

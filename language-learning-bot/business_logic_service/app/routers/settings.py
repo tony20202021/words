@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from typing import Any
 from pydantic import BaseModel
-from app.services import settings_service
+from app.services import session_service, settings_service
 from app.api.client import get_api_client
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -25,12 +25,15 @@ async def set_setting(
     settings = await settings_service.get_settings(user_id, language_id, api_client)
     settings[key] = req.value
     await settings_service.save_settings(user_id, language_id, settings, api_client)
+    session_service.apply_settings_change(user_id, language_id, settings, key)
     return settings
 
 
 @router.post("/{user_id}/{language_id}/{key}/toggle")
 async def toggle_setting(user_id: str, language_id: str, key: str, api_client=Depends(get_api_client)):
-    return await settings_service.toggle_setting(user_id, language_id, key, api_client)
+    settings = await settings_service.toggle_setting(user_id, language_id, key, api_client)
+    session_service.apply_settings_change(user_id, language_id, settings, key)
+    return settings
 
 
 @router.get("/{user_id}/{language_id}/hints")
@@ -42,4 +45,9 @@ async def get_hint_settings(user_id: str, language_id: str, api_client=Depends(g
 async def toggle_hint(
     user_id: str, language_id: str, hint_key: str, api_client=Depends(get_api_client)
 ):
-    return await settings_service.toggle_hint(user_id, language_id, hint_key, api_client)
+    hints = await settings_service.toggle_hint(user_id, language_id, hint_key, api_client)
+    # Подсказки лежат в тех же настройках, и сессия держит их снимок — без этого
+    # включённая подсказка не появлялась до конца порции.
+    settings = await settings_service.get_settings(user_id, language_id, api_client)
+    session_service.apply_settings_change(user_id, language_id, settings, hint_key)
+    return hints
