@@ -18,6 +18,10 @@ import com.langbot.app.prefs.UserPrefs
 class TestLangBotApp : LangBotApp() {
 
     override fun onCreate() {
+        // Подменяем САМО значение по умолчанию, а не только запись в настройках:
+        // запись стирается любым UserPrefs.clear(), и тогда адрес снова
+        // становился боевым. Так уже было — с LoginGateTest.
+        UserPrefs.defaultBlsUrl = DEAD_URL
         UserPrefs.saveBlsUrl(this, DEAD_URL)
         super.onCreate()
     }

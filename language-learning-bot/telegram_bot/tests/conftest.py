@@ -1,3 +1,11 @@
+import os
+import sys
+
+# Корень репозитория — чтобы тесты видели common.* при запуске из любого места.
+# В бою его добавляет handlers/start.py, но тесты этот модуль импортируют не
+# всегда, и тогда запуск одного файла падал на импорте — выглядело как
+# сломанный тест. Та же болезнь была у BLS (журнал дефектов, 4.1.2).
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 """Shared fixtures for telegram_bot tests."""
 
 import pytest

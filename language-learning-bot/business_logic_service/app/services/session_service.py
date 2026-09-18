@@ -530,7 +530,33 @@ async def build_bundle(
     if session is None:
         return None
 
-    words = (session.get("words") or [])[:limit]
+    # Первое непустое окно номеров может содержать лишь несколько слов к
+    # повторению — утром их было пять. Без сети новых не подгрузить, поэтому
+    # партия добирается следующими окнами до limit. Прежде офлайн-партия
+    # состояла ровно из этих пяти: пройдя их без сети, человек получал «всё»,
+    # хотя впереди были тысячи слов.
+    #
+    # Повторы отсекаются, и добор останавливается, как только окно не принесло
+    # ничего нового. Окна номеров в бою не пересекаются, но опираться на это
+    # нельзя: первая версия этого цикла повторов не проверяла, и на ответе с
+    # одними и теми же словами набивала партию дублями до сотни — поймали тесты.
+    def key(w):
+        return str(w.get("_id") or w.get("id") or w.get("word_id", ""))
+
+    words = list(session.get("words") or [])
+    seen = {key(w) for w in words}
+    shift = session.get("batch_start", 1)
+    while len(words) < limit:
+        more, shift = await _load_words_with_slide(
+            api_client, user_id, language_id, session["settings"], shift + BATCH_SIZE)
+        fresh = [w for w in more if key(w) not in seen]
+        if not fresh:
+            break
+        for w in fresh:
+            seen.add(key(w))
+            words.append(w)
+    words = words[:limit]
+    session["words"] = words
     # The snapshot never advances, so every card would otherwise be rendered at the
     # same position ("1 из N" on all of them). Walk the counters forward per unit —
     # card_builder derives session_pos as total_words_processed + 1.

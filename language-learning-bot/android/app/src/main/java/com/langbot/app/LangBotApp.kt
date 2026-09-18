@@ -37,6 +37,11 @@ open class LangBotApp : Application() {
             BLSClient.init(UserPrefs.getBlsUrl(this))
         }
 
+        BLSClient.token = UserPrefs.getToken(this)
+        // Сервер отверг токен — забываем его. Следующий запуск отправит на вход
+        // по коду, где выдадут новый.
+        BLSClient.onUnauthorized = { UserPrefs.clearToken(this) }
+
         registerNetworkFlush()
 
         // Best-effort flush at startup in case results are already pending.

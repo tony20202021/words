@@ -14,3 +14,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+# Ключи авторизации — тестовые, заведомо не боевые. Задаются ПРИНУДИТЕЛЬНО, а не
+# «если не задано»: иначе common/auth_keys прочёл бы настоящий .env, и когда на
+# сервере включат AUTH_MODE=enforce, все прежние тесты (они шлют запросы без
+# удостоверений) разом упали бы с 401. Тесты не должны зависеть от боевой
+# настройки. Принуждение проверяется отдельно, в test_auth_guard.py.
+os.environ["AUTH_SECRET"] = "test-auth-secret-not-for-production"
+os.environ["SERVICE_KEY"] = "test-service-key-not-for-production"
+os.environ["AUTH_MODE"] = "log"

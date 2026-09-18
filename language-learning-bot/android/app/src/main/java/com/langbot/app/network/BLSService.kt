@@ -2,6 +2,7 @@ package com.langbot.app.network
 
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
@@ -191,6 +192,28 @@ object BLSClient {
 
     private var _apis: List<BLSApi> = emptyList()
 
+    /**
+     * Токен для заголовка Authorization. Кладётся при старте приложения из
+     * UserPrefs и после входа по коду. Без него BLS в режиме принуждения
+     * отвечает 401: прежде клиент представлялся одним user_id, а его знание и
+     * было доступом.
+     */
+    @Volatile var token: String? = null
+
+    /** Зовётся, когда сервер ответил 401: токен недействителен или отозван. */
+    @Volatile var onUnauthorized: (() -> Unit)? = null
+
+    // Один перехватчик на все клиенты: и на ступени NetworkRetry, и на общий.
+    // Картинки графиков идут через тот же Retrofit, поэтому токен получают и они.
+    private val authInterceptor = Interceptor { chain ->
+        val t = token
+        val request = if (t.isNullOrEmpty()) chain.request()
+            else chain.request().newBuilder().header("Authorization", "Bearer $t").build()
+        val response = chain.proceed(request)
+        if (response.code == 401) onUnauthorized?.invoke()
+        response
+    }
+
     fun init(baseUrl: String) {
         rawBaseUrl = baseUrl.trimEnd('/')
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
@@ -200,6 +223,7 @@ object BLSClient {
 
         _apis = CONNECT_TIMEOUTS_MS.map { connectMs ->
             val okhttp = OkHttpClient.Builder()
+                .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
                 .connectionPool(pool)
                 .dispatcher(dispatcher)
@@ -228,7 +252,8 @@ object BLSClient {
         // Взять целиком самую терпеливую ступень значило бы ждать 15 секунд,
         // чтобы узнать, что сети нет.
         val patient = OkHttpClient.Builder()
-            .addInterceptor(logging)
+            .addInterceptor(authInterceptor)
+                .addInterceptor(logging)
             .connectionPool(pool)
             .dispatcher(dispatcher)
             .connectTimeout(CONNECT_TIMEOUTS_MS.first().toLong(), TimeUnit.MILLISECONDS)

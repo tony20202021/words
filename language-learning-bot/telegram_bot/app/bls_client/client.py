@@ -9,6 +9,27 @@ from typing import Dict, Any, Optional
 from urllib.parse import quote
 import aiohttp
 
+def _service_headers() -> dict:
+    """Ключ службы для BLS: без него BLS не поверит присланному user_id.
+
+    Бот действует за пользователя, которого сам опознал по telegram_id, поэтому
+    ходит в BLS как служба, а не как этот пользователь.
+
+    Импорт — внутри функции, и это не небрежность. Корень репозитория попадает
+    в путь только при импорте handlers/start.py, а main.py импортирует этот
+    клиент РАНЬШЕ. Импорт common наверху модуля ронял бота при каждом старте:
+    так он пролежал две с половиной минуты, 50 падений подряд. К первому же
+    запросу путь уже есть; а если его всё же нет — бот работает без ключа,
+    а не лежит.
+    """
+    try:
+        from common import auth_keys
+    except ImportError:
+        return {}
+    key = auth_keys.service_key()
+    return {"X-Service-Key": key} if key else {}
+
+
 BLS_URL = os.environ.get("BLS_URL", "http://localhost:8531")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8573")
 
@@ -33,33 +54,33 @@ class BLSClient:
         self.timeout = aiohttp.ClientTimeout(total=timeout)
 
     async def _get(self, path: str) -> Dict[str, Any]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(timeout=self.timeout, headers=_service_headers()) as session:
             async with session.get(f"{self.base_url}{path}") as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     async def _post(self, path: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(timeout=self.timeout, headers=_service_headers()) as session:
             async with session.post(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     async def _delete(self, path: str) -> Dict[str, Any]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(timeout=self.timeout, headers=_service_headers()) as session:
             async with session.delete(f"{self.base_url}{path}") as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     async def _put(self, path: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(timeout=self.timeout, headers=_service_headers()) as session:
             async with session.put(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     async def _patch(self, path: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
+        async with aiohttp.ClientSession(timeout=self.timeout, headers=_service_headers()) as session:
             async with session.patch(f"{self.base_url}{path}", json=payload or {}) as resp:
                 return {"status": resp.status, "data": await resp.json() if resp.status < 400 else None}
 
     async def _get_bytes(self, path: str, timeout: int = 30) -> Optional[bytes]:
         t = aiohttp.ClientTimeout(total=timeout)
-        async with aiohttp.ClientSession(timeout=t) as session:
+        async with aiohttp.ClientSession(timeout=t, headers=_service_headers()) as session:
             async with session.get(f"{self.base_url}{path}") as resp:
                 if resp.status < 400:
                     return await resp.read()
@@ -235,7 +256,7 @@ class BLSClient:
         clear_existing: bool = False,
     ) -> Dict[str, Any]:
         timeout = aiohttp.ClientTimeout(total=120)  # import may take a while
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, headers=_service_headers()) as session:
             form = aiohttp.FormData()
             form.add_field(
                 "file", file_data,
@@ -298,7 +319,7 @@ class BLSClient:
         return result.get("data") or {}
 
     async def mobile_create_token(self, user_id: str) -> Dict[str, Any]:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers=_service_headers()) as session:
             async with session.post(f"{self.base_url}/auth/mobile/create",
                                     json={"user_id": user_id}) as resp:
                 return await resp.json() if resp.status == 200 else {}
@@ -309,7 +330,7 @@ class BLSClient:
     async def get_sound(self, path: str) -> Optional[bytes]:
         encoded = quote(path, safe="").replace(".", "%2E")
         timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, headers=_service_headers()) as session:
             async with session.get(f"{BACKEND_URL}/api/sounds/{encoded}") as resp:
                 if resp.status == 200:
                     return await resp.read()

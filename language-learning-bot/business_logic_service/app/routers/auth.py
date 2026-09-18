@@ -2,6 +2,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pydantic import BaseModel
+from app import auth_guard
 from app.services import auth_service
 from app.api.client import get_api_client
 
@@ -142,7 +143,10 @@ async def mobile_activate(body: dict):
         raise HTTPException(status_code=404, detail="invalid or expired code")
 
     _code_fails.pop(code, None)
-    return {"user_id": user_id}
+    # Токен — то, чем андроид дальше докажет, что он и есть этот пользователь.
+    # Прежде ответом был голый user_id, и им же клиент представлялся потом:
+    # знание идентификатора и было доступом.
+    return {"user_id": user_id, "token": auth_guard.issue_token(user_id)}
 
 
 @router.get("/status/{token}")

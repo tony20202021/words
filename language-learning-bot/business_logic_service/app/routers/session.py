@@ -71,6 +71,16 @@ class ForbiddenPairRequest(BaseModel):
 
 async def _card_response(session: Dict[str, Any], api_client=None) -> Dict[str, Any]:
     word = session_service.get_current_word(session)
+    if word is None and api_client is not None:
+        # Кончилась ПАРТИЯ — это ещё не значит, что кончились слова. Партия
+        # набирается окном в 100 номеров, и утром в нём бывает лишь несколько
+        # слов к повторению, а новые лежат в следующем окне. Прежде здесь сразу
+        # отвечали «слов нет», клиенты рисовали «На сегодня всё повторено!», и
+        # человек, прошедший 100 слов из 9995, упирался в стену: следующую
+        # партию подгружал только отдельный вызов next_batch, а его делали не все
+        # пути — возобновление сессии, например, никогда.
+        if await session_service.load_next_batch(session, api_client):
+            word = session_service.get_current_word(session)
     if word is None:
         return {"session_id": session["session_id"], "card": None, "no_words": True}
     show_answer = session.get("show_answer", False)

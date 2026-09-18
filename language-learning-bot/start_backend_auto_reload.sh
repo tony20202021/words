@@ -12,6 +12,10 @@ cleanup_and_exit() {
 }
 trap cleanup_and_exit SIGINT SIGTERM
 
+# Слушаем только localhost. Снаружи сюда ходить некому: андроид идёт через
+# nginx на 8443, веб и телеграм — с этой же машины. На 0.0.0.0 порт был
+# открыт в интернет в обход nginx, и в журнале были только сканеры.
+
 cd /home/tony/repos/words/language-learning-bot/backend
 
 exec /home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/watchmedo auto-restart \
@@ -20,4 +24,4 @@ exec /home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/watchmedo au
     --pattern="*.py" \
     --recursive \
     -- /home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin/uvicorn \
-        app.main_backend:app --host 0.0.0.0 --port 8573
+        app.main_backend:app --host 127.0.0.1 --port 8573

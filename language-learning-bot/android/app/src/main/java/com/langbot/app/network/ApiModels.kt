@@ -3,7 +3,9 @@ package com.langbot.app.network
 import com.google.gson.annotations.SerializedName
 
 data class MobileActivateRequest(val code: String)
-data class MobileActivateResponse(val user_id: String)
+// token необязателен: сервер, у которого не задан ключ подписи, отвечает без
+// него. Gson обходит значения Kotlin по умолчанию, поэтому поле — nullable.
+data class MobileActivateResponse(val user_id: String, val token: String? = null)
 
 data class Language(
     val id: String,

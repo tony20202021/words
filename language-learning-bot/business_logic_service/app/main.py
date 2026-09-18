@@ -5,7 +5,8 @@ Port: 8531
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from app.auth_guard import authorize
 from app.logger import setup_logger
 from app.api.client import init_api_client
 from app.routers import session, user, settings, statistics, languages, auth, admin, hints, sounds, info, results
@@ -25,7 +26,10 @@ async def lifespan(app: FastAPI):
 
 # Версия одна на весь проект: common/version.py. Здесь стояла
 # константа "0.1.0" — второй источник версии, расходившийся с ней.
-app = FastAPI(title="Business Logic Service", version=__version__, lifespan=lifespan)
+# authorize — одна проверка на все ручки: кто вызывает и вправе ли он
+# действовать за этого пользователя. См. app/auth_guard.py.
+app = FastAPI(title="Business Logic Service", version=__version__, lifespan=lifespan,
+              dependencies=[Depends(authorize)])
 
 app.include_router(session.router)
 app.include_router(user.router)

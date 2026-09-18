@@ -19,8 +19,11 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         // Skip login if already authenticated
+        // Нужен и user_id, и отметка о токене. Установка, вошедшая старым
+        // приложением (до токенов), имеет user_id без токена — её один раз
+        // проводим через вход по коду из бота, где она получит токен.
         val existingUserId = UserPrefs.getUserId(this)
-        if (existingUserId != null) {
+        if (existingUserId != null && UserPrefs.getToken(this) != null) {
             BLSClient.init(UserPrefs.getBlsUrl(this))
             startActivity(Intent(this, LanguagesActivity::class.java))
             finish()
@@ -52,8 +55,12 @@ class LoginActivity : AppCompatActivity() {
             try {
                 val resp = BLSClient.api.activateMobileToken(MobileActivateRequest(code))
                 if (resp.isSuccessful && resp.body() != null) {
-                    val userId = resp.body()!!.user_id
-                    UserPrefs.saveUserId(this@LoginActivity, userId)
+                    val body = resp.body()!!
+                    UserPrefs.saveUserId(this@LoginActivity, body.user_id)
+                    // "" вместо null — см. UserPrefs.getToken: иначе без токена
+                    // от сервера экран входа показывался бы при каждом запуске.
+                    UserPrefs.saveToken(this@LoginActivity, body.token ?: "")
+                    BLSClient.token = body.token
                     startActivity(Intent(this@LoginActivity, LanguagesActivity::class.java))
                     finish()
                 } else {

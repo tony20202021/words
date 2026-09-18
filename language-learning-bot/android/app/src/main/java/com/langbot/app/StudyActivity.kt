@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
+import androidx.annotation.VisibleForTesting
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -416,10 +417,9 @@ class StudyActivity : AppCompatActivity() {
     private fun showOfflineDone() {
         offline = null
         flushOutboxInBackground()
-        showAllDone()
-        binding.tvStaleSession.text =
-            "📴 Слова из офлайн-партии пройдены. Подключитесь к сети, чтобы продолжить и отправить результаты."
-        binding.tvStaleSession.visibility = View.VISIBLE
+        showAllDone(offline = true)
+        // Карточка уже говорит всё; плашка сверху повторяла бы её слово в слово.
+        binding.tvStaleSession.visibility = View.GONE
     }
 
     private fun handleResponse(resp: SessionResponse?) {
@@ -447,6 +447,7 @@ class StudyActivity : AppCompatActivity() {
         if (meta.word_id.isNotEmpty()) lastWordId = meta.word_id
         val barTotal = meta.session_total?.takeIf { it > 0 }
         binding.tvBadge.visibility = View.GONE  // badge now lives inside cardContent
+        binding.divider.visibility = View.VISIBLE  // экран завершения его прячет
 
         // Restart notice above card
         if (!card.restart_notice.isNullOrEmpty()) {
@@ -1064,7 +1065,14 @@ class StudyActivity : AppCompatActivity() {
                         handleResponse(batchBody)
                         return@launch
                     }
-                    // no more batches — show "all done"
+                    if (!batch.isSuccessful) {
+                        // Сессии на сервере нет — BLS держит их в памяти, и любой
+                        // его перезапуск их стирает. Это не «на сегодня всё»:
+                        // начинаем сессию заново, сервер наберёт слова сам.
+                        loadSession()
+                        return@launch
+                    }
+                    // Слов больше нет на самом деле — сервер ответил успешно и пусто.
                     handleResponse(batchBody ?: body)
                     return@launch
                 }
@@ -1174,6 +1182,8 @@ class StudyActivity : AppCompatActivity() {
                     if (batchBody?.loaded == true || batchBody?.card != null) {
                         handleResponse(batchBody); return@launch
                     }
+                    // Сессии нет (перезапуск BLS) — не «всё», а новая сессия.
+                    if (!batch.isSuccessful) { loadSession(); return@launch }
                     handleResponse(batchBody ?: body); return@launch
                 }
                 lastPickAnswerResult = when {
@@ -1270,18 +1280,43 @@ class StudyActivity : AppCompatActivity() {
         return row
     }
 
-    private fun showAllDone() {
+    /**
+     * Экран «слова кончились» — отдельное состояние, а не карточка с вынутым
+     * содержимым. Прежде здесь пряталось лишь то, что вспомнили, и на экране
+     * оставались хвосты прошлой карточки: плашка «✓ Правильно!» последнего
+     * ответа в режиме выбора и голый разделитель над пустотой. Прятать надо
+     * всё, что renderCard показывает для конкретного слова, — он же всё это
+     * и вернёт, когда придёт следующая карточка.
+     */
+    @VisibleForTesting
+    internal fun showAllDone(offline: Boolean = false) {
         binding.tvBadge.visibility = View.GONE
+        binding.tvRestartNotice.visibility = View.GONE
         binding.progressArea.visibility = View.GONE
         binding.bigWordArea.visibility = View.GONE
         binding.soundsRow.visibility = View.GONE
         binding.btnHints.visibility = View.GONE
         binding.extraCardsArea.visibility = View.GONE
+        binding.tvPickResult.visibility = View.GONE
+        binding.banButtonRow.visibility = View.GONE
+        binding.divider.visibility = View.GONE
         binding.buttonRow.removeAllViews()
+        binding.banButtonRow.removeAllViews()
         binding.cardContent.removeAllViews()
-        addText("✅", 48f, false, Gravity.CENTER)
-        addText("На сегодня всё повторено!", 20f, true, Gravity.CENTER)
-        addText("Следующие слова появятся по расписанию.", 14f, false, Gravity.CENTER, "#888888")
+        lastPickAnswerResult = null
+        if (offline) {
+            // Без сети «на сегодня всё» знать нельзя: кончилась лишь скачанная
+            // партия. Прежде здесь крупно писалось «всё повторено», а строкой
+            // ниже — «подключитесь, чтобы продолжить»: одно опровергало другое.
+            addText("📴", 48f, false, Gravity.CENTER)
+            addText("Офлайн-партия пройдена", 20f, true, Gravity.CENTER)
+            addText("Подключитесь к сети — появятся следующие слова, а результаты отправятся.",
+                14f, false, Gravity.CENTER, "#888888")
+        } else {
+            addText("✅", 48f, false, Gravity.CENTER)
+            addText("На сегодня всё повторено!", 20f, true, Gravity.CENTER)
+            addText("Следующие слова появятся по расписанию.", 14f, false, Gravity.CENTER, "#888888")
+        }
     }
 
     private fun showError(msg: String) {

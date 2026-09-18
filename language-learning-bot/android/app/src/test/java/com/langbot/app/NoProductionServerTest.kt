@@ -35,4 +35,13 @@ class NoProductionServerTest {
             url.contains("77.81.226.56") || url.contains("8443"),
         )
     }
+
+    @Test
+    fun clearing_settings_does_not_bring_production_back() {
+        // Так тест уже однажды ушёл в рабочий сервис: LoginGateTest чистил
+        // настройки, и адрес по умолчанию снова оказывался боевым.
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        UserPrefs.clear(ctx)
+        assertEquals(TestLangBotApp.DEAD_URL, UserPrefs.getBlsUrl(ctx))
+    }
 }
