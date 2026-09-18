@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
-from app.services import session_service, statistics_service
+from app.services import chart_cache, session_service, statistics_service
 from app.services import quiz_service
 from app.services.card_builder import build_card
 from app.services.word_service import ensure_user_word_data
@@ -27,6 +27,9 @@ async def _bg_update_daily(user_id: str, language_id: str, api_client, word_numb
             api_client)
         await statistics_service.update_daily_max_word_number(
             user_id, language_id, today, word_number, api_client)
+        # Графики перерисуются через две минуты после последнего ответа — когда
+        # человек закончит, а не посреди занятия. См. chart_cache.
+        chart_cache.schedule_warm(user_id, language_id, api_client)
     except Exception as e:
         logger.warning(f"bg daily stats update failed for {user_id}/{language_id}: {e}")
 

@@ -1,11 +1,9 @@
-import asyncio
 import time
-from functools import partial
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from starlette.status import HTTP_502_BAD_GATEWAY, HTTP_404_NOT_FOUND
 from datetime import date
 from typing import Optional, Dict, Any
-from app.services import statistics_service
+from app.services import chart_cache, statistics_service
 from app.api.client import get_api_client
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
@@ -14,35 +12,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from common.chart_manifest import CHART_SECTIONS, CHART_CAPTIONS
-
-# ── chart cache (TTL=60s, anti-stampede per key) ──────────────────────────────
-_chart_cache: Dict[str, Any] = {}   # key → {"ts": float, "data": dict}
-_chart_locks: Dict[str, asyncio.Lock] = {}
-_CHART_TTL = 60.0
-
-
-def _cache_key(*parts) -> str:
-    return "|".join(str(p) for p in parts)
-
-
-async def _get_charts_cached(key: str, generator):
-    """Return cached chart dict or call generator() in executor, cache result."""
-    entry = _chart_cache.get(key)
-    if entry and time.monotonic() - entry["ts"] < _CHART_TTL:
-        return entry["data"]
-
-    if key not in _chart_locks:
-        _chart_locks[key] = asyncio.Lock()
-    async with _chart_locks[key]:
-        # re-check after acquiring lock
-        entry = _chart_cache.get(key)
-        if entry and time.monotonic() - entry["ts"] < _CHART_TTL:
-            return entry["data"]
-        loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(None, generator)
-        _chart_cache[key] = {"ts": time.monotonic(), "data": data}
-        return data
-
 
 @router.get("/chart_manifest")
 async def get_chart_manifest():
@@ -62,9 +31,8 @@ async def get_today_chart(
     chart_name: str,
     api_client=Depends(get_api_client),
 ):
-    progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
-    key = _cache_key("today", user_id, language_id)
-    charts = await _get_charts_cached(key, lambda: statistics_service.generate_today_charts(progress))
+    chart_cache.note_view(user_id, language_id)
+    charts = await chart_cache.today_charts(user_id, language_id, api_client)
     if chart_name not in charts:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Chart '{chart_name}' not available")
     return Response(content=charts[chart_name], media_type="image/png")
@@ -78,14 +46,8 @@ async def get_monthly_chart(
     show_all: bool = Query(True),
     api_client=Depends(get_api_client),
 ):
-    all_days, first_finish = await statistics_service.get_monthly_statistics(
-        user_id, language_id, statistics_service.study_day(), api_client, show_all=show_all
-    )
-    key = _cache_key("monthly", user_id, language_id, show_all)
-    charts = await _get_charts_cached(
-        key,
-        partial(statistics_service.generate_monthly_charts, all_days, first_finish, show_all=show_all)
-    )
+    chart_cache.note_view(user_id, language_id)
+    charts = await chart_cache.monthly_charts(user_id, language_id, show_all, api_client)
     if chart_name not in charts:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Chart '{chart_name}' not available")
     return Response(content=charts[chart_name], media_type="image/png")

@@ -14,6 +14,8 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from collections import Counter
 from io import BytesIO
+
+from PIL import Image
 from typing import List, Dict, Tuple
 import numpy as np
 import datetime
@@ -23,11 +25,35 @@ from app.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+# Картинка рисуется под ширину экрана телефона. Было dpi=300 при размере 6×5
+# дюймов — 1800×1500 пикселей, почти втрое больше, чем телефон может показать.
+# Лишние пиксели оплачивались дважды: временем отрисовки и мегабайтами по сети —
+# 17 картинок экрана статистики весили 2,3 МБ, на слабом мобильном это секунды.
+_DPI = 180
+# Палитра вместо полноцветного PNG: на графике пара цветов линий и оттенки серого,
+# 64 цветов хватает без видимых ступенек. Способ — FASTOCTREE: на группе из 7
+# месячных графиков он и быстрее MEDIANCUT (2,28 с против 2,73), и легче
+# (189 КБ против 221). Без палитры было бы 1,69 с, но 600 КБ — втрое тяжелее на
+# КАЖДОМ открытии экрана, а процессор тратится раз на изменение данных.
+_PALETTE_COLORS = 64
+
+
 def _save_fig(fig: Figure) -> BytesIO:
     """Save figure to PNG BytesIO without touching pyplot global state."""
-    buffer = BytesIO()
-    fig.savefig(buffer, format='PNG', dpi=300, bbox_inches='tight',
+    raw = BytesIO()
+    fig.savefig(raw, format='PNG', dpi=_DPI, bbox_inches='tight',
                 facecolor='white', edgecolor='none')
+    raw.seek(0)
+    image = Image.open(raw).convert("RGB").quantize(
+        colors=_PALETTE_COLORS, method=Image.Quantize.FASTOCTREE)
+    # FASTOCTREE сводит белый фон к (254, 254, 254). Глазу не видно, но это уже
+    # не тот белый, что у экрана; возвращаем фону чистый белый прямо в палитре.
+    palette = image.getpalette()
+    background = image.getpixel((0, 0))
+    palette[background * 3:background * 3 + 3] = [255, 255, 255]
+    image.putpalette(palette)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
     buffer.seek(0)
     return buffer
 

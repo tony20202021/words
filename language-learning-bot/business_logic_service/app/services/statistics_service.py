@@ -259,6 +259,26 @@ async def get_monthly_statistics(
     return all_days, _annotate_finish(ff_resp)
 
 
+# Месячные графики: (источник, имя графика, поле, что писать в заголовке).
+# Константа модуля, а не список внутри функции: по этим же полям кеш картинок
+# снимает отпечаток данных (app/services/chart_cache.py) — одно место правды.
+#
+# max_word_number здесь больше нет: его не показывает ни один клиент, а
+# рисовался он на каждый пересчёт, восьмым из восьми.
+MONTHLY_SPECS = [
+    ("days",         "words_studied",              "words_studied",     "last"),
+    ("days",         "words_new",                  "words_new",         "max"),
+    ("days",         "words_known",                "words_known",       "last"),
+    # Первый счётчик — продолжение прежнего «до завершения»: та же величина,
+    # но взятая из базы, а не пересчитанная из трёх полей. Второй считает
+    # просроченные по дате проверки — этого прежде не было вовсе.
+    ("days",         "words_unknown_morning",      "words_unknown_now", "max"),
+    ("days",         "words_overdue_morning",      "words_overdue",     "max"),
+    ("first_finish", "words_unknown_first_finish", "words_unknown",     "max"),
+    ("days",         "words_for_today",            "words_for_today",   "max"),
+]
+
+
 def generate_monthly_charts(
     all_days_stats: List[Dict[str, Any]],
     first_finish_stats: List[Dict[str, Any]],
@@ -278,21 +298,10 @@ def generate_monthly_charts(
     # верхнему краю и перестанут показывать движение.
     ZERO_BASED_CHARTS = {"words_for_today"}
 
-    specs = [
-        (all_days_stats,    "words_studied",            "words_studied",   "last"),
-        (all_days_stats,    "words_new",                "words_new",       "max"),
-        (all_days_stats,    "words_known",              "words_known",     "last"),
-        # Первый счётчик — продолжение прежнего «до завершения»: та же величина,
-        # но взятая из базы, а не пересчитанная из трёх полей. Второй считает
-        # просроченные по дате проверки — этого прежде не было вовсе.
-        (all_days_stats,    "words_unknown_morning",    "words_unknown_now", "max"),
-        (all_days_stats,    "words_overdue_morning",    "words_overdue",     "max"),
-        (first_finish_stats,"words_unknown_first_finish","words_unknown",    "max"),
-        (all_days_stats,    "words_for_today",          "words_for_today", "max"),
-        (all_days_stats,    "max_word_number",          "max_word_number", "max"),
-    ]
+    sources = {"days": all_days_stats, "first_finish": first_finish_stats}
 
-    for data, chart_key, field, title_value in specs:
+    for source, chart_key, field, title_value in MONTHLY_SPECS:
+        data = sources[source]
         if data:
             charts[chart_key] = generator.create_counts_plot(
                 data,

@@ -13,6 +13,8 @@ import com.langbot.app.network.Statistics
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
 import com.langbot.app.offline.OfflineNotice
 
 class StatsActivity : AppCompatActivity() {
@@ -121,6 +123,14 @@ class StatsActivity : AppCompatActivity() {
                 Triple(it.header, it.charts, it.type)
             } ?: FALLBACK_SECTIONS
 
+            // Сначала каркас: заголовки разделов и места под картинки — в порядке
+            // манифеста. Потом все запросы разом. Прежде 17 картинок грузились
+            // строго по очереди, и время складывалось: на слабом мобильном каждая
+            // ждала, пока доедет предыдущая. Теперь каждая встаёт в своё место,
+            // как только пришла, и порядок не зависит от того, какая ответит первой.
+            class Slot(val holder: LinearLayout, val type: Int, val name: String, val title: String)
+            val sectionSlots = mutableListOf<Pair<View, List<Slot>>>()
+
             for ((i, section) in sections.withIndex()) {
                 val (title, names, chartType) = section
                 val type = when (chartType) {
@@ -128,7 +138,6 @@ class StatsActivity : AppCompatActivity() {
                     "monthly_recent" -> 1
                     else -> 2
                 }
-                val showAll = chartType == "monthly_all"
 
                 // Divider before sections 2 and 3
                 if (i > 0) {
@@ -163,37 +172,52 @@ class StatsActivity : AppCompatActivity() {
                 ssWrap.addView(secSpinner)
                 binding.statsContainer.addView(ssWrap)
 
-                // Load charts for this section
-                for (name in names) {
-                    try {
-                        val resp = when (type) {
-                            0    -> BLSClient.api.getChart(userId, languageId, name)
-                            1    -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = false)
-                            else -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = true)
-                        }
-
-                        if (resp.isSuccessful) {
-                            val bytes = resp.body()?.bytes() ?: continue
-                            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: continue
-                            val iv = ImageView(this@StatsActivity)
-                            iv.setImageBitmap(bmp)
-                            iv.adjustViewBounds = true
-                            val lp = LinearLayout.LayoutParams(
-                                LinearLayout.LayoutParams.MATCH_PARENT,
-                                LinearLayout.LayoutParams.WRAP_CONTENT)
-                            lp.bottomMargin = dpToPx(6)
-                            iv.layoutParams = lp
-                            binding.statsContainer.addView(iv)
-                            anyLoaded = true
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.w("StatsActivity", "$title/$name: ${e.message}")
-                    }
+                val slots = names.map { name ->
+                    val holder = LinearLayout(this@StatsActivity)
+                    holder.orientation = LinearLayout.VERTICAL
+                    holder.layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    binding.statsContainer.addView(holder)
+                    Slot(holder, type, name, title)
                 }
-
-                // Hide section spinner when done
-                binding.statsContainer.removeView(ssWrap)
+                sectionSlots += ssWrap to slots
             }
+
+            suspend fun loadInto(slot: Slot): Boolean = try {
+                val resp = when (slot.type) {
+                    0    -> BLSClient.api.getChart(userId, languageId, slot.name)
+                    1    -> BLSClient.api.getMonthlyChart(userId, languageId, slot.name, showAll = false)
+                    else -> BLSClient.api.getMonthlyChart(userId, languageId, slot.name, showAll = true)
+                }
+                val bytes = if (resp.isSuccessful) resp.body()?.bytes() else null
+                val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                if (bmp == null) false else {
+                    val iv = ImageView(this@StatsActivity)
+                    iv.setImageBitmap(bmp)
+                    iv.adjustViewBounds = true
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.bottomMargin = dpToPx(6)
+                    iv.layoutParams = lp
+                    slot.holder.addView(iv)
+                    true
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("StatsActivity", "${slot.title}/${slot.name}: ${e.message}")
+                false
+            }
+
+            val loaded = coroutineScope {
+                sectionSlots.map { (spinnerView, slots) ->
+                    async {
+                        val results = slots.map { slot -> async { loadInto(slot) } }.awaitAll()
+                        binding.statsContainer.removeView(spinnerView)
+                        results
+                    }
+                }.awaitAll().flatten()
+            }
+            anyLoaded = loaded.any { it }
 
             if (!anyLoaded) {
                 val tv = TextView(this@StatsActivity)
