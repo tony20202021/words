@@ -13,6 +13,8 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from collections import Counter
+import threading
+from contextlib import contextmanager
 from io import BytesIO
 
 from PIL import Image
@@ -30,6 +32,25 @@ logger = setup_logger(__name__)
 # Лишние пиксели оплачивались дважды: временем отрисовки и мегабайтами по сети —
 # 17 картинок экрана статистики весили 2,3 МБ, на слабом мобильном это секунды.
 _DPI = 180
+# Вариант для увеличения — прежние 300 dpi. Владелец увеличивает графики в вебе,
+# и там разрешения экрана мало. Этот вариант не показывается сразу: его
+# подкачивают фоном, когда экран уже заполнен лёгкими картинками.
+ZOOM_DPI = 300
+
+# Разрешение задаётся на время одной отрисовки и живёт в потоке, где она идёт:
+# отрисовки выполняются в потоках исполнителя параллельно, и общий параметр
+# модуля сбил бы соседнюю.
+_render = threading.local()
+
+
+@contextmanager
+def render_dpi(dpi: int):
+    previous = getattr(_render, "dpi", None)
+    _render.dpi = dpi
+    try:
+        yield
+    finally:
+        _render.dpi = previous
 # Палитра вместо полноцветного PNG: на графике пара цветов линий и оттенки серого,
 # 64 цветов хватает без видимых ступенек. Способ — FASTOCTREE: на группе из 7
 # месячных графиков он и быстрее MEDIANCUT (2,28 с против 2,73), и легче
@@ -41,7 +62,7 @@ _PALETTE_COLORS = 64
 def _save_fig(fig: Figure) -> BytesIO:
     """Save figure to PNG BytesIO without touching pyplot global state."""
     raw = BytesIO()
-    fig.savefig(raw, format='PNG', dpi=_DPI, bbox_inches='tight',
+    fig.savefig(raw, format='PNG', dpi=getattr(_render, "dpi", None) or _DPI, bbox_inches='tight',
                 facecolor='white', edgecolor='none')
     raw.seek(0)
     image = Image.open(raw).convert("RGB").quantize(

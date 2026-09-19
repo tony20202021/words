@@ -395,18 +395,57 @@ def test_session_not_expired_when_fresh():
     assert is_session_expired(session) is False
 
 
-def test_session_not_expired_same_day_short():
+# «Тот же день» здесь проверяется на зафиксированном полудне. Прежде тесты брали
+# «час назад» от настоящих часов, а is_session_expired считает календарные сутки
+# по UTC: с 00:00 до 01:00 UTC «час назад» — это уже вчера, и срабатывает ветка
+# «через полночь». Тест с порогом 0 падал ровно в этот час (19.09, 00:30 UTC), а
+# тест «1 час → не истекла» в тот же час проходил случайно — обе ветки давали
+# «не истекла». Полночь теперь проверяется отдельным тестом, намеренно.
+_NOON = datetime(2026, 9, 18, 12, 0)
+
+
+class _FrozenAt(datetime):
+    """datetime, у которого «сейчас» задано тестом."""
+    now_value = _NOON
+
+    @classmethod
+    def utcnow(cls):
+        return cls.now_value
+
+
+def _freeze(monkeypatch, at):
+    _FrozenAt.now_value = at
+    monkeypatch.setattr(session_service, "datetime", _FrozenAt)
+
+
+def test_session_not_expired_same_day_short(monkeypatch):
     """1 hour ago, same calendar day → not expired (1 < default 16)."""
-    last = (datetime.utcnow() - timedelta(hours=1)).isoformat()
-    session = {"last_activity_at": last, "settings": {}}
+    _freeze(monkeypatch, _NOON)
+    session = {"last_activity_at": (_NOON - timedelta(hours=1)).isoformat(), "settings": {}}
     assert is_session_expired(session) is False
 
 
-def test_session_expired_same_day_threshold_zero():
+def test_session_expired_same_day_threshold_zero(monkeypatch):
     """1 hour ago, same day, threshold=0 → expired (any elapsed >= 0)."""
-    last = (datetime.utcnow() - timedelta(hours=1)).isoformat()
-    session = {"last_activity_at": last, "settings": {"reset_same_day_hours": 0}}
+    _freeze(monkeypatch, _NOON)
+    session = {"last_activity_at": (_NOON - timedelta(hours=1)).isoformat(),
+               "settings": {"reset_same_day_hours": 0}}
     assert is_session_expired(session) is True
+
+
+def test_hour_ago_across_utc_midnight_is_the_midnight_branch(monkeypatch):
+    """
+    Тот самый случай, на котором падал прежний тест: сейчас 00:30 UTC, последний
+    ответ в 23:30 — это вчера. Решает порог «через полночь»: при пороге 6 сессия
+    ещё жива, при пороге 0 — истекла.
+    """
+    now = datetime(2026, 9, 19, 0, 30)
+    _freeze(monkeypatch, now)
+    last = (now - timedelta(hours=1)).isoformat()
+    assert is_session_expired({"last_activity_at": last,
+                               "settings": {"reset_cross_midnight_hours": 6}}) is False
+    assert is_session_expired({"last_activity_at": last,
+                               "settings": {"reset_cross_midnight_hours": 0}}) is True
 
 
 def test_session_expired_crossed_midnight():

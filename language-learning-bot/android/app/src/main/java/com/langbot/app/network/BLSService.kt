@@ -103,6 +103,7 @@ interface BLSApi {
         @Path("user_id") userId: String,
         @Path("language_id") languageId: String,
         @Path("chart_name") chartName: String,
+        @Query("res") res: String = "screen",
     ): Response<ResponseBody>
 
     @GET("statistics/{user_id}/{language_id}/monthly-chart/{chart_name}")
@@ -111,6 +112,8 @@ interface BLSApi {
         @Path("language_id") languageId: String,
         @Path("chart_name") chartName: String,
         @Query("show_all") showAll: Boolean = true,
+        // screen — под экран, грузится сразу; zoom — для увеличения, подкачивается фоном.
+        @Query("res") res: String = "screen",
     ): Response<ResponseBody>
 
     // Hints

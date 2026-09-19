@@ -352,18 +352,21 @@ class BLSClient:
             resp = await client.get(f"{self.base_url}/statistics/chart_manifest")
             return resp.json() if resp.is_success else {}
 
-    async def get_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
+    async def get_chart(self, user_id: str, language_id: str, chart_name: str,
+                        res: str = "screen") -> Optional[bytes]:
         async with httpx.AsyncClient(timeout=30, headers=_service_headers()) as client:
             resp = await client.get(
-                f"{self.base_url}/statistics/{user_id}/{language_id}/chart/{chart_name}"
+                f"{self.base_url}/statistics/{user_id}/{language_id}/chart/{chart_name}",
+                params={"res": res},
             )
             return resp.content if resp.is_success else None
 
-    async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str, show_all: bool = True) -> Optional[bytes]:
-        async with httpx.AsyncClient(timeout=30, headers=_service_headers()) as client:
+    async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str,
+                                show_all: bool = True, res: str = "screen") -> Optional[bytes]:
+        async with httpx.AsyncClient(timeout=60, headers=_service_headers()) as client:
             resp = await client.get(
                 f"{self.base_url}/statistics/{user_id}/{language_id}/monthly-chart/{chart_name}",
-                params={"show_all": str(show_all).lower()},
+                params={"show_all": str(show_all).lower(), "res": res},
             )
             return resp.content if resp.is_success else None
 

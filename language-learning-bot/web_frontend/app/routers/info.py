@@ -89,25 +89,31 @@ async def stats_page(request: Request, lang_id: str = None):
     })
 
 
+# Вариант картинки: screen — под экран, грузится сразу; zoom — для увеличения,
+# страница подкачивает его фоном. Неизвестное значение молча считается screen.
+def _res(value: str) -> str:
+    return value if value in ("screen", "zoom") else "screen"
+
+
 @router.get("/stats/chart/{language_id}/{chart_name}")
-async def stats_chart(language_id: str, chart_name: str, request: Request):
+async def stats_chart(language_id: str, chart_name: str, request: Request, res: str = "screen"):
     user_id, redirect = _require_user(request)
     if redirect:
         return redirect
     bls = get_bls_client()
-    data = await bls.get_chart(user_id, language_id, chart_name)
+    data = await bls.get_chart(user_id, language_id, chart_name, res=_res(res))
     if data is None:
         return Response(status_code=404)
     return Response(content=data, media_type="image/png")
 
 
 @router.get("/stats/monthly-chart/{language_id}/{chart_name}")
-async def stats_monthly_chart(language_id: str, chart_name: str, request: Request):
+async def stats_monthly_chart(language_id: str, chart_name: str, request: Request, res: str = "screen"):
     user_id, redirect = _require_user(request)
     if redirect:
         return redirect
     bls = get_bls_client()
-    data = await bls.get_monthly_chart(user_id, language_id, chart_name, show_all=True)
+    data = await bls.get_monthly_chart(user_id, language_id, chart_name, show_all=True, res=_res(res))
     if data is None:
         return Response(status_code=404)
     return Response(content=data, media_type="image/png")
@@ -126,12 +132,12 @@ async def qr_code(url: str):
 
 
 @router.get("/stats/monthly-chart-recent/{language_id}/{chart_name}")
-async def stats_monthly_chart_recent(language_id: str, chart_name: str, request: Request):
+async def stats_monthly_chart_recent(language_id: str, chart_name: str, request: Request, res: str = "screen"):
     user_id, redirect = _require_user(request)
     if redirect:
         return redirect
     bls = get_bls_client()
-    data = await bls.get_monthly_chart(user_id, language_id, chart_name, show_all=False)
+    data = await bls.get_monthly_chart(user_id, language_id, chart_name, show_all=False, res=_res(res))
     if data is None:
         return Response(status_code=404)
     return Response(content=data, media_type="image/png")

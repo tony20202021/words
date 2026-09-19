@@ -121,6 +121,7 @@
                   else '/stats/monthly-chart/' ~ lang_id ~ '/' ~ chart_name) %}
               <div class="{{ col }} chart-wrap">
                 <img data-src="{{ chart_url }}"
+                     data-zoom-src="{{ chart_url }}?res=zoom"
                      class="img-fluid rounded lazy-chart"
                      alt="{{ chart_captions.get(chart_name, chart_name) }}"
                      onerror="this.closest('.chart-wrap').style.display='none';checkSec('{{ sec_id }}')">
@@ -175,11 +176,52 @@ document.addEventListener('show.bs.collapse', function(e) {
   if (!e.target.id || !e.target.id.startsWith('charts-')) return;
   var sections = Array.from(e.target.querySelectorAll('.chart-section'));
   function loadNext(i) {
-    if (i >= sections.length) return;
+    if (i >= sections.length) { upgradeToZoom(e.target); return; }
     loadSectionImgs(sections[i], function() { loadNext(i + 1); });
   }
   loadNext(0);
 });
+
+// Сначала лёгкие картинки под экран — страница заполняется быстро. Когда все
+// они пришли, фоном подкачиваются большие, для увеличения: по две за раз, чтобы
+// не забивать канал. Большая сперва загружается в память браузера и только
+// потом подменяет лёгкую — без мигания. Страница при этом не блокируется.
+// При уходе со страницы подкачка обрывается.
+var zoomStopped = false;
+var zoomInFlight = [];
+window.addEventListener('pagehide', function() {
+  zoomStopped = true;
+  zoomInFlight.forEach(function(pre) { pre.src = ''; });
+  zoomInFlight = [];
+});
+
+function upgradeToZoom(container) {
+  var queue = Array.from(container.querySelectorAll('img.lazy-chart[data-zoom-src]'))
+    .filter(function(img) {
+      return img.getAttribute('src') && img.closest('.chart-wrap').style.display !== 'none';
+    });
+  function next() {
+    if (zoomStopped) return;
+    var img = queue.shift();
+    if (!img) return;
+    var pre = new Image();
+    zoomInFlight.push(pre);
+    function done() {
+      zoomInFlight = zoomInFlight.filter(function(p) { return p !== pre; });
+      next();
+    }
+    pre.onload = function() {
+      if (!zoomStopped) {
+        img.setAttribute('src', pre.src);
+        img.removeAttribute('data-zoom-src');
+      }
+      done();
+    };
+    pre.onerror = done;   // нет большой — остаётся лёгкая, это не ошибка
+    pre.src = img.getAttribute('data-zoom-src');
+  }
+  next(); next();   // две за раз
+}
 
 {% if target_lang_id %}
 document.addEventListener('DOMContentLoaded', function() {

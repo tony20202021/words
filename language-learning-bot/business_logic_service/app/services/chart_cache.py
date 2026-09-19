@@ -28,6 +28,7 @@ from functools import partial
 from typing import Any, Callable, Dict, Hashable, Tuple
 
 from app.logger import setup_logger
+from app import chart_generator
 from app.services import statistics_service
 
 logger = setup_logger(__name__)
@@ -35,6 +36,10 @@ logger = setup_logger(__name__)
 _MAX_ENTRIES = 256
 WARM_DELAY_SECONDS = 120.0
 VIEWERS_WINDOW_SECONDS = 14 * 24 * 3600
+
+# Два варианта картинки: для экрана — быстро заполнить страницу, для
+# увеличения — подкачать фоном. Кешируются раздельно.
+VARIANTS = {"screen": chart_generator._DPI, "zoom": chart_generator.ZOOM_DPI}
 
 _cache: "OrderedDict[str, Dict[str, bytes]]" = OrderedDict()
 _current: Dict[Hashable, str] = {}           # что сейчас лежит для графика → ключ
@@ -89,23 +94,34 @@ async def _cached(slot: Hashable, fingerprint: str,
         return data
 
 
+def _at(variant: str, generator: Callable[[], Dict[str, bytes]]) -> Callable[[], Dict[str, bytes]]:
+    """Отрисовка в разрешении варианта. Выполняется в потоке исполнителя."""
+    dpi = VARIANTS[variant]
+
+    def run():
+        with chart_generator.render_dpi(dpi):
+            return generator()
+    return run
+
+
 async def monthly_charts(user_id: str, language_id: str, show_all: bool,
-                         api_client) -> Dict[str, bytes]:
+                         api_client, variant: str = "screen") -> Dict[str, bytes]:
     all_days, first_finish = await statistics_service.get_monthly_statistics(
         user_id, language_id, statistics_service.study_day(), api_client, show_all=show_all)
     return await _cached(
-        ("monthly", user_id, language_id, show_all),
+        ("monthly", user_id, language_id, show_all, variant),
         _fingerprint(_monthly_payload(all_days, first_finish, show_all)),
-        partial(statistics_service.generate_monthly_charts, all_days, first_finish,
-                show_all=show_all))
+        _at(variant, partial(statistics_service.generate_monthly_charts, all_days,
+                             first_finish, show_all=show_all)))
 
 
-async def today_charts(user_id: str, language_id: str, api_client) -> Dict[str, bytes]:
+async def today_charts(user_id: str, language_id: str, api_client,
+                       variant: str = "screen") -> Dict[str, bytes]:
     progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
     return await _cached(
-        ("today", user_id, language_id),
+        ("today", user_id, language_id, variant),
         _fingerprint(_today_payload(progress)),
-        lambda: statistics_service.generate_today_charts(progress))
+        _at(variant, lambda: statistics_service.generate_today_charts(progress)))
 
 
 def note_view(user_id: str, language_id: str) -> None:
@@ -135,8 +151,10 @@ async def _warm_later(user_id: str, language_id: str, api_client) -> None:
     try:
         await asyncio.sleep(WARM_DELAY_SECONDS)
         started = time.perf_counter()
-        for show_all in (False, True):
-            await monthly_charts(user_id, language_id, show_all, api_client)
+        # Сначала экранные — они нужны первыми; потом для увеличения.
+        for variant in ("screen", "zoom"):
+            for show_all in (False, True):
+                await monthly_charts(user_id, language_id, show_all, api_client, variant)
         logger.info(f"Charts warmed user={user_id} lang={language_id} "
                     f"in {time.perf_counter() - started:.1f}s")
     except asyncio.CancelledError:

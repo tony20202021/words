@@ -282,12 +282,18 @@ class BLSClient:
         result = await self._get(f"/statistics/{user_id}/{language_id}")
         return result.get("data") or {}
 
-    async def get_chart(self, user_id: str, language_id: str, chart_name: str) -> Optional[bytes]:
-        return await self._get_bytes(f"/statistics/{user_id}/{language_id}/chart/{chart_name}")
+    # Картинки для бота — по умолчанию большие (res=zoom), в отличие от веба и
+    # андроида. Бот шлёт графики фотографиями, их открывают и увеличивают в
+    # просмотрщике телеграма, а качает он их у BLS с этой же машины — вес здесь
+    # ничего не стоит. Вариант под экран ухудшил бы ему картинки без всякой пользы.
+    async def get_chart(self, user_id: str, language_id: str, chart_name: str,
+                        res: str = "zoom") -> Optional[bytes]:
+        return await self._get_bytes(
+            f"/statistics/{user_id}/{language_id}/chart/{chart_name}?res={res}")
 
     async def get_monthly_chart(self, user_id: str, language_id: str, chart_name: str,
-                               show_all: bool = False) -> Optional[bytes]:
-        params = f"?show_all={'true' if show_all else 'false'}"
+                               show_all: bool = False, res: str = "zoom") -> Optional[bytes]:
+        params = f"?show_all={'true' if show_all else 'false'}&res={res}"
         return await self._get_bytes(
             f"/statistics/{user_id}/{language_id}/monthly-chart/{chart_name}{params}")
 

@@ -13,6 +13,18 @@ import com.langbot.app.network.Statistics
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import androidx.annotation.VisibleForTesting
+import android.graphics.Bitmap
+import android.app.Dialog
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import com.langbot.app.offline.OfflineNotice
@@ -24,6 +36,9 @@ class StatsActivity : AppCompatActivity() {
     private lateinit var languageId: String
 
     companion object {
+        /** Сколько больших картинок качать одновременно — не забивать канал. */
+        const val ZOOM_PREFETCH_PARALLEL = 2
+
         // Запасной список на случай, когда манифест недоступен. Имена обязаны
         // совпадать с common/chart_manifest.py: сервер рисует график по имени и
         // на незнакомое отвечает 404, то есть пустым местом на экране.
@@ -184,16 +199,13 @@ class StatsActivity : AppCompatActivity() {
             }
 
             suspend fun loadInto(slot: Slot): Boolean = try {
-                val resp = when (slot.type) {
-                    0    -> BLSClient.api.getChart(userId, languageId, slot.name)
-                    1    -> BLSClient.api.getMonthlyChart(userId, languageId, slot.name, showAll = false)
-                    else -> BLSClient.api.getMonthlyChart(userId, languageId, slot.name, showAll = true)
-                }
-                val bytes = if (resp.isSuccessful) resp.body()?.bytes() else null
+                val bytes = fetchChart(slot.type, slot.name, "screen")
                 val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                 if (bmp == null) false else {
                     val iv = ImageView(this@StatsActivity)
                     iv.setImageBitmap(bmp)
+                    // Нажатие — полноэкранное увеличение пальцами.
+                    iv.setOnClickListener { openZoom(slot.type, slot.name, bmp) }
                     iv.adjustViewBounds = true
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
@@ -219,6 +231,11 @@ class StatsActivity : AppCompatActivity() {
             }
             anyLoaded = loaded.any { it }
 
+            // Экран заполнен лёгкими — теперь фоном большие, для увеличения.
+            val shown = sectionSlots.flatMap { it.second }.zip(loaded)
+                .filter { it.second }.map { it.first.type to it.first.name }
+            startZoomPrefetch(shown)
+
             if (!anyLoaded) {
                 val tv = TextView(this@StatsActivity)
                 tv.text = "Нет данных для графиков"
@@ -228,6 +245,100 @@ class StatsActivity : AppCompatActivity() {
                 binding.statsContainer.addView(tv)
             }
         }
+    }
+
+    // Большие варианты картинок в СЖАТОМ виде: 40–55 КБ каждая. В память
+    // (около 10 МБ на картинку) раскрывается только та, что открыта для
+    // увеличения: все 17 разом заняли бы ~180 МБ и на многих телефонах уронили бы
+    // приложение, а видимой разницы без увеличения нет — лента показывает
+    // картинку шириной экрана.
+    private val zoomBytes = ConcurrentHashMap<String, ByteArray>()
+    private var zoomPrefetch: Job? = null
+
+    private fun zoomKey(type: Int, name: String) = "$type/$name"
+
+    private suspend fun fetchChart(type: Int, name: String, res: String): ByteArray? {
+        val resp = when (type) {
+            0    -> BLSClient.api.getChart(userId, languageId, name, res)
+            1    -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = false, res = res)
+            else -> BLSClient.api.getMonthlyChart(userId, languageId, name, showAll = true, res = res)
+        }
+        return if (resp.isSuccessful) resp.body()?.bytes() else null
+    }
+
+    /**
+     * Подкачать большие варианты фоном, когда экран уже заполнен лёгкими. По две
+     * за раз — не забивать канал. Уход с экрана подкачку прекращает (onStop).
+     */
+    private fun startZoomPrefetch(charts: List<Pair<Int, String>>) {
+        zoomPrefetch?.cancel()
+        zoomPrefetch = lifecycleScope.launch {
+            val prefetch = coroutineContext.job
+            val gate = Semaphore(ZOOM_PREFETCH_PARALLEL)
+            charts.map { (type, name) ->
+                async {
+                    gate.withPermit {
+                        // Место освобождается отменой соседа, и ждущий получал его,
+                        // когда родитель уже отменён, а сам он ещё числился
+                        // активным: третий запрос успевал уйти ПОСЛЕ ухода с экрана
+                        // (поймал тест, по меткам времени). Поэтому сверяемся с
+                        // родителем, а не с собой.
+                        prefetch.ensureActive()
+                        val key = zoomKey(type, name)
+                        if (!zoomBytes.containsKey(key)) {
+                            try {
+                                fetchChart(type, name, "zoom")?.let { zoomBytes[key] = it }
+                            } catch (e: CancellationException) {
+                                throw e   // иначе уход с экрана подкачку бы не остановил
+                            } catch (_: Exception) {
+                                // большой нет — при увеличении останется лёгкая
+                            }
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
+    /** Полноэкранное увеличение: сразу лёгкая картинка, большая — как придёт. */
+    private fun openZoom(type: Int, name: String, screen: Bitmap) {
+        val view = ZoomImageView(this)
+        view.show(screen)
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        dialog.setContentView(view)
+        var sharpening: Job? = null
+        dialog.setOnDismissListener {
+            sharpening?.cancel()
+            view.setImageDrawable(null)   // большая — около 10 МБ; отпускаем сразу
+        }
+        dialog.show()
+        zoomDialog = dialog
+        sharpening = lifecycleScope.launch {
+            val key = zoomKey(type, name)
+            val bytes = zoomBytes[key] ?: try {
+                fetchChart(type, name, "zoom")?.also { zoomBytes[key] = it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            } ?: return@launch
+            val big = withContext(Dispatchers.Default) {
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } ?: return@launch
+            if (dialog.isShowing) view.sharpen(big)
+        }
+    }
+
+    @VisibleForTesting
+    internal var zoomDialog: Dialog? = null
+
+    @VisibleForTesting
+    internal val zoomPrefetchJob: Job? get() = zoomPrefetch
+
+    override fun onStop() {
+        super.onStop()
+        // Ушли с экрана — большие картинки больше не нужны, канал не занимаем.
+        zoomPrefetch?.cancel()
     }
 
     private fun renderStats(s: Statistics) {

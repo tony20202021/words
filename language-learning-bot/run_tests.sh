@@ -83,8 +83,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 353, "telegram": 251, "web": 185, "backend": 140, "common": 143,
-    "hebrew": 48, "android": 98,
+    "bls": 398, "telegram": 251, "web": 198, "backend": 140, "common": 146,
+    "hebrew": 51, "android": 117,
 }
 
 
@@ -225,7 +225,13 @@ def run_android_tests(args):
     if args.specific:
         cmd.extend(["--tests", args.specific])
     print(f"Running command: {' '.join(cmd)}")
-    code = subprocess.run(cmd).returncode
+    try:
+        code = subprocess.run(cmd).returncode
+    finally:
+        # Сервер боевой, памяти 3,8 ГБ. Демон Gradle после прогона держал ~0,9 ГБ
+        # ещё часами, и 18.09 машина ушла в своп: прогон шёл 4,5 часа, а живые
+        # сервисы делили с ним память. Гасим сразу — и при упавшем прогоне тоже.
+        subprocess.run(["./gradlew", "--stop", "-q"])
     if code != 0:
         return code
     if args.specific:

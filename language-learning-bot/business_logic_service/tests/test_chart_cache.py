@@ -133,7 +133,7 @@ async def test_warm_waits_for_the_end_of_the_lesson(monkeypatch):
         await asyncio.sleep(0.01)
     assert state["renders"] == 0, "пока идут ответы, рисовать рано"
     await asyncio.sleep(0.15)
-    assert state["renders"] == 2, "после паузы — обе месячные группы, один раз"
+    assert state["renders"] == 4, "после паузы — обе месячные группы в обоих вариантах, по разу"
 
     before = state["renders"]
     await chart_cache.monthly_charts("u1", "l1", False, api_client=None)
@@ -174,3 +174,53 @@ def test_every_monthly_chart_in_the_manifest_is_drawn():
     from common.chart_manifest import MONTHLY_CHART_NAMES
     drawn = {name for _, name, _, _ in statistics_service.MONTHLY_SPECS}
     assert set(MONTHLY_CHART_NAMES) == drawn
+
+
+# ── два варианта: для экрана и для увеличения ────────────────────────────────
+
+def _real_days():
+    return [{"date": f"2026-09-{d:02d}T00:00:00", "words_studied": 90 + d, "words_new": 1,
+             "words_known": 80 + d, "words_unknown_now": d % 5, "words_overdue": 0,
+             "words_for_today": 10 + d} for d in range(1, 18)]
+
+
+def test_zoom_variant_is_sharper_than_screen():
+    """
+    Владелец увеличивает графики в вебе, и разрешения экрана там мало. Вариант
+    для увеличения — прежние 300 dpi; экранный остаётся лёгким.
+    """
+    from app import chart_generator
+    days = _real_days()
+    screen = statistics_service.generate_monthly_charts(days, [], show_all=True)["words_studied"]
+    with chart_generator.render_dpi(chart_generator.ZOOM_DPI):
+        zoom = statistics_service.generate_monthly_charts(days, [], show_all=True)["words_studied"]
+    ws = Image.open(io.BytesIO(screen)).width
+    wz = Image.open(io.BytesIO(zoom)).width
+    assert wz > ws * 1.5, (ws, wz)
+    assert Image.open(io.BytesIO(zoom)).mode == "P", "и большой — в палитре"
+
+
+def test_render_dpi_does_not_leak_into_the_next_drawing():
+    from app import chart_generator
+    days = _real_days()
+    with chart_generator.render_dpi(chart_generator.ZOOM_DPI):
+        statistics_service.generate_monthly_charts(days, [], show_all=True)
+    after = statistics_service.generate_monthly_charts(days, [], show_all=True)["words_studied"]
+    assert Image.open(io.BytesIO(after)).width <= 1100
+
+
+@pytest.mark.asyncio
+async def test_variants_are_cached_separately(monkeypatch):
+    state = _stub(monkeypatch, [_day("2026-09-18")])
+    await chart_cache.monthly_charts("u1", "l1", False, None, "screen")
+    await chart_cache.monthly_charts("u1", "l1", False, None, "zoom")
+    await chart_cache.monthly_charts("u1", "l1", False, None, "screen")
+    await chart_cache.monthly_charts("u1", "l1", False, None, "zoom")
+    assert state["renders"] == 2, "по одной отрисовке на вариант"
+
+
+def test_unknown_variant_is_rejected():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    resp = TestClient(app).get("/statistics/u1/l1/monthly-chart/words_studied?res=huge")
+    assert resp.status_code == 422

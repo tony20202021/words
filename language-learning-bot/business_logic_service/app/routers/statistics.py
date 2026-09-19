@@ -29,10 +29,12 @@ async def get_today_chart(
     user_id: str,
     language_id: str,
     chart_name: str,
+    res: str = Query("screen", pattern="^(screen|zoom)$",
+                     description="screen — под экран, быстро; zoom — для увеличения"),
     api_client=Depends(get_api_client),
 ):
     chart_cache.note_view(user_id, language_id)
-    charts = await chart_cache.today_charts(user_id, language_id, api_client)
+    charts = await chart_cache.today_charts(user_id, language_id, api_client, res)
     if chart_name not in charts:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Chart '{chart_name}' not available")
     return Response(content=charts[chart_name], media_type="image/png")
@@ -44,10 +46,12 @@ async def get_monthly_chart(
     language_id: str,
     chart_name: str,
     show_all: bool = Query(True),
+    res: str = Query("screen", pattern="^(screen|zoom)$",
+                     description="screen — под экран, быстро; zoom — для увеличения"),
     api_client=Depends(get_api_client),
 ):
     chart_cache.note_view(user_id, language_id)
-    charts = await chart_cache.monthly_charts(user_id, language_id, show_all, api_client)
+    charts = await chart_cache.monthly_charts(user_id, language_id, show_all, api_client, res)
     if chart_name not in charts:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Chart '{chart_name}' not available")
     return Response(content=charts[chart_name], media_type="image/png")
