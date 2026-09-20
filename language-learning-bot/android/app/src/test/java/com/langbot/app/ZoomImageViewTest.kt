@@ -1,15 +1,20 @@
 package com.langbot.app
 
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.graphics.Picture
+import android.graphics.drawable.PictureDrawable
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 /** Увеличение: границы масштаба и подмена на большую без сдвига видимого. */
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ZoomImageViewTest {
 
     private fun laidOut(): ZoomImageView {
@@ -35,6 +40,37 @@ class ZoomImageViewTest {
         assertEquals(v.maxScale, v.currentScale, 0.001f)
         v.zoomBy(0.0001f, 500f, 500f)
         assertEquals(v.minScale, v.currentScale, 0.001f)
+    }
+
+    /**
+     * Карточка слова — не картинка: она длиннее экрана, и мерить увеличение от
+     * вписанной в экран нельзя. Вписанная впятеро — это всё ещё мельче, чем на
+     * самом экране, то есть увеличения бы не было вовсе.
+     */
+    @Test
+    fun a_card_longer_than_the_screen_opens_at_its_own_size() {
+        val v = laidOut()
+        val picture = Picture()
+        picture.beginRecording(1000, 5000)
+        picture.endRecording()
+        v.showDrawing(PictureDrawable(picture), 0)
+
+        assertEquals("открылась не в натуральную величину", 1f, v.currentScale, 0.001f)
+        assertEquals("увеличивать можно не впятеро", 5f, v.maxScale, 0.001f)
+        // Уменьшить до целой страницы всё же можно: 1000/5000.
+        assertEquals("нельзя уменьшить до целой карточки", 0.2f, v.minScale, 0.001f)
+    }
+
+    @Test
+    fun a_card_opens_at_the_block_that_was_tapped() {
+        val v = laidOut()
+        val picture = Picture()
+        picture.beginRecording(1000, 5000)
+        picture.endRecording()
+        v.showDrawing(PictureDrawable(picture), 1200)
+
+        val y = FloatArray(9).also { v.imageMatrix.getValues(it) }[Matrix.MTRANS_Y]
+        assertEquals("открылась не с той высоты, по которой нажали", -1200f, y, 0.5f)
     }
 
     @Test

@@ -197,9 +197,9 @@ async def get_monthly_statistics(
     Fetch and annotate monthly statistics.
     Returns (all_days_stats, first_finish_stats) with computed fields.
 
-    «Последний финиш» больше не запрашивается: график убран как избыточный —
-    сколько слов осталось после последней сессии, видно в утреннем счётчике
-    следующего дня. Лишний запрос на каждую картинку тоже ни к чему.
+    «Последний финиш» отдельно не запрашивается: сколько слов осталось «не знаю»
+    после последней сессии, записано в утреннем снимке следующего дня — отсюда
+    его и берёт words_unknown_last_finish. Лишний запрос на каждую картинку ни к чему.
     """
     if show_all:
         response = await api_client.get_all_monthly_statistics(user_id, language_id, action_date)
@@ -229,14 +229,21 @@ async def get_monthly_statistics(
     # завтрашний первый ответ его не создаст. Отсутствующая точка лучше неверной,
     # а тянуть ради неё полный прогресс на каждую картинку незачем.
     #
-    # Утренние счётчики недоученного при этом не трогаются: они и так снимаются
-    # с состояния базы на первом ответе дня, то есть по вчерашнему итогу.
+    # «Не знаю» на последнем финише — тот же сдвиг. Утренний words_unknown_now
+    # дня D снят до занятий, то есть это итог последнего дня, когда занимались, —
+    # а им и будет предыдущая запись: дней без занятий в ряду нет. Раньше график
+    # стоял на утре следующего дня и назывался «осталось со вчера».
+    # Сам words_unknown_now в записи дня не трогается — сдвинуто только производное поле.
+    # «Недопройдено» (words_overdue) остаётся утренним: просрочка считается от
+    # даты снимка, и на утро это честная величина.
     for i, day in enumerate(all_days):
         if i + 1 >= len(all_days):
             day["words_new"] = None
+            day["words_unknown_last_finish"] = None
             continue
         delta = all_days[i + 1]["words_studied"] - day["words_studied"]
         day["words_new"] = delta if delta >= 0 else None
+        day["words_unknown_last_finish"] = all_days[i + 1].get("words_unknown_now")
 
     def _annotate_finish(raw_response) -> List[Dict[str, Any]]:
         if not raw_response["success"] or raw_response.get("status") == 404 or raw_response["result"] is None:
@@ -269,10 +276,10 @@ MONTHLY_SPECS = [
     ("days",         "words_studied",              "words_studied",     "last"),
     ("days",         "words_new",                  "words_new",         "max"),
     ("days",         "words_known",                "words_known",       "last"),
-    # Первый счётчик — продолжение прежнего «до завершения»: та же величина,
-    # но взятая из базы, а не пересчитанная из трёх полей. Второй считает
-    # просроченные по дате проверки — этого прежде не было вовсе.
-    ("days",         "words_unknown_morning",      "words_unknown_now", "max"),
+    # Первый — «не знаю» после последней сессии дня: утренний снимок следующего
+    # дня, отнесённый к своему дню (см. get_monthly_statistics). Второй считает
+    # просроченные по дате проверки на утро.
+    ("days",         "words_unknown_last_finish",  "words_unknown_last_finish", "max"),
     ("days",         "words_overdue_morning",      "words_overdue",     "max"),
     ("first_finish", "words_unknown_first_finish", "words_unknown",     "max"),
     ("days",         "words_for_today",            "words_for_today",   "max"),

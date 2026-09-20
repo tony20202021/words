@@ -22,7 +22,10 @@
             android:layout_height="match_parent"
             android:fillViewport="true">
 
+            <!-- id нужен увеличению: с этого столбца снимается рисунок всей
+                 карточки для полноэкранного просмотра — см. StudyActivity.openCardZoom -->
             <LinearLayout
+                android:id="@+id/cardScrollContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"

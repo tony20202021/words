@@ -1,8 +1,11 @@
 package com.langbot.app
 
+import android.app.Dialog
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Picture
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.PictureDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
@@ -72,10 +75,16 @@ class StudyActivity : AppCompatActivity() {
     // Guards against recording the current offline word's result more than once.
     private var offlineCurrentRecorded: Boolean = false
 
+    // Открытое окно увеличения карточки — закрывается вместе с экраном.
+    @VisibleForTesting
+    var cardZoomDialog: Dialog? = null
+        private set
+
     companion object {
         private const val MENU_REFRESH = 1
         private const val MENU_STATS   = 2
         private const val MENU_RESTART = 3
+        private const val MENU_ZOOM    = 4
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,16 +114,78 @@ class StudyActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         releasePlayers()
+        cardZoomDialog?.dismiss()
+        cardZoomDialog = null
+    }
+
+    /**
+     * Карточка целиком на весь экран, с увеличением пальцами.
+     *
+     * Увеличивать нужно не только графики: огласовки в таблицах — мелкие знаки
+     * под буквами, и в обычном кегле их не разглядеть. Снимаем рисунок уже
+     * собранного столбца карточки: в нём те же таблицы, подсветки и направление
+     * письма, и при увеличении текст перерисовывается буквами, а не
+     * растягивается пикселями, как было бы со снимком картинкой.
+     *
+     * Рисунок — весь столбец, включая то, что ниже края экрана: увеличение не
+     * должно обрываться там, где кончилась видимая часть. Кнопки ответа в него
+     * тоже попадают, но там они просто нарисованы и ничего не делают.
+     *
+     * @param from блок, по которому нажали: с него и открываем. null — от начала
+     *             карточки (пункт меню «Увеличить»).
+     */
+    private fun openCardZoom(from: View?) {
+        val content = binding.cardScrollContent
+        if (content.width <= 0 || content.height <= 0) return
+        val picture = Picture()
+        content.draw(picture.beginRecording(content.width, content.height))
+        picture.endRecording()
+
+        val view = ZoomImageView(this)
+        // Столбец карточки прозрачный: без фона под ним чернел бы фон окна.
+        view.setBackgroundColor(Color.WHITE)
+        view.showDrawing(PictureDrawable(picture), from?.let { topWithin(it, content) } ?: 0)
+
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        dialog.setContentView(view)
+        dialog.setOnDismissListener {
+            view.setImageDrawable(null)
+            if (cardZoomDialog === dialog) cardZoomDialog = null
+        }
+        dialog.show()
+        cardZoomDialog = dialog
+    }
+
+    /** Насколько ниже начала столбца стоит блок: сумма отступов по дереву. */
+    private fun topWithin(view: View, root: View): Int {
+        var y = 0
+        var v: View? = view
+        while (v != null && v !== root) {
+            y += v.top
+            v = v.parent as? View
+        }
+        return y
+    }
+
+    /** Нажатие на блок карточки — открыть его на весь экран. */
+    private fun makeZoomable(block: View) {
+        block.isClickable = true
+        block.setOnClickListener { openCardZoom(block) }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(0, MENU_REFRESH, 0, "↺ Обновить")
-        menu.add(0, MENU_STATS,   1, "📊 Статистика")
-        menu.add(0, MENU_RESTART, 2, "🔄 Начать заново")
+        menu.add(0, MENU_ZOOM,    0, "🔍 Увеличить")
+        menu.add(0, MENU_REFRESH, 1, "↺ Обновить")
+        menu.add(0, MENU_STATS,   2, "📊 Статистика")
+        menu.add(0, MENU_RESTART, 3, "🔄 Начать заново")
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == MENU_ZOOM) {
+            openCardZoom(null)
+            return true
+        }
         if (item.itemId == MENU_REFRESH) {
             loadSession()
             return true
@@ -932,6 +1003,7 @@ class StudyActivity : AppCompatActivity() {
                 inner.addView(tvTr)
             }
             cardView.addView(inner)
+            makeZoomable(cardView)
             binding.extraCardsArea.addView(cardView)
         }
 
@@ -1000,6 +1072,7 @@ class StudyActivity : AppCompatActivity() {
                 }
             }
             cardView.addView(inner)
+            makeZoomable(cardView)
             binding.extraCardsArea.addView(cardView)
         }
 

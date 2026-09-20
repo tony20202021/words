@@ -373,8 +373,9 @@ class TestNewWordsPerDay:
     @pytest.mark.asyncio
     async def test_morning_counters_pass_through_untouched(self):
         """
-        Сдвиг касается только «новых слов». Утренние счётчики недоученного
-        приходят из дневной записи как есть — сервис их не пересчитывает.
+        Утренние счётчики недоученного приходят из дневной записи как есть —
+        сервис их не пересчитывает. Сдвинутое «не знаю на последнем финише»
+        кладётся рядом отдельным полем (см. TestUnknownAtLastFinish).
 
         Прежде «неизвестных до завершения» считалось здесь как
         studied − known − skipped. Величина была верной, но пересчитывалась на
@@ -391,6 +392,38 @@ class TestNewWordsPerDay:
         assert [(d["words_unknown_now"], d["words_overdue"]) for d in all_days] == [(3, 2), (0, 0)]
         # Старого сводного поля больше нет — чтобы никто не строил по нему график.
         assert "words_unknown" not in all_days[0]
+
+
+async def _unknown_last_finish(unknown_by_morning):
+    from app.services.statistics_service import get_monthly_statistics
+    api = _monthly_api([100] * len(unknown_by_morning),
+                       morning=[{"words_unknown_now": u} for u in unknown_by_morning])
+    all_days, _ = await get_monthly_statistics(
+        "u1", "l1", date(2026, 8, 20), api, show_all=False)
+    return [d["words_unknown_last_finish"] for d in all_days]
+
+
+class TestUnknownAtLastFinish:
+    """
+    Утренний words_unknown_now дня D снят до занятий — это «не знаю» после
+    последней сессии предыдущего дня занятий. График «на последнем финише»
+    ставит его на тот день, а не на утро следующего.
+    """
+
+    @pytest.mark.asyncio
+    async def test_each_morning_value_lands_on_the_previous_record(self):
+        # Утром 13-го осталось 7 со вчера, утром 14-го — 4, утром 15-го — 2.
+        # Значит вечером 13-го было 4, вечером 14-го — 2.
+        assert await _unknown_last_finish([7, 4, 2]) == [4, 2, None]
+
+    @pytest.mark.asyncio
+    async def test_today_has_no_point_until_tomorrows_snapshot(self):
+        result = await _unknown_last_finish([5, 3])
+        assert result[-1] is None
+
+    @pytest.mark.asyncio
+    async def test_a_legacy_record_without_the_counter_stays_a_gap(self):
+        assert await _unknown_last_finish([3, None, 1]) == [None, 1, None]
 
 
 # ── первый финиш за день и граница учебных суток ──────────────────────────────

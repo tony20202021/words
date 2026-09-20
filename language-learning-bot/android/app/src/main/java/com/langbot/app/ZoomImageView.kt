@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -17,11 +18,20 @@ import androidx.appcompat.widget.AppCompatImageView
  *
  * Своя, а не библиотечная: нужно ровно три жеста, и тянуть ради них зависимость
  * незачем.
+ *
+ * Показывает и рисунок экрана (Picture) — так увеличивается карточка слова с
+ * таблицами: там текст, и он обязан оставаться чётким на любом увеличении.
  */
 class ZoomImageView(context: Context) : AppCompatImageView(context) {
 
     private val drawMatrix = Matrix()
     private var fitScale = 1f
+
+    // От чего считается «увеличено» и докуда можно увеличивать. У картинки это
+    // вписанный в экран размер, у карточки — натуральная величина: карточка
+    // длиннее экрана, вписанная она нечитаема, и мерить от неё нельзя.
+    private var zoomBase = 1f
+    private var pendingTopPx: Int? = null
 
     init {
         scaleType = ScaleType.MATRIX
@@ -32,7 +42,7 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
 
     /** Масштаб, при котором картинка вписана в экран; меньше увеличивать нельзя. */
     val minScale: Float get() = fitScale
-    val maxScale: Float get() = fitScale * MAX_FACTOR
+    val maxScale: Float get() = zoomBase * MAX_FACTOR
 
     private val scaleDetector = ScaleGestureDetector(context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -52,7 +62,7 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
             }
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                val target = if (currentScale > fitScale * 1.05f) fitScale else fitScale * DOUBLE_TAP_FACTOR
+                val target = if (currentScale > zoomBase * 1.05f) zoomBase else zoomBase * DOUBLE_TAP_FACTOR
                 zoomBy(target / currentScale, e.x, e.y)
                 return true
             }
@@ -67,12 +77,44 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         fit()
+        applyStart()
     }
 
     /** Первая картинка: вписать в экран. */
     fun show(bitmap: Bitmap) {
         setImageBitmap(bitmap)
         fit()
+    }
+
+    /**
+     * Показать рисунок карточки, а не картинку: в записанном рисунке текст
+     * остаётся буквами и при увеличении перерисовывается, а не растягивается
+     * пикселями — ради огласовок это и делалось.
+     *
+     * Открывается в натуральную величину, как на экране, и с той высоты, по
+     * которой нажали: карточка длиннее экрана, и вписанная целиком была бы
+     * мельче исходной.
+     */
+    fun showDrawing(drawing: Drawable, startTopPx: Int) {
+        pendingTopPx = startTopPx
+        setImageDrawable(drawing)
+        fit()
+        applyStart()
+    }
+
+    private fun applyStart() {
+        val top = pendingTopPx ?: return
+        val d = drawable ?: return
+        if (width == 0 || height == 0) return
+        if (d.intrinsicWidth <= 0 || d.intrinsicHeight <= 0) return
+        pendingTopPx = null
+        // Не мельче вписанной: узкая карточка вписывается крупнее натуральной.
+        zoomBase = maxOf(1f, fitScale)
+        drawMatrix.reset()
+        drawMatrix.postScale(zoomBase, zoomBase)
+        drawMatrix.postTranslate((width - d.intrinsicWidth * zoomBase) / 2f, -top * zoomBase)
+        clamp()
+        imageMatrix = drawMatrix
     }
 
     /**
@@ -85,6 +127,7 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
         val ratio = if (old != null && bitmap.width > 0) old.width.toFloat() / bitmap.width else 1f
         drawMatrix.preScale(ratio, ratio)
         fitScale *= ratio
+        zoomBase *= ratio
         setImageBitmap(bitmap)
         imageMatrix = drawMatrix
     }
@@ -106,6 +149,7 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
         val ih = d.intrinsicHeight.toFloat()
         if (iw <= 0f || ih <= 0f) return
         fitScale = minOf(width / iw, height / ih)
+        zoomBase = fitScale
         drawMatrix.reset()
         drawMatrix.postScale(fitScale, fitScale)
         drawMatrix.postTranslate((width - iw * fitScale) / 2f, (height - ih * fitScale) / 2f)

@@ -26,7 +26,8 @@ def _clean():
 
 def _day(date, **fields):
     base = {"date": date, "words_studied": 100, "words_new": 0, "words_known": 99,
-            "words_unknown_now": 1, "words_overdue": 0, "words_for_today": 13,
+            "words_unknown_now": 1, "words_unknown_last_finish": 1,
+            "words_overdue": 0, "words_for_today": 13,
             "max_word_number": 100, "updated_at": "2026-09-18T07:00:00"}
     base.update(fields)
     return base
@@ -159,6 +160,7 @@ def test_picture_fits_a_phone_and_is_a_palette_png():
     """
     days = [{"date": f"2026-09-{d:02d}T00:00:00", "words_studied": 90 + d, "words_new": 1,
              "words_known": 80 + d, "words_unknown_now": d % 5, "words_overdue": 0,
+             "words_unknown_last_finish": (d + 1) % 5,
              "words_for_today": 10 + d} for d in range(1, 18)]
     charts = statistics_service.generate_monthly_charts(days, [], show_all=True)
     image = Image.open(io.BytesIO(charts["words_studied"]))
@@ -181,6 +183,7 @@ def test_every_monthly_chart_in_the_manifest_is_drawn():
 def _real_days():
     return [{"date": f"2026-09-{d:02d}T00:00:00", "words_studied": 90 + d, "words_new": 1,
              "words_known": 80 + d, "words_unknown_now": d % 5, "words_overdue": 0,
+             "words_unknown_last_finish": (d + 1) % 5,
              "words_for_today": 10 + d} for d in range(1, 18)]
 
 

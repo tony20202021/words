@@ -44,7 +44,7 @@ class StatsActivity : AppCompatActivity() {
         // на незнакомое отвечает 404, то есть пустым местом на экране.
         private val MONTHLY_CHARTS = listOf(
             "words_studied", "words_new", "words_known",
-            "words_unknown_morning", "words_overdue_morning",
+            "words_unknown_last_finish", "words_overdue_morning",
             "words_unknown_first_finish", "words_for_today",
         )
 
