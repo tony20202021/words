@@ -230,6 +230,9 @@ class OfflineEngine(private val bundle: StoredBundle) {
     fun hasCurrent(): Boolean = cursor in words.indices
     fun frontCard(): Card? = words.getOrNull(cursor)?.card_front
     fun answerCard(): Card? = words.getOrNull(cursor)?.card_answer
+
+    /** Ответ после «Знаю». В старых партиях его нет — тогда обычная ответная. */
+    fun knownCard(): Card? = words.getOrNull(cursor)?.let { it.card_known ?: it.card_answer }
     fun currentWordId(): String? = words.getOrNull(cursor)?.word_id
     fun atEnd(): Boolean = cursor >= words.size
 

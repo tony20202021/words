@@ -91,6 +91,63 @@ async def test_build_bundle_respects_limit():
     assert len(bundle["words"]) == 4
 
 
+class TestTakingBackAKnowWithoutNetwork:
+    """
+    «Ой, все-таки не знаю» без сети.
+
+    Офлайн показывалась card_answer — ответная сторона ДО ответа, где этой
+    кнопки нет: отменить засчитанное знакомым было нечем, слово уходило
+    выученным, а интервал повторения растягивался. В партию добавлена третья
+    карточка — ответная сторона ПОСЛЕ «Знаю».
+    """
+
+    async def _bundle(self):
+        api = make_mock_api(words=[make_word(1)], settings={"random_pick_mode": False})
+        return await build_bundle("u1", "lang1", api, limit=1)
+
+    @pytest.mark.asyncio
+    async def test_the_bundle_carries_the_card_shown_after_know(self):
+        bundle = await self._bundle()
+        unit = bundle["words"][0]
+        assert "card_known" in unit, "в партии нет карточки ответа после «Знаю»"
+        assert unit["card_known"]["show_answer"] is True
+
+    @pytest.mark.asyncio
+    async def test_that_card_offers_to_take_the_know_back(self):
+        bundle = await self._bundle()
+        buttons = {b["id"]: b for b in bundle["words"][0]["card_known"]["buttons"]}
+        assert "reconsider" in buttons, f"нечем отменить «знаю»: {list(buttons)}"
+        assert "все-таки не знаю" in buttons["reconsider"]["text"]
+
+    @pytest.mark.asyncio
+    async def test_taking_back_carries_the_corrected_rating(self):
+        """
+        Без сети отмена — это более поздний ответ в очереди: сервер применяет
+        ответы по времени, и последний перекрывает прежний.
+        """
+        bundle = await self._bundle()
+        reconsider = [b for b in bundle["words"][0]["card_known"]["buttons"]
+                      if b["id"] == "reconsider"][0]
+        assert reconsider["offline_rating"] == "dont_know"
+        # Действие прежнее — приложения старых версий не потеряют кнопку.
+        assert reconsider["offline_effect"] == "reveal_question"
+
+    @pytest.mark.asyncio
+    async def test_moving_on_from_that_card_does_not_record_anything(self):
+        """Оценка уже записана кнопкой «Знаю» — иначе результат ушёл бы дважды."""
+        bundle = await self._bundle()
+        rate = [b for b in bundle["words"][0]["card_known"]["buttons"]
+                if b["id"] == "rate"][0]
+        assert rate["offline_effect"] == "advance"
+
+    @pytest.mark.asyncio
+    async def test_the_card_before_the_answer_is_unchanged(self):
+        """card_answer остаётся такой, как была: её показывают до ответа."""
+        bundle = await self._bundle()
+        ids = [b["id"] for b in bundle["words"][0]["card_answer"]["buttons"]]
+        assert "reconsider" not in ids
+
+
 class TestBundleSizeIsTheUsersChoice:
     """
     Размер офлайн-партии — настройка человека: это про автономность, и знает о

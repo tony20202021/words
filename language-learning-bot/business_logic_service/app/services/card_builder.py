@@ -521,8 +521,12 @@ def _buttons_after(is_skipped: bool, score_changed: bool, show_skip: bool = True
         # угаданный вариант было нечем: слово уходило как выученное и интервал
         # повторения растягивался. В режиме выбора из N вариантов угадать легко,
         # так что возможность отменить нужна там даже больше, чем при обычном вводе.
+        # offline_rating здесь — поправка к уже записанному «знаю»: без сети
+        # отменить оценку можно только дописав в очередь более поздний ответ,
+        # и сервер применит последний по времени. Действие осталось прежним
+        # (reveal_question), чтобы приложения старых версий не потеряли кнопку.
         btns.append({"id": "reconsider", "text": "❌ Ой, все-таки не знаю",
-                     "style": "outline-danger", **_offline("reveal_question")})
+                     "style": "outline-danger", **_offline("reveal_question", "dont_know")})
         if show_skip:
             btns.append(skip_btn)
         if ban_btn:

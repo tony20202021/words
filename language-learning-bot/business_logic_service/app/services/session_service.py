@@ -611,11 +611,23 @@ async def build_bundle(
                 ctx["quiz_options"] = opts
             else:
                 ctx["pick_mode_active"] = False
+        # Третья карточка — ответная сторона ПОСЛЕ «Знаю».
+        #
+        # Онлайн она другая: там есть «Ой, все-таки не знаю» и переход
+        # «К следующему слову», который ничего не записывает. Офлайн же
+        # показывалась card_answer — та, что рисуется до ответа, — и отменить
+        # засчитанное знакомым было нечем: слово уходило выученным, а интервал
+        # повторения растягивался. Заранее отрисовать её дешевле, чем учить
+        # телефон собирать карточки самому.
+        known_ctx = dict(ctx)
+        known_ctx["word_processed"] = True
+        known_ctx["score_changed"] = True
         units.append({
             "word_id": wid,
             "word_number": w.get("word_number"),
             "card_front": build_card(ctx, w, False),
             "card_answer": build_card(ctx, w, True),
+            "card_known": build_card(known_ctx, w, True),
             "sounds": _parse_sound_urls(w),
         })
 

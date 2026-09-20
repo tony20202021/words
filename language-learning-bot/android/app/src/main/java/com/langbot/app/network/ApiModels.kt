@@ -190,6 +190,9 @@ data class BundleWord(
     val word_number: Int?,
     val card_front: Card,
     val card_answer: Card,
+    // Ответная сторона после «Знаю»: там есть «Ой, все-таки не знаю». В
+    // партиях, скачанных до этой версии, её нет — тогда показываем card_answer.
+    val card_known: Card? = null,
     val sounds: List<String> = emptyList(),
 )
 

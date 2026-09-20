@@ -75,6 +75,9 @@ class StudyActivity : AppCompatActivity() {
     private var lastWordId: String? = null
     // Guards against recording the current offline word's result more than once.
     private var offlineCurrentRecorded: Boolean = false
+    // Засчитано ли текущее офлайновое слово знакомым: от этого зависит, какую
+    // ответную сторону показывать — с «Ой, все-таки не знаю» или без.
+    private var offlineScoredKnow: Boolean = false
 
     // Открытое окно увеличения карточки — закрывается вместе с экраном.
     @VisibleForTesting
@@ -387,6 +390,7 @@ class StudyActivity : AppCompatActivity() {
         if (!eng.hasCurrent()) return OfflineEntry.NO_BUNDLE
         offline = eng
         offlineCurrentRecorded = false
+        offlineScoredKnow = false
         // render=false, когда вызывающий тут же применит нажатие пользователя и
         // отрисует результат сам. Иначе экран рисовался ДВАЖДЫ: сначала вопрос
         // текущего слова, следом — результат действия. Со стороны это выглядело
@@ -419,7 +423,14 @@ class StudyActivity : AppCompatActivity() {
         val effect = btn.offline_effect ?: OfflineSemantics.effectFor(btn.id) ?: return
         when (effect) {
             "reveal_answer"   -> renderOfflineCurrent(showAnswer = true)
-            "reveal_question" -> renderOfflineCurrent(showAnswer = false)
+
+            // Возврат к вопросу. У «Ой, все-таки не знаю» с ним приходит и
+            // оценка: без сети отменить записанное «знаю» можно только дописав
+            // в очередь более поздний ответ — сервер применит последний.
+            "reveal_question" -> {
+                btn.offline_rating?.let { recordOffline(it, correction = true) }
+                renderOfflineCurrent(showAnswer = false)
+            }
 
             // «Знаю»: записать оценку и ПОКАЗАТЬ ответ, не листая дальше — так же,
             // как онлайн know_word(). Раньше эта кнопка была помечена submit, и
@@ -458,23 +469,40 @@ class StudyActivity : AppCompatActivity() {
         renderOfflineCurrent(showAnswer = true)
     }
 
-    private fun recordOffline(rating: String) {
+    /**
+     * Записать оценку текущего слова в очередь.
+     *
+     * @param correction поправка к уже записанному ответу («Ой, все-таки не
+     *        знаю»). Защиту от повторной записи она обходит намеренно: сервер
+     *        применяет ответы по времени, и более поздний перекрывает прежний —
+     *        иначе отменить засчитанное знакомым без сети было бы нечем.
+     */
+    private fun recordOffline(rating: String, correction: Boolean = false) {
         val eng = offline ?: return
-        if (offlineCurrentRecorded) return
+        if (offlineCurrentRecorded && !correction) return
         eng.record(rating)
         offlineCurrentRecorded = true
+        offlineScoredKnow = rating == "know"
     }
 
     private fun advanceOffline() {
         val eng = offline ?: return
         eng.advance()
         offlineCurrentRecorded = false
+        offlineScoredKnow = false
         if (eng.atEnd()) showOfflineDone() else renderOfflineCurrent(showAnswer = false)
     }
 
     private fun renderOfflineCurrent(showAnswer: Boolean) {
         val eng = offline ?: return
-        val card = if (showAnswer) eng.answerCard() else eng.frontCard()
+        // Засчитанное знакомым показываем той стороной, где есть отмена:
+        // офлайн раньше показывал карточку «до ответа», и отменить оценку было
+        // нечем — слово уходило выученным, а интервал повторения растягивался.
+        val card = when {
+            !showAnswer -> eng.frontCard()
+            offlineScoredKnow -> eng.knownCard()
+            else -> eng.answerCard()
+        }
         if (card == null) { showOfflineDone(); return }
         renderCard(withOfflineProgress(card))
         showOfflineBanner()

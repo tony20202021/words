@@ -843,7 +843,10 @@ def test_after_answer_score_changed_buttons_offline_semantics():
     assert "offline_rating" not in rate
     reconsider = _btn(card, "reconsider")
     assert reconsider["offline_effect"] == "reveal_question"
-    assert "offline_rating" not in reconsider
+    # Без сети отменить записанное «знаю» можно только дописав в очередь более
+    # поздний ответ: сервер применяет их по времени, и последний перекрывает
+    # прежний. Прежде оценки здесь не было, и офлайн отменить было нечем.
+    assert reconsider["offline_rating"] == "dont_know"
 
 
 def test_after_answer_unchanged_rate_records_dont_know_offline():
