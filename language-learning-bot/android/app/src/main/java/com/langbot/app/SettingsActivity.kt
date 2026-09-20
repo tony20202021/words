@@ -11,6 +11,7 @@ import com.langbot.app.databinding.ActivitySettingsBinding
 import com.langbot.app.network.BLSClient
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
+import com.langbot.app.offline.OfflineCache
 import com.langbot.app.offline.OfflineNotice
 
 class SettingsActivity : AppCompatActivity() {
@@ -78,12 +79,10 @@ class SettingsActivity : AppCompatActivity() {
                     OfflineNotice.clear(binding.settingsContainer)
                     renderSettings(resp.body()!!)
                 } else {
-                    OfflineNotice.show(binding.settingsContainer, "настройки")
+                    showFromOfflineBundle()
                 }
             } catch (e: Exception) {
-                // Экран целиком зависит от BLS и ничего не кеширует — вместо
-                // исчезающего Toast и пустого экрана показываем, что произошло.
-                OfflineNotice.show(binding.settingsContainer, "настройки")
+                showFromOfflineBundle()
             } finally {
                 binding.progress.visibility = View.GONE
                 binding.swipeRefresh.isRefreshing = false
@@ -91,9 +90,29 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderSettings(settings: Map<String, Any>) {
+    /**
+     * Без сети — показать настройки из сохранённой офлайн-партии.
+     *
+     * Экран сам по себе целиком зависит от BLS, и раньше без сети на нём была
+     * одна надпись «нет связи» — хотя показать было что: сервер присылает
+     * настройки вместе с офлайн-партией, а телефон их выбрасывал. Теперь они
+     * сохраняются и показываются только для чтения: менять их без сети
+     * бессмысленно, потому что состав слов пересчитывает сервер.
+     */
+    private fun showFromOfflineBundle() {
+        val cached = OfflineCache.loadBundle(userId, languageId)?.settings
+        if (cached.isNullOrEmpty()) {
+            OfflineNotice.show(binding.settingsContainer, "настройки")
+            return
+        }
+        renderSettings(cached, readOnly = true)
+    }
+
+    private fun renderSettings(settings: Map<String, Any>, readOnly: Boolean = false) {
         val container = binding.settingsContainer
         container.removeAllViews()
+
+        if (readOnly) addOfflineBanner(container)
 
         addSectionHeader(container, "Переключатели")
 
@@ -118,8 +137,12 @@ class SettingsActivity : AppCompatActivity() {
             val sw = Switch(this)
             sw.isChecked = value
             sw.setOnCheckedChangeListener(null)
+            sw.isEnabled = !readOnly
             row.addView(sw)
-            sw.setOnCheckedChangeListener { _, _ -> toggleSetting(key) }
+            // Без сети слушатель не вешаем вовсе: выключенный переключатель уже
+            // не нажать, но и случайное программное переключение не должно
+            // отправлять запрос, которому некуда идти.
+            if (!readOnly) sw.setOnCheckedChangeListener { _, _ -> toggleSetting(key) }
 
             container.addView(row)
             addDivider(container)
@@ -149,20 +172,41 @@ class SettingsActivity : AppCompatActivity() {
             val tvValue = TextView(this)
             tvValue.text = current.toString()
             tvValue.textSize = 15f
-            tvValue.setTextColor(android.graphics.Color.parseColor("#1565C0"))
+            tvValue.setTextColor(android.graphics.Color.parseColor(
+                if (readOnly) "#9A9A9A" else "#1565C0"))
             tvValue.setPadding(16, 0, 0, 0)
             row.addView(tvValue)
 
-            val tvArrow = TextView(this)
-            tvArrow.text = " ›"
-            tvArrow.textSize = 18f
-            tvArrow.setTextColor(android.graphics.Color.parseColor("#BBBBBB"))
-            row.addView(tvArrow)
-
-            row.setOnClickListener { showNumericDialog(label, key, current, tvValue) }
+            // Стрелка обещает, что строка нажимается. Без сети не обещаем.
+            if (!readOnly) {
+                val tvArrow = TextView(this)
+                tvArrow.text = " ›"
+                tvArrow.textSize = 18f
+                tvArrow.setTextColor(android.graphics.Color.parseColor("#BBBBBB"))
+                row.addView(tvArrow)
+                row.setOnClickListener { showNumericDialog(label, key, current, tvValue) }
+            }
             container.addView(row)
             addDivider(container)
         }
+    }
+
+    /** Откуда взялись значения и почему их не поменять. */
+    private fun addOfflineBanner(container: LinearLayout) {
+        val tv = TextView(this)
+        tv.text = "📴 Нет связи с сервером\n\n" +
+            "Настройки показаны из сохранённой офлайн-партии — такими они были, " +
+            "когда партия скачалась. Менять их без сети нельзя: какие слова " +
+            "показывать, решает сервер."
+        tv.textSize = 14f
+        tv.setTextColor(android.graphics.Color.parseColor("#856404"))
+        tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
+        tv.setPadding(24, 24, 24, 24)
+        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                                           LinearLayout.LayoutParams.WRAP_CONTENT)
+        lp.bottomMargin = 16
+        tv.layoutParams = lp
+        container.addView(tv)
     }
 
     private fun addSectionHeader(container: LinearLayout, title: String) {

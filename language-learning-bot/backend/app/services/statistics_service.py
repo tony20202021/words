@@ -246,156 +246,117 @@ class StatisticsService:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
-        Get words for study with various filters.
-        ОПТИМИЗИРОВАНО: улучшена логика получения статистики с валидацией слов.
-        
-        Args:
-            user_id: The user ID
-            language_id: The language ID
-            start_word: The word number to start from 
-            skip_marked: Whether to skip marked words
-            use_check_date: Whether to consider next check date
-            skip: Number of records to skip
-            limit: Maximum number of words to return
-            
-        Returns:
-            List of words for study
+        Слова для занятия: не более `limit` ПОДХОДЯЩИХ, начиная с номера start_word.
+
+        Отбор идёт в базе, а не после неё. Прежде бралась сотня слов подряд по
+        номеру, к ней подтягивалась статистика, и уже в памяти выбрасывались
+        помеченные и те, чья дата проверки в будущем. «Сто» значило сто НОМЕРОВ,
+        а не сто слов: в пройденной части словаря такое окно могло дать одно
+        слово или ни одного, и вызывающая сторона сдвигала его на сто номеров и
+        спрашивала снова — до сотни пустых запросов подряд, и каждый всё равно
+        читал сотню слов и их статистику.
+
+        Хуже того, сотня слов от номера N по номерам шире сотни: в словарях есть
+        пропуски — в английском 1534 номера из 10 000 пустые. Шаг в сто номеров
+        попадал внутрь уже прочитанного, офлайн-партия добирала дубли и
+        обрывалась на первом же шаге: у живого пользователя в ней оказывалось
+        13 слов вместо ста.
+
+        Теперь: один запрос за непригодными словами (индекс user_id +
+        language_id + next_check_date), просмотр номеров по индексу
+        (language_id, word_number) только по полю номера — без чтения самих
+        слов, — и чтение ровно отобранных. Сколько просмотрено, столько и
+        нужно, чтобы набрать `limit`.
+
+        `skip` отсчитывается среди подходящих слов: раньше он отсчитывался среди
+        номеров, что при включённых фильтрах значило непредсказуемое.
         """
         logger.info(f"Getting words for study: user_id={user_id}, language_id={language_id}, "
                 f"start_word={start_word}, skip_marked={skip_marked}, "
                 f"use_check_date={use_check_date}, skip={skip}, limit={limit}")
-                
-        # Get all words for the language that have word_number >= start_word
-        # Добавлен этап $addFields для преобразования ObjectId в строки
-        pipeline = [
-            {"$match": {"language_id": ObjectId(language_id), "word_number": {"$gte": start_word}}},
-            {"$sort": {"word_number": 1}},
-            {"$skip": skip},
-            {"$limit": limit},
-            # Преобразуем ObjectId в строки
-            {
-                "$addFields": {
-                    "_id": {"$toString": "$_id"},
-                    "language_id": {"$toString": "$language_id"}
-                }
-            }
-        ]
-        
-        logger.debug(f"MongoDB pipeline for words: {pipeline}")
-        
-        words_cursor = self.word_repository.collection.aggregate(pipeline)
-        words = await words_cursor.to_list(length=None)
-        
-        logger.info(f"Found {len(words)} words in language_id={language_id} with word_number >= {start_word}")
-        
-        # Если нет слов, сразу возвращаем пустой список
-        if not words:
-            logger.warning(f"No words found for language_id={language_id} with word_number >= {start_word}")
+
+        if limit <= 0:
             return []
-        
-        # ОПТИМИЗИРОВАНО: получаем статистику с проверкой существования слов через эффективный aggregation
-        word_ids = [word.get("_id") for word in words]
-        
-        logger.debug(f"Looking for statistics with user_id={user_id} and word_ids in {word_ids}")
-        
-        # Используем оптимизированный aggregation с JOIN для безопасности и скорости
-        stats_pipeline = [
-            {
-                "$match": {
-                    "user_id": user_id,
-                    "word_id": {"$in": word_ids}
-                }
-            },
-            # JOIN для проверки существования слов с минимальной проекцией
-            {
-                "$lookup": {
-                    "from": "words",
-                    "let": {"word_id_str": "$word_id"},
-                    "pipeline": [
-                        {
-                            "$match": {
-                                "$expr": {
-                                    # "$eq": [{"$toString": "$_id"}, "$$word_id_str"]
-                                    "$eq": [{"$toObjectId": "$$word_id_str"}, "$_id"]
-                                }
-                            }
-                        },
-                        {"$project": {"_id": 1}}  # Минимальная проекция для скорости
-                    ],
-                    "as": "word_exists"
-                }
-            },
-            # Оставляем только статистику для существующих слов
-            {"$match": {"word_exists": {"$ne": []}}},
-            # Убираем служебное поле
-            {"$project": {"word_exists": 0}}
-        ]
-        
-        statistics_cursor = self.repository.collection.aggregate(stats_pipeline)
-        statistics = await statistics_cursor.to_list(length=None)
-        
-        logger.info(f"Found {len(statistics)} validated statistics records for user_id={user_id}")
-        
-        # Преобразуем ObjectId в строки в статистике
-        for stat in statistics:
-            if "_id" in stat and isinstance(stat["_id"], ObjectId):
-                stat["_id"] = str(stat["_id"])
-            if "user_id" in stat and isinstance(stat["user_id"], ObjectId):
-                stat["user_id"] = str(stat["user_id"])
-            if "word_id" in stat and isinstance(stat["word_id"], ObjectId):
-                stat["word_id"] = str(stat["word_id"])
-            if "language_id" in stat and isinstance(stat["language_id"], ObjectId):
-                stat["language_id"] = str(stat["language_id"])
-        
-        # Create a dictionary of statistics by word_id for quick lookup
-        statistics_by_word_id = {stat.get("word_id"): stat for stat in statistics}
-        
-        # Если фильтрация не нужна, просто добавим статистику к словам и вернем все слова
-        if not skip_marked and not use_check_date:
-            logger.info("No filtering needed, adding statistics to words and returning all words")
-            
-            # Добавляем данные пользователя к словам, если они есть
-            for word in words:
-                word_id = word.get("_id")
-                stats = statistics_by_word_id.get(word_id)
-                
-                if stats:
-                    word["user_word_data"] = stats
-                    
-            return words
-        
-        # В противном случае, применяем фильтрацию
-        filtered_words = []
+
         now = datetime.datetime.utcnow()
-        
-        # Apply filters
-        for word in words:
-            word_id = word.get("_id")
-            stats = statistics_by_word_id.get(word_id)
-            
-            # Skip this word if it has stats and we need to filter
-            if stats:
-                # Skip marked words if requested
-                if skip_marked and stats.get("is_skipped", False):
-                    logger.debug(f"Skipping word_id={word_id} because it is marked and skip_marked={skip_marked}")
-                    continue
-                    
-                # Skip words that are not due for review if requested
-                if use_check_date and stats.get("next_check_date"):
-                    next_check = stats.get("next_check_date")
-                    if next_check > now:
-                        logger.debug(f"Skipping word_id={word_id} because next_check_date is in future: {next_check}")
-                        continue
-            
-            # Add user word data if available
+
+        # 1. Какие слова этому человеку сейчас не годятся.
+        blocked = set()
+        conditions = []
+        if skip_marked:
+            conditions.append({"is_skipped": True})
+        if use_check_date:
+            conditions.append({"next_check_date": {"$gt": now}})
+        if conditions:
+            blocked_cursor = self.repository.collection.find(
+                {"user_id": user_id, "language_id": language_id, "$or": conditions},
+                {"word_id": 1},
+            )
+            blocked = {doc.get("word_id") async for doc in blocked_cursor}
+            logger.info(f"Not due or marked: {len(blocked)} words")
+
+        # 2. Идём по номерам и берём первые подходящие. Читаем только номер:
+        #    сами слова достанем потом, ровно отобранные.
+        scan = self.word_repository.collection.find(
+            {"language_id": ObjectId(language_id), "word_number": {"$gte": start_word}},
+            {"word_number": 1},
+        ).sort("word_number", 1)
+
+        chosen: List[Any] = []
+        left_to_skip = skip
+        scanned = 0
+        async for doc in scan:
+            scanned += 1
+            if str(doc.get("_id")) in blocked:
+                continue
+            if left_to_skip > 0:
+                left_to_skip -= 1
+                continue
+            chosen.append(doc.get("_id"))
+            if len(chosen) >= limit:
+                break
+
+        logger.info(f"Selected {len(chosen)} words for study out of {scanned} scanned "
+                    f"from word_number >= {start_word}")
+        if not chosen:
+            return []
+
+        # 3. Сами слова и статистика по отобранным — по одному запросу.
+        #    Прежде здесь на КАЖДУЮ запись статистики шёл отдельный $lookup
+        #    «а существует ли такое слово» — сотня лишних обращений на запрос,
+        #    хотя слова только что прочитаны и их id на руках.
+        words_by_id: Dict[str, Dict[str, Any]] = {}
+        words_cursor = self.word_repository.collection.find({"_id": {"$in": chosen}})
+        async for word in words_cursor:
+            word["_id"] = str(word["_id"])
+            if isinstance(word.get("language_id"), ObjectId):
+                word["language_id"] = str(word["language_id"])
+            words_by_id[word["_id"]] = word
+
+        chosen_ids = [str(wid) for wid in chosen]
+        stats_by_word: Dict[str, Dict[str, Any]] = {}
+        stats_cursor = self.repository.collection.find(
+            {"user_id": user_id, "word_id": {"$in": chosen_ids}})
+        async for stat in stats_cursor:
+            for field in ("_id", "user_id", "word_id", "language_id"):
+                if isinstance(stat.get(field), ObjectId):
+                    stat[field] = str(stat[field])
+            stats_by_word[stat.get("word_id")] = stat
+
+        result: List[Dict[str, Any]] = []
+        for wid in chosen_ids:
+            word = words_by_id.get(wid)
+            if word is None:
+                # Слово исчезло между просмотром и чтением — пропускаем молча:
+                # для занятия это просто одно слово меньше.
+                continue
+            stats = stats_by_word.get(wid)
             if stats:
                 word["user_word_data"] = stats
-                
-            filtered_words.append(word)
-        
-        logger.info(f"After filtering, {len(filtered_words)} words remain for study")
-        
-        return filtered_words
+            result.append(word)
+
+        logger.info(f"Returning {len(result)} words for study")
+        return result
 
     async def get_data_integrity_report(self) -> Dict[str, Any]:
         """

@@ -290,7 +290,8 @@ class StudyActivity : AppCompatActivity() {
                 val body = resp.body()
                 if (resp.isSuccessful && body != null && body.words.isNotEmpty()) {
                     OfflineCache.saveBundle(
-                        StoredBundle(userId, languageId, body.words, cursor = 0)
+                        StoredBundle(userId, languageId, body.words, cursor = 0,
+                                     settings = body.settings)
                     )
                     // Phase 3: pull each word's sounds into the on-disk cache so audio
                     // plays offline too. Returns immediately — AudioCache downloads in

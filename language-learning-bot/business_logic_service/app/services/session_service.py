@@ -19,7 +19,11 @@ _sessions: Dict[str, Dict[str, Any]] = {}
 # Index for fast lookup: (user_id, language_id) → session_id
 _session_index: Dict[tuple, str] = {}
 
-BATCH_SIZE = 100  # window of word numbers scanned per batch, matches Telegram bot
+# Сколько ПОДХОДЯЩИХ слов в партии. Раньше это было окно номеров: бэкенд брал
+# сотню слов подряд по номеру и лишь потом выбрасывал непригодные, так что в
+# партии могло оказаться одно слово или ни одного. Теперь бэкенд отбирает в
+# самом запросе и отдаёт ровно столько подходящих, сколько попросили.
+BATCH_SIZE = 100
 
 
 def _session_key(user_id: str, language_id: str) -> tuple:
@@ -48,6 +52,7 @@ async def start_session(
     settings: Optional[Dict[str, Any]] = None,
     session_mode: Optional[str] = None,
     register: bool = True,
+    limit: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Load words from backend and create a new study session.
@@ -64,9 +69,14 @@ async def start_session(
         settings = dict(settings)
         settings.update({"use_check_date": False, "skip_marked": False, "start_word": 1})
 
+    limit = limit or BATCH_SIZE
     start_shift = settings.get("start_word", 1)
-    words, actual_shift = await _load_words_with_slide(api_client, user_id, language_id, settings, shift=start_shift)
-    if not words and actual_shift > 10_000:
+    words, next_start = await _load_words(
+        api_client, user_id, language_id, settings, shift=start_shift, limit=limit)
+    if not words:
+        # Подходящих слов нет вовсе: всё пройдено и даты проверки впереди.
+        # Прежде здесь требовалось ещё и «окно ушло за десятитысячный номер» —
+        # условие от старого цикла, которого больше нет.
         return None
 
     progress = ((await api_client.get_user_progress(user_id, language_id)) or {}).get("result") or {}
@@ -78,7 +88,10 @@ async def start_session(
         "language_id": language_id,
         "words": words,
         "current_index": 0,
-        "batch_start": actual_shift,
+        "batch_start": start_shift,
+        # С какого номера брать следующую партию. Не «плюс сто»: номера идут с
+        # пропусками (в английском словаре 1534 номера из 10 000 пустые).
+        "next_start": next_start,
         "total_words_processed": 0,
         "correct_count": 0,
         "incorrect_count": 0,
@@ -126,7 +139,7 @@ async def start_session(
 
 
 # Настройки, от которых зависит СОСТАВ порции. Остальные влияют только на показ
-# уже выбранных слов. Список ровно повторяет параметры _load_words_with_slide:
+# уже выбранных слов. Список ровно повторяет параметры _load_words:
 # если добавится четвёртый — добавлять и сюда, иначе смена снова не подействует.
 SELECTION_SETTINGS = frozenset({"start_word", "skip_marked", "use_check_date"})
 
@@ -263,12 +276,12 @@ async def rate_word(
 async def load_next_batch(session: Dict[str, Any], api_client) -> bool:
     """
     Load the next batch of words when the current batch is exhausted.
-    Slides the window forward (same as Telegram bot) until words are found.
+    Continues from the number right after the last word given out.
     Returns True if new words were loaded.
     """
     settings = session.get("settings", {})
-    shift = session["batch_start"] + BATCH_SIZE
-    words, shift = await _load_words_with_slide(
+    shift = session.get("next_start") or (session["batch_start"] + BATCH_SIZE)
+    words, next_start = await _load_words(
         api_client, session["user_id"], session["language_id"], settings, shift
     )
     if not words:
@@ -277,6 +290,7 @@ async def load_next_batch(session: Dict[str, Any], api_client) -> bool:
     session["words"] = words
     session["current_index"] = 0
     session["batch_start"] = shift
+    session["next_start"] = next_start
     session["word_processed"] = False
     session["active_hints"] = []
     session["used_hints"] = []
@@ -461,46 +475,52 @@ def _advance(session: Dict[str, Any]) -> None:
     session["last_wrong_distractor_id"] = None
 
 
-async def _load_words_with_slide(
+async def _load_words(
     api_client,
     user_id: str,
     language_id: str,
     settings: Dict[str, Any],
     shift: int,
-    max_shift: int = 10_000,
+    limit: Optional[int] = None,
 ) -> tuple:
     """
-    Slide the window forward (BATCH_SIZE steps) until words are found or max_shift reached.
-    Mirrors Telegram bot's while-loop in load_next_batch.
-    Returns (words_list, actual_shift_used).
+    Взять до `limit` подходящих слов, начиная с номера `shift`.
+
+    Прежде здесь был цикл: спросить сотню номеров, получить пусто, сдвинуться
+    на сотню, спросить снова — и так до десятитысячного номера. Отбор переехал
+    в запрос к базе (backend get_words_for_study), и цикл не нужен: один запрос
+    возвращает столько подходящих, сколько есть, просмотрев ровно столько слов,
+    сколько понадобилось.
+
+    Возвращает (слова, номер, с которого продолжать). Продолжать надо со
+    следующего номера ПОСЛЕ последнего выданного, а не «плюс сто»: номера идут
+    с пропусками, и шаг в сто номеров попадал внутрь уже просмотренного.
     """
-    current_shift = shift or settings.get("start_word", 1)
-    while current_shift <= max_shift:
-        params = {
-            "start_word": current_shift,
-            "skip_marked": settings.get("skip_marked", True),
-            "use_check_date": settings.get("use_check_date", True),
-        }
-        response = await api_client.get_study_words(
-            user_id=user_id,
-            language_id=language_id,
-            params=params,
-            limit=BATCH_SIZE,
-        )
-        if not response["success"]:
-            logger.error(f"Failed to load words user={user_id} lang={language_id}: {response}")
-            return [], current_shift
+    limit = limit or BATCH_SIZE
+    params = {
+        "start_word": shift,
+        "skip_marked": settings.get("skip_marked", True),
+        "use_check_date": settings.get("use_check_date", True),
+    }
+    response = await api_client.get_study_words(
+        user_id=user_id,
+        language_id=language_id,
+        params=params,
+        limit=limit,
+    )
+    if not response["success"]:
+        logger.error(f"Failed to load words user={user_id} lang={language_id}: {response}")
+        return [], shift
 
-        words = response.get("result") or []
-        if words:
-            logger.info(f"Found {len(words)} words at shift={current_shift}")
-            return words, current_shift
+    words = response.get("result") or []
+    if not words:
+        logger.info(f"No words for study from word_number={shift}")
+        return [], shift
 
-        logger.info(f"No words at shift={current_shift}, sliding to {current_shift + BATCH_SIZE}")
-        current_shift += BATCH_SIZE
-
-    logger.info(f"No words found up to max_shift={max_shift}")
-    return [], current_shift
+    numbers = [w.get("word_number") for w in words if isinstance(w.get("word_number"), int)]
+    next_start = max(numbers) + 1 if numbers else shift
+    logger.info(f"Found {len(words)} words from {shift}, next batch starts at {next_start}")
+    return words, next_start
 
 
 # ── Offline bundle + batch results ──────────────────────────────────────────────
@@ -514,7 +534,7 @@ async def build_bundle(
     language_id: str,
     api_client,
     settings: Optional[Dict[str, Any]] = None,
-    limit: int = 100,
+    limit: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Build an offline study bundle: the current batch of words, each pre-rendered
@@ -524,38 +544,23 @@ async def build_bundle(
     from app.services.card_builder import build_card, _parse_sound_urls
     from app.services import quiz_service
 
+    limit = limit or BATCH_SIZE
+
     # register=False: build a read-only snapshot without clobbering the user's
     # active online session in the global registry.
-    session = await start_session(user_id, language_id, api_client, settings, register=False)
+    #
+    # Партия набирается одним запросом: бэкенд отбирает подходящие слова сам и
+    # отдаёт столько, сколько попросили. Прежде здесь был добор окнами по сто
+    # номеров с отсевом повторов — потому что окно номеров могло дать всего
+    # несколько слов. Добор обрывался, как только окно не приносило нового, а
+    # из-за пропусков в нумерации соседние окна перекрывались: у живого
+    # пользователя в офлайн-партии оказывалось 13 слов вместо ста.
+    session = await start_session(user_id, language_id, api_client, settings,
+                                  register=False, limit=limit)
     if session is None:
         return None
 
-    # Первое непустое окно номеров может содержать лишь несколько слов к
-    # повторению — утром их было пять. Без сети новых не подгрузить, поэтому
-    # партия добирается следующими окнами до limit. Прежде офлайн-партия
-    # состояла ровно из этих пяти: пройдя их без сети, человек получал «всё»,
-    # хотя впереди были тысячи слов.
-    #
-    # Повторы отсекаются, и добор останавливается, как только окно не принесло
-    # ничего нового. Окна номеров в бою не пересекаются, но опираться на это
-    # нельзя: первая версия этого цикла повторов не проверяла, и на ответе с
-    # одними и теми же словами набивала партию дублями до сотни — поймали тесты.
-    def key(w):
-        return str(w.get("_id") or w.get("id") or w.get("word_id", ""))
-
-    words = list(session.get("words") or [])
-    seen = {key(w) for w in words}
-    shift = session.get("batch_start", 1)
-    while len(words) < limit:
-        more, shift = await _load_words_with_slide(
-            api_client, user_id, language_id, session["settings"], shift + BATCH_SIZE)
-        fresh = [w for w in more if key(w) not in seen]
-        if not fresh:
-            break
-        for w in fresh:
-            seen.add(key(w))
-            words.append(w)
-    words = words[:limit]
+    words = list(session.get("words") or [])[:limit]
     session["words"] = words
     # The snapshot never advances, so every card would otherwise be rendered at the
     # same position ("1 из N" on all of them). Walk the counters forward per unit —
