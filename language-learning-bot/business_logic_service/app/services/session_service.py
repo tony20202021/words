@@ -525,6 +525,25 @@ async def _load_words(
 
 # ── Offline bundle + batch results ──────────────────────────────────────────────
 
+# Границы размера офлайн-партии. Снизу — чтобы партия имела смысл, сверху —
+# чтобы один запрос не собирал полсловаря: сотня слов это ~1,5 МБ карточек и
+# ~1,8 МБ звуков, и время сборки растёт вместе с числом.
+MIN_BUNDLE_SIZE = 10
+MAX_BUNDLE_SIZE = 500
+
+
+def bundle_size(settings: Optional[Dict[str, Any]]) -> int:
+    """Сколько слов класть в офлайн-партию по настройкам человека."""
+    raw = (settings or {}).get("offline_bundle_size")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return BATCH_SIZE
+    if value <= 0:
+        return BATCH_SIZE
+    return max(MIN_BUNDLE_SIZE, min(MAX_BUNDLE_SIZE, value))
+
+
 # In-process idempotency guard for replayed offline results (bounded).
 _processed_event_ids: "set[str]" = set()
 
@@ -540,11 +559,19 @@ async def build_bundle(
     Build an offline study bundle: the current batch of words, each pre-rendered
     for both the question and answer sides (plus pick options where applicable),
     so an Android client can run the study loop without the network.
+
+    Размер партии — настройка человека (offline_bundle_size): это про
+    автономность, и знает о ней только он сам. На час в метро хватает и сотни,
+    на десять часов в самолёте — нет. Онлайн-партия (BATCH_SIZE) остаётся
+    прежней: её размер человеку не виден.
     """
     from app.services.card_builder import build_card, _parse_sound_urls
     from app.services import quiz_service
 
-    limit = limit or BATCH_SIZE
+    if settings is None:
+        settings = await get_settings(user_id, language_id, api_client)
+    if limit is None:
+        limit = bundle_size(settings)
 
     # register=False: build a read-only snapshot without clobbering the user's
     # active online session in the global registry.

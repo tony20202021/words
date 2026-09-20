@@ -56,17 +56,35 @@ class OfflineRestartTest {
     }
 
     @Test
-    fun restart_drops_the_words_already_answered() {
+    fun restart_drops_the_words_the_person_knows() {
         OfflineCache.addResult(u, l, "w1", "know")
-        OfflineCache.addResult(u, l, "w2", "dont_know")
         OfflineCache.excludeAnswered(u, l)
 
         val eng = OfflineEngine.fromStore(u, l)!!
-        // Круг короче на отвеченные, и начинается с первого оставшегося.
-        assertEquals(1, eng.total)
-        assertEquals("w3", eng.currentWordId())
+        // Круг короче на известные, и начинается с первого оставшегося.
+        assertEquals(2, eng.total)
+        assertEquals("w2", eng.currentWordId())
         assertTrue(eng.isExcluded("w1"))
-        assertFalse(eng.isExcluded("w3"))
+        assertFalse(eng.isExcluded("w2"))
+    }
+
+    @Test
+    fun a_word_answered_dont_know_comes_round_again() {
+        // Правило сервера: «не знаю» стирает дату проверки, и слово остаётся в
+        // обороте. Офлайн выводил его из круга наравне с известными — и в
+        // самолёте пройденная партия объявлялась законченной, хотя половину
+        // слов человек как раз не знает.
+        OfflineCache.addResult(u, l, "w1", "know")
+        OfflineCache.addResult(u, l, "w2", "dont_know")
+        OfflineCache.addResult(u, l, "w3", "skip")
+        OfflineCache.excludeAnswered(u, l)
+
+        val eng = OfflineEngine.fromStore(u, l)!!
+        assertEquals(1, eng.total)
+        assertEquals("w2", eng.currentWordId())
+        assertFalse("«не знаю» обязано остаться в круге", eng.isExcluded("w2"))
+        assertTrue(eng.isExcluded("w1"))
+        assertTrue("пропущенное выводится, как и известное", eng.isExcluded("w3"))
     }
 
     @Test

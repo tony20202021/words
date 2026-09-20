@@ -41,6 +41,13 @@ class SettingsActivity : AppCompatActivity() {
             "random_pick_mode"              to "Режим выбора (pick mode)",
         )
 
+        // Чего ждать, если значение не пришло. Ноль здесь был бы ложью: «слов в
+        // офлайн-партии: 0» читается как «офлайн не работает», хотя сервер в
+        // таком случае кладёт в партию сотню.
+        val NUMERIC_DEFAULTS = mapOf(
+            "offline_bundle_size" to StudyActivity.DEFAULT_BUNDLE_SIZE,
+        )
+
         val NUMERIC_SETTINGS = linkedMapOf(
             "start_word"                 to "Начальное слово",
             "reset_same_day_hours"       to "Сброс: перерыв за день (ч)",
@@ -48,6 +55,7 @@ class SettingsActivity : AppCompatActivity() {
             "unknown_limit_new_words"    to "Лимит неизвестных слов",
             "max_check_interval"         to "Макс. интервал повторения (дни)",
             "quiz_options_count"         to "Вариантов в режиме выбора",
+            "offline_bundle_size"        to "Слов в офлайн-партии",
         )
     }
 
@@ -152,11 +160,12 @@ class SettingsActivity : AppCompatActivity() {
 
         for ((key, label) in NUMERIC_SETTINGS) {
             val rawValue = settings[key]
+            val fallback = NUMERIC_DEFAULTS[key] ?: 0
             val current = when (rawValue) {
                 is Double -> rawValue.toInt()
                 is Int    -> rawValue
-                is String -> rawValue.toIntOrNull() ?: 0
-                else      -> 0
+                is String -> rawValue.toIntOrNull() ?: fallback
+                else      -> fallback
             }
 
             val row = LinearLayout(this)

@@ -13,6 +13,7 @@ NUMERIC_LABELS = {
     "unknown_limit_new_words":     "Лимит неизвестных слов",
     "max_check_interval":          "Макс. интервал повторения (дни)",
     "quiz_options_count":          "Кол-во вариантов в режиме выбора",
+    "offline_bundle_size":         "Слов в офлайн-партии (Android)",
 }
 
 SETTING_LABELS = {

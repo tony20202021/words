@@ -30,7 +30,42 @@ data class StoredBundle(
     // показать было что. Менять их без сети всё равно нельзя: состав слов
     // пересчитывает сервер. Тип обнуляемый по той же причине, что и excluded.
     val settings: Map<String, Any>? = null,
+    // Сколько слов просили у сервера и когда — по ним решается, нужно ли
+    // качать партию заново. См. BundleRefresh.
+    val requestedSize: Int? = null,
+    val savedAt: Long? = null,
 )
+
+/**
+ * Нужно ли качать офлайн-партию заново.
+ *
+ * Прежде она перекачивалась при каждом открытии экрана занятия. Пока партия
+ * была ровно на сто слов, это стоило около полутора мегабайт; с настройкой
+ * размера человек может попросить и пятьсот — тогда на каждый вход уходило бы
+ * под восемь мегабайт трафика и несколько секунд работы сервера.
+ *
+ * Свежее от этого партия всё равно не становится: она устаревает от ответов,
+ * которые человек даёт ПОСЛЕ скачивания, а не от времени. Поэтому достаточно
+ * качать её заново, когда партия кончается, когда изменили размер — и не чаще
+ * раза в полчаса в остальных случаях.
+ */
+object BundleRefresh {
+    const val MAX_AGE_MS = 30 * 60 * 1000L
+
+    /** Докуда партию можно не трогать: пока пройдено меньше трёх четвертей. */
+    private const val KEEP_WHILE_LEFT = 4
+
+    fun needed(stored: StoredBundle?, wantedSize: Int, now: Long): Boolean {
+        if (stored == null || stored.words.isEmpty()) return true
+        // Размер поменяли — партия обязана стать такой, как просили.
+        if ((stored.requestedSize ?: stored.words.size) != wantedSize) return true
+        val left = stored.words.size - stored.cursor
+        if (left * KEEP_WHILE_LEFT < stored.words.size) return true
+        val savedAt = stored.savedAt ?: return true   // партия из старой версии
+        if (now < savedAt) return true                // часы съехали назад
+        return now - savedAt >= MAX_AGE_MS
+    }
+}
 
 /** One accumulated, not-yet-synced study result. */
 data class OutboxEntry(
@@ -73,16 +108,24 @@ object OfflineCache {
     }
 
     /**
-     * Перезапуск круга: всё, что уже отвечено, выводится из партии.
+     * Перезапуск круга: из партии выводится то, что человек ЗНАЕТ.
      *
-     * Онлайн «начать заново» отдаёт только оставшиеся на сегодня слова. Офлайн
-     * партия скачана целиком и о прошедшем ответе ничего не знает, поэтому
-     * список отвеченного берём из outbox — он ровно для этого и накапливается.
+     * Онлайн «начать заново» отдаёт только оставшиеся на сегодня слова, и
+     * правило у сервера такое: ответ «не знаю» ставит счёт 0 и стирает дату
+     * следующей проверки — слово остаётся в обороте и выдаётся снова. Офлайн
+     * партия скачана целиком и о прошедших ответах знает только из outbox.
+     *
+     * Сначала здесь выводились все отвеченные подряд, независимо от оценки. В
+     * метро это незаметно: связь возвращается, ответы уходят, outbox пустеет,
+     * и перезапуск не выводит ничего. А вот в самолёте, где связи нет вовсе,
+     * пройденная партия объявлялась законченной — хотя половину слов человек
+     * не знает, и именно их и надо было повторить.
      */
     fun excludeAnswered(u: String, l: String) = synchronized(lock) {
-        val answered = loadOutbox().filter { it.userId == u && it.languageId == l }
+        val known = loadOutbox()
+            .filter { it.userId == u && it.languageId == l && it.rating != "dont_know" }
             .map { it.word_id }.toSet()
-        loadBundle(u, l)?.let { saveBundle(it.copy(cursor = 0, excluded = answered)) }
+        loadBundle(u, l)?.let { saveBundle(it.copy(cursor = 0, excluded = known)) }
     }
 
     fun saveCursor(u: String, l: String, cursor: Int) = synchronized(lock) {

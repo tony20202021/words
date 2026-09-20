@@ -91,6 +91,52 @@ async def test_build_bundle_respects_limit():
     assert len(bundle["words"]) == 4
 
 
+class TestBundleSizeIsTheUsersChoice:
+    """
+    Размер офлайн-партии — настройка человека: это про автономность, и знает о
+    ней только он. На час в метро хватает сотни, на десять часов в самолёте нет.
+    Границы нужны, чтобы один запрос не собирал полсловаря: сотня слов — это
+    около полутора мегабайт карточек и почти двух мегабайт звуков.
+    """
+
+    def test_default_when_the_setting_is_not_set(self):
+        assert session_service.bundle_size({}) == session_service.BATCH_SIZE
+        assert session_service.bundle_size(None) == session_service.BATCH_SIZE
+
+    def test_the_users_number_is_taken_as_is(self):
+        assert session_service.bundle_size({"offline_bundle_size": 250}) == 250
+
+    def test_nonsense_falls_back_to_the_default(self):
+        for value in ("", None, "много", 0, -5):
+            assert session_service.bundle_size(
+                {"offline_bundle_size": value}) == session_service.BATCH_SIZE
+
+    def test_a_number_written_as_text_still_works(self):
+        assert session_service.bundle_size({"offline_bundle_size": "250"}) == 250
+
+    def test_too_big_and_too_small_are_pulled_into_the_bounds(self):
+        assert session_service.bundle_size(
+            {"offline_bundle_size": 100000}) == session_service.MAX_BUNDLE_SIZE
+        assert session_service.bundle_size(
+            {"offline_bundle_size": 3}) == session_service.MIN_BUNDLE_SIZE
+
+    @pytest.mark.asyncio
+    async def test_the_bundle_is_built_to_the_users_size(self):
+        api = make_mock_api(words=[make_word(i) for i in range(1, 51)],
+                            settings={"offline_bundle_size": 20, "random_pick_mode": False})
+        bundle = await build_bundle("u1", "lang1", api)
+        assert len(bundle["words"]) == 20
+        # И у бэкенда спрошено ровно столько же — лишнего не читаем.
+        assert api.get_study_words.await_args.kwargs["limit"] == 20
+
+    @pytest.mark.asyncio
+    async def test_an_explicit_limit_still_wins(self):
+        api = make_mock_api(words=[make_word(i) for i in range(1, 51)],
+                            settings={"offline_bundle_size": 20, "random_pick_mode": False})
+        bundle = await build_bundle("u1", "lang1", api, limit=5)
+        assert len(bundle["words"]) == 5
+
+
 @pytest.mark.asyncio
 async def test_build_bundle_does_not_clobber_active_session():
     """A background prefetch must not disturb the user's active online session."""

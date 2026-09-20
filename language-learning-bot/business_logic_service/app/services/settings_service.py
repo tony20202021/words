@@ -35,6 +35,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "max_check_interval": 32,
     "random_pick_mode": False,
     "quiz_options_count": 3,
+    # Сколько слов класть в офлайн-партию. Это про автономность: на час в метро
+    # хватает и сотни, на десять часов в самолёте — нет. Размер онлайн-партии
+    # (BATCH_SIZE) отдельный и в настройки не вынесен: человеку он не виден.
+    "offline_bundle_size": 100,
 }
 
 DEFAULT_HINT_SETTINGS: Dict[str, bool] = {

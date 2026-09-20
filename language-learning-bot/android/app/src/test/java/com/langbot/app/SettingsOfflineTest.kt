@@ -110,7 +110,8 @@ class SettingsOfflineTest {
         val a = open()
 
         val text = allText(a)
-        assertTrue("нет объяснения, откуда значения: $text", text.contains("офлайн-партии"))
+        assertTrue("нет объяснения, откуда значения: $text",
+            text.contains("из сохранённой офлайн-партии"))
         assertTrue("не сказано, что менять нельзя: $text", text.contains("без сети нельзя"))
         assertTrue("не показаны переключатели: $text", text.contains("Учитывать дату проверки"))
         assertTrue("не показано числовое значение 1234: $text", text.contains("1234"))
@@ -166,7 +167,9 @@ class SettingsOfflineTest {
             switches[rows.indexOf("use_check_date")].isChecked)
         assertFalse("значение из партии перебило серверное",
             switches[rows.indexOf("skip_marked")].isChecked)
-        assertTrue("не видно предупреждения об офлайне — и не должно быть",
-            !allText(a).contains("офлайн-партии"))
+        // Проверяем именно плашку, а не слово «офлайн»: оно есть и в подписи
+        // настройки «Слов в офлайн-партии», которая видна всегда.
+        assertFalse("плашки об отсутствии связи быть не должно",
+            allText(a).contains("Нет связи с сервером"))
     }
 }

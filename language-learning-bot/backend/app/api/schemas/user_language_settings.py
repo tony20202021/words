@@ -42,6 +42,7 @@ class UserLanguageSettingsBase(BaseModel):
     max_check_interval: int = Field(32, description="Maximum spaced-repetition interval in days")
     random_pick_mode: bool = Field(False, description="Randomly use pick mode (multiple choice) per word")
     quiz_options_count: int = Field(3, description="Number of distractor options in pick mode (total = this + 1)")
+    offline_bundle_size: int = Field(100, description="How many words to put into the offline bundle (Android)")
 
 class UserLanguageSettingsCreate(UserLanguageSettingsBase):
     """Model for creating user language settings."""
@@ -81,6 +82,7 @@ class UserLanguageSettingsUpdate(BaseModel):
     max_check_interval: Optional[int] = None
     random_pick_mode: Optional[bool] = None
     quiz_options_count: Optional[int] = None
+    offline_bundle_size: Optional[int] = None
 
 class UserLanguageSettingsInDB(UserLanguageSettingsBase):
     """Model for user language settings as stored in the database."""

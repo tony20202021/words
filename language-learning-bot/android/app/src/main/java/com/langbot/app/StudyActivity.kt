@@ -37,6 +37,7 @@ import com.langbot.app.network.RateRequest
 import com.langbot.app.network.SessionResponse
 import com.langbot.app.network.StartSessionRequest
 import com.langbot.app.offline.AudioCache
+import com.langbot.app.offline.BundleRefresh
 import com.langbot.app.offline.OfflineCache
 import com.langbot.app.offline.OfflineEngine
 import com.langbot.app.offline.OfflineSemantics
@@ -81,6 +82,23 @@ class StudyActivity : AppCompatActivity() {
         private set
 
     companion object {
+        /** Сколько слов в офлайн-партии, если настройка не задана. */
+        const val DEFAULT_BUNDLE_SIZE = 100
+
+        /**
+         * Размер офлайн-партии из настроек. Gson отдаёт числа как Double, а
+         * настройка могла прийти строкой из старой записи.
+         */
+        fun bundleSizeOf(settings: Map<String, Any>?): Int {
+            val raw = settings?.get("offline_bundle_size")
+            val value = when (raw) {
+                is Number -> raw.toInt()
+                is String -> raw.toIntOrNull() ?: 0
+                else -> 0
+            }
+            return if (value > 0) value else DEFAULT_BUNDLE_SIZE
+        }
+
         private const val MENU_REFRESH = 1
         private const val MENU_STATS   = 2
         private const val MENU_RESTART = 3
@@ -282,16 +300,34 @@ class StudyActivity : AppCompatActivity() {
         }
     }
 
-    /** Prefetch a fresh offline bundle in the background; never blocks the UI. */
+    /**
+     * Подкачать офлайн-партию фоном; экран её не ждёт.
+     *
+     * Сначала спрашиваем настройки — запрос лёгкий, одна запись, — и по ним
+     * решаем, нужно ли качать саму партию: её размер теперь выбирает человек, и
+     * на пятистах словах это около восьми мегабайт. Настройки сохраняем в любом
+     * случае: без сети экран настроек показывает именно их.
+     */
     private fun prefetchBundleInBackground() {
         lifecycleScope.launch {
             runCatching {
+                val settings = BLSClient.api.getSettings(userId, languageId).body()
+                val wanted = bundleSizeOf(settings)
+                val stored = OfflineCache.loadBundle(userId, languageId)
+                if (!BundleRefresh.needed(stored, wanted, System.currentTimeMillis())) {
+                    if (settings != null && stored != null) {
+                        OfflineCache.saveBundle(stored.copy(settings = settings))
+                    }
+                    return@runCatching
+                }
                 val resp = BLSClient.api.getBundle(userId, languageId)
                 val body = resp.body()
                 if (resp.isSuccessful && body != null && body.words.isNotEmpty()) {
                     OfflineCache.saveBundle(
                         StoredBundle(userId, languageId, body.words, cursor = 0,
-                                     settings = body.settings)
+                                     settings = body.settings.ifEmpty { settings ?: emptyMap() },
+                                     requestedSize = wanted,
+                                     savedAt = System.currentTimeMillis())
                     )
                     // Phase 3: pull each word's sounds into the on-disk cache so audio
                     // plays offline too. Returns immediately — AudioCache downloads in

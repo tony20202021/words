@@ -51,7 +51,11 @@ def _make_api(total=9995, **kwargs):
     ok = {"success": True, "result": {"score": 1, "check_interval": 1,
           "next_check_date": "2026-06-01", "is_skipped": False}}
     api.get_study_words.side_effect = _dictionary(total, **kwargs)
-    api.get_user_language_settings.return_value = {"success": True, "result": {}}
+    # Десять слов и в онлайн-партии (BATCH_SIZE подменён), и в офлайновой — её
+    # размер человек задаёт настройкой. Десять, а не пять: меньше десяти
+    # офлайн-партию делать не дают, иначе она теряет смысл.
+    api.get_user_language_settings.return_value = {
+        "success": True, "result": {"offline_bundle_size": 10}}
     api.get_user_word_data.return_value = {"success": True, "result": None}
     api.create_user_word_data.return_value = ok
     api.update_user_word_data.return_value = ok
@@ -75,8 +79,8 @@ def _override(api):
 
 @pytest.fixture(autouse=True)
 def _small_batch(monkeypatch):
-    """Партия из пяти слов: те же пути, но проходятся пятью ответами, а не ста."""
-    monkeypatch.setattr(session_service, "BATCH_SIZE", 5)
+    """Партия из десяти слов: те же пути, но проходятся десятью ответами, а не ста."""
+    monkeypatch.setattr(session_service, "BATCH_SIZE", 10)
 
 
 @pytest.fixture
@@ -91,7 +95,7 @@ def _start(client, user):
     return resp.json()["session_id"]
 
 
-def _finish_batch(client, sid, count=5):
+def _finish_batch(client, sid, count=10):
     last = None
     for _ in range(count):
         last = client.post(f"/session/{sid}/rate", json={"rating": "know"})
@@ -100,14 +104,14 @@ def _finish_batch(client, sid, count=5):
 
 def test_the_batch_is_full_even_when_only_two_words_are_due(client):
     """
-    Главная перемена: партия — это сто (здесь пять) подходящих слов, а не
+    Главная перемена: партия — это сто (здесь десять) подходящих слов, а не
     сколько наскребётся в первой сотне номеров. Двух слов к повторению уже
     недостаточно, чтобы партия кончилась.
     """
     sid = _start(client, "u-full")
     session = session_service.get_session_by_id(sid)
     numbers = [w["word_number"] for w in session["words"]]
-    assert len(numbers) == 5, f"в партии {len(numbers)} слов вместо пяти: {numbers}"
+    assert len(numbers) == 10, f"в партии {len(numbers)} слов вместо десяти: {numbers}"
     assert numbers[:2] == [2, 7], "сначала слова к повторению"
     assert all(n >= 101 for n in numbers[2:]), "дальше — новые, с №101"
 
@@ -165,7 +169,7 @@ def test_offline_bundle_reaches_new_words(client):
     assert resp.status_code == 200
     numbers = [u["word_number"] for u in resp.json()["words"]]
     assert numbers[:2] == [2, 7], "сначала слова к повторению"
-    assert len(numbers) == 5, f"в партии {len(numbers)} слов вместо пяти"
+    assert len(numbers) == 10, f"в партии {len(numbers)} слов вместо десяти"
     assert all(n >= 101 for n in numbers[2:]), "дальше — новые, с №101"
 
 
@@ -182,5 +186,5 @@ def test_offline_bundle_does_not_stop_at_gaps_in_numbering():
     resp = client.post("/session/u-bundle-gaps/lang1/bundle")
     assert resp.status_code == 200
     numbers = [u["word_number"] for u in resp.json()["words"]]
-    assert len(numbers) == 5, f"в партии {len(numbers)} слов вместо пяти: {numbers}"
+    assert len(numbers) == 10, f"в партии {len(numbers)} слов вместо десяти: {numbers}"
     assert len(set(numbers)) == len(numbers), f"в партии повторы: {numbers}"
