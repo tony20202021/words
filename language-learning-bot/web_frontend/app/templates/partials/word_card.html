@@ -295,15 +295,20 @@
             {% if item.header_foreign or item.header_ru %}
               {# Заголовок — такая же строка таблицы: он тоже двуязычный и
                  отдельной строкой уезжал вправо по первой ивритской букве. #}
+              {# Колонки те же, что у таблицы группы тега ниже: номер, перевод,
+                 слово, транскрипция. У огласовок номера нет — колонка пустая,
+                 зато две таблицы на одной карточке выглядят одинаково. #}
               <thead class="table-light">
                 <tr>
-                  <th class="text-end align-top fw-normal" dir="rtl" style="width:45%">{{ item.header_foreign | safe }}</th>
-                  <th class="text-start align-top fw-normal text-muted" dir="ltr">{{ item.header_ru }}</th>
+                  <th style="width:12%"></th>
+                  <th class="text-start align-top fw-normal text-muted" dir="ltr" style="width:30%">{{ item.header_ru }}</th>
+                  <th class="text-end align-top fw-normal" dir="rtl" style="width:33%">{{ item.header_foreign | safe }}</th>
+                  <th></th>
                 </tr>
               </thead>
             {% elif item.header %}
               <thead class="table-light">
-                <tr><th colspan="2" class="fw-normal" dir="ltr">{{ item.header | safe }}</th></tr>
+                <tr><th colspan="4" class="fw-normal" dir="ltr">{{ item.header | safe }}</th></tr>
               </thead>
             {% endif %}
             <tbody>
@@ -311,12 +316,13 @@
               {# Непройденное гасим, но оставляем: обрезка съедала у глагола
                  почти всю парадигму. #}
               <tr{% if row.studied is defined and not row.studied %} class="table-secondary text-muted"{% endif %}>
-                {# Иврит крупнее: огласовка — мелкие знаки под буквами, и в
-                   основном кегле её просто не разглядеть. #}
-                <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:45%">{{ row.foreign | safe }}</td>
-                <td class="text-start align-middle" dir="ltr">
-                  {% if row.marker %}<span class="text-muted">{{ row.marker }}</span> {% endif %}{{ row.ru }}
-                </td>
+                {# Номер вместо прежней пометки «[#28]»: та же колонка, что у
+                   таблицы тега. Иврит крупнее — огласовка это мелкие знаки под
+                   буквами, и в основном кегле её не разглядеть. #}
+                <td class="text-end align-middle text-muted text-nowrap" style="width:12%">{{ row.rank if row.rank }}</td>
+                <td class="text-start align-middle" dir="ltr" style="width:30%">{{ row.ru }}</td>
+                <td class="text-end align-middle word-extra-foreign" dir="rtl" style="width:33%">{{ row.foreign | safe }}</td>
+                <td class="text-start align-middle text-muted" dir="ltr">{% if row.ipa %}[{{ row.ipa }}]{% endif %}</td>
               </tr>
             {% endfor %}
             </tbody>

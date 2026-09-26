@@ -52,12 +52,14 @@
    "rows": [
     {
      "marker": "",
-     "foreign": "עִם [ʔim]",
+     "foreign": "עִם",
+     "ipa": "ʔim",
      "ru": "с, вместе с"
     },
     {
      "marker": "",
-     "foreign": "עַם [ʔam]",
+     "foreign": "עַם",
+     "ipa": "ʔam",
      "ru": "народ"
     }
    ]
@@ -78,21 +80,24 @@
     {
      "marker": "[#27]",
      "rank": 27,
-     "foreign": "אוֹתוֹ [ʔoˈto]",
+     "foreign": "אוֹתוֹ",
+     "ipa": "ʔoˈto",
      "ru": "его; тот самый",
      "studied": true
     },
     {
      "marker": "[#33]",
      "rank": 33,
-     "foreign": "אוֹתִי [ʔoˈti]",
+     "foreign": "אוֹתִי",
+     "ipa": "ʔoˈti",
      "ru": "меня",
      "studied": true
     },
     {
      "marker": "[#41]",
      "rank": 41,
-     "foreign": "עִמָּנוּ [ʔiˈmanu]",
+     "foreign": "עִמָּנוּ",
+     "ipa": "ʔiˈmanu",
      "ru": "с нами",
      "studied": true
     }

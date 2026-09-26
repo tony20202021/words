@@ -20,8 +20,8 @@ from app.templating import templates
 
 
 ROWS = [
-    {"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
-    {"marker": "[#33]", "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
+    {"marker": "[#28]", "rank": 28, "foreign": "אוֹתְךָ", "ipa": "ʔotˈχa", "ru": "тебя"},
+    {"marker": "[#33]", "rank": 33, "foreign": "אוֹתִי", "ipa": "ʔoˈti", "ru": "меня"},
 ]
 
 
@@ -66,7 +66,7 @@ def test_table_has_cell_borders(render):
     assert "table-borderless" not in html
 
 
-def test_header_is_split_into_the_same_two_cells(render):
+def test_header_is_split_into_the_same_cells(render):
     """
     Заголовок тоже двуязычный и отдельной строкой уезжал вправо по первой
     ивритской букве — ровно как строки данных до таблицы.
@@ -95,10 +95,30 @@ def test_hebrew_column_is_right_to_left_and_russian_is_not(render):
     cells = re.findall(r"<td[^>]*>", html)
     rtl = [c for c in cells if 'dir="rtl"' in c]
     ltr = [c for c in cells if 'dir="ltr"' in c]
-    assert len(rtl) == 2, cells
-    assert len(ltr) == 2, cells
+    # По ивритской колонке на строку; остальные — русские: перевод и
+    # транскрипция (номер колонка без направления, он цифровой).
+    assert len(rtl) == len(ROWS), cells
+    assert len(ltr) == 2 * len(ROWS), cells
     assert all("text-end" in c for c in rtl), rtl
     assert all("text-start" in c for c in ltr), ltr
+
+
+def test_columns_are_the_same_four_as_in_a_tag_group(render):
+    """
+    Просьба владельца: у таблицы огласовок те же колонки, что у таблицы группы
+    тега на той же карточке — номер, перевод, слово, транскрипция. Прежде их
+    было две, и слово шло слитно с транскрипцией.
+    """
+    html = render({"type": "extra", "group": "references", "text": "",
+                   "header": "", "rows": ROWS})
+    body = html[html.index("<tbody>"):html.index("</tbody>")]
+    first = body[body.index("<tr"):body.index("</tr>")]
+    cells = re.findall(r"<td[^>]*>(.*?)</td>", first, re.S)
+    assert len(cells) == 4, cells
+    assert cells[0].strip() == "28", cells
+    assert cells[1].strip() == "тебя", cells
+    assert "אוֹתְךָ" in cells[2] and "ʔotˈχa" not in cells[2], cells
+    assert "[ʔotˈχa]" in cells[3], cells
 
 
 def test_table_itself_runs_left_to_right(render):

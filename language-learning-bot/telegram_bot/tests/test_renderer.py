@@ -280,7 +280,11 @@ def test_extra_lines_get_left_to_right_direction():
 def test_extra_block_uses_the_parsed_rows():
     """
     Таблиц в Telegram нет, но колонки уже разобраны сервером — из них собирается
-    ровная строка «иврит — русский», а не сырой текст блока.
+    ровная строка, а не сырой текст блока.
+
+    Порядок колонок тот же, что у группы тега: номер, перевод, слово,
+    транскрипция. Прежде строка шла как «слово [транскрипция] — перевод», и две
+    таблицы на одной карточке читались по-разному.
     """
     from app.bot.renderer import render_extra_texts
 
@@ -288,11 +292,11 @@ def test_extra_block_uses_the_parsed_rows():
         {"type": "label", "text": "🌱 Слова с той же основой:", "group": "references"},
         {"type": "extra", "text": "СЫРОЙ ТЕКСТ", "group": "references",
          "header": "<b>את</b>: <i>слов: 2</i>",
-         "rows": [{"marker": "[#28]", "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"}]},
+         "rows": [{"marker": "[#28]", "rank": 28, "foreign": "אוֹתְךָ",
+                   "ipa": "ʔotˈχa", "ru": "тебя"}]},
     ]}
     body = "\n".join(render_extra_texts(card))
-    assert "אוֹתְךָ [ʔotˈχa] — тебя" in body
-    assert "[#28]" in body
+    assert "28  тебя  אוֹתְךָ  [ʔotˈχa]" in body, body
     assert "СЫРОЙ ТЕКСТ" not in body
 
 

@@ -22,9 +22,16 @@ def _extra_text(item: Dict[str, Any]) -> str:
         return item.get("text") or ""
     out = [item.get("header") or ""]
     for row in rows:
-        left = (row.get("marker") or "").strip()
-        parts = [p for p in (left, row.get("foreign") or "", "—", row.get("ru") or "") if p]
-        line = " ".join(parts)
+        # Порядок колонок тот же, что у группы тега: номер, перевод, слово,
+        # транскрипция. Прежде здесь стояла пометка «[#28]» и слитая ячейка
+        # «слово [транскрипция]» — две таблицы на одной карточке читались
+        # по-разному.
+        rank = row.get("rank")
+        ipa = (row.get("ipa") or "").strip()
+        parts = [str(rank) if rank else "", row.get("ru") or "", row.get("foreign") or ""]
+        if ipa:
+            parts.append(f"[{ipa}]")
+        line = "  ".join(p for p in parts if p)
         # Непройденное — курсивом: заливки в Telegram нет, а отличать «уже
         # встречал» от «ещё не дошёл» нужно так же, как в таблицах остальных
         # клиентов. Строку не вырезаем: у глагола так пропадала вся парадигма.

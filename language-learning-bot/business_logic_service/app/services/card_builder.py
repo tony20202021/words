@@ -276,6 +276,11 @@ EXTRA_LABELS_BY_LANGUAGE = {
 # Разбирать в каждом клиенте значило бы держать три копии знания о формате —
 # ровно то, что уже дважды расходилось (кнопки пик-режима, запрет комбинации).
 # Формат наш собственный, его порождают words/hebrew_tools, и форм всего четыре.
+#
+# Колонок четыре, те же, что у таблицы тегов: номер, перевод, слово,
+# транскрипция. Раньше слово и транскрипция шли одной ячейкой, и таблица
+# огласовок выглядела иначе, чем соседняя таблица группы на той же карточке.
+# У огласовок номера нет — колонка остаётся пустой, но ширины совпадают.
 _REF_ROW = re.compile(r"^<i>\[#(\d+)\]</i>(.+?)\s*(\[[^\]]*\])\s*(.*)$")
 _TONE_ROW = re.compile(r"^\s*-\s*<b>(.+?)</b>\s*(\[[^\]]*\])\s*:\s*(.*)$")
 
@@ -293,12 +298,14 @@ def _extra_rows(text: str) -> Dict[str, Any]:
         m = _REF_ROW.match(line.strip())
         if m:
             rows.append({"marker": f"[#{m.group(1)}]", "rank": int(m.group(1)),
-                         "foreign": f"{m.group(2)} {m.group(3)}".strip(),
+                         "foreign": m.group(2).strip(),
+                         "ipa": m.group(3).strip("[] "),
                          "ru": m.group(4).strip()})
             continue
         m = _TONE_ROW.match(line)
         if m:
-            rows.append({"marker": "", "foreign": f"{m.group(1)} {m.group(2)}".strip(),
+            rows.append({"marker": "", "foreign": m.group(1).strip(),
+                         "ipa": m.group(2).strip("[] "),
                          "ru": m.group(3).strip()})
             continue
         if not header:
@@ -311,7 +318,7 @@ def _extra_rows(text: str) -> Dict[str, Any]:
                 header_foreign = m.group(1)
                 header_ru = re.sub(r"</?i>", "", m.group(2)).strip()
         else:
-            rows.append({"marker": "", "foreign": "", "ru": line.strip()})
+            rows.append({"marker": "", "foreign": "", "ipa": "", "ru": line.strip()})
     return {"header": header, "header_foreign": header_foreign,
             "header_ru": header_ru, "rows": rows}
 

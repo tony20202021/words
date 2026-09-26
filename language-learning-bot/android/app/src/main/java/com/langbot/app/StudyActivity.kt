@@ -1581,13 +1581,13 @@ class StudyActivity : AppCompatActivity() {
         // Заголовок — такая же строка таблицы: он тоже двуязычный и отдельной
         // строкой уезжал вправо по первой ивритской букве.
         if (!headerForeign.isNullOrBlank() || !headerRu.isNullOrBlank()) {
-            table.addView(extraTableRow(headerForeign ?: "", "", headerRu ?: "",
+            table.addView(extraTableRow(headerForeign ?: "", headerRu ?: "", "", null,
                                         headerCell = true))
         } else if (!header.isNullOrBlank()) {
-            table.addView(extraTableRow(header, "", "", headerCell = true))
+            table.addView(extraTableRow(header, "", "", null, headerCell = true))
         }
         for (row in rows) {
-            table.addView(extraTableRow(row.foreign, row.marker, row.ru,
+            table.addView(extraTableRow(row.foreign, row.ru, row.ipa, row.rank,
                 headerCell = false, studied = row.studied))
         }
         val lp = LinearLayout.LayoutParams(
@@ -1690,19 +1690,34 @@ class StudyActivity : AppCompatActivity() {
         return line
     }
 
-    private fun extraTableRow(foreign: String, marker: String, ru: String,
+    /**
+     * Строка таблицы доп. информации — те же четыре колонки, что у группы тега:
+     * номер, перевод, слово, транскрипция.
+     *
+     * Прежде колонок было две, и слово с транскрипцией шли одной ячейкой: две
+     * соседние таблицы на одной карточке выглядели по-разному. У огласовок
+     * номера нет — колонка пустая, зато ширины совпадают.
+     */
+    private fun extraTableRow(foreign: String, ru: String, ipa: String, rank: Int?,
                               headerCell: Boolean, studied: Boolean = true): LinearLayout {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
         }
 
-        fun cell(html: String, rtl: Boolean, big: Boolean): TextView {
+        fun cell(html: String, rtl: Boolean, big: Boolean, weight: Float,
+                 muted: Boolean = false, single: Boolean = false): TextView {
             val tv = TextView(this)
             tv.text = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_COMPACT)
             // Иврит крупнее: огласовка — мелкие знаки под буквами, и в общем
             // кегле её просто не разглядеть, а ради неё блок и заводился.
             tv.textSize = if (big) 22f else 15f
+            if (muted) tv.setTextColor(Color.parseColor("#777777"))
+            // Номер не переносится: «1105» рвалось на «11» и «05».
+            if (single) {
+                tv.maxLines = 1
+                tv.ellipsize = android.text.TextUtils.TruncateAt.END
+            }
             tv.textDirection = if (rtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
             tv.textAlignment = if (rtl) View.TEXT_ALIGNMENT_VIEW_END else View.TEXT_ALIGNMENT_VIEW_START
             if (headerCell) tv.setTextColor(Color.parseColor("#666666"))
@@ -1719,13 +1734,17 @@ class StudyActivity : AppCompatActivity() {
                 })
             }
             tv.layoutParams = LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                LinearLayout.LayoutParams.MATCH_PARENT, weight)
             return tv
         }
 
-        line.addView(cell(foreign, rtl = true, big = !headerCell))
-        val right = if (marker.isBlank()) ru else "$marker $ru"
-        line.addView(cell(right, rtl = false, big = false))
+        // Ширины те же, что у таблицы тега: номер, перевод, слово, транскрипция.
+        line.addView(cell(rank?.toString() ?: "", rtl = false, big = false, weight = 1.5f,
+                          muted = true, single = true))
+        line.addView(cell(ru, rtl = false, big = false, weight = 3f))
+        line.addView(cell(foreign, rtl = true, big = !headerCell, weight = 3f))
+        line.addView(cell(if (ipa.isBlank()) "" else "[$ipa]", rtl = false, big = false,
+                          weight = 2.5f, muted = true))
         line.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         return line

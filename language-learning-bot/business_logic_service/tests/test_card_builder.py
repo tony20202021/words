@@ -1128,18 +1128,21 @@ def test_extra_blocks_are_parsed_into_table_rows():
     # rank рядом с marker: по нему решается, дошёл ли человек до этого слова,
     # и клиент гасит непройденную строку. Из текста «[#28]» это каждый раз
     # выковыривали бы заново.
+    # Слово и транскрипция — РАЗНЫЕ ячейки: колонки те же, что у таблицы тегов
+    # на той же карточке, иначе две соседние таблицы выглядят по-разному.
     assert refs["rows"] == [
-        {"marker": "[#28]", "rank": 28, "foreign": "אוֹתְךָ [ʔotˈχa]", "ru": "тебя"},
-        {"marker": "[#33]", "rank": 33, "foreign": "אוֹתִי [ʔoˈti]", "ru": "меня"},
+        {"marker": "[#28]", "rank": 28, "foreign": "אוֹתְךָ", "ipa": "ʔotˈχa", "ru": "тебя"},
+        {"marker": "[#33]", "rank": 33, "foreign": "אוֹתִי", "ipa": "ʔoˈti", "ru": "меня"},
     ]
 
     tones = _extra_rows("<b>עם</b>: <i>вариантов огласовки: 2</i>\n"
                         " - <b>עִם</b> [ʔim]: с, вместе с\n"
                         " - <b>עַם</b> [ʔam]: народ")
     assert "вариантов огласовки" in tones["header"]
+    # У огласовок номера нет: колонка остаётся пустой, ширины совпадают.
     assert tones["rows"] == [
-        {"marker": "", "foreign": "עִם [ʔim]", "ru": "с, вместе с"},
-        {"marker": "", "foreign": "עַם [ʔam]", "ru": "народ"},
+        {"marker": "", "foreign": "עִם", "ipa": "ʔim", "ru": "с, вместе с"},
+        {"marker": "", "foreign": "עַם", "ipa": "ʔam", "ru": "народ"},
     ]
 
 
@@ -1153,7 +1156,7 @@ def test_unparsed_line_is_kept_not_dropped():
 
     d = _extra_rows("заголовок\nсовсем другая строка")
     assert d["header"] == "заголовок"
-    assert d["rows"] == [{"marker": "", "foreign": "", "ru": "совсем другая строка"}]
+    assert d["rows"] == [{"marker": "", "foreign": "", "ipa": "", "ru": "совсем другая строка"}]
 
 
 def test_card_carries_rows_for_hebrew_extras():
@@ -1170,7 +1173,8 @@ def test_card_carries_rows_for_hebrew_extras():
     block = next(e for e in card["extra_content"]
                  if e["type"] == "extra" and e.get("group") == "tones")
     assert len(block["rows"]) == 2
-    assert block["rows"][0]["foreign"] == "עִם [ʔim]"
+    assert block["rows"][0]["foreign"] == "עִם"
+    assert block["rows"][0]["ipa"] == "ʔim"
     # Исходный текст остаётся: по нему рисуют старые офлайн-партии.
     assert block["text"].strip()
 
