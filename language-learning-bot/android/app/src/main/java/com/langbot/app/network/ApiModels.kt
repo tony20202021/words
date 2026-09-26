@@ -178,6 +178,8 @@ data class ChartManifestSection(
     val type: String,
 )
 
+data class ChartsVersionResponse(val version: String = "")
+
 data class ChartManifestResponse(
     val sections: List<ChartManifestSection>,
     val captions: Map<String, String>,

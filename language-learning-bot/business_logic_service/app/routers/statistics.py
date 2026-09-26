@@ -24,6 +24,19 @@ async def get_progress(user_id: str, language_id: str, api_client=Depends(get_ap
     return statistics_service.compute_statistics_summary(progress)
 
 
+@router.get("/{user_id}/{language_id}/charts_version")
+async def get_charts_version(user_id: str, language_id: str,
+                             api_client=Depends(get_api_client)):
+    """
+    Версия данных для графиков — один короткий запрос вместо семнадцати картинок.
+
+    Телефон хранит картинки с прошлого раза. Если версия та же, качать нечего:
+    в метро связь есть, но слабая, и разница между одним запросом на сотню байт
+    и семнадцатью по 19 КБ — это разница между «открылось» и «крутится».
+    """
+    return {"version": await chart_cache.charts_version(user_id, language_id, api_client)}
+
+
 @router.get("/{user_id}/{language_id}/chart/{chart_name}")
 async def get_today_chart(
     user_id: str,

@@ -124,6 +124,28 @@ async def today_charts(user_id: str, language_id: str, api_client,
         _at(variant, lambda: statistics_service.generate_today_charts(progress)))
 
 
+async def charts_version(user_id: str, language_id: str, api_client) -> str:
+    """
+    Отпечаток данных, по которым рисуются ВСЕ графики этого человека.
+
+    Нужен телефону: в метро связь есть, но слабая, и семнадцать картинок по
+    19 КБ тянутся мучительно долго. Картинки лежат у него с прошлого раза;
+    одним коротким запросом он узнаёт, изменились ли данные, и если нет —
+    показывает сохранённые и молчит.
+
+    Считается из тех же полей, по которым кешируются сами картинки, поэтому
+    «версия не изменилась» и «картинки те же» — одно и то же утверждение.
+    """
+    progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
+    today = statistics_service.study_day()
+    parts = [_fingerprint(_today_payload(progress))]
+    for show_all in (False, True):
+        all_days, first_finish = await statistics_service.get_monthly_statistics(
+            user_id, language_id, today, api_client, show_all=show_all)
+        parts.append(_fingerprint(_monthly_payload(all_days, first_finish, show_all)))
+    return _fingerprint(parts)
+
+
 def note_view(user_id: str, language_id: str) -> None:
     """Человек открыл графики — значит, их стоит готовить ему заранее."""
     _viewed[(user_id, language_id)] = time.time()

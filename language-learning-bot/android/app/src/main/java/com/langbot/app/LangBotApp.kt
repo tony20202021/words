@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import com.langbot.app.network.BLSClient
 import com.langbot.app.offline.AudioCache
+import com.langbot.app.offline.ChartCache
 import com.langbot.app.offline.OfflineCache
 import com.langbot.app.offline.OutboxSync
 import com.langbot.app.prefs.UserPrefs
@@ -30,6 +31,7 @@ open class LangBotApp : Application() {
 
         OfflineCache.init(this)
         AudioCache.init(this)
+        ChartCache.init(this)
 
         // BLSClient is normally initialised in LoginActivity; do it here too so the
         // background flush can reach the server before any activity is opened.

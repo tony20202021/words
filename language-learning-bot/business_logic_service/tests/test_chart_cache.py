@@ -227,3 +227,60 @@ def test_unknown_variant_is_rejected():
     from app.main import app
     resp = TestClient(app).get("/statistics/u1/l1/monthly-chart/words_studied?res=huge")
     assert resp.status_code == 422
+
+
+# ── версия данных: один короткий запрос вместо семнадцати картинок ───────────
+
+class TestChartsVersion:
+    """
+    Жалоба владельца: в метро связь есть, но слабая, и графики грузятся
+    мучительно. Телефон хранит картинки с прошлого раза, и по версии данных
+    решает, качать ли свежие. Версия поэтому обязана меняться ровно тогда,
+    когда изменилась бы картинка.
+    """
+
+    @staticmethod
+    def _progress(monkeypatch, **fields):
+        base = {"word_numbers_for_today": [1, 2], "word_numbers_unknown": [3],
+                "word_check_interval": [1, 2], "words_studied": 100}
+        base.update(fields)
+
+        async def fake_progress(user_id, language_id, api_client):
+            return base
+
+        monkeypatch.setattr(statistics_service, "get_user_progress", fake_progress)
+        return base
+
+    @pytest.mark.asyncio
+    async def test_the_same_data_gives_the_same_version(self, monkeypatch):
+        _stub(monkeypatch, [_day("2026-09-01T00:00:00")])
+        self._progress(monkeypatch)
+        first = await chart_cache.charts_version("u1", "l1", api_client=None)
+        second = await chart_cache.charts_version("u1", "l1", api_client=None)
+        assert first == second and len(first) == 40
+
+    @pytest.mark.asyncio
+    async def test_a_new_answer_changes_the_version(self, monkeypatch):
+        state = _stub(monkeypatch, [_day("2026-09-01T00:00:00")])
+        self._progress(monkeypatch)
+        before = await chart_cache.charts_version("u1", "l1", api_client=None)
+        state["days"] = [_day("2026-09-01T00:00:00", words_studied=101)]
+        assert await chart_cache.charts_version("u1", "l1", api_client=None) != before
+
+    @pytest.mark.asyncio
+    async def test_todays_charts_are_counted_too(self, monkeypatch):
+        _stub(monkeypatch, [_day("2026-09-01T00:00:00")])
+        self._progress(monkeypatch)
+        before = await chart_cache.charts_version("u1", "l1", api_client=None)
+        self._progress(monkeypatch, word_numbers_unknown=[3, 4])
+        assert await chart_cache.charts_version("u1", "l1", api_client=None) != before
+
+    @pytest.mark.asyncio
+    async def test_fields_not_on_the_picture_do_not_change_it(self, monkeypatch):
+        """Иначе телефон качал бы всё заново из-за времени обновления записи."""
+        state = _stub(monkeypatch, [_day("2026-09-01T00:00:00")])
+        self._progress(monkeypatch)
+        before = await chart_cache.charts_version("u1", "l1", api_client=None)
+        state["days"] = [_day("2026-09-01T00:00:00", updated_at="2026-09-26T10:00:00",
+                              max_word_number=500)]
+        assert await chart_cache.charts_version("u1", "l1", api_client=None) == before

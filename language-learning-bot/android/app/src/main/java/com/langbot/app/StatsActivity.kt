@@ -27,6 +27,7 @@ import android.graphics.Bitmap
 import android.app.Dialog
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
+import com.langbot.app.offline.ChartCache
 import com.langbot.app.offline.OfflineNotice
 
 class StatsActivity : AppCompatActivity() {
@@ -85,15 +86,26 @@ class StatsActivity : AppCompatActivity() {
                     renderStats(statsResp.body()!!)
                     loadCharts()
                 } else {
-                    OfflineNotice.show(binding.statsContainer, "статистику")
+                    showWithoutSummary()
                 }
             } catch (e: Exception) {
-                // Статистику офлайн показать неоткуда — она целиком серверная.
-                OfflineNotice.show(binding.statsContainer, "статистику")
+                // Числа статистики офлайн показать неоткуда — они целиком
+                // серверные. А вот графики с прошлого раза лежат на телефоне,
+                // и это ровно тот случай, ради которого они сохранялись.
+                showWithoutSummary()
             } finally {
                 binding.progress.visibility = View.GONE
                 binding.swipeRefresh.isRefreshing = false
             }
+        }
+    }
+
+    /** Сервер не ответил: показываем сохранённые графики, если они есть. */
+    private fun showWithoutSummary() {
+        OfflineNotice.show(binding.statsContainer, "статистику")
+        if (ChartCache.hasAny(userId, languageId)) {
+            OfflineNotice.clear(binding.statsContainer)
+            loadCharts()
         }
     }
 
@@ -143,7 +155,11 @@ class StatsActivity : AppCompatActivity() {
             // строго по очереди, и время складывалось: на слабом мобильном каждая
             // ждала, пока доедет предыдущая. Теперь каждая встаёт в своё место,
             // как только пришла, и порядок не зависит от того, какая ответит первой.
-            class Slot(val holder: LinearLayout, val type: Int, val name: String, val title: String)
+            class Slot(val holder: LinearLayout, val type: Int, val name: String, val title: String) {
+                /** Картинка в этом месте: сохранённая с прошлого раза либо свежая. */
+                var view: ImageView? = null
+                var fromCache = false
+            }
             val sectionSlots = mutableListOf<Pair<View, List<Slot>>>()
 
             for ((i, section) in sections.withIndex()) {
@@ -198,10 +214,15 @@ class StatsActivity : AppCompatActivity() {
                 sectionSlots += ssWrap to slots
             }
 
-            suspend fun loadInto(slot: Slot): Boolean = try {
-                val bytes = fetchChart(slot.type, slot.name, "screen")
-                val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                if (bmp == null) false else {
+            /** Поставить картинку в её место — или подменить ту, что уже стоит. */
+            fun show(slot: Slot, bytes: ByteArray): Boolean {
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+                val existing = slot.view
+                if (existing != null) {
+                    existing.setImageBitmap(bmp)
+                    existing.alpha = 1f
+                    existing.setOnClickListener { openZoom(slot.type, slot.name, bmp) }
+                } else {
                     val iv = ImageView(this@StatsActivity)
                     iv.setImageBitmap(bmp)
                     // Нажатие — полноэкранное увеличение пальцами.
@@ -213,14 +234,54 @@ class StatsActivity : AppCompatActivity() {
                     lp.bottomMargin = dpToPx(6)
                     iv.layoutParams = lp
                     slot.holder.addView(iv)
-                    true
+                    slot.view = iv
+                }
+                return true
+            }
+
+            suspend fun loadInto(slot: Slot): Boolean = try {
+                val bytes = fetchChart(slot.type, slot.name, "screen")
+                if (bytes == null) false else {
+                    val ok = show(slot, bytes)
+                    if (ok) {
+                        slot.fromCache = false
+                        ChartCache.put(userId, languageId, slot.type, slot.name, bytes)
+                    }
+                    ok
                 }
             } catch (e: Exception) {
                 android.util.Log.w("StatsActivity", "${slot.title}/${slot.name}: ${e.message}")
                 false
             }
 
-            val loaded = coroutineScope {
+            // Сохранённые с прошлого раза — сразу, ещё до сети. В метро связь
+            // есть, но слабая: семнадцать картинок тянутся так долго, что экран
+            // бесполезен. Пока едут свежие, сохранённые показаны приглушённо.
+            val allSlots = sectionSlots.flatMap { it.second }
+            var fromCache = 0
+            for (slot in allSlots) {
+                val cached = ChartCache.get(userId, languageId, slot.type, slot.name) ?: continue
+                if (show(slot, cached)) {
+                    slot.fromCache = true
+                    slot.view?.alpha = 0.55f
+                    fromCache++
+                }
+            }
+            if (fromCache > 0) sectionSlots.forEach { binding.statsContainer.removeView(it.first) }
+
+            // Версия данных: если она та же, что у сохранённых картинок, качать
+            // нечего вовсе — один короткий запрос вместо семнадцати картинок.
+            val serverVersion = try {
+                BLSClient.api.getChartsVersion(userId, languageId).body()?.version
+            } catch (_: Exception) { null }
+            val cachedVersion = ChartCache.version(userId, languageId)
+            val upToDate = fromCache == allSlots.size && allSlots.isNotEmpty() &&
+                    serverVersion != null && serverVersion == cachedVersion
+
+            val loaded = if (upToDate) {
+                allSlots.forEach { it.view?.alpha = 1f }
+                List(allSlots.size) { true }
+            } else coroutineScope {
                 sectionSlots.map { (spinnerView, slots) ->
                     async {
                         val results = slots.map { slot -> async { loadInto(slot) } }.awaitAll()
@@ -229,12 +290,38 @@ class StatsActivity : AppCompatActivity() {
                     }
                 }.awaitAll().flatten()
             }
-            anyLoaded = loaded.any { it }
+            anyLoaded = loaded.any { it } || fromCache > 0
+
+            // Версию запоминаем, только когда СВЕЖИЕ приехали все: иначе
+            // недокачанный набор выдаст себя за полный и больше не обновится.
+            if (!upToDate && serverVersion != null && loaded.all { it } && loaded.isNotEmpty()) {
+                ChartCache.saveVersion(userId, languageId, serverVersion)
+            } else if (!upToDate && loaded.any { !it }) {
+                ChartCache.clearVersion(userId, languageId)
+            }
+            // Сеть не ответила, но сохранённое показано — скажем, что оно старое.
+            if (serverVersion == null && fromCache > 0 && loaded.none { it }) {
+                allSlots.forEach { it.view?.alpha = 1f }
+                val tv = TextView(this@StatsActivity)
+                tv.text = "📴 Связи нет — показаны графики с прошлого раза"
+                tv.textSize = 13f
+                tv.setTextColor(android.graphics.Color.parseColor("#856404"))
+                tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
+                tv.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+                binding.statsContainer.addView(tv, 0)
+            }
 
             // Экран заполнен лёгкими — теперь фоном большие, для увеличения.
-            val shown = sectionSlots.flatMap { it.second }.zip(loaded)
-                .filter { it.second }.map { it.first.type to it.first.name }
-            startZoomPrefetch(shown)
+            //
+            // Кроме случая, когда лёгкие не качались вовсе: данные те же, что в
+            // прошлый раз. Тогда и большие тянуть незачем — это ещё 17 запросов
+            // по 39 КБ на канал, из-за которого всё и затевалось. Понадобятся
+            // при увеличении — придут по нажатию (openZoom).
+            if (!upToDate) {
+                val shown = sectionSlots.flatMap { it.second }.zip(loaded)
+                    .filter { it.second }.map { it.first.type to it.first.name }
+                startZoomPrefetch(shown)
+            }
 
             if (!anyLoaded) {
                 val tv = TextView(this@StatsActivity)
