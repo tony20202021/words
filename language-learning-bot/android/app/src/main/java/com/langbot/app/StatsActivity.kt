@@ -75,19 +75,34 @@ class StatsActivity : AppCompatActivity() {
         loadStats()
     }
 
+    /** Перезагрузить экран (для проверок — обычный путь «потянуть вниз»). */
+    @VisibleForTesting
+    fun refreshForTest() = loadStats()
+
     private fun loadStats() {
+        // Прежняя загрузка больше не нужна: её результат всё равно лёг бы
+        // поверх новой — в тот же контейнер и теми же видами.
+        chartsJob?.cancel()
+        statsJob?.cancel()
         binding.progress.visibility = View.VISIBLE
-        lifecycleScope.launch {
+        statsJob = lifecycleScope.launch {
             try {
                 val statsDeferred = async { BLSClient.api.getStatistics(userId, languageId) }
                 val statsResp = statsDeferred.await()
                 if (statsResp.isSuccessful && statsResp.body() != null) {
+                    lastLoadFailed = false
                     OfflineNotice.clear(binding.statsContainer)
                     renderStats(statsResp.body()!!)
                     loadCharts()
                 } else {
                     showWithoutSummary()
                 }
+            } catch (e: CancellationException) {
+                // Отмена — не ошибка: так экран сообщает, что началась новая
+                // загрузка. Прежде она ловилась наравне с обрывом связи, и
+                // отменённая попытка дорисовывала свой блок графиков поверх
+                // новой — отсюда копии разделов и вылеты.
+                throw e
             } catch (e: Exception) {
                 // Числа статистики офлайн показать неоткуда — они целиком
                 // серверные. А вот графики с прошлого раза лежат на телефоне,
@@ -102,6 +117,13 @@ class StatsActivity : AppCompatActivity() {
 
     /** Сервер не ответил: показываем сохранённые графики, если они есть. */
     private fun showWithoutSummary() {
+        lastLoadFailed = true
+        // Чистим экран сами: OfflineNotice.clear убирает только свою надпись, а
+        // renderStats, который обычно очищает контейнер, в этом пути не
+        // вызывается. Без этого каждая попытка без сети дописывала ещё один
+        // блок графиков к прежним — три обновления давали три копии, и на
+        // картинке, у которой уже есть родитель, приложение падало.
+        binding.statsContainer.removeAllViews()
         OfflineNotice.show(binding.statsContainer, "статистику")
         if (ChartCache.hasAny(userId, languageId)) {
             OfflineNotice.clear(binding.statsContainer)
@@ -136,7 +158,8 @@ class StatsActivity : AppCompatActivity() {
         spinnerWrap.addView(spinner)
         binding.statsContainer.addView(spinnerWrap)
 
-        lifecycleScope.launch {
+        chartsJob = lifecycleScope.launch {
+          try {
             var anyLoaded = false
 
             // Remove the initial spinnerWrap — each section has its own
@@ -158,6 +181,9 @@ class StatsActivity : AppCompatActivity() {
             class Slot(val holder: LinearLayout, val type: Int, val name: String, val title: String) {
                 /** Картинка в этом месте: сохранённая с прошлого раза либо свежая. */
                 var view: ImageView? = null
+                /** Обёртка, в которой поверх картинки крутится ожидание. */
+                var frame: android.widget.FrameLayout? = null
+                var spinner: View? = null
                 var fromCache = false
             }
             val sectionSlots = mutableListOf<Pair<View, List<Slot>>>()
@@ -228,15 +254,46 @@ class StatsActivity : AppCompatActivity() {
                     // Нажатие — полноэкранное увеличение пальцами.
                     iv.setOnClickListener { openZoom(slot.type, slot.name, bmp) }
                     iv.adjustViewBounds = true
+                    iv.layoutParams = android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT)
+                    // Обёртка нужна ради крутяшки поверх картинки: в столбце
+                    // она встала бы под ней и уехала бы вниз экрана.
+                    val frame = android.widget.FrameLayout(this@StatsActivity)
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT)
                     lp.bottomMargin = dpToPx(6)
-                    iv.layoutParams = lp
-                    slot.holder.addView(iv)
+                    frame.layoutParams = lp
+                    frame.addView(iv)
+                    slot.holder.addView(frame)
                     slot.view = iv
+                    slot.frame = frame
                 }
                 return true
+            }
+
+            /** Картинка сохранённая: поверх неё крутится ожидание свежей. */
+            fun markStale(slot: Slot) {
+                val frame = slot.frame ?: return
+                if (slot.spinner != null) return
+                val pb = ProgressBar(this@StatsActivity)
+                pb.layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.CENTER)
+                frame.addView(pb)
+                slot.spinner = pb
+                // Лёгкое притемнение оставляем: на светлом графике крутяшку
+                // иначе плохо видно.
+                slot.view?.alpha = 0.7f
+            }
+
+            /** Ожидание закончилось: свежая пришла либо стало ясно, что не придёт. */
+            fun markSettled(slot: Slot) {
+                slot.spinner?.let { slot.frame?.removeView(it) }
+                slot.spinner = null
+                slot.view?.alpha = 1f
             }
 
             suspend fun loadInto(slot: Slot): Boolean = try {
@@ -245,6 +302,7 @@ class StatsActivity : AppCompatActivity() {
                     val ok = show(slot, bytes)
                     if (ok) {
                         slot.fromCache = false
+                        markSettled(slot)
                         ChartCache.put(userId, languageId, slot.type, slot.name, bytes)
                     }
                     ok
@@ -263,7 +321,7 @@ class StatsActivity : AppCompatActivity() {
                 val cached = ChartCache.get(userId, languageId, slot.type, slot.name) ?: continue
                 if (show(slot, cached)) {
                     slot.fromCache = true
-                    slot.view?.alpha = 0.55f
+                    markStale(slot)
                     fromCache++
                 }
             }
@@ -279,7 +337,7 @@ class StatsActivity : AppCompatActivity() {
                     serverVersion != null && serverVersion == cachedVersion
 
             val loaded = if (upToDate) {
-                allSlots.forEach { it.view?.alpha = 1f }
+                allSlots.forEach { markSettled(it) }
                 List(allSlots.size) { true }
             } else coroutineScope {
                 sectionSlots.map { (spinnerView, slots) ->
@@ -291,6 +349,7 @@ class StatsActivity : AppCompatActivity() {
                 }.awaitAll().flatten()
             }
             anyLoaded = loaded.any { it } || fromCache > 0
+            allSlots.forEach { markSettled(it) }
 
             // Версию запоминаем, только когда СВЕЖИЕ приехали все: иначе
             // недокачанный набор выдаст себя за полный и больше не обновится.
@@ -301,7 +360,7 @@ class StatsActivity : AppCompatActivity() {
             }
             // Сеть не ответила, но сохранённое показано — скажем, что оно старое.
             if (serverVersion == null && fromCache > 0 && loaded.none { it }) {
-                allSlots.forEach { it.view?.alpha = 1f }
+                allSlots.forEach { markSettled(it) }
                 val tv = TextView(this@StatsActivity)
                 tv.text = "📴 Связи нет — показаны графики с прошлого раза"
                 tv.textSize = 13f
@@ -331,6 +390,13 @@ class StatsActivity : AppCompatActivity() {
                 tv.gravity = android.view.Gravity.CENTER
                 binding.statsContainer.addView(tv)
             }
+          } catch (e: CancellationException) {
+            throw e                      // отмена — это не ошибка
+          } catch (e: Exception) {
+            // Лучше экран без графиков, чем вылет приложения: статистика не та
+            // вещь, ради которой стоит терять сессию занятия.
+            android.util.Log.w("StatsActivity", "графики не нарисованы: ${e.message}", e)
+          }
         }
     }
 
@@ -341,6 +407,23 @@ class StatsActivity : AppCompatActivity() {
     // картинку шириной экрана.
     private val zoomBytes = ConcurrentHashMap<String, ByteArray>()
     private var zoomPrefetch: Job? = null
+
+    // Одна загрузка экрана за раз.
+    //
+    // Без сети каждая попытка живёт долго: семнадцать запросов ждут таймаута.
+    // Человек за это время дёргает экран ещё раз — и вторая загрузка начинала
+    // рисовать в тот же контейнер, что и первая. Android падает, когда
+    // добавляют картинку, у которой уже есть родитель; это и был «вылетает при
+    // отключённой сети».
+    private var statsJob: Job? = null
+    private var chartsJob: Job? = null
+
+    /** Последняя попытка не удалась — значит, стоит повторить, когда сможем. */
+    private var lastLoadFailed = false
+
+    // onResume приходит и сразу после onCreate, где загрузка уже идёт: второй
+    // раз её запускать незачем.
+    private var firstResume = true
 
     private fun zoomKey(type: Int, name: String) = "$type/$name"
 
@@ -392,6 +475,9 @@ class StatsActivity : AppCompatActivity() {
         val view = ZoomImageView(this)
         view.show(screen)
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        // Рост из середины при входе и уменьшение при возврате: без анимации
+        // момент перехода терялся — экран просто подменялся другим.
+        dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
         dialog.setContentView(view)
         var sharpening: Job? = null
         dialog.setOnDismissListener {
@@ -421,6 +507,20 @@ class StatsActivity : AppCompatActivity() {
 
     @VisibleForTesting
     internal val zoomPrefetchJob: Job? get() = zoomPrefetch
+
+    /**
+     * Вернулись на экран после неудачи — пробуем снова.
+     *
+     * Жалоба владельца: «рисует экран, что сети нет, и больше ничего не
+     * обновляет, даже когда сеть восстанавливается». Обновление вниз работало,
+     * но требовать его после каждой пропажи связи — значит перекладывать на
+     * человека то, что видно приложению.
+     */
+    override fun onResume() {
+        super.onResume()
+        if (lastLoadFailed && !firstResume) loadStats()
+        firstResume = false
+    }
 
     override fun onStop() {
         super.onStop()

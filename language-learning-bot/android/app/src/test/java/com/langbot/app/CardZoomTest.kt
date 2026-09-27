@@ -124,6 +124,20 @@ class CardZoomTest {
     }
 
     @Test
+    fun opening_and_closing_are_animated() {
+        """
+        Просьба владельца: «путается момент перехода». Окно теперь вырастает из
+        середины и уменьшается обратно, а не подменяется мгновенно.
+        """
+        val a = open("tag_group")
+        blocks(a).getChildAt(0).performClick()
+
+        val window = a.cardZoomDialog!!.window!!
+        assertEquals("переход в увеличение без анимации",
+            R.style.ZoomDialogAnimation, window.attributes.windowAnimations)
+    }
+
+    @Test
     fun the_card_opens_at_its_own_size_and_can_be_enlarged_five_times() {
         val a = open("tag_group")
         val column = column(a)

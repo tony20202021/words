@@ -8,4 +8,11 @@
         <item name="colorOnSecondary">#FFFFFF</item>
         <item name="android:windowBackground">#F8F9FA</item>
     </style>
+    <!-- Переход в увеличение и обратно: рост из середины и уменьшение назад.
+         Нужен обоим увеличениям — карточки слова и графика: без него момент
+         перехода терялся, экран просто подменялся. -->
+    <style name="ZoomDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/zoom_enter</item>
+        <item name="android:windowExitAnimation">@anim/zoom_exit</item>
+    </style>
 </resources>

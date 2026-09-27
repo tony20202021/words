@@ -158,6 +158,65 @@ class StatsCachedChartsTest {
         assertEquals("показаны сохранённые", listOf(40, 40), widths(second))
     }
 
+    private fun spinners(a: StatsActivity): List<View> {
+        val out = mutableListOf<View>()
+        fun walk(v: View) {
+            if (v is android.widget.ProgressBar) out += v
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(a.findViewById<ViewGroup>(R.id.statsContainer))
+        return out
+    }
+
+    @Test
+    fun a_saved_chart_waits_under_a_spinner_until_the_fresh_one_arrives() {
+        """Просьба владельца: вместо затемнения — крутяшка поверх старой картинки."""
+        val first = open()
+        Screenshots.pumpUntil("первый заход") { images(first).size == names.size }
+
+        serverVersion = "v2"
+        chartWidth = 70
+        // Свежие отдаём с задержкой: успеваем увидеть ожидание над старыми.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path.contains("chart_manifest") -> MockResponse().setBody(
+                        """{"sections":[{"header":"Тест","charts":["words_studied","words_new"],""" +
+                            """"type":"monthly_recent"}],"captions":{}}""")
+                    path.contains("charts_version") ->
+                        MockResponse().setBody("""{"version":"$serverVersion"}""")
+                    path.contains("/monthly-chart/") -> {
+                        Thread.sleep(400)
+                        MockResponse().setBody(Buffer().write(png(chartWidth)))
+                    }
+                    path.startsWith("/statistics/") -> MockResponse().setBody(SUMMARY)
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val second = open()
+        Screenshots.pumpUntil("старые показаны и ждут") {
+            images(second).size == names.size && spinners(second).size >= names.size
+        }
+        Screenshots.pumpUntil("свежие пришли") { widths(second) == listOf(70, 70) }
+        assertEquals("крутяшка осталась после подмены", 0, spinners(second).size)
+    }
+
+    @Test
+    fun the_spinner_goes_away_even_when_the_fresh_ones_never_come() {
+        val first = open()
+        Screenshots.pumpUntil("первый заход") { images(first).size == names.size }
+        server.shutdown()
+
+        val second = open()
+        Screenshots.pumpUntil("сохранённые показаны") {
+            images(second).size == names.size && spinners(second).isEmpty()
+        }
+        assertEquals("ожидание крутится, хотя ждать нечего", 0, spinners(second).size)
+    }
+
     @Test
     fun changed_data_replaces_the_saved_charts() {
         val first = open()

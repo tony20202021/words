@@ -168,6 +168,9 @@ class StudyActivity : AppCompatActivity() {
         view.showDrawing(PictureDrawable(picture), from?.let { topWithin(it, content) } ?: 0)
 
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        // Рост из середины при входе и уменьшение при возврате: без анимации
+        // момент перехода терялся — экран просто подменялся другим.
+        dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
         dialog.setContentView(view)
         dialog.setOnDismissListener {
             view.setImageDrawable(null)
