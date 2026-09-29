@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Выход: то же движение назад, чуть быстрее — возврат не должен тянуться. -->
+<!-- Возврат: то же движение назад, целиком и не спеша.
+
+     Раньше возврат не был виден совсем по двум причинам: движение было мелким
+     (0.85 за 160 мс) и картинку стирали в тот же миг, когда начиналось
+     закрытие, — анимация играла на пустом окне. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:anim/accelerate_interpolator">
     <scale
-        android:fromXScale="1.0" android:toXScale="0.85"
-        android:fromYScale="1.0" android:toYScale="0.85"
+        android:fromXScale="1.0" android:toXScale="0.6"
+        android:fromYScale="1.0" android:toYScale="0.6"
         android:pivotX="50%" android:pivotY="50%"
-        android:duration="160" />
-    <alpha android:fromAlpha="1.0" android:toAlpha="0.0" android:duration="160" />
+        android:duration="280" />
+    <alpha android:fromAlpha="1.0" android:toAlpha="0.0" android:duration="280" />
 </set>

@@ -133,6 +133,39 @@ class StatsOfflineRecoveryTest {
     }
 
     @Test
+    fun saved_charts_appear_without_waiting_for_the_slow_summary() {
+        """
+        Случай владельца: «в метро на статистике отрисовался пустой экран с
+        крутяшкой, хотя до этого графики смотрел». Связь есть, но медленная:
+        сводка не падает, а тянется, — и графики ждали её, вместо того чтобы
+        показать сохранённые.
+        """
+        warmCache()
+        offline = false
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    // Сводка «думает» дольше, чем человек готов ждать.
+                    path.matches(Regex("/statistics/[^/]+/[^/]+")) ->
+                        MockResponse().setBody(summary).setBodyDelay(30, java.util.concurrent.TimeUnit.SECONDS)
+                    path.contains("chart_manifest") -> MockResponse().setBody(
+                        """{"sections":[{"header":"Тест","charts":["words_studied","words_new"],""" +
+                            """"type":"monthly_recent"}],"captions":{}}""")
+                    path.contains("charts_version") ->
+                        MockResponse().setBody("""{"version":"v1"}""").setBodyDelay(30, java.util.concurrent.TimeUnit.SECONDS)
+                    else -> MockResponse().setResponseCode(503)
+                }
+            }
+        }
+        val a = controller().get()
+        Screenshots.pumpUntil("сохранённые графики показаны, не дожидаясь чисел") {
+            images(a).size == 2
+        }
+        assertEquals("экран остался пустым, пока тянулась сводка", 2, images(a).size)
+    }
+
+    @Test
     fun refreshing_again_while_the_first_attempt_is_still_running_does_not_crash() {
         warmCache()
         val c = controller()
@@ -165,6 +198,43 @@ class StatsOfflineRecoveryTest {
         Screenshots.pumpUntil("экран ожил сам") { images(a).size == 2 }
         assertTrue("плашка «нет связи» осталась: ${texts(a)}",
             !texts(a).contains("Не удалось загрузить статистику"))
+    }
+
+    @Test
+    fun pulling_to_refresh_does_not_add_a_second_spinner() {
+        """Случай владельца: «потянул экран вниз — стало 2 крутяшки»."""
+        offline = false
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path.contains("chart_manifest") -> MockResponse().setBody(
+                        """{"sections":[{"header":"Тест","charts":["words_studied","words_new"],""" +
+                            """"type":"monthly_recent"}],"captions":{}}""")
+                    // Всё остальное тянется — экран остаётся в ожидании.
+                    else -> MockResponse().setBody("{}")
+                        .setBodyDelay(30, java.util.concurrent.TimeUnit.SECONDS)
+                }
+            }
+        }
+        val a = controller().get()
+        Screenshots.pumpUntil("ожидание показано") { spinners(a).isNotEmpty() }
+        val before = spinners(a).size
+        a.refreshForTest()
+        a.refreshForTest()
+        Screenshots.pumpUntil("экран пересобран") { spinners(a).isNotEmpty() }
+
+        assertEquals("крутяшки накопились", before, spinners(a).size)
+    }
+
+    private fun spinners(a: StatsActivity): List<View> {
+        val out = mutableListOf<View>()
+        fun walk(v: View) {
+            if (v is android.widget.ProgressBar) out += v
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(container(a))
+        return out
     }
 
     @Test

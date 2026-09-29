@@ -106,6 +106,9 @@ class StudyActivity : AppCompatActivity() {
         private const val MENU_STATS   = 2
         private const val MENU_RESTART = 3
         private const val MENU_ZOOM    = 4
+
+        /** Сколько длится уменьшение при возврате (res/anim/zoom_exit.xml). */
+        const val ZOOM_EXIT_MS = 280L
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -173,7 +176,10 @@ class StudyActivity : AppCompatActivity() {
         dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
         dialog.setContentView(view)
         dialog.setOnDismissListener {
-            view.setImageDrawable(null)
+            // Не сразу: onDismiss приходит В НАЧАЛЕ закрытия, и очистка гасила
+            // картинку до того, как отыграет уменьшение. Владелец так и сказал:
+            // «вход вроде видно, а уменьшения при возврате не видно».
+            view.postDelayed({ view.setImageDrawable(null) }, ZOOM_EXIT_MS)
             if (cardZoomDialog === dialog) cardZoomDialog = null
         }
         dialog.show()

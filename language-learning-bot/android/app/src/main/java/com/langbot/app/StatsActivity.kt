@@ -79,21 +79,61 @@ class StatsActivity : AppCompatActivity() {
     @VisibleForTesting
     fun refreshForTest() = loadStats()
 
+    /**
+     * Разобрать картинку для ленты — вдвое экономнее и не роняя приложение.
+     *
+     * Графики это плоские заливки, и RGB_565 на них не отличить от
+     * полного цвета, зато памяти вдвое меньше: семнадцать картинок
+     * шириной экрана занимали около 60 МБ. Нехватка памяти прилетает
+     * как Error, а не Exception, — прежний перехват её не ловил, и
+     * приложение просто исчезало. Ровно так это и выглядело у владельца:
+     * «вылетает», а по возвращении — экран выбора языков.
+     */
+    fun decodeForList(bytes: ByteArray): Bitmap? = try {
+        val opts = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+    } catch (e: OutOfMemoryError) {
+        android.util.Log.w("StatsActivity", "не хватило памяти на график", e)
+        null
+    }
+
+    /** Заново собрать две части экрана — числа и графики — и очистить их. */
+    private fun prepareBoxes() {
+        binding.statsContainer.removeAllViews()
+        val summary = LinearLayout(this)
+        summary.orientation = LinearLayout.VERTICAL
+        summary.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val charts = LinearLayout(this)
+        charts.orientation = LinearLayout.VERTICAL
+        charts.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        binding.statsContainer.addView(summary)
+        binding.statsContainer.addView(charts)
+        summaryBox = summary
+        chartsBox = charts
+    }
+
     private fun loadStats() {
         // Прежняя загрузка больше не нужна: её результат всё равно лёг бы
-        // поверх новой — в тот же контейнер и теми же видами.
+        // поверх новой — в те же места и теми же видами.
         chartsJob?.cancel()
         statsJob?.cancel()
         binding.progress.visibility = View.VISIBLE
+        prepareBoxes()
+        // Графики — сразу и независимо от сводки: они умеют начать с
+        // сохранённых картинок, и ждать ради этого медленный ответ незачем.
+        loadCharts()
         statsJob = lifecycleScope.launch {
             try {
                 val statsDeferred = async { BLSClient.api.getStatistics(userId, languageId) }
                 val statsResp = statsDeferred.await()
                 if (statsResp.isSuccessful && statsResp.body() != null) {
                     lastLoadFailed = false
-                    OfflineNotice.clear(binding.statsContainer)
+                    summaryBox?.let { OfflineNotice.clear(it) }
                     renderStats(statsResp.body()!!)
-                    loadCharts()
                 } else {
                     showWithoutSummary()
                 }
@@ -115,23 +155,28 @@ class StatsActivity : AppCompatActivity() {
         }
     }
 
-    /** Сервер не ответил: показываем сохранённые графики, если они есть. */
+    /** Числа не пришли: говорим об этом в их части экрана. Графики идут своим ходом. */
     private fun showWithoutSummary() {
         lastLoadFailed = true
-        // Чистим экран сами: OfflineNotice.clear убирает только свою надпись, а
-        // renderStats, который обычно очищает контейнер, в этом пути не
-        // вызывается. Без этого каждая попытка без сети дописывала ещё один
-        // блок графиков к прежним — три обновления давали три копии, и на
-        // картинке, у которой уже есть родитель, приложение падало.
-        binding.statsContainer.removeAllViews()
-        OfflineNotice.show(binding.statsContainer, "статистику")
+        val box = summaryBox ?: return
+        box.removeAllViews()
+        // Без сохранённых графиков объяснять надо подробно: экран иначе пуст.
+        // С ними хватит короткой строки — картинки человек и так видит.
         if (ChartCache.hasAny(userId, languageId)) {
-            OfflineNotice.clear(binding.statsContainer)
-            loadCharts()
+            val tv = TextView(this)
+            tv.text = "📴 Связи нет — числа не обновились"
+            tv.textSize = 13f
+            tv.setTextColor(android.graphics.Color.parseColor("#856404"))
+            tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
+            tv.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            box.addView(tv)
+        } else {
+            OfflineNotice.show(box, "статистику")
         }
     }
 
     private fun loadCharts() {
+        val charts = chartsBox ?: return
         // Section header
         val tvHeader = TextView(this)
         tvHeader.text = "Графики"
@@ -143,7 +188,7 @@ class StatsActivity : AppCompatActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         headerLp.topMargin = 24; headerLp.bottomMargin = 8
         tvHeader.layoutParams = headerLp
-        binding.statsContainer.addView(tvHeader)
+        charts.addView(tvHeader)
 
         // Spinner while loading — centered
         val spinner = ProgressBar(this)
@@ -156,14 +201,14 @@ class StatsActivity : AppCompatActivity() {
         spinnerWrap.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         spinnerWrap.addView(spinner)
-        binding.statsContainer.addView(spinnerWrap)
+        charts.addView(spinnerWrap)
 
         chartsJob = lifecycleScope.launch {
           try {
             var anyLoaded = false
 
             // Remove the initial spinnerWrap — each section has its own
-            binding.statsContainer.removeView(spinnerWrap)
+            charts.removeView(spinnerWrap)
 
             val manifest = try {
                 BLSClient.api.getChartManifest().body()
@@ -204,7 +249,7 @@ class StatsActivity : AppCompatActivity() {
                         LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
                     divLp.topMargin = dpToPx(16); divLp.bottomMargin = dpToPx(16)
                     div.layoutParams = divLp
-                    binding.statsContainer.addView(div)
+                    charts.addView(div)
                 }
 
                 // Section header
@@ -213,7 +258,7 @@ class StatsActivity : AppCompatActivity() {
                 tvTitle.textSize = 15f
                 tvTitle.setTypeface(null, android.graphics.Typeface.BOLD)
                 tvTitle.setTextColor(android.graphics.Color.parseColor("#555555"))
-                binding.statsContainer.addView(tvTitle)
+                charts.addView(tvTitle)
 
                 // Per-section spinner
                 val secSpinner = ProgressBar(this@StatsActivity)
@@ -227,14 +272,14 @@ class StatsActivity : AppCompatActivity() {
                 ssWrap.layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 ssWrap.addView(secSpinner)
-                binding.statsContainer.addView(ssWrap)
+                charts.addView(ssWrap)
 
                 val slots = names.map { name ->
                     val holder = LinearLayout(this@StatsActivity)
                     holder.orientation = LinearLayout.VERTICAL
                     holder.layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    binding.statsContainer.addView(holder)
+                    charts.addView(holder)
                     Slot(holder, type, name, title)
                 }
                 sectionSlots += ssWrap to slots
@@ -242,7 +287,7 @@ class StatsActivity : AppCompatActivity() {
 
             /** Поставить картинку в её место — или подменить ту, что уже стоит. */
             fun show(slot: Slot, bytes: ByteArray): Boolean {
-                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+                val bmp = decodeForList(bytes) ?: return false
                 val existing = slot.view
                 if (existing != null) {
                     existing.setImageBitmap(bmp)
@@ -325,7 +370,7 @@ class StatsActivity : AppCompatActivity() {
                     fromCache++
                 }
             }
-            if (fromCache > 0) sectionSlots.forEach { binding.statsContainer.removeView(it.first) }
+            if (fromCache > 0) sectionSlots.forEach { charts.removeView(it.first) }
 
             // Версия данных: если она та же, что у сохранённых картинок, качать
             // нечего вовсе — один короткий запрос вместо семнадцати картинок.
@@ -343,7 +388,7 @@ class StatsActivity : AppCompatActivity() {
                 sectionSlots.map { (spinnerView, slots) ->
                     async {
                         val results = slots.map { slot -> async { loadInto(slot) } }.awaitAll()
-                        binding.statsContainer.removeView(spinnerView)
+                        charts.removeView(spinnerView)
                         results
                     }
                 }.awaitAll().flatten()
@@ -367,7 +412,7 @@ class StatsActivity : AppCompatActivity() {
                 tv.setTextColor(android.graphics.Color.parseColor("#856404"))
                 tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
                 tv.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
-                binding.statsContainer.addView(tv, 0)
+                charts.addView(tv, 0)
             }
 
             // Экран заполнен лёгкими — теперь фоном большие, для увеличения.
@@ -388,13 +433,14 @@ class StatsActivity : AppCompatActivity() {
                 tv.textSize = 13f
                 tv.setTextColor(android.graphics.Color.parseColor("#888888"))
                 tv.gravity = android.view.Gravity.CENTER
-                binding.statsContainer.addView(tv)
+                charts.addView(tv)
             }
           } catch (e: CancellationException) {
             throw e                      // отмена — это не ошибка
-          } catch (e: Exception) {
+          } catch (e: Throwable) {
             // Лучше экран без графиков, чем вылет приложения: статистика не та
-            // вещь, ради которой стоит терять сессию занятия.
+            // вещь, ради которой стоит терять сессию занятия. Throwable, а не
+            // Exception: нехватка памяти — это Error, и именно она роняла.
             android.util.Log.w("StatsActivity", "графики не нарисованы: ${e.message}", e)
           }
         }
@@ -420,6 +466,15 @@ class StatsActivity : AppCompatActivity() {
 
     /** Последняя попытка не удалась — значит, стоит повторить, когда сможем. */
     private var lastLoadFailed = false
+
+    // Экран из двух независимых частей: числа сверху и графики под ними.
+    //
+    // Раньше графики ждали, пока ответит сводка. В метро связь есть, но
+    // медленная: сводка не падает, а тянется — и человек видел пустой экран с
+    // крутяшкой, хотя картинки с прошлого раза лежали на телефоне. Теперь
+    // графики рисуются сразу и сами по себе, а числа приходят, когда придут.
+    private var summaryBox: LinearLayout? = null
+    private var chartsBox: LinearLayout? = null
 
     // onResume приходит и сразу после onCreate, где загрузка уже идёт: второй
     // раз её запускать незачем.
@@ -482,7 +537,10 @@ class StatsActivity : AppCompatActivity() {
         var sharpening: Job? = null
         dialog.setOnDismissListener {
             sharpening?.cancel()
-            view.setImageDrawable(null)   // большая — около 10 МБ; отпускаем сразу
+            // Большая картинка это около 10 МБ, но отпускаем её не в тот же миг:
+            // onDismiss приходит в начале закрытия, и очистка съедала анимацию
+            // уменьшения — окно гасло пустым.
+            view.postDelayed({ view.setImageDrawable(null) }, StudyActivity.ZOOM_EXIT_MS)
         }
         dialog.show()
         zoomDialog = dialog
@@ -529,7 +587,7 @@ class StatsActivity : AppCompatActivity() {
     }
 
     private fun renderStats(s: Statistics) {
-        val c = binding.statsContainer
+        val c = summaryBox ?: binding.statsContainer
         c.removeAllViews()
 
         addStatRow(c, "Знаю",              s.words_known.toString(),    "#28a745")

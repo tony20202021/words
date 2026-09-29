@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Вход в увеличение: картинка вырастает из середины и проявляется.
+<!-- Вход в увеличение: картинка заметно вырастает из середины и проявляется.
 
-     Прежде окно появлялось мгновенно, и момент перехода терялся: человек не
-     понимал, открылось увеличение или экран просто сменился. -->
+     Первый вариант был короче и мягче (0.85 за 200 мс) — владелец сказал, что
+     вход «вроде видно», а возврат не виден вовсе. Движение сделано крупнее и
+     длиннее: на маленьком экране разница в полтора десятка процентов не
+     читается как переход. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:anim/decelerate_interpolator">
     <scale
-        android:fromXScale="0.85" android:toXScale="1.0"
-        android:fromYScale="0.85" android:toYScale="1.0"
+        android:fromXScale="0.6" android:toXScale="1.0"
+        android:fromYScale="0.6" android:toYScale="1.0"
         android:pivotX="50%" android:pivotY="50%"
-        android:duration="200" />
-    <alpha android:fromAlpha="0.0" android:toAlpha="1.0" android:duration="200" />
+        android:duration="320" />
+    <alpha android:fromAlpha="0.0" android:toAlpha="1.0" android:duration="320" />
 </set>

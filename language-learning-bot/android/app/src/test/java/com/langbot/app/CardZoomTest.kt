@@ -138,6 +138,22 @@ class CardZoomTest {
     }
 
     @Test
+    fun the_picture_stays_while_the_closing_animation_plays() {
+        """
+        Владелец: «уменьшение при возврате не видно». onDismiss приходит в
+        начале закрытия, и прежняя очистка гасила картинку до того, как отыграет
+        анимация: окно уезжало пустым.
+        """
+        val a = open("tag_group")
+        blocks(a).getChildAt(0).performClick()
+        val dialog = a.cardZoomDialog!!
+        val zoom = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ZoomImageView
+
+        dialog.dismiss()
+        assertNotNull("картинку стёрли до конца анимации", zoom.drawable)
+    }
+
+    @Test
     fun the_card_opens_at_its_own_size_and_can_be_enlarged_five_times() {
         val a = open("tag_group")
         val column = column(a)
