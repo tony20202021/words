@@ -110,10 +110,10 @@ class StudyActivity : AppCompatActivity() {
         private const val MENU_ZOOM    = 4
 
         /** Сколько длится уменьшение при возврате (res/anim/zoom_exit.xml). */
-        const val ZOOM_EXIT_MS = 280L
+        const val ZOOM_EXIT_MS = 420L
 
         /** Сколько длится разворачивание при входе (res/anim/zoom_enter.xml). */
-        const val ZOOM_ENTER_MS = 320L
+        const val ZOOM_ENTER_MS = 480L
 
         /**
          * Рамка вокруг картинки, пока она разворачивается или сходится в точку.
@@ -128,6 +128,24 @@ class StudyActivity : AppCompatActivity() {
                 setColor(background)
                 setStroke(stroke, Color.parseColor("#222222"))
             }
+        }
+
+        /**
+         * Обёртка для окна увеличения: рамка ложится по ВИДИМОЙ части экрана.
+         *
+         * Прежде рамка рисовалась прямо на картинке, растянутой во весь экран:
+         * сверху её прятала строка состояния, а снизу оставалась широкая чёрная
+         * полоса — место под навигацию. Обёртка с fitsSystemWindows отступает
+         * от обеих полос, и рамка получается ровной со всех сторон.
+         */
+        fun zoomFrame(context: android.content.Context, content: View, background: Int): View {
+            val box = android.widget.FrameLayout(context)
+            box.fitsSystemWindows = true
+            box.setBackgroundColor(background)
+            box.addView(content, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+            return box
         }
     }
 
@@ -187,27 +205,28 @@ class StudyActivity : AppCompatActivity() {
 
         val view = ZoomImageView(this)
         // Столбец карточки прозрачный: без фона под ним чернел бы фон окна.
+        val box = zoomFrame(this, view, Color.WHITE)
         // Рамка — на время разворачивания, потом снимается.
-        framed(view, Color.WHITE, resources.displayMetrics.density)
+        framed(box, Color.WHITE, resources.displayMetrics.density)
         view.showDrawing(PictureDrawable(picture), from?.let { topWithin(it, content) } ?: 0)
 
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         // Рост из середины при входе и уменьшение при возврате: без анимации
         // момент перехода терялся — экран просто подменялся другим.
         dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
-        dialog.setContentView(view)
+        dialog.setContentView(box)
         dialog.setOnDismissListener {
             // onDismiss приходит В НАЧАЛЕ закрытия: здесь возвращаем рамку на
             // время схождения в точку, а картинку отпускаем, когда движение
             // закончится. Прежде очистка гасила картинку сразу, и уменьшение
             // играло на пустом окне.
-            framed(view, Color.WHITE, resources.displayMetrics.density)
+            framed(box, Color.WHITE, resources.displayMetrics.density)
             view.postDelayed({ view.setImageDrawable(null) }, ZOOM_EXIT_MS)
             if (cardZoomDialog === dialog) cardZoomDialog = null
         }
         dialog.show()
         // Разглядывать карточку в рамке незачем — снимаем, когда доехала.
-        view.postDelayed({ view.setBackgroundColor(Color.WHITE) }, ZOOM_ENTER_MS)
+        box.postDelayed({ box.setBackgroundColor(Color.WHITE) }, ZOOM_ENTER_MS)
         cardZoomDialog = dialog
     }
 

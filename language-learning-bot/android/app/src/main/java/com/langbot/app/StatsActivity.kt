@@ -4,11 +4,13 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.langbot.app.databinding.ActivityStatsBinding
 import com.langbot.app.network.BLSClient
+import com.langbot.app.network.NetworkRetry
 import com.langbot.app.network.Statistics
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.async
@@ -128,9 +130,15 @@ class StatsActivity : AppCompatActivity() {
         loadCharts()
         statsJob = lifecycleScope.launch {
             try {
-                val statsDeferred = async { BLSClient.api.getStatistics(userId, languageId) }
-                val statsResp = statsDeferred.await()
-                if (statsResp.isSuccessful && statsResp.body() != null) {
+                // С повторами и нарастающим таймаутом — как на экране занятия.
+                //
+                // Здесь стоял один запрос с самым коротким таймаутом соединения
+                // (2 с). На вялой мобильной связи столько уходит на само
+                // установление соединения, и статистика говорила «нет связи» в
+                // ту минуту, когда слова грузились нормально: там лесенка
+                // 2 → 6 → 15 секунд и три попытки.
+                val statsResp = NetworkRetry.call { api -> api.getStatistics(userId, languageId) }
+                if (statsResp != null && statsResp.isSuccessful && statsResp.body() != null) {
                     lastLoadFailed = false
                     summaryBox?.let { OfflineNotice.clear(it) }
                     renderStats(statsResp.body()!!)
@@ -210,8 +218,10 @@ class StatsActivity : AppCompatActivity() {
             // Remove the initial spinnerWrap — each section has its own
             charts.removeView(spinnerWrap)
 
+            // Первый запрос экрана — с повторами: он же и устанавливает
+            // соединение, которым потом пользуются картинки (пул общий).
             val manifest = try {
-                BLSClient.api.getChartManifest().body()
+                NetworkRetry.call { api -> api.getChartManifest() }?.body()
             } catch (_: Exception) { null }
 
             val sections = manifest?.sections?.map {
@@ -375,7 +385,8 @@ class StatsActivity : AppCompatActivity() {
             // Версия данных: если она та же, что у сохранённых картинок, качать
             // нечего вовсе — один короткий запрос вместо семнадцати картинок.
             val serverVersion = try {
-                BLSClient.api.getChartsVersion(userId, languageId).body()?.version
+                NetworkRetry.call { api -> api.getChartsVersion(userId, languageId) }
+                    ?.body()?.version
             } catch (_: Exception) { null }
             val cachedVersion = ChartCache.version(userId, languageId)
             val upToDate = fromCache == allSlots.size && allSlots.isNotEmpty() &&
@@ -437,6 +448,15 @@ class StatsActivity : AppCompatActivity() {
             }
           } catch (e: CancellationException) {
             throw e                      // отмена — это не ошибка
+          } catch (e: OutOfMemoryError) {
+            // Пустой экран без объяснения — худшее, чем это может кончиться.
+            android.util.Log.w("StatsActivity", "не хватило памяти на графики", e)
+            val tv = TextView(this@StatsActivity)
+            tv.text = "Не хватило памяти на графики — попробуйте открыть заново"
+            tv.textSize = 13f
+            tv.gravity = android.view.Gravity.CENTER
+            tv.setTextColor(android.graphics.Color.parseColor("#888888"))
+            chartsBox?.addView(tv)
           } catch (e: Throwable) {
             // Лучше экран без графиков, чем вылет приложения: статистика не та
             // вещь, ради которой стоит терять сессию занятия. Throwable, а не
@@ -479,6 +499,8 @@ class StatsActivity : AppCompatActivity() {
     // onResume приходит и сразу после onCreate, где загрузка уже идёт: второй
     // раз её запускать незачем.
     private var firstResume = true
+    /** Картинки отпущены при уходе с экрана — при возвращении перечитать. */
+    private var needsReload = false
 
     private fun zoomKey(type: Int, name: String) = "$type/$name"
 
@@ -529,26 +551,28 @@ class StatsActivity : AppCompatActivity() {
     private fun openZoom(type: Int, name: String, screen: Bitmap) {
         val view = ZoomImageView(this)
         view.show(screen)
-        // Рамка на время движения — та же, что у увеличения карточки слова.
-        // Фон чёрный: окно графика открывается на тёмной теме.
-        StudyActivity.framed(view, android.graphics.Color.BLACK, resources.displayMetrics.density)
+        // Рамка на время движения — та же, что у увеличения карточки слова, и
+        // по видимой части экрана: иначе сверху её съедает строка состояния, а
+        // снизу остаётся широкая чёрная полоса.
+        val box = StudyActivity.zoomFrame(this, view, android.graphics.Color.BLACK)
+        StudyActivity.framed(box, android.graphics.Color.BLACK, resources.displayMetrics.density)
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         // Рост из середины при входе и уменьшение при возврате: без анимации
         // момент перехода терялся — экран просто подменялся другим.
         dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
-        dialog.setContentView(view)
+        dialog.setContentView(box)
         var sharpening: Job? = null
         dialog.setOnDismissListener {
             sharpening?.cancel()
-            StudyActivity.framed(view, android.graphics.Color.BLACK, resources.displayMetrics.density)
+            StudyActivity.framed(box, android.graphics.Color.BLACK, resources.displayMetrics.density)
             // Большая картинка это около 10 МБ, но отпускаем её не в тот же миг:
             // onDismiss приходит в начале закрытия, и очистка съедала анимацию
             // уменьшения — окно гасло пустым.
             view.postDelayed({ view.setImageDrawable(null) }, StudyActivity.ZOOM_EXIT_MS)
         }
         dialog.show()
-        view.postDelayed({ view.setBackgroundColor(android.graphics.Color.BLACK) },
-                         StudyActivity.ZOOM_ENTER_MS)
+        box.postDelayed({ box.setBackgroundColor(android.graphics.Color.BLACK) },
+                        StudyActivity.ZOOM_ENTER_MS)
         zoomDialog = dialog
         sharpening = lifecycleScope.launch {
             val key = zoomKey(type, name)
@@ -582,14 +606,34 @@ class StatsActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
-        if (lastLoadFailed && !firstResume) loadStats()
+        // Перечитываем, если прошлая попытка не удалась либо картинки отпущены
+        // при уходе с экрана.
+        if ((lastLoadFailed || needsReload) && !firstResume) loadStats()
         firstResume = false
+        needsReload = false
     }
 
     override fun onStop() {
         super.onStop()
         // Ушли с экрана — большие картинки больше не нужны, канал не занимаем.
         zoomPrefetch?.cancel()
+        chartsJob?.cancel()
+        statsJob?.cancel()
+        // Семнадцать картинок шириной экрана — это десятки мегабайт. Держать их
+        // на невидимом экране незачем: приложению они ещё понадобятся под
+        // карточки и звук. При возвращении экран перечитает их с диска.
+        releaseChartBitmaps()
+        needsReload = true
+    }
+
+    /** Отпустить картинки графиков: экран не виден, память нужнее занятию. */
+    private fun releaseChartBitmaps() {
+        fun walk(v: View) {
+            if (v is ImageView) v.setImageDrawable(null)
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(binding.statsContainer)
+        zoomBytes.clear()
     }
 
     private fun renderStats(s: Statistics) {

@@ -93,7 +93,9 @@ class CardZoomTest {
         assertNotNull("окно увеличения не открылось", dialog)
         assertTrue("окно увеличения закрыто", dialog!!.isShowing)
         val content = dialog.findViewById<ViewGroup>(android.R.id.content)
-        val zoom = content?.getChildAt(0) as? ZoomImageView
+        val zoom = generateSequence(content?.getChildAt(0)) { v ->
+            (v as? ViewGroup)?.getChildAt(0)
+        }.filterIsInstance<ZoomImageView>().firstOrNull()
         assertNotNull("в окне нет увеличиваемой карточки: ${content?.getChildAt(0)}", zoom)
         zoom!!.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
                        View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
@@ -146,23 +148,26 @@ class CardZoomTest {
         val a = open("tag_group")
         blocks(a).getChildAt(0).performClick()
         val dialog = a.cardZoomDialog!!
-        val zoom = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ZoomImageView
+        val box = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+        val zoom = box.getChildAt(0) as ZoomImageView
 
-        assertTrue("во время разворачивания рамки нет: ${zoom.background}",
-            zoom.background is android.graphics.drawable.GradientDrawable)
+        // Рамка — на обёртке: она отступает от строки состояния и от полосы
+        // навигации, поэтому ложится ровно со всех сторон.
+        assertTrue("во время разворачивания рамки нет: ${box.background}",
+            box.background is android.graphics.drawable.GradientDrawable)
 
         // Рамка снимается отложенной задачей: в тестах часы виртуальные, и
         // просто «покрутить looper» мало — надо продвинуть время.
         org.robolectric.shadows.ShadowLooper.idleMainLooper(
             StudyActivity.ZOOM_ENTER_MS + 50, java.util.concurrent.TimeUnit.MILLISECONDS)
-        assertTrue("после движения рамка осталась: ${zoom.background}",
-            zoom.background !is android.graphics.drawable.GradientDrawable)
+        assertTrue("после движения рамка осталась: ${box.background}",
+            box.background !is android.graphics.drawable.GradientDrawable)
 
         dialog.dismiss()
         // Закрытие приходит через очередь сообщений — даём ей провернуться.
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
-        assertTrue("на возврате рамка не вернулась: ${zoom.background}",
-            zoom.background is android.graphics.drawable.GradientDrawable)
+        assertTrue("на возврате рамка не вернулась: ${box.background}",
+            box.background is android.graphics.drawable.GradientDrawable)
     }
 
     @Test
@@ -175,7 +180,8 @@ class CardZoomTest {
         val a = open("tag_group")
         blocks(a).getChildAt(0).performClick()
         val dialog = a.cardZoomDialog!!
-        val zoom = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ZoomImageView
+        val box = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+        val zoom = box.getChildAt(0) as ZoomImageView
 
         dialog.dismiss()
         assertNotNull("картинку стёрли до конца анимации", zoom.drawable)

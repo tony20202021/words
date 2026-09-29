@@ -250,6 +250,27 @@ class StatsOfflineRecoveryTest {
     }
 
     @Test
+    fun leaving_the_screen_frees_the_pictures_and_stops_the_requests() {
+        """
+        Владелец: после нескольких заходов в статистику приложение падало, а
+        соседние экраны говорили «нет связи». Уходя, экран держал семнадцать
+        картинок в памяти и свои запросы в общей очереди к серверу.
+        """
+        offline = false
+        val c = controller()
+        val a = c.get()
+        Screenshots.pumpUntil("картинки показаны") { images(a).size == 2 }
+
+        c.pause().stop()
+        assertEquals("картинки остались в памяти невидимого экрана", 0, images(a).size)
+
+        // Вернулись — экран перечитывает их сам.
+        c.start().resume()
+        Screenshots.pumpUntil("картинки вернулись") { images(a).size == 2 }
+        assertEquals(2, images(a).size)
+    }
+
+    @Test
     fun without_network_and_without_saved_charts_the_screen_explains_itself() {
         val c = controller()
         val a = c.get()
