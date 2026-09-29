@@ -17,6 +17,7 @@ import com.langbot.app.prefs.UserPrefs
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -67,6 +68,8 @@ class OfflineReconsiderTest {
     }
 
     private fun meta(pos: Int) = CardMeta(
+        show_session_counter = true,
+        session_counter_text = "(в сессии: $pos из 3)",
         word_id = "w1", word_number = pos, session_pos = pos, session_total = 3,
         correct_count = 0, incorrect_count = 0, pending_result = null, score_badge = null,
     )
@@ -145,6 +148,90 @@ class OfflineReconsiderTest {
     }
 
     private fun outbox() = OfflineCache.loadOutbox().filter { it.userId == u && it.languageId == l }
+
+    private fun headerText(a: StudyActivity): String {
+        val sb = StringBuilder()
+        fun walk(v: android.view.View) {
+            if (v is android.widget.TextView) sb.append(v.text).append('\n')
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(a.findViewById<android.view.ViewGroup>(R.id.cardContent))
+        return sb.toString()
+    }
+
+    @Test
+    fun the_offline_banner_goes_away_once_the_network_is_back() {
+        """
+        Жалоба владельца: «включил сеть, прошёл ещё несколько слов — плашка
+        офлайн не пропала». Сама она и не пропадала: выход из офлайна был
+        только при загрузке сессии. Теперь после каждого ответа накопленное
+        тихо пробуют отправить, и удача означает, что связь есть.
+        """
+        saveBundle(withKnownCard = true)
+        val a = launch()
+        assertTrue("плашки офлайна нет", offlineBannerShown(a))
+
+        // Сеть вернулась: сервер принимает пачку ответов и отдаёт карточку.
+        val back = MockWebServer()
+        back.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest):
+                okhttp3.mockwebserver.MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path.contains("results/batch") -> {
+                        // Подтверждаем ровно те события, что пришли: иначе
+                        // очередь не опустеет и «связь есть» не сработает.
+                        val body = request.body.readUtf8()
+                        val ids = Regex("\"event_id\":\"([^\"]+)\"").findAll(body)
+                            .map { it.groupValues[1] }.toList()
+                        val acks = ids.joinToString(",") {
+                            """{"event_id":"$it","status":"ok"}"""
+                        }
+                        okhttp3.mockwebserver.MockResponse().setBody("""{"acks":[$acks]}""")
+                    }
+                    path.startsWith("/session/") -> okhttp3.mockwebserver.MockResponse()
+                        .setBody(com.google.gson.Gson().toJson(
+                            com.langbot.app.network.SessionResponse("sid-2", front())))
+                    else -> okhttp3.mockwebserver.MockResponse().setResponseCode(404)
+                }
+            }
+        }
+        back.start()
+        BLSClient.init(back.url("/").toString().trimEnd('/'))
+
+        click(a, "Знаю")
+        // Отправка идёт фоном: ждём, пока очередь опустеет, — это и есть
+        // признак, что связь вернулась.
+        Screenshots.pumpUntil("накопленное ушло на сервер") { outbox().isEmpty() }
+        click(a, "К следующему слову")
+        Screenshots.pumpUntil("экран вернулся в онлайн") { !offlineBannerShown(a) }
+        assertTrue("плашка офлайна осталась после возвращения связи", !offlineBannerShown(a))
+        runCatching { back.shutdown() }
+    }
+
+    private fun offlineBannerShown(a: StudyActivity): Boolean =
+        a.findViewById<android.widget.TextView>(R.id.tvStaleSession).let {
+            it.visibility == android.view.View.VISIBLE && it.text.contains("Офлайн")
+        }
+
+    @Test
+    fun the_counter_moves_offline_and_never_passes_the_round_size() {
+        """
+        Жалоба владельца: «в офлайн-режиме счётчик не увеличивается, показывает
+        124/121». Строку «в сессии: N из M» присылает сервер, и в скачанной
+        партии она застывала: позиция оттуда, размер круга отсюда.
+        """
+        saveBundle(withKnownCard = true)
+        val a = launch()
+        assertTrue("счётчик не с первого слова: ${headerText(a)}",
+            headerText(a).contains("1 из 2"))
+
+        click(a, "Знаю")
+        click(a, "К следующему слову")
+        val text = headerText(a)
+        assertTrue("счётчик не сдвинулся: $text", text.contains("2 из 2") || text.contains("завершающее"))
+        assertFalse("позиция обогнала размер круга: $text", text.contains("3 из 2"))
+    }
 
     @Test
     fun after_know_the_answer_screen_offers_to_take_it_back() {

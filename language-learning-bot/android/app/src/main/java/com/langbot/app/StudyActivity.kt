@@ -75,6 +75,8 @@ class StudyActivity : AppCompatActivity() {
     private var lastWordId: String? = null
     // Guards against recording the current offline word's result more than once.
     private var offlineCurrentRecorded: Boolean = false
+    /** Накопленное ушло на сервер — значит, связь есть и офлайн пора закрывать. */
+    private var backOnline: Boolean = false
     // Засчитано ли текущее офлайновое слово знакомым: от этого зависит, какую
     // ответную сторону показывать — с «Ой, все-таки не знаю» или без.
     private var offlineScoredKnow: Boolean = false
@@ -109,6 +111,24 @@ class StudyActivity : AppCompatActivity() {
 
         /** Сколько длится уменьшение при возврате (res/anim/zoom_exit.xml). */
         const val ZOOM_EXIT_MS = 280L
+
+        /** Сколько длится разворачивание при входе (res/anim/zoom_enter.xml). */
+        const val ZOOM_ENTER_MS = 320L
+
+        /**
+         * Рамка вокруг картинки, пока она разворачивается или сходится в точку.
+         *
+         * Просьба владельца: во время движения рамку видно, и понятно, что
+         * уезжает целый лист, а не мигает экран. Пока картинку разглядывают,
+         * рамка не нужна — снимается, когда движение закончилось.
+         */
+        fun framed(view: View, background: Int, density: Float) {
+            val stroke = (3 * density + 0.5f).toInt()
+            view.background = GradientDrawable().apply {
+                setColor(background)
+                setStroke(stroke, Color.parseColor("#222222"))
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -167,7 +187,8 @@ class StudyActivity : AppCompatActivity() {
 
         val view = ZoomImageView(this)
         // Столбец карточки прозрачный: без фона под ним чернел бы фон окна.
-        view.setBackgroundColor(Color.WHITE)
+        // Рамка — на время разворачивания, потом снимается.
+        framed(view, Color.WHITE, resources.displayMetrics.density)
         view.showDrawing(PictureDrawable(picture), from?.let { topWithin(it, content) } ?: 0)
 
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
@@ -176,13 +197,17 @@ class StudyActivity : AppCompatActivity() {
         dialog.window?.attributes?.windowAnimations = R.style.ZoomDialogAnimation
         dialog.setContentView(view)
         dialog.setOnDismissListener {
-            // Не сразу: onDismiss приходит В НАЧАЛЕ закрытия, и очистка гасила
-            // картинку до того, как отыграет уменьшение. Владелец так и сказал:
-            // «вход вроде видно, а уменьшения при возврате не видно».
+            // onDismiss приходит В НАЧАЛЕ закрытия: здесь возвращаем рамку на
+            // время схождения в точку, а картинку отпускаем, когда движение
+            // закончится. Прежде очистка гасила картинку сразу, и уменьшение
+            // играло на пустом окне.
+            framed(view, Color.WHITE, resources.displayMetrics.density)
             view.postDelayed({ view.setImageDrawable(null) }, ZOOM_EXIT_MS)
             if (cardZoomDialog === dialog) cardZoomDialog = null
         }
         dialog.show()
+        // Разглядывать карточку в рамке незачем — снимаем, когда доехала.
+        view.postDelayed({ view.setBackgroundColor(Color.WHITE) }, ZOOM_ENTER_MS)
         cardZoomDialog = dialog
     }
 
@@ -490,12 +515,40 @@ class StudyActivity : AppCompatActivity() {
         val eng = offline ?: return
         if (offlineCurrentRecorded && !correction) return
         eng.record(rating)
+        probeNetworkInBackground()
         offlineCurrentRecorded = true
         offlineScoredKnow = rating == "know"
     }
 
+    /**
+     * Связь могла вернуться, пока мы занимались без неё.
+     *
+     * Жалоба владельца: «включил сеть, прошёл ещё несколько слов — плашка
+     * офлайн не пропала». Сама по себе она и не пропадёт: выход из офлайна
+     * происходит только при загрузке сессии. Поэтому после каждого ответа тихо
+     * пробуем отправить накопленное: получилось — значит, сеть есть.
+     */
+    private fun probeNetworkInBackground() {
+        if (offline == null) return
+        lifecycleScope.launch {
+            val ok = runCatching {
+                OutboxSync.flush()
+                OfflineCache.pendingCount() == 0
+            }.getOrDefault(false)
+            if (ok) backOnline = true
+        }
+    }
+
     private fun advanceOffline() {
         val eng = offline ?: return
+        // Связь вернулась — дальше идём из сети, но не посреди карточки, а на
+        // переходе к следующему слову: так экран не дёргается под рукой.
+        if (backOnline) {
+            backOnline = false
+            offline = null
+            loadSession()
+            return
+        }
         eng.advance()
         offlineCurrentRecorded = false
         offlineScoredKnow = false
@@ -543,10 +596,22 @@ class StudyActivity : AppCompatActivity() {
         // после перезапуска короче на уже отвеченные.
         val total = eng?.total?.takeIf { it > 0 }
         if (done.isEmpty() && total == null) return card
+        // Счётчик «в сессии: N из M» сервер присылает уже СТРОКОЙ, и в партии
+        // он застывает на том, каким был при скачивании: у владельца висело
+        // «124 из 121» — позиция из партии, размер из круга. Офлайн считаем
+        // сами: позиция — сколько слов этого круга уже отвечено, плюс текущее.
+        val pos = done.size + 1
+        val counter = when {
+            total == null -> meta.session_counter_text
+            pos >= total -> "(завершающее в текущей сессии: $pos)"
+            else -> "(в сессии: $pos из $total)"
+        }
         return card.copy(meta = meta.copy(
             correct_count = meta.correct_count + done.count { it == "know" },
             incorrect_count = meta.incorrect_count + done.count { it == "dont_know" },
             result_history = meta.result_history + done.filter { it != "skip" },
+            session_pos = pos,
+            session_counter_text = counter,
             session_total = total ?: meta.session_total,
             words_for_today = total ?: meta.words_for_today,
         ))

@@ -138,6 +138,34 @@ class CardZoomTest {
     }
 
     @Test
+    fun the_picture_is_framed_while_it_moves_and_bare_while_it_is_read() {
+        """
+        Просьба владельца: рамка вокруг картинки, пока она разворачивается и
+        пока сходится обратно в точку. Читать карточку в рамке незачем.
+        """
+        val a = open("tag_group")
+        blocks(a).getChildAt(0).performClick()
+        val dialog = a.cardZoomDialog!!
+        val zoom = dialog.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ZoomImageView
+
+        assertTrue("во время разворачивания рамки нет: ${zoom.background}",
+            zoom.background is android.graphics.drawable.GradientDrawable)
+
+        // Рамка снимается отложенной задачей: в тестах часы виртуальные, и
+        // просто «покрутить looper» мало — надо продвинуть время.
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(
+            StudyActivity.ZOOM_ENTER_MS + 50, java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertTrue("после движения рамка осталась: ${zoom.background}",
+            zoom.background !is android.graphics.drawable.GradientDrawable)
+
+        dialog.dismiss()
+        // Закрытие приходит через очередь сообщений — даём ей провернуться.
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertTrue("на возврате рамка не вернулась: ${zoom.background}",
+            zoom.background is android.graphics.drawable.GradientDrawable)
+    }
+
+    @Test
     fun the_picture_stays_while_the_closing_animation_plays() {
         """
         Владелец: «уменьшение при возврате не видно». onDismiss приходит в

@@ -529,6 +529,9 @@ class StatsActivity : AppCompatActivity() {
     private fun openZoom(type: Int, name: String, screen: Bitmap) {
         val view = ZoomImageView(this)
         view.show(screen)
+        // Рамка на время движения — та же, что у увеличения карточки слова.
+        // Фон чёрный: окно графика открывается на тёмной теме.
+        StudyActivity.framed(view, android.graphics.Color.BLACK, resources.displayMetrics.density)
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         // Рост из середины при входе и уменьшение при возврате: без анимации
         // момент перехода терялся — экран просто подменялся другим.
@@ -537,12 +540,15 @@ class StatsActivity : AppCompatActivity() {
         var sharpening: Job? = null
         dialog.setOnDismissListener {
             sharpening?.cancel()
+            StudyActivity.framed(view, android.graphics.Color.BLACK, resources.displayMetrics.density)
             // Большая картинка это около 10 МБ, но отпускаем её не в тот же миг:
             // onDismiss приходит в начале закрытия, и очистка съедала анимацию
             // уменьшения — окно гасло пустым.
             view.postDelayed({ view.setImageDrawable(null) }, StudyActivity.ZOOM_EXIT_MS)
         }
         dialog.show()
+        view.postDelayed({ view.setBackgroundColor(android.graphics.Color.BLACK) },
+                         StudyActivity.ZOOM_ENTER_MS)
         zoomDialog = dialog
         sharpening = lifecycleScope.launch {
             val key = zoomKey(type, name)
