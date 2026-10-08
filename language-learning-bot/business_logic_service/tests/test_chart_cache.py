@@ -284,3 +284,36 @@ class TestChartsVersion:
         state["days"] = [_day("2026-09-01T00:00:00", updated_at="2026-09-26T10:00:00",
                               max_word_number=500)]
         assert await chart_cache.charts_version("u1", "l1", api_client=None) == before
+
+
+# ── отрисовка не должна падать на живых данных ──────────────────────────────
+
+class TestIntervalHistogramSurvivesRealData:
+    """
+    График «Интервалы повторения» падал в бою: 63 раза за девять дней он не
+    рисовался вовсе, и на экране оставалась вечная крутяшка.
+
+    Насыщенность точки считалась как «сколько слов корзины имеют этот интервал,
+    делить на ширину корзины». Это верно, пока слов в корзине не больше её
+    ширины. В базе у одного слова оказалось несколько записей статистики
+    (их наплодил разбор офлайн-пачки 30.09), и доля переваливала за единицу —
+    matplotlib на такой прозрачности падает с ValueError.
+    """
+
+    @staticmethod
+    def _draw(pairs):
+        from app.chart_generator import ProgressChartGenerator
+        return ProgressChartGenerator.create_check_interval_histogram(pairs, words_studied=200)
+
+    def test_duplicate_records_for_one_word_do_not_break_the_picture(self):
+        # Сорок записей на двадцать номеров одной корзины: доля была бы 2.0.
+        pairs = [(100 + i % 20, 3) for i in range(40)]
+        png = self._draw(pairs)
+        assert png.getbuffer().nbytes > 0
+
+    def test_a_normal_set_still_draws(self):
+        pairs = [(i, i % 5) for i in range(1, 120)]
+        assert self._draw(pairs).getbuffer().nbytes > 0
+
+    def test_no_intervals_at_all_draws_the_explanation(self):
+        assert self._draw([]).getbuffer().nbytes > 0

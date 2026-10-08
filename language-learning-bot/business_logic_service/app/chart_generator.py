@@ -173,9 +173,17 @@ class ProgressChartGenerator:
             bin_values = [x[1] for x in word_check_interval if bin_start <= x[0] < bin_end]
             bin_values_counts = Counter(bin_values)
             for value, count in bin_values_counts.items():
+                # Насыщенность точки — доля слов корзины с этим интервалом.
+                #
+                # Делить на размер корзины можно, только если слов в ней не
+                # больше её ширины. В бою это не так: у одного слова бывает
+                # несколько записей статистики (их наплодил разбор офлайн-пачки
+                # 30.09), и count переваливал за двадцать. matplotlib на alpha
+                # больше единицы падает с ValueError, и график «Интервалы
+                # повторения» не рисовался вовсе — 63 раза за девять дней.
                 bins.append({
                     "x": bin_start, "y": value,
-                    "alpha": count / BIN_LEN, "size": count * 3,
+                    "alpha": min(1.0, max(0.05, count / BIN_LEN)), "size": count * 3,
                 })
 
         if word_check_interval:
