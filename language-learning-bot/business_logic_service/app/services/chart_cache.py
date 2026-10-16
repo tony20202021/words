@@ -29,7 +29,7 @@ from typing import Any, Callable, Dict, Hashable, Tuple
 
 from app.logger import setup_logger
 from app import chart_generator
-from app.services import statistics_service
+from app.services import settings_service, statistics_service
 
 logger = setup_logger(__name__)
 
@@ -106,8 +106,10 @@ def _at(variant: str, generator: Callable[[], Dict[str, bytes]]) -> Callable[[],
 
 async def monthly_charts(user_id: str, language_id: str, show_all: bool,
                          api_client, variant: str = "screen") -> Dict[str, bytes]:
+    settings = await settings_service.get_settings(user_id, language_id, api_client)
     all_days, first_finish = await statistics_service.get_monthly_statistics(
-        user_id, language_id, statistics_service.study_day(), api_client, show_all=show_all)
+        user_id, language_id, statistics_service.study_day(settings=settings),
+        api_client, show_all=show_all)
     return await _cached(
         ("monthly", user_id, language_id, show_all, variant),
         _fingerprint(_monthly_payload(all_days, first_finish, show_all)),
@@ -137,7 +139,8 @@ async def charts_version(user_id: str, language_id: str, api_client) -> str:
     «версия не изменилась» и «картинки те же» — одно и то же утверждение.
     """
     progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
-    today = statistics_service.study_day()
+    settings = await settings_service.get_settings(user_id, language_id, api_client)
+    today = statistics_service.study_day(settings=settings)
     parts = [_fingerprint(_today_payload(progress))]
     for show_all in (False, True):
         all_days, first_finish = await statistics_service.get_monthly_statistics(

@@ -160,8 +160,16 @@ class ScreenshotTest {
         val statsIntent = Intent(ctx, StatsActivity::class.java)
             .putExtra("language_id", "lang-1").putExtra("language_name", "Иврит")
         val stats = Robolectric.buildActivity(StatsActivity::class.java, statsIntent).setup().get()
+        // Ждём не «появились надписи», а что ДОГОВОРИЛ блок графиков. Сводка и
+        // графики теперь грузятся порознь, и по одному лишь наличию надписей
+        // снимок делался на полпути: сводка уже есть, под заголовком «Графики»
+        // ещё пусто — эталон расходился с собой через раз.
         Screenshots.pumpUntil("статистика загружена") {
-            Screenshots.texts(stats.findViewById(android.R.id.content)).size > 3
+            val texts = Screenshots.texts(stats.findViewById(android.R.id.content))
+            texts.size > 3 && texts.any {
+                val t = it.text.toString()
+                t.contains("Нет данных для графиков") || t.contains("Не удалось")
+            }
         }
         shoot(Screenshots.contentColumn(stats), "screen_stats")
         stats.finish()
@@ -185,7 +193,7 @@ class ScreenshotTest {
          "show_hint_phoneticassociation":true,"show_hint_phoneticsound":false,
          "show_hint_writing":false,"random_pick_mode":true,"random_sound":true,
          "random_transcription":true,"quiz_options_count":4,"unknown_limit_new_words":10,
-         "max_check_interval":90,"reset_same_day_hours":4,"reset_cross_midnight_hours":8}"""
+         "max_check_interval":90,"reset_same_day_hours":4,"day_start_hour":4,"timezone":"Europe/Rome"}"""
 
         // progress_percentage сервер считает как words_known / total_words
         // (statistics_repository), поэтому число здесь обязано сходиться с

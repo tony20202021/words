@@ -44,8 +44,10 @@ class SoundPlaybackWiringTest {
         val starts = Regex("""\bstopPlayback\(\)""").findAll(source).count()
         assertTrue("stopPlayback() вызывается $starts раз, ожидалось не меньше 4", starts >= 4)
 
-        // Цепочка вариантов пик-режима — то самое место из жалобы.
-        val seq = body("private fun playSoundSequence(paths: List<String>) {")
+        // Цепочка вариантов пик-режима — то самое место из жалобы. Теперь она
+        // проигрывает не один список путей, а несколько вариантов подряд
+        // («▶ Все»), и обрывать предыдущее обязана по-прежнему.
+        val seq = body("private fun playGroups(groups: List<SoundGroup>) {")
         assertTrue("цепочка не обрывает предыдущее", seq.contains("stopPlayback()"))
         assertTrue("цепочка не привязана к поколению", seq.contains("val mine = playbackGen"))
     }
@@ -54,8 +56,8 @@ class SoundPlaybackWiringTest {
     fun `отложенный переход по цепочке отсекается по поколению`() {
         // Паузу держит Handler, а не MediaPlayer: оборвав только звук, мы всё
         // равно получили бы следующий через 350 мс.
-        val seq = body("private fun playSoundSequence(paths: List<String>) {")
-        assertTrue(seq.contains("if (mine != playbackGen || idx >= paths.size) return"))
+        val seq = body("private fun playGroups(groups: List<SoundGroup>) {")
+        assertTrue(seq.contains("if (mine != playbackGen) return"))
         assertTrue(seq.contains("if (mine == playbackGen) playbackHandler.postDelayed"))
         assertFalse("postDelayed мимо владельца — отменить такое нечем",
                     seq.contains("binding.root.postDelayed"))
@@ -66,6 +68,10 @@ class SoundPlaybackWiringTest {
         val stop = body("private fun stopPlayback() {")
         assertTrue(stop.contains("playbackGen++"))
         assertTrue(stop.contains("playbackHandler.removeCallbacksAndMessages(null)"))
+        // И подсветку «звучит сейчас»: иначе на экране навсегда остаётся
+        // вариант, который давно отзвучал.
+        assertTrue("оборванное воспроизведение оставляет подсветку",
+                   stop.contains("markPlayingOption(null)"))
     }
 
     @Test
@@ -102,7 +108,7 @@ class SoundPlaybackWiringTest {
     fun `прерванная подготовка не запускает звук задним числом`() {
         // prepareAsync асинхронный: пока он идёт, пользователь успевает нажать
         // другой вариант. Без проверки готовый звук стартовал бы уже поверх нового.
-        val seq = body("private fun playSoundSequence(paths: List<String>) {")
+        val seq = body("private fun playGroups(groups: List<SoundGroup>) {")
         val prepared = seq.substring(seq.indexOf("setOnPreparedListener"))
         assertTrue(prepared.take(200).contains("mine != playbackGen"))
     }

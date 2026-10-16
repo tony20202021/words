@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
-from app.services import chart_cache, session_service, statistics_service
+from app.services import chart_cache, session_service, settings_service, statistics_service
 from app.services import quiz_service
 from app.services.card_builder import build_card
 from app.services.word_service import ensure_user_word_data
@@ -17,7 +17,10 @@ logger = setup_logger(__name__)
 async def _bg_update_daily(user_id: str, language_id: str, api_client, word_number: int = 0) -> None:
     """Update daily record and max_word_number after each word rating."""
     try:
-        today = statistics_service.study_day()
+        # Граница суток у человека своя — без его настроек запись легла бы в
+        # соседний день. См. common/study_day.py.
+        settings = await settings_service.get_settings(user_id, language_id, api_client)
+        today = statistics_service.study_day(settings=settings)
         # Прогресс нужен только когда дневной записи ещё нет (раз в сутки), а
         # ответ у него тяжёлый — массивы номеров слов на тысячи элементов.
         # Поэтому передаём загрузчик, а не результат.
@@ -43,8 +46,9 @@ async def _bg_first_finish_on_completion(user_id: str, language_id: str, api_cli
     """
     try:
         progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
+        settings = await settings_service.get_settings(user_id, language_id, api_client)
         await statistics_service.write_first_finish_if_missing(
-            user_id, language_id, statistics_service.study_day(),
+            user_id, language_id, statistics_service.study_day(settings=settings),
             progress.get("words_unknown_now", 0), api_client)
     except Exception as e:
         logger.warning(f"bg first finish update failed for {user_id}/{language_id}: {e}")

@@ -218,13 +218,17 @@ class StatsActivity : AppCompatActivity() {
             // Remove the initial spinnerWrap — each section has its own
             charts.removeView(spinnerWrap)
 
-            // Первый запрос экрана — с повторами: он же и устанавливает
-            // соединение, которым потом пользуются картинки (пул общий).
-            val manifest = try {
-                NetworkRetry.call { api -> api.getChartManifest() }?.body()
-            } catch (_: Exception) { null }
-
-            val sections = manifest?.sections?.map {
+            // Состав экрана берём из запасного списка СРАЗУ, не дожидаясь
+            // манифеста.
+            //
+            // Манифест идёт с повторами, а это до двадцати трёх секунд на
+            // мёртвой связи. Всё это время экран стоял пустой, хотя картинки
+            // с прошлого раза лежали на телефоне: ровно то, на что жаловался
+            // владелец — «отрисовался пустой экран с крутяшкой, хотя до этого
+            // графики смотрел». Запасной список совпадает с манифестом сервера;
+            // если сервер всё же пришлёт другой, экран пересоберётся под него.
+            val manifestNow = runCatching { BLSClient.api.getChartManifest().body() }.getOrNull()
+            val sections = manifestNow?.sections?.map {
                 Triple(it.header, it.charts, it.type)
             } ?: FALLBACK_SECTIONS
 

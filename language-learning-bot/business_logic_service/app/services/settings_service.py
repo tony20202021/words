@@ -30,7 +30,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "random_sound": False,
     "receive_messages": True,
     "reset_same_day_hours": 16,
-    "reset_cross_midnight_hours": 6,
+    # Граница учебных суток. Умолчания повторяют прежнее поведение — полночь
+    # UTC, — поэтому переход на эти настройки сам по себе ничего не сдвигает.
+    "timezone": "UTC",
+    "day_start_hour": 0,
     "unknown_limit_new_words": 10,
     "max_check_interval": 32,
     "random_pick_mode": False,
@@ -51,7 +54,9 @@ DEFAULT_HINT_SETTINGS: Dict[str, bool] = {
 
 async def get_settings(user_id: str, language_id: str, api_client) -> Dict[str, Any]:
     """Return user settings for a language, falling back to defaults."""
-    if not user_id or not language_id:
+    # Без клиента спрашивать не у кого — отдаём умолчания. Так же поступаем
+    # и без пользователя: настройки чьи-то, а не ничьи.
+    if not user_id or not language_id or api_client is None:
         return DEFAULT_SETTINGS.copy()
 
     response = await api_client.get_user_language_settings(user_id, language_id)

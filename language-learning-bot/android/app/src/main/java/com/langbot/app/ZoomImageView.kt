@@ -32,6 +32,11 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
     // длиннее экрана, вписанная она нечитаема, и мерить от неё нельзя.
     private var zoomBase = 1f
     private var pendingTopPx: Int? = null
+    // Что именно показать при открытии: полоса рисунка по горизонтали, которую
+    // надо растянуть на всю ширину экрана. Нужна таблицам экстра-инфо — см.
+    // showDrawing.
+    private var pendingLeftPx = 0
+    private var pendingWidthPx = 0
 
     init {
         scaleType = ScaleType.MATRIX
@@ -91,12 +96,22 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
      * остаётся буквами и при увеличении перерисовывается, а не растягивается
      * пикселями — ради огласовок это и делалось.
      *
-     * Открывается в натуральную величину, как на экране, и с той высоты, по
-     * которой нажали: карточка длиннее экрана, и вписанная целиком была бы
-     * мельче исходной.
+     * Открывается с той высоты, по которой нажали: карточка длиннее экрана, и
+     * вписанная целиком была бы мельче исходной.
+     *
+     * @param focusLeftPx, focusWidthPx полоса рисунка, которую надо растянуть
+     *        на всю ширину. Жалоба владельца: «экран увеличения открывается в
+     *        размере в точности как исходный» — увеличение, которое ничего не
+     *        увеличивает. У таблицы экстра-инфо четыре колонки, и читают в ней
+     *        две: перевод и само слово. Их и показываем во всю ширину, а номер
+     *        с транскрипцией уезжают за край — к ним можно отлистнуть.
+     *        Ноль означает «как было»: натуральная величина.
      */
-    fun showDrawing(drawing: Drawable, startTopPx: Int) {
+    fun showDrawing(drawing: Drawable, startTopPx: Int,
+                    focusLeftPx: Int = 0, focusWidthPx: Int = 0) {
         pendingTopPx = startTopPx
+        pendingLeftPx = focusLeftPx
+        pendingWidthPx = focusWidthPx
         setImageDrawable(drawing)
         fit()
         applyStart()
@@ -110,9 +125,27 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
         pendingTopPx = null
         // Не мельче вписанной: узкая карточка вписывается крупнее натуральной.
         zoomBase = maxOf(1f, fitScale)
+        val focus = pendingWidthPx
+        val left = pendingLeftPx
+        pendingWidthPx = 0
+        pendingLeftPx = 0
         drawMatrix.reset()
-        drawMatrix.postScale(zoomBase, zoomBase)
-        drawMatrix.postTranslate((width - d.intrinsicWidth * zoomBase) / 2f, -top * zoomBase)
+        if (focus > 0) {
+            // Просили показать полосу во всю ширину — но не впритык.
+            //
+            // Ровно по краю экрана оказывались линии таблицы: границы колонок
+            // слева и справа и верхняя граница. Половина каждой уходила за
+            // край, и было не понять, где таблица кончается и есть ли что-то
+            // сбоку. Небольшой отступ оставляет линии на виду и показывает
+            // краешек соседних колонок — по нему видно, что можно отлистнуть.
+            val margin = width * FOCUS_MARGIN
+            val scale = ((width - 2 * margin) / focus).coerceAtLeast(zoomBase)
+            drawMatrix.postScale(scale, scale)
+            drawMatrix.postTranslate(margin - left * scale, margin - top * scale)
+        } else {
+            drawMatrix.postScale(zoomBase, zoomBase)
+            drawMatrix.postTranslate((width - d.intrinsicWidth * zoomBase) / 2f, -top * zoomBase)
+        }
         clamp()
         imageMatrix = drawMatrix
     }
@@ -177,6 +210,11 @@ class ZoomImageView(context: Context) : AppCompatImageView(context) {
     }
 
     companion object {
+        /**
+         * Отступ по краям, когда открывают полосу (колонки таблицы), — доля
+         * ширины экрана с каждой стороны. Ради видимых линий таблицы.
+         */
+        const val FOCUS_MARGIN = 0.03f
         const val MAX_FACTOR = 5f
         const val DOUBLE_TAP_FACTOR = 2.5f
     }

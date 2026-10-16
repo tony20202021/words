@@ -1135,14 +1135,18 @@ def test_extra_blocks_are_parsed_into_table_rows():
         {"marker": "[#33]", "rank": 33, "foreign": "אוֹתִי", "ipa": "ʔoˈti", "ru": "меня"},
     ]
 
+    # Номер у варианта огласовки теперь есть — но только там, где этот вариант
+    # сам есть в словаре. Просьба владельца: «таблица вариантов огласовки,
+    # первый столбец пустой — добавить номера слова». У второй огласовки тех же
+    # согласных своего номера часто нет: עַם «народ» в десятитысячник не
+    # входит, и ячейка остаётся пустой, как была.
     tones = _extra_rows("<b>עם</b>: <i>вариантов огласовки: 2</i>\n"
-                        " - <b>עִם</b> [ʔim]: с, вместе с\n"
+                        " - <i>[#15]</i><b>עִם</b> [ʔim]: с, вместе с\n"
                         " - <b>עַם</b> [ʔam]: народ")
     assert "вариантов огласовки" in tones["header"]
-    # У огласовок номера нет: колонка остаётся пустой, ширины совпадают.
     assert tones["rows"] == [
-        {"marker": "", "foreign": "עִם", "ipa": "ʔim", "ru": "с, вместе с"},
-        {"marker": "", "foreign": "עַם", "ipa": "ʔam", "ru": "народ"},
+        {"marker": "[#15]", "rank": 15, "foreign": "עִם", "ipa": "ʔim", "ru": "с, вместе с"},
+        {"marker": "", "rank": None, "foreign": "עַם", "ipa": "ʔam", "ru": "народ"},
     ]
 
 
@@ -1371,3 +1375,69 @@ def test_a_row_without_a_number_counts_as_studied():
     session["words_studied"] = 10
     rows = _refs_rows(build_card(session, word, show_answer=True))
     assert all(r["studied"] for r in rows)
+
+
+def test_vocalisation_variants_are_never_hidden_by_progress():
+    """
+    Вариант огласовки показывается всегда, даже если до того слова не дошли.
+
+    У строк вариантов появился номер — и вместе с ним искушение гасить их так
+    же, как однокоренные. Делать этого нельзя: второй вариант огласовки — это
+    предупреждение «то же написание читается иначе». Спрятав его до того, как
+    человек дойдёт до того слова, карточка умолчала бы ровно о том, ради чего
+    блок и заведён: о том, что он читает не то, что написано.
+    """
+    from app.services.card_builder import _extra_rows, _mark_studied
+
+    tones = _extra_rows("<b>לך</b>: <i>вариантов огласовки: 2</i>\n"
+                        " - <i>[#11]</i><b>לְךָ</b> [leˈχa]: тебе (м)\n"
+                        " - <i>[#9514]</i><b>לָךְ</b> [laχ]: тебе (ж)")
+    assert [r["rank"] for r in tones["rows"]] == [11, 9514]
+    # Сам разбор отметок не ставит — их ставит отдельный проход, и к блоку
+    # вариантов он не применяется.
+    assert all("studied" not in r for r in tones["rows"])
+
+    # А если бы применялся, строка №9514 погасла бы: вот что мы не делаем.
+    marked = _mark_studied(dict(tones), words_studied=100)
+    assert [r.get("studied") for r in marked["rows"]] == [True, False]
+
+
+def test_the_transcription_field_holds_only_the_international_form():
+    """
+    В транскрипции — только международная запись, русская внизу отдельно.
+
+    Просьба владельца: «сейчас прямо в одном поле записан международный вариант
+    и просто звучание на русском; для начального этапа это было хорошо, сейчас
+    надо оставить только международный стандарт; можно ли сохранить русский
+    где-нибудь в экстра инфо?». Можно — поэтому не выбрасываем, а переносим.
+    """
+    from app.services.card_builder import build_card
+
+    word = {
+        "_id": "x", "word_number": 240, "word_foreign": "אָחִי",
+        "translation": "мой брат", "transcription": "/ʔaˈχi/",
+        "transcription_ru": "ахИ",
+    }
+    session = {"words": [], "current_index": 0, "settings": {},
+               "words_studied": 241, "language_name_ru": "Иврит"}
+    card = build_card(session, word, show_answer=True)
+
+    shown = [i["text"] for i in card["content"] if i["type"] == "transcription"]
+    assert shown == ["[/ʔaˈχi/]"], shown
+    assert all("ахИ" not in t for t in shown), "русское звучание осталось в транскрипции"
+
+    extra = [i.get("text") for i in card["extra_content"]]
+    assert "ахИ" in extra, f"русское звучание потерялось совсем: {extra}"
+    assert any("русскими буквами" in str(t) for t in extra), extra
+
+
+def test_a_word_without_the_russian_sounding_gets_no_empty_block():
+    """Пустого блока с подписью и ничем внутри быть не должно."""
+    from app.services.card_builder import build_card
+
+    word = {"_id": "x", "word_number": 1, "word_foreign": "אֵת",
+            "translation": "вот", "transcription": "/ʔet/"}
+    card = build_card({"words": [], "current_index": 0, "settings": {},
+                       "words_studied": 1, "language_name_ru": "Иврит"},
+                      word, show_answer=True)
+    assert not any("русскими буквами" in str(i.get("text")) for i in card["extra_content"])

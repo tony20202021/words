@@ -47,6 +47,8 @@ def repo(mock_db):
     col = MagicMock()
     col.insert_one = AsyncMock()
     col.find_one = AsyncMock(return_value=None)
+    col.find_one_and_update = AsyncMock()
+    col.create_index = AsyncMock()
     col.update_one = AsyncMock()
     col.delete_one = AsyncMock()
 
@@ -64,10 +66,7 @@ class TestCreate:
     @pytest.mark.asyncio
     async def test_create_returns_stat_in_db(self, repo, mock_db):
         doc = make_db_doc()
-        insert_result = MagicMock()
-        insert_result.inserted_id = doc["_id"]
-        mock_db.user_statistics.insert_one.return_value = insert_result
-        mock_db.user_statistics.find_one.return_value = dict(doc)
+        mock_db.user_statistics.find_one_and_update.return_value = dict(doc)
 
         stat_data = UserStatisticsCreate(
             word_id=WORD_ID,
@@ -80,19 +79,38 @@ class TestCreate:
         assert result.word_id == WORD_ID
 
     @pytest.mark.asyncio
-    async def test_create_calls_insert_one(self, repo, mock_db):
+    async def test_create_writes_in_one_operation(self, repo, mock_db):
+        """Создание идёт одной операцией «вставить, если нет».
+
+        Раньше здесь было два шага — посмотреть и вставить, — и две
+        одновременные отправки офлайн-результатов успевали вставить обе.
+        См. tests/test_repositories/test_statistics_no_duplicates.py.
+        """
         doc = make_db_doc()
-        insert_result = MagicMock()
-        insert_result.inserted_id = doc["_id"]
-        mock_db.user_statistics.insert_one.return_value = insert_result
-        mock_db.user_statistics.find_one.return_value = dict(doc)
+        mock_db.user_statistics.find_one_and_update.return_value = dict(doc)
 
         stat_data = UserStatisticsCreate(
             word_id=WORD_ID,
             language_id=LANG_ID,
         )
         await repo.create(USER_ID, stat_data)
-        mock_db.user_statistics.insert_one.assert_called_once()
+
+        mock_db.user_statistics.insert_one.assert_not_called()
+        mock_db.user_statistics.find_one_and_update.assert_called_once()
+        args, kwargs = mock_db.user_statistics.find_one_and_update.call_args
+        assert args[0] == {"user_id": USER_ID, "word_id": WORD_ID}
+        assert kwargs["upsert"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_keeps_the_original_creation_date(self, repo, mock_db):
+        """Дата рождения записи ставится только при вставке."""
+        mock_db.user_statistics.find_one_and_update.return_value = make_db_doc()
+        await repo.create(USER_ID, UserStatisticsCreate(word_id=WORD_ID, language_id=LANG_ID))
+        _, kwargs = mock_db.user_statistics.find_one_and_update.call_args
+        update = mock_db.user_statistics.find_one_and_update.call_args[0][1]
+        assert "created_at" in update["$setOnInsert"]
+        assert "created_at" not in update["$set"]
+        assert "updated_at" in update["$set"]
 
 
 class TestGetById:

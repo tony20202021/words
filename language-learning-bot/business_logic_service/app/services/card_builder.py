@@ -254,6 +254,12 @@ EXTRA_LABELS_DEFAULT = {
     "tones": "🎵 Тоны:",
     "references": "🔍 Ссылки:",
     "radicals": "🔍 Радикалы:",
+    # Звучание русскими буквами. В поле транскрипции оно лежало вторым рядом с
+    # международным, и на карточке их было видно сразу два. Владелец: «для
+    # начального этапа это было хорошо, сейчас надо оставить только
+    # международный стандарт», но и терять русское не хочется — поэтому оно
+    # переехало сюда, в нижний блок.
+    "translit_ru": "🗣 Звучание русскими буквами:",
 }
 EXTRA_LABELS_BY_LANGUAGE = {
     "Иврит": {
@@ -282,7 +288,10 @@ EXTRA_LABELS_BY_LANGUAGE = {
 # огласовок выглядела иначе, чем соседняя таблица группы на той же карточке.
 # У огласовок номера нет — колонка остаётся пустой, но ширины совпадают.
 _REF_ROW = re.compile(r"^<i>\[#(\d+)\]</i>(.+?)\s*(\[[^\]]*\])\s*(.*)$")
-_TONE_ROW = re.compile(r"^\s*-\s*<b>(.+?)</b>\s*(\[[^\]]*\])\s*:\s*(.*)$")
+# Номер перед формой необязателен: вторая огласовка тех же согласных часто
+# сама в словарь не входит (אַתְּ «ты (ж)» при אֵת), и номера у неё нет.
+_TONE_ROW = re.compile(
+    r"^\s*-\s*(?:<i>\[#(\d+)\]</i>)?<b>(.+?)</b>\s*(\[[^\]]*\])\s*:\s*(.*)$")
 
 
 def _extra_rows(text: str) -> Dict[str, Any]:
@@ -304,9 +313,17 @@ def _extra_rows(text: str) -> Dict[str, Any]:
             continue
         m = _TONE_ROW.match(line)
         if m:
-            rows.append({"marker": "", "foreign": m.group(1).strip(),
-                         "ipa": m.group(2).strip("[] "),
-                         "ru": m.group(3).strip()})
+            rank = int(m.group(1)) if m.group(1) else None
+            # rank кладём, чтобы в таблице был номер, — но по прогрессу
+            # варианты огласовки не гасим. Вторая огласовка это
+            # предупреждение «то же написание читается иначе»: спрятав её до
+            # того, как человек дойдёт до того слова, карточка умолчала бы
+            # ровно о том, ради чего блок и заведён.
+            rows.append({"marker": f"[#{rank}]" if rank else "",
+                         "rank": rank,
+                         "foreign": m.group(2).strip(),
+                         "ipa": m.group(3).strip("[] "),
+                         "ru": m.group(4).strip()})
             continue
         if not header:
             header = line.strip()
@@ -363,6 +380,12 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
     grammar = _grammar_note(word)
     if grammar:
         content.append({"type": "label", "text": f"📚 {grammar}"})
+    if (word.get("transcription_ru") or "").strip():
+        extra.append({"type": "label", "text": _extra_label(language_ru, "translit_ru"),
+                      "group": "translit_ru"})
+        extra.append({"type": "extra", "text": word["transcription_ru"],
+                      "group": "translit_ru"})
+
     if settings.get("show_tones") and (word.get("tones") or "").strip():
         # Обрезки по прогрессу здесь не было никогда: у огласовок нет номеров
         # строк — ни в одной из 108 записей с непустым tones, — и _filter_refs

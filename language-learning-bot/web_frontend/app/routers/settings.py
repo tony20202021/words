@@ -9,7 +9,7 @@ router = APIRouter()
 NUMERIC_LABELS = {
     "start_word":                  "Начальное слово",
     "reset_same_day_hours":        "Сброс сессии: перерыв за день (ч)",
-    "reset_cross_midnight_hours":  "Сброс сессии: час после полуночи",
+    "day_start_hour":              "Начало учебных суток (час)",
     "unknown_limit_new_words":     "Лимит неизвестных слов",
     "max_check_interval":          "Макс. интервал повторения (дни)",
     "quiz_options_count":          "Кол-во вариантов в режиме выбора",
@@ -62,6 +62,9 @@ async def settings_page(request: Request, language_id: str):
         {"key": k, "label": label, "value": current.get(k, 0)}
         for k, label in NUMERIC_LABELS.items()
     ]
+    # Список поясов собирает BLS — один перечень на все клиенты, иначе они
+    # разойдутся при первой же правке.
+    timezones = await bls.get_timezones()
 
     return templates.TemplateResponse("settings.html", {
         "request": request,
@@ -69,7 +72,20 @@ async def settings_page(request: Request, language_id: str):
         "language_id": language_id,
         "settings": settings_list,
         "numeric_settings": numeric_list,
+        "timezones": timezones,
+        "timezone": current.get("timezone", "UTC"),
     })
+
+
+@router.post("/settings/{language_id}/timezone")
+async def set_timezone(request: Request, language_id: str, value: str = Form(...)):
+    """Часовой пояс — строка, а не число, поэтому своя ручка."""
+    user_id, redirect = _require_user(request)
+    if redirect:
+        return redirect
+    bls = get_bls_client()
+    await bls.set_setting(user_id, language_id, "timezone", value)
+    return RedirectResponse(f"/settings/{language_id}", status_code=302)
 
 
 @router.post("/settings/{language_id}/toggle")

@@ -8,6 +8,7 @@ from app.templating import templates
 from app.bls_client import get_bls_client
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from common.apk_version import apk_version
 from common.help_text import HELP_TEXT
 from common.chart_manifest import CHART_SECTIONS, CHART_CAPTIONS
 
@@ -16,33 +17,6 @@ _APK_PATH = Path(__file__).parent.parent.parent.parent / "android" / "LangBot.ap
 router = APIRouter()
 
 
-
-
-def apk_version(apk_path: Path) -> str:
-    """
-    versionName read out of the APK itself, falling back to common.version.
-
-    The download name used to come straight from common/version.py while the
-    served bytes are a separate artifact, so any gap between bumping the version
-    and redeploying the APK handed users a file called v3.0.72 containing 3.0.71.
-    Reading it from the binary makes that mismatch impossible.
-    """
-    import re
-    import zipfile
-
-    try:
-        with zipfile.ZipFile(apk_path) as z:
-            # Binary AndroidManifest keeps its string pool in UTF-16LE; the
-            # versionName literal survives a naive decode, which is enough here.
-            manifest = z.read("AndroidManifest.xml").decode("utf-16-le", errors="ignore")
-        found = sorted(set(re.findall(r"\d+\.\d+\.\d+", manifest)))
-        if len(found) == 1:
-            return found[0]
-    except Exception:
-        pass
-
-    from common.version import __version__
-    return __version__
 
 
 @router.get("/download/android")

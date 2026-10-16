@@ -26,6 +26,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 
 from tag_defs import load_tags
@@ -53,24 +54,91 @@ def own_row(r):
     }
 
 
+def senses(ru):
+    """Значения перевода как множество: «это, эта (ж)» → {«это», «эта»}.
+
+    Пометки в скобках — род, число, стиль — отбрасываем: они различают формы
+    одного значения, а здесь ищут как раз форму того же значения.
+    """
+    out = set()
+    for part in (ru or "").split(","):
+        part = re.sub(r"\([^)]*\)", "", part).strip()
+        if part:
+            out.add(part)
+    return out
+
+
 def insert_own(rows_out, own, by_rank, lemma, sort):
-    """Поставить свою строку рядом с представителем той же леммы.
+    """Поставить свою строку рядом с тем, на кого она похожа.
 
     По рангу вставлять нельзя: «могу (ж)» (80) уехала бы за «нужно» (43) и
-    оторвалась от «могу (м)» (29). По лемме — встаёт туда, где её и ищут.
-    Если лемма не совпала ни с кем, для групп с порядком по рангу встраиваем по
-    рангу, а для ручных дописываем в конец: ручной порядок задан смыслом
-    (числа по значению), и вклинивать в него по номеру частотности нельзя.
+    оторвалась от «могу (м)» (29). Ищем соседа по смыслу, в три захода:
+
+    1. Та же лемма И общее значение — ровно та строка, рядом с которой её и
+       ищут: «этот (м) הַזֶּה» встаёт за «это, этот זֶה», «могу (ж)» за
+       «могу (м)».
+    2. Просто та же лемма, считая с конца — как было раньше. Так базовая форма
+       парадигмы («для, ради בִּשְׁבִיל») остаётся в хвосте своего ряда, а не
+       вклинивается между «для меня» и «для меня».
+    3. Общее значение при другой лемме — книжное «эти הַלָּלוּ» (лемма הללו)
+       родни по лемме в таблице не имеет, но место его очевидно: среди
+       остальных «эти».
+
+    Почему одной леммы мало. Поиск шёл только с конца и брал ПОСЛЕДНЮЮ строку
+    с той же леммой. У леммы זה в указательных местоимениях есть и «это, этот»,
+    и «такой» (כָּזֶה) — и «этот (м)» уезжало в хвост, к «такой», а «эти
+    הָאֵלֶּה» вставало под «такие». Таблица на вопрос «где тут я» отвечала
+    неправдой.
+
+    Если не нашлось никого, для групп с порядком по рангу встраиваем по рангу,
+    а для ручных дописываем в конец: ручной порядок задан смыслом (числа по
+    значению), и вклинивать в него по номеру частотности нельзя.
     """
-    if lemma:
+    own_senses = senses(own.get("ru"))
+
+    def lemma_of(row):
+        return by_rank.get(row["rank"], {}).get("lemma")
+
+    def after_block(match):
+        """За подходящими строками — за всем их подряд идущим блоком сразу.
+
+        Не за первой: у числительных «три (м)» и «три (ж)» идут рядом, и своя
+        строка должна встать после обеих, а не между ними.
+        """
+        start = next((i for i, row in enumerate(rows_out) if match(row)), None)
+        if start is None:
+            return None
+        end = start
+        while end + 1 < len(rows_out) and match(rows_out[end + 1]):
+            end += 1
+        return rows_out[:end + 1] + [own] + rows_out[end + 1:]
+
+    def after_last(match):
         for i in range(len(rows_out) - 1, -1, -1):
-            if by_rank.get(rows_out[i]["rank"], {}).get("lemma") == lemma:
+            if match(rows_out[i]):
                 return rows_out[:i + 1] + [own] + rows_out[i + 1:]
+        return None
+
+    attempts = (
+        (after_block, lambda row: bool(lemma) and lemma_of(row) == lemma
+                                  and bool(senses(row["ru"]) & own_senses)),
+        (after_last,  lambda row: bool(lemma) and lemma_of(row) == lemma),
+        (after_block, lambda row: bool(senses(row["ru"]) & own_senses)),
+    )
+    for place, match in attempts:
+        placed = place(match)
+        if placed is not None:
+            return placed
+
     if sort == "ранг":
         pos = next((i for i, row in enumerate(rows_out) if row["rank"] > own["rank"]),
                    len(rows_out))
         return rows_out[:pos] + [own] + rows_out[pos:]
     return rows_out + [own]
+
+
+def _with_note(text: str, note: str | None) -> str:
+    return f"{text} — {note}" if note else text
 
 
 def build(rows, defs):
@@ -79,9 +147,16 @@ def build(rows, defs):
     # Состав каждой группы — один раз на все слова.
     composition = {}
     for tag, spec in defs.items():
+        # Пометка к отдельной строке таблицы. Нужна там, где в группе есть
+        # строка иного рода, чем остальные: в таблицах приставок это слово,
+        # которое значит то же самое, но пишется отдельно (מִן при приставке
+        # מ). Без пометки его не отличить от приставочных форм, а смешивать в
+        # одной таблице разное — ровно та ошибка, за которую группу приставок
+        # уже переделывали.
+        notes = {int(k): v for k, v in (spec.get("row_notes") or {}).items()}
         composition[tag] = [{
             "rank": rank,
-            "ru": primary(by_rank[rank].get("russian", "")),
+            "ru": _with_note(primary(by_rank[rank].get("russian", "")), notes.get(rank)),
             "ipa": by_rank[rank].get("ipa", ""),
             "foreign": by_rank[rank].get("niqqud") or by_rank[rank].get("hebrew", ""),
         } for rank in spec.get("members", [])]

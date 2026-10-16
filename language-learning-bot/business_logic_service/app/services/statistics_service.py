@@ -7,25 +7,28 @@ import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, date
 from app.logger import setup_logger
+from common.study_day import settings_of, study_day as core_study_day
 from app.chart_generator import ProgressChartGenerator
 
 logger = setup_logger(__name__)
 
 
-def study_day(now: Optional[datetime] = None) -> date:
+def study_day(now: Optional[datetime] = None, settings: Optional[Dict[str, Any]] = None) -> date:
     """
-    Учебные сутки: смена в полночь по Гринвичу.
+    Учебные сутки этого человека.
 
-    Занятие после полуночи по местному времени — это ещё вчерашняя сессия, и
-    относить его к новой дате неверно. По Москве граница приходится на 3 часа
-    ночи, что и требовалось.
+    Граница задаётся двумя настройками — часовой пояс и час начала суток, —
+    и она одна на всю систему: статистику, выдачу слов и сброс сессии. Ядро
+    в common/study_day.py, там же объяснено, почему пояс хранится названием.
 
-    Раньше BLS брал date.today() — локальную дату СЕРВЕРА, а агрегация бэкенда
-    считала «сегодня» по UTC. Две разные точки смены суток в одной системе:
-    дневной снимок мог попасть в один день, а счётчик «слов на сегодня» в нём —
-    относиться к другому.
+    Умолчания (UTC, 0) повторяют прежнее поведение: полночь по Гринвичу.
+    Раньше это было зашито здесь намертво, и для Рима граница приходилась на
+    02:00 по-местному — объяснить человеку, почему занятие в час ночи ушло во
+    вчерашний день, а в три — в сегодняшний, было нечем.
     """
-    return (now or datetime.utcnow()).date()
+    tz_name, day_start = settings_of(settings)
+    return core_study_day(now, tz_name, day_start)
+
 
 EMPTY_PROGRESS: Dict[str, Any] = {
     "words_studied": 0,

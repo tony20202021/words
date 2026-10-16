@@ -33,7 +33,7 @@ def _make_bls(settings=None):
     ])
     bls.get_settings = AsyncMock(return_value=settings or {
         "use_check_date": True, "show_sounds": False, "start_word": 1,
-        "reset_same_day_hours": 16, "reset_cross_midnight_hours": 6,
+        "reset_same_day_hours": 16, "day_start_hour": 0,
         "unknown_limit_new_words": 5, "max_check_interval": 365,
     })
     bls.toggle_setting = AsyncMock(return_value={"use_check_date": False})
@@ -102,7 +102,7 @@ async def test_toggle_setting_updates_keyboard():
     bls = _make_bls()
     bls.toggle_setting = AsyncMock(return_value={
         "use_check_date": False, "show_sounds": True, "start_word": 1,
-        "reset_same_day_hours": 16, "reset_cross_midnight_hours": 6,
+        "reset_same_day_hours": 16, "day_start_hour": 0,
         "unknown_limit_new_words": 5, "max_check_interval": 365,
     })
     cb = _make_callback("settings:lang1:use_check_date")
@@ -118,7 +118,7 @@ async def test_toggle_setting_updates_keyboard():
 async def test_change_numeric_increment():
     from app.bot.handlers.settings import change_numeric_setting
     bls = _make_bls(settings={"start_word": 3, "reset_same_day_hours": 16,
-                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
+                               "day_start_hour": 0, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -130,7 +130,7 @@ async def test_change_numeric_increment():
 async def test_change_numeric_decrement():
     from app.bot.handlers.settings import change_numeric_setting
     bls = _make_bls(settings={"start_word": 5, "reset_same_day_hours": 16,
-                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
+                               "day_start_hour": 0, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -142,7 +142,7 @@ async def test_change_numeric_clamped_at_min():
     from app.bot.handlers.settings import change_numeric_setting
     # start_word min is 1, decrementing from 1 should stay at 1
     bls = _make_bls(settings={"start_word": 1, "reset_same_day_hours": 16,
-                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
+                               "day_start_hour": 0, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:start_word:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -153,7 +153,7 @@ async def test_change_numeric_clamped_at_min():
 async def test_change_numeric_zero_clamped_for_reset_same_day_hours():
     from app.bot.handlers.settings import change_numeric_setting
     bls = _make_bls(settings={"start_word": 1, "reset_same_day_hours": 0,
-                               "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 0})
+                               "day_start_hour": 0, "unknown_limit_new_words": 0})
     cb = _make_callback("set_num:lang1:reset_same_day_hours:-1")
     with patch("app.bot.handlers.settings.get_bls_client", return_value=bls):
         await change_numeric_setting(cb, bls_user_id="u1")
@@ -176,7 +176,7 @@ async def test_noop_just_answers():
 def test_settings_keyboard_contains_numeric_rows():
     from app.bot.handlers.settings import _build_settings_keyboard
     settings = {"start_word": 3, "reset_same_day_hours": 16,
-                "reset_cross_midnight_hours": 6, "unknown_limit_new_words": 10,
+                "day_start_hour": 0, "unknown_limit_new_words": 10,
                 "max_check_interval": 365}
     kb = _build_settings_keyboard(settings, "lang1")
     all_texts = [b.text for row in kb.inline_keyboard for b in row]

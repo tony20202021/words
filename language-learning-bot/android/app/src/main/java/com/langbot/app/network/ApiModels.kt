@@ -29,12 +29,18 @@ data class SessionResponse(
     val session_stale: Boolean = false,
 )
 
+// У КАЖДОГО поля значение по умолчанию — иначе Kotlin не создаёт конструктор
+// без аргументов, Gson собирает объект в обход конструктора и умолчания просто
+// не применяются: любое отсутствующее поле становится null вопреки типу. Так
+// уже ловились пустые списки в офлайн-партии; здесь же недостающий sounds ронял
+// отрисовку карточки — NullPointerException ловился общим перехватом, и экран
+// уходил в офлайн, хотя сеть была.
 data class Card(
-    val show_answer: Boolean,
+    val show_answer: Boolean = false,
     val restart_notice: String? = null,
-    val content: List<CardItem>,
-    val buttons: List<CardButton>,
-    val meta: CardMeta,
+    val content: List<CardItem> = emptyList(),
+    val buttons: List<CardButton> = emptyList(),
+    val meta: CardMeta = CardMeta(),
     val sounds: List<String> = emptyList(),
     val extra_content: List<ExtraContentItem> = emptyList(),
     val big_word: BigWord? = null,
@@ -115,14 +121,14 @@ data class CardButton(
 
 data class CardMeta(
     val word_id: String = "",
-    val word_number: Int?,
-    val session_pos: Int,
-    val session_total: Int?,
-    val correct_count: Int,
-    val incorrect_count: Int,
+    val word_number: Int? = null,
+    val session_pos: Int = 0,
+    val session_total: Int? = null,
+    val correct_count: Int = 0,
+    val incorrect_count: Int = 0,
     val result_history: List<String> = emptyList(),
-    val pending_result: String?,
-    val score_badge: ScoreBadge?,
+    val pending_result: String? = null,
+    val score_badge: ScoreBadge? = null,
     val hint_enabled_types: List<String> = emptyList(),
     val words_studied: Int = 0,
     val total_words: Int = 0,
@@ -226,3 +232,24 @@ data class ResultsBatchRequest(
 
 data class ResultAck(val event_id: String, val status: String)
 data class ResultsBatchResponse(val acks: List<ResultAck> = emptyList())
+
+/** Часовой пояс: название для хранения и город для показа. */
+data class Timezone(
+    val name: String = "",
+    val label: String = "",
+)
+
+/**
+ * Пояса одного смещения.
+ *
+ * Выбор в два шага — сначала смещение, потом город: плоским списком это 491
+ * строка, где пояса различаются только городом, а смещений около сорока, и
+ * своё человек обычно знает.
+ */
+data class TimezoneOffset(
+    val minutes: Int = 0,
+    val label: String = "",
+    val zones: List<Timezone> = emptyList(),
+)
+
+data class TimezoneList(val offsets: List<TimezoneOffset> = emptyList())

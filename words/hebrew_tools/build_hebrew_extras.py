@@ -34,6 +34,7 @@ import argparse
 import collections
 import json
 import os
+import re
 import shutil
 import unicodedata
 
@@ -57,6 +58,60 @@ def build_tones(entry: dict) -> str:
     for r in readings:
         lines.append(f" - <b>{r['niqqud']}</b> [{r['ipa']}]: {r['sense']}")
     return "\n".join(lines)
+
+
+_TONE_LINE = re.compile(r"^(\s*-\s*)(<i>\[#\d+\]</i>)?(<b>.+?</b>)\s*\[([^\]]*)\]\s*:\s*(.*)$")
+
+
+def tone_resolver(rows: list[dict]):
+    """Как найти номер слова по строке варианта огласовки.
+
+    Три попытки, от точной к приблизительной: по самой огласовке, по
+    согласным вместе с IPA (огласовка в источнике вариантов и в словаре
+    иногда записана чуть иначе — дагеш, шва), и по одному лишь IPA, если
+    такое звучание в словаре единственное.
+    """
+    by_niqqud: dict[str, int] = {}
+    by_pair: dict[tuple[str, str], int] = {}
+    by_ipa: dict[str, list[int]] = collections.defaultdict(list)
+    for r in rows:
+        by_niqqud.setdefault(r["niqqud"], r["rank"])
+        by_pair.setdefault((strip_niqqud(r["niqqud"]), r["ipa"]), r["rank"])
+        by_ipa[r["ipa"]].append(r["rank"])
+
+    def resolve(niqqud: str, ipa: str):
+        if niqqud in by_niqqud:
+            return by_niqqud[niqqud]
+        pair = by_pair.get((strip_niqqud(niqqud), ipa))
+        if pair is not None:
+            return pair
+        same = by_ipa.get(ipa, [])
+        return same[0] if len(same) == 1 else None
+
+    return resolve
+
+
+def number_tone_rows(text: str, resolve) -> str:
+    """Проставить номера слов в строках вариантов огласовки.
+
+    Просьба владельца: «таблица вариантов огласовки, первый столбец пустой —
+    добавить номера слова». Номер есть не у каждого варианта: вторая огласовка
+    тех же согласных часто сама в десятитысячник не входит (אַתְּ «ты (ж)» при
+    אֵת), и тогда ставить нечего — ячейка остаётся пустой, как была.
+
+    Повторный запуск ничего не портит: строка с номером пропускается.
+    """
+    out = []
+    for line in (text or "").split("\n"):
+        m = _TONE_LINE.match(line)
+        if not m or m.group(2):
+            out.append(line)
+            continue
+        dash, _, form, ipa, sense = m.groups()
+        rank = resolve(re.sub(r"</?b>", "", form), ipa)
+        marker = f"<i>[#{rank}]</i>" if rank else ""
+        out.append(f"{dash}{marker}{form} [{ipa}]: {sense}")
+    return "\n".join(out)
 
 
 def build_references(row: dict, family: list[dict]) -> str:
@@ -152,10 +207,15 @@ def main() -> int:
         print("  (они сохраняются как есть)")
 
     shutil.copy2(FULL, FULL + ".bak")
+    resolve = tone_resolver(rows)
     for r in rows:
         built = r.pop("_tones", "")
         if built:
             r["tones"] = built
+        # Номера проставляем и в блоках, построенных не здесь: таблица на
+        # карточке одна, и колонка номеров в ней должна вести себя одинаково.
+        if (r.get("tones") or "").strip():
+            r["tones"] = number_tone_rows(r["tones"], resolve)
         r["references"] = r.pop("_references", "")
     with open(FULL, "w", encoding="utf-8") as fh:
         json.dump(rows, fh, ensure_ascii=False, indent=2)

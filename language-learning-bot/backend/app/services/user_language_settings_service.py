@@ -127,7 +127,20 @@ class UserLanguageSettingsService:
             return None
             
         # Update settings (repository handles upsert logic)
-        return await self.repository.update(user_id, language_id, settings)
+        updated = await self.repository.update(user_id, language_id, settings)
+
+        # Сменили границу учебных суток — накопленные даты проверки надо
+        # переложить на неё же, иначе день для них начнётся не тогда, когда
+        # для всего остального. См. StatisticsRepository.align_check_dates:
+        # без этого наутро после смены настройки вылезают «недопройденные»
+        # слова, пройденные накануне.
+        moves = settings.model_dump(exclude_unset=True) if hasattr(settings, "model_dump") else {}
+        if updated is not None and ({"timezone", "day_start_hour"} & set(moves)):
+            from app.db.repositories.statistics_repository import StatisticsRepository
+            await StatisticsRepository(self.repository.db).align_check_dates(
+                user_id, language_id)
+
+        return updated
 
     async def delete_settings(self, user_id: str, language_id: str) -> bool:
         """

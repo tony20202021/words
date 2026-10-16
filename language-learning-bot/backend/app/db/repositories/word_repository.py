@@ -352,8 +352,13 @@ class WordRepository:
         Returns:
             List of words for review
         """
+        # ВНИМАНИЕ: полночь UTC здесь уже не та граница суток, по которой
+        # работает система, — она у каждого своя (common/study_day.py). Этот
+        # метод из API недостижим: наружу торчит только одноимённый в
+        # statistics_repository, и починен он там. Если этот когда-нибудь
+        # понадобится — брать границу так же, через настройки человека.
         today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+
         pipeline = [
             # Match words by language
             {"$match": {"language_id": ObjectId(language_id)}},

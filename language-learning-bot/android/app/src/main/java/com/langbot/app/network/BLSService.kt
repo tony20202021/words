@@ -159,6 +159,10 @@ interface BLSApi {
         @Path("key") key: String,
     ): Response<Map<String, Any>>
 
+    /** Справочник часовых поясов — собирается в BLS, один на все клиенты. */
+    @GET("settings/timezones")
+    suspend fun getTimezones(): Response<TimezoneList>
+
     // Help
     @GET("help")
     suspend fun getHelp(): Response<HelpResponse>

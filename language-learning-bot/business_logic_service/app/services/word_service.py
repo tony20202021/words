@@ -4,6 +4,7 @@ Word/spaced-repetition business logic — no aiogram dependencies.
 
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from common.study_day import day_in_days
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -62,6 +63,8 @@ async def update_word_score(
     word: Dict[str, Any],
     is_skipped: bool = False,
     max_interval: int = MAX_INTERVAL_DAYS,
+    timezone: str = "UTC",
+    day_start_hour: int = 0,
 ) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Apply score to a word using spaced-repetition algorithm. Returns (success, result_data)."""
     logger.info(f"update_word_score user={user_id} word={word_id} score={score}")
@@ -72,7 +75,8 @@ async def update_word_score(
         return False, None
 
     word_data: Dict[str, Any] = response["result"] or {}
-    update_data = _calculate_update(word_data, score, is_skipped, max_interval)
+    update_data = _calculate_update(word_data, score, is_skipped, max_interval,
+                                    timezone=timezone, day_start_hour=day_start_hour)
 
     # Документ уже прочитан выше — передаём его дальше, иначе на каждую оценку
     # уходило два одинаковых GET /users/{u}/word_data/{w}.
@@ -82,7 +86,15 @@ async def update_word_score(
 
 
 def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
-                      max_interval: int = MAX_INTERVAL_DAYS) -> Dict[str, Any]:
+                      max_interval: int = MAX_INTERVAL_DAYS,
+                      timezone: str = "UTC", day_start_hour: int = 0) -> Dict[str, Any]:
+    """Новые счёт, интервал и дата следующей проверки.
+
+    Дата кладётся на границу учебных суток человека, а не на полночь UTC:
+    тогда «пора ли повторять» остаётся обычным сравнением с текущим моментом,
+    и ни бэкенд, ни запрос в Mongo про часовые пояса знать не обязаны.
+    См. common/study_day.py.
+    """
     update: Dict[str, Any] = {"score": score, "is_skipped": is_skipped}
 
     if score == 1:
@@ -100,9 +112,9 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
 
         if should_update or current_score == 0:
             new_interval = max(1, min(current_interval * 2 if current_interval > 0 else 1, max_interval))
-            new_check_date = (datetime.utcnow() + timedelta(days=new_interval)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ).isoformat()
+            new_check_date = day_in_days(
+                new_interval, now_utc=datetime.utcnow(),
+                timezone=timezone, day_start_hour=day_start_hour).isoformat()
             update["check_interval"] = new_interval
             update["next_check_date"] = new_check_date
         else:
@@ -110,8 +122,9 @@ def _calculate_update(word_data: Dict[str, Any], score: int, is_skipped: bool,
             update["next_check_date"] = current_check_date_str
     else:
         update["check_interval"] = 0
-        update["next_check_date"] = datetime.utcnow().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        # Ноль дней — значит «снова сегодня»: начало текущих учебных суток.
+        update["next_check_date"] = day_in_days(
+            0, now_utc=datetime.utcnow(),
+            timezone=timezone, day_start_hour=day_start_hour).isoformat()
 
     return update

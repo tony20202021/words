@@ -317,6 +317,12 @@ class BLSClient:
             resp = await client.get(f"{self.base_url}/settings/{user_id}/{language_id}")
             return resp.json() if resp.is_success else {}
 
+    async def get_timezones(self) -> list:
+        """Справочник часовых поясов — собирается в BLS, см. common/study_day."""
+        async with httpx.AsyncClient(headers=_service_headers()) as client:
+            resp = await client.get(f"{self.base_url}/settings/timezones")
+            return resp.json().get("offsets", []) if resp.is_success else []
+
     async def get_hint_settings(self, user_id: str, language_id: str) -> Dict[str, bool]:
         async with httpx.AsyncClient(headers=_service_headers()) as client:
             resp = await client.get(f"{self.base_url}/settings/{user_id}/{language_id}/hints")

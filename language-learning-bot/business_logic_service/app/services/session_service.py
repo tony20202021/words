@@ -8,6 +8,7 @@ import uuid
 import random
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
+from common.study_day import same_study_day, settings_of as study_day_settings
 from app.logger import setup_logger
 from app.services.word_service import update_word_score, MAX_INTERVAL_DAYS
 from app.services.settings_service import get_settings
@@ -195,35 +196,36 @@ def get_session_by_id(session_id: str) -> Optional[Dict[str, Any]]:
 
 
 def is_session_expired(session: Dict[str, Any]) -> bool:
-    """Return True if the session should be reset.
+    """Пора ли начинать сессию заново.
 
-    Three-case logic based on calendar days elapsed:
-      cal_days == 0: expired if total elapsed hours >= reset_same_day_hours (default 16)
-      cal_days == 1: expired if current hour >= reset_cross_midnight_hours (default 6)
-      cal_days >= 2: always expired
+    Два случая:
+      те же учебные сутки — сброс, если перерыв дошёл до reset_same_day_hours
+      новые учебные сутки — сброс всегда
 
-    Examples (defaults: same_day=16, midnight=6):
-      same day, 4h elapsed                → not expired ✓
-      same day, 17h elapsed               → expired ✓
-      crossed midnight, now 02:00         → not expired ✓
-      crossed midnight, now 06:00         → expired ✓
-      2+ calendar days ago                → always expired ✓
+    Граница суток у человека своя: часовой пояс и час начала берутся из
+    настроек (см. common/study_day.py). Прежде здесь была отдельная третья
+    граница — «час после полуночи по UTC», по умолчанию 6, — и она не
+    совпадала ни со сменой суток в статистике, ни с выдачей слов. Для Рима
+    получалось так: сутки для статистики менялись в 02:00 по-местному, а
+    вчерашнюю сессию можно было досидеть до 08:00. Объяснить это было нечем,
+    и владелец попросил свести границы в одну.
+
+    Примеры (пояс Europe/Rome, начало суток 4, перерыв 16 ч):
+      занимались в 23:00, вернулись в 03:00  → та же сессия ✓
+      занимались в 23:00, вернулись в 05:00  → новые сутки, сброс ✓
+      занимались в 06:00, вернулись в 23:00  → 17 часов перерыва, сброс ✓
     """
     last_activity = session.get("last_activity_at")
     if not last_activity:
         return False
     settings = session.get("settings", {})
     same_day_hours = int(settings.get("reset_same_day_hours", 16))
-    midnight_hours = int(settings.get("reset_cross_midnight_hours", 6))
+    tz_name, day_start = study_day_settings(settings)
     last_dt = datetime.fromisoformat(last_activity)
     now = datetime.utcnow()
-    cal_days = (now.date() - last_dt.date()).days
-    if cal_days == 0:
-        total_hours = (now - last_dt).total_seconds() / 3600
-        return total_hours >= same_day_hours
-    if cal_days == 1:
-        return now.hour >= midnight_hours
-    return True  # cal_days >= 2: always expired
+    if not same_study_day(last_dt, now, tz_name, day_start):
+        return True
+    return (now - last_dt).total_seconds() / 3600 >= same_day_hours
 
 
 def touch_session(session: Dict[str, Any]) -> None:
@@ -258,14 +260,18 @@ async def rate_word(
 
     if not session.get("word_processed"):
         max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
+        tz_name, day_start = study_day_settings(session.get("settings"))
         if rating == "know":
-            await update_word_score(api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval)
+            await update_word_score(api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval,
+                                    timezone=tz_name, day_start_hour=day_start)
             session["correct_count"] = session.get("correct_count", 0) + 1
         elif rating == "dont_know":
-            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval)
+            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval,
+                                    timezone=tz_name, day_start_hour=day_start)
             session["incorrect_count"] = session.get("incorrect_count", 0) + 1
         elif rating == "skip":
-            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=True, max_interval=max_interval)
+            await update_word_score(api_client, user_id, word_id, score=0, word=word, is_skipped=True, max_interval=max_interval,
+                                    timezone=tz_name, day_start_hour=day_start)
         session["word_processed"] = True
 
     session.setdefault("result_history", []).append(rating)
@@ -333,8 +339,9 @@ async def know_word(session: Dict[str, Any], api_client) -> Dict[str, Any]:
     session["prev_next_check_date"] = uwd.get("next_check_date", "")
 
     max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
+    tz_name, day_start = study_day_settings(session.get("settings"))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval
+        api_client, user_id, word_id, score=1, word=word, is_skipped=False, max_interval=max_interval, timezone=tz_name, day_start_hour=day_start
     )
     if success and result:
         if "user_word_data" not in word:
@@ -372,8 +379,9 @@ async def show_answer_word(session: Dict[str, Any], api_client) -> Dict[str, Any
     session["prev_next_check_date"] = uwd.get("next_check_date", "")
 
     max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
+    tz_name, day_start = study_day_settings(session.get("settings"))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval
+        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval, timezone=tz_name, day_start_hour=day_start
     )
     if success and result:
         if "user_word_data" not in word:
@@ -404,8 +412,9 @@ async def reconsider_word(session: Dict[str, Any], api_client) -> Dict[str, Any]
     word_id = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
 
     max_interval = int(session.get("settings", {}).get("max_check_interval", MAX_INTERVAL_DAYS))
+    tz_name, day_start = study_day_settings(session.get("settings"))
     success, result = await update_word_score(
-        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval
+        api_client, user_id, word_id, score=0, word=word, is_skipped=False, max_interval=max_interval, timezone=tz_name, day_start_hour=day_start
     )
     if success and result:
         if "user_word_data" not in word:
@@ -654,6 +663,7 @@ async def apply_results_batch(
     """
     settings = await get_settings(user_id, language_id, api_client)
     max_interval = int(settings.get("max_check_interval", MAX_INTERVAL_DAYS))
+    tz_name, day_start = study_day_settings(settings)
 
     acks: List[Dict[str, Any]] = []
     applied: List[tuple] = []
@@ -673,6 +683,8 @@ async def apply_results_batch(
             api_client, user_id, word_id, score=score,
             word={"language_id": language_id}, is_skipped=is_skipped,
             max_interval=max_interval,
+            timezone=tz_name,
+            day_start_hour=day_start,
         )
         if ok and eid:
             _processed_event_ids.add(eid)
@@ -705,6 +717,25 @@ def _advance_session_past(user_id: str, language_id: str,
     done = {wid: rating for wid, rating in applied}
     words = session.get("words") or []
     moved = 0
+
+    # Слово, на котором стоит сессия, могло быть УЖЕ отвечено — онлайн, перед
+    # самым обрывом: человек нажал «Знаю», увидел ответ, а «дальше» нажать не
+    # успел. Среди офлайновых ответов такого слова нет, и цикл ниже
+    # останавливался на нём сразу же: сессия оставалась на пройденном слове, и
+    # вернувшись в онлайн, человек попадал на него заново.
+    #
+    # Ровно это и случилось 16.10.2026: 20:28:45 слово 132 отвечено «знаю»
+    # онлайн, связь пропала, офлайн человек ушёл вперёд, в 20:29:25 пачка
+    # принесла слово 136 — и сессия всё равно отдала 132.
+    #
+    # Доводим такое слово до конца так же, как это сделала бы кнопка «дальше»:
+    # дописываем оценку в историю и сдвигаемся. Какая это была оценка, помнит
+    # score_changed — по нему же карточка показывает pending_result.
+    if session.get("word_processed") and session.get("current_index", 0) < len(words):
+        session.setdefault("result_history", []).append(
+            "know" if session.get("score_changed") else "dont_know")
+        _advance(session)
+        moved += 1
     while session.get("current_index", 0) < len(words):
         word = words[session["current_index"]]
         wid = str(word.get("_id") or word.get("id") or word.get("word_id", ""))

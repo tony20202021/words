@@ -67,6 +67,21 @@ object BundleRefresh {
     }
 }
 
+/**
+ * Сколько пройдено к этому моменту — по последней карточке, пришедшей из сети.
+ *
+ * Нужно, когда экран слова открывают заново уже без связи: сервер молчит, свои
+ * ответы в очереди пусты (прошлые уже отправлены), и счётчики показывали ноль,
+ * хотя человек прошёл сегодня несколько слов. Храним с датой: в новый день
+ * сервер считает заново, и старый отсчёт врал бы.
+ */
+data class SavedProgress(
+    val correct: Int = 0,
+    val wrong: Int = 0,
+    val history: List<String> = emptyList(),
+    val day: String = "",
+)
+
 /** One accumulated, not-yet-synced study result. */
 data class OutboxEntry(
     val userId: String,
@@ -96,6 +111,7 @@ object OfflineCache {
     fun saveBundle(b: StoredBundle) {
         synchronized(lock) {
             if (!ready()) return
+            dayRule = null   // в новой партии граница суток могла измениться
             runCatching { bundleFile(b.userId, b.languageId).writeText(gson.toJson(b)) }
         }
     }
@@ -126,6 +142,58 @@ object OfflineCache {
             .filter { it.userId == u && it.languageId == l && it.rating != "dont_know" }
             .map { it.word_id }.toSet()
         loadBundle(u, l)?.let { saveBundle(it.copy(cursor = 0, excluded = known)) }
+    }
+
+    private fun progressFile(u: String, l: String) =
+        File(appCtx.filesDir, "progress_${u}_${l}.json")
+
+    // Граница учебных суток: пояс и час берутся из настроек, доехавших в
+    // партии. Разбирать партию на каждый показ карточки дорого — она на сотню
+    // слов, — поэтому правило запоминается до смены партии.
+    private var dayRule: Triple<String, String, Int>? = null
+
+    /**
+     * Какие сейчас учебные сутки — по правилу человека, а не устройства.
+     *
+     * Прежде здесь была местная полночь телефона, и она расходилась с
+     * сервером: при начале суток в 4 утра занятие в полпервого ночи без сети
+     * обнуляло счётчик пройденного, хотя сервер считал это продолжением
+     * вчерашнего дня. Границ в системе было четыре; теперь одна — см.
+     * common/study_day.py на сервере, тут её кусок для офлайна.
+     */
+    fun studyToday(u: String, l: String, nowMillis: Long = System.currentTimeMillis()): String {
+        val key = "$u/$l"
+        val rule = dayRule?.takeIf { it.first == key } ?: run {
+            val s = loadBundle(u, l)?.settings
+            val tz = (s?.get("timezone") as? String)?.takeIf { it.isNotBlank() } ?: "UTC"
+            val hour = ((s?.get("day_start_hour") as? Number)?.toInt() ?: 0).coerceIn(0, 23)
+            Triple(key, tz, hour).also { dayRule = it }
+        }
+        return StudyDay.of(nowMillis, rule.second, rule.third)
+    }
+
+    fun saveProgress(u: String, l: String, correct: Int, wrong: Int, history: List<String>) {
+        synchronized(lock) {
+            if (!ready()) return
+            runCatching {
+                progressFile(u, l).writeText(
+                    gson.toJson(SavedProgress(correct, wrong, history, studyToday(u, l))))
+            }
+        }
+    }
+
+    /** Отсчёт этого дня; из прошлого дня не возвращаем — он уже неверен. */
+    fun loadProgress(u: String, l: String): SavedProgress? = synchronized(lock) {
+        if (!ready()) return null
+        val f = progressFile(u, l)
+        if (!f.exists()) return null
+        val p = runCatching { gson.fromJson(f.readText(), SavedProgress::class.java) }.getOrNull()
+        return if (p != null && p.day == studyToday(u, l)) p else null
+    }
+
+    fun clearProgress(u: String, l: String) = synchronized(lock) {
+        runCatching { progressFile(u, l).delete() }
+        Unit
     }
 
     fun saveCursor(u: String, l: String, cursor: Int) = synchronized(lock) {

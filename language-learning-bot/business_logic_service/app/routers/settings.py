@@ -4,11 +4,29 @@ from pydantic import BaseModel
 from app.services import session_service, settings_service
 from app.api.client import get_api_client
 
+from common.study_day import timezone_catalog
+
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 class ToggleValueRequest(BaseModel):
     value: Any = None
+
+
+@router.get("/timezones")
+async def list_timezones():
+    """
+    Список часовых поясов для выпадающего списка в клиентах.
+
+    Список собирается ЗДЕСЬ, а не в каждом клиенте: иначе три копии одного
+    перечня, которые разойдутся при первой же правке. Клиенту остаётся
+    показать названия и вернуть выбранное.
+
+    Сгруппировано по смещению: плоским списком это 491 строка, в которой
+    пояса различаются только городом. Смещений около сорока, и своё человек
+    обычно знает — поэтому выбор в два шага, сначала смещение, потом город.
+    """
+    return {"offsets": timezone_catalog()}
 
 
 @router.get("/{user_id}/{language_id}")

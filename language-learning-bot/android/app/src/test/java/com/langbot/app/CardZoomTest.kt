@@ -189,9 +189,12 @@ class CardZoomTest {
 
     @Test
     fun the_card_opens_at_its_own_size_and_can_be_enlarged_five_times() {
+        // Из меню «Увеличить» открывается вся карточка с начала, и там
+        // натуральная величина по-прежнему верна: увеличивать нечего — на
+        // экране весь столбец, а не одна таблица.
         val a = open("tag_group")
         val column = column(a)
-        blocks(a).getChildAt(0).performClick()
+        a.onOptionsItemSelected(org.robolectric.fakes.RoboMenuItem(4 /* MENU_ZOOM */))
         val zoom = shownView(a, column.width, 891)
 
         assertEquals("карточка открылась не в натуральную величину",
@@ -203,21 +206,135 @@ class CardZoomTest {
             zoom.minScale < 1f)
     }
 
+    /** Первая строка таблицы внутри блока: ряд ровно из четырёх ячеек. */
+    private fun tableRow(v: View): ViewGroup? {
+        val g = v as? ViewGroup ?: return null
+        if (g is android.widget.LinearLayout &&
+            g.orientation == android.widget.LinearLayout.HORIZONTAL &&
+            g.childCount == 4 &&
+            (0 until 4).all { g.getChildAt(it) is android.widget.TextView }) return g
+        for (i in 0 until g.childCount) tableRow(g.getChildAt(i))?.let { return it }
+        return null
+    }
+
+    /** Ближайшая надпись над таблицей — её заголовок. */
+    private fun headingAbove(table: View): View? {
+        val parent = table.parent as? ViewGroup ?: return null
+        for (i in parent.indexOfChild(table) - 1 downTo 0) {
+            val v = parent.getChildAt(i)
+            if (v.visibility != View.VISIBLE) continue
+            return if (v is android.widget.TextView && v.text.isNotBlank()) v else null
+        }
+        return null
+    }
+
+    private fun topWithin(v: View, root: View): Int {
+        var y = 0
+        var cur: View? = v
+        while (cur != null && cur !== root) { y += cur.top; cur = cur.parent as? View }
+        return y
+    }
+
     @Test
-    fun the_tapped_table_is_what_opens_first() {
+    fun a_tapped_table_opens_enlarged_on_its_readable_columns() {
+        """
+        Просьба владельца: «экран увеличения экстра инфо открывается в размере
+        в точности как исходный — надо крупнее; по ширине чтобы примерно было
+        показано 2 столбика, русский перевод и иностранное слово; по высоте
+        чтобы верхняя граница таблицы была по верхней границе экрана».
+
+        Читают в таблице две колонки из четырёх — перевод и само слово. Их и
+        растягиваем на всю ширину; номер слева и транскрипция справа уезжают
+        за край, к ним можно отлистнуть.
+        """
         val a = open("tag_group")
         val column = column(a)
         val block = blocks(a).getChildAt(0)
-        val expectedTop = blocks(a).top + block.top
-        assertTrue("блок стоит в самом верху — проверять нечего", expectedTop > 0)
-        // Окно берём не выше остатка карточки под блоком: иначе сдвиг упрётся в
-        // нижний край, вернётся назад и проверял бы уже не выбор блока.
-        val screen = minOf(891, column.height - expectedTop)
-        assertTrue("под блоком почти ничего нет (карточка ${column.height}, " +
-            "блок на $expectedTop) — проверять нечего", screen >= 200)
-        block.performClick()
+        val row = tableRow(block)
+        assertNotNull("в блоке нет таблицы — проверять нечего", row)
+        val readable = row!!.getChildAt(1).width + row.getChildAt(2).width
+        assertTrue("колонки не разложены", readable > 0)
+        val table = row.parent as View
+        val tableTop = topWithin(table, column)
+        val heading = headingAbove(table)
+        assertNotNull("над таблицей нет заголовка — проверять нечего", heading)
+        val headingTop = topWithin(heading!!, column)
 
+        block.performClick()
+        // Окно берём не выше остатка карточки под заголовком: иначе сдвиг
+        // упрётся в нижний край, вернётся назад и проверял бы уже не это.
+        val margin = column.width * ZoomImageView.FOCUS_MARGIN
+        val scale = (column.width - 2 * margin) / readable
+        val screen = minOf(891, ((column.height - headingTop) * scale).toInt())
+        assertTrue("под таблицей почти ничего нет — проверять нечего", screen >= 200)
         val zoom = shownView(a, column.width, screen)
+
+        assertEquals("две читаемые колонки заняли не ту ширину",
+            scale, zoom.currentScale, 0.02f)
+        assertTrue("таблица открылась в исходном размере — это не увеличение",
+            zoom.currentScale > 1.1f)
+        // Просьба владельца: сверху не по границе таблицы, а чтобы влез
+        // заголовок над ней, и тоже чуть с запасом.
+        assertEquals("показ начался не с заголовка над таблицей",
+            margin - headingTop * zoom.currentScale, translationY(zoom), 2f)
+        val headingOnScreen = translationY(zoom) + headingTop * zoom.currentScale
+        assertTrue("заголовок оказался за верхним краем: $headingOnScreen",
+            headingOnScreen >= 0f)
+        assertTrue("начали всё-таки с сетки, а не с заголовка",
+            translationY(zoom) + tableTop * zoom.currentScale > headingOnScreen)
+    }
+
+    @Test
+    fun the_table_lines_stay_inside_the_screen() {
+        """
+        Просьба владельца: «чуть уменьшить финальный размер, чтобы были чуть
+        видны линии таблицы сверху и по бокам».
+
+        Раньше читаемые колонки занимали ровно всю ширину, и границы колонок
+        стояли по самому краю экрана — половина каждой уходила за него. Теперь
+        по краям остаётся отступ, и по нему же видно краешек соседних колонок:
+        понятно, что можно отлистнуть.
+        """
+        val a = open("tag_group")
+        val column = column(a)
+        val block = blocks(a).getChildAt(0)
+        val row = tableRow(block)!!
+        val readable = row.getChildAt(1).width + row.getChildAt(2).width
+        val table = row.parent as View
+        val top = topWithin(headingAbove(table) ?: table, column)
+
+        block.performClick()
+        val margin = column.width * ZoomImageView.FOCUS_MARGIN
+        val scale = (column.width - 2 * margin) / readable
+        val screen = minOf(891, ((column.height - top) * scale).toInt())
+        val zoom = shownView(a, column.width, screen)
+
+        assertTrue("отступ по краям не оставлен — линии таблицы режутся краем",
+            margin > 1f)
+        assertEquals("верх прижат к краю экрана вплотную",
+            margin - top * zoom.currentScale, translationY(zoom), 2f)
+        assertTrue("увеличение съело отступ и снова встало впритык",
+            zoom.currentScale < column.width.toFloat() / readable)
+    }
+
+    @Test
+    fun a_block_without_a_table_still_opens_at_its_own_size() {
+        """
+        Увеличение по колонкам — свойство таблицы, а не всякого блока. У блока
+        без таблицы растягивать нечего, и он открывается как раньше: в
+        натуральную величину, с той высоты, по которой нажали.
+        """
+        val a = open("tag_group")
+        val column = column(a)
+        val plain = (0 until blocks(a).childCount)
+            .map { blocks(a).getChildAt(it) }
+            .firstOrNull { tableRow(it) == null }
+            ?: return    // в этой карточке все блоки с таблицами — проверять нечего
+        val expectedTop = topWithin(plain, column)
+        plain.performClick()
+        val zoom = shownView(a, column.width, minOf(891, column.height - expectedTop))
+        assertEquals("блок без таблицы открылся не в натуральную величину",
+            1f, zoom.currentScale, 0.01f)
         assertEquals("окно открылось не на том блоке, по которому нажали",
             -expectedTop.toFloat(), translationY(zoom), 2f)
     }
@@ -231,4 +348,38 @@ class CardZoomTest {
         assertEquals("пункт меню открыл карточку не с начала",
             0f, translationY(zoom), 2f)
     }
+    @Test
+    fun a_double_tap_opens_only_one_window() {
+        """
+        Жалоба владельца: «если нажать быстро 2 раза — открываются 2
+        увеличенных картинки».
+
+        Поле cardZoomDialog помнит только последнее окно, поэтому первое
+        оставалось висеть под вторым: возврат убирал верхнее, а под ним было
+        такое же. Второе нажатие при открытом окне теперь ничего не делает.
+        """
+        val a = open("tag_group")
+        val block = blocks(a).getChildAt(0)
+
+        block.performClick()
+        val first = a.cardZoomDialog
+        assertNotNull("окно увеличения не открылось", first)
+
+        block.performClick()
+        assertTrue("второе нажатие открыло второе окно поверх первого",
+            a.cardZoomDialog === first)
+        assertTrue("первое окно закрылось от второго нажатия", first!!.isShowing)
+
+        // И то же через пункт меню: путь другой, окно должно остаться одно.
+        a.onOptionsItemSelected(org.robolectric.fakes.RoboMenuItem(4 /* MENU_ZOOM */))
+        assertTrue("пункт меню открыл второе окно поверх первого",
+            a.cardZoomDialog === first)
+
+        // Закрыли — и следующее нажатие снова открывает.
+        first.dismiss()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        block.performClick()
+        assertNotNull("после закрытия окно больше не открывается", a.cardZoomDialog)
+    }
+
 }

@@ -62,7 +62,13 @@ def display_form(row: dict) -> str:
 
 
 def transcription_of(row: dict) -> str:
-    return f"/{row.get('ipa','')}/\n{row.get('translit_ru','')}"
+    """Только международная запись.
+
+    Русское звучание лежало здесь же, вторым рядом, и на карточке их было
+    видно сразу два. Теперь оно отдельным полем transcription_ru и показывается
+    в нижнем блоке — см. card_builder.
+    """
+    return f"/{row.get('ipa','')}/"
 
 
 def has_niqqud(text: str) -> bool:
@@ -101,6 +107,7 @@ async def main() -> int:
             ("word_foreign", display_form(row)),
             ("translation", row.get("russian") or ""),
             ("transcription", transcription_of(row)),
+            ("transcription_ru", row.get("translit_ru") or ""),
             # Часть речи и словарная форма собирались отдельными стадиями
             # конвейера, но в базу не переносились — карточка их не видела.
             ("part_of_speech", row.get("pos") or ""),
@@ -167,6 +174,7 @@ async def main() -> int:
                     "word_foreign": form,
                     "translation": row.get("russian") or "",
                     "transcription": trans,
+                    "transcription_ru": row.get("translit_ru") or "",
                     # Часть речи и словарная форма собирались отдельными стадиями
                     # конвейера, но до базы никогда не доезжали.
                     "part_of_speech": row.get("pos") or "",

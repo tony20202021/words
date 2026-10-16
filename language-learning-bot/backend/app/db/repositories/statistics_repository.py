@@ -6,6 +6,7 @@ import asyncio
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
+from pymongo import ReturnDocument
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -61,14 +62,161 @@ class StatisticsRepository:
         
         statistics_dict["created_at"] = datetime.utcnow()
         statistics_dict["updated_at"] = statistics_dict["created_at"]
-        
-        result = await self.collection.insert_one(statistics_dict)
-        
-        created_stats = await self.collection.find_one({"_id": result.inserted_id})
-        created_stats["id"] = str(created_stats.pop("_id"))
-        
-        return UserStatisticsInDB(**created_stats)
+
+        # Одна операция «создать или положить состояние», а не «посмотреть и
+        # вставить».
+        #
+        # Телефон отправляет накопленное офлайн пачкой, и отправок может уйти
+        # две сразу — обычная и та, что идёт перед загрузкой сессии. BLS на
+        # каждую сначала читает запись, не находит её и просит создать: 30.09
+        # так появилось 27 лишних записей у двенадцати слов за одну секунду.
+        # Лишние записи врут в счётчиках и ломали график интервалов повторения.
+        #
+        # Почему $set, а не только $setOnInsert: сюда приходят уже посчитанные
+        # счёт, интервал и дата следующей проверки — ровно то, что иначе
+        # положил бы путь обновления. Если запись к этому моменту всё-таки
+        # появилась, «не трогать её» означало бы потерять оценку человека
+        # молча. Дату создания при этом сохраняем первоначальную.
+        filter_ = {"user_id": user_id, "word_id": statistics_dict.get("word_id")}
+        created_at = statistics_dict.pop("created_at")
+        doc = await self.collection.find_one_and_update(
+            filter_,
+            {"$set": statistics_dict, "$setOnInsert": {"created_at": created_at}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        doc["id"] = str(doc.pop("_id"))
+        return UserStatisticsInDB(**doc)
     
+    async def _day_bounds(self, user_id: str, language_id: str):
+        """
+        (сейчас, начало учебных суток) — по настройкам этого человека.
+
+        Зачем обе величины. Дата следующей проверки хранится ровно на границе
+        учебных суток (см. common/study_day.py), поэтому «пора повторять» —
+        это «граница уже прошла», то есть сравнение с ТЕКУЩИМ моментом. А
+        «недопройдено» — это «прошла граница более РАННЕГО дня», и там нужно
+        начало сегодняшних суток.
+
+        Почему не полночь UTC, как было. 09.10.2026 владелец поставил
+        Europe/Moscow и начало суток в 4 утра — границы легли на 01:00 UTC, а
+        здесь всё ещё сравнивалось с 00:00 UTC. Слова со сроком «сегодня» в
+        счёт на сегодня не попадали и всплывали только назавтра: «слов на
+        сегодня» показывало ноль при четырёх назначенных.
+        """
+        from common.study_day import day_started_utc, settings_of, study_day
+
+        settings = {}
+        try:
+            doc = await self.db.user_language_settings.find_one(
+                {"user_id": ObjectId(user_id), "language_id": ObjectId(language_id)})
+            settings = doc or {}
+        except Exception:
+            pass   # настроек нет или id не разбирается — берём умолчания
+        tz_name, day_start = settings_of(settings)
+        now = datetime.utcnow()
+        return now, day_started_utc(study_day(now, tz_name, day_start), tz_name, day_start)
+
+    async def align_check_dates(self, user_id: str, language_id: str) -> int:
+        """
+        Переложить даты следующей проверки на границу учебных суток человека.
+
+        Зачем. Дата хранится как момент, когда слово становится нужным, и
+        кладётся ровно на начало учебных суток. Стоит человеку сменить пояс
+        или час начала — все накопленные даты оказываются не на границе, и
+        день для них начинается не тогда, когда для всего остального.
+
+        Чем это кончилось 10.10.2026. Границу вынесли в настройки, владелец
+        поставил Europe/Moscow и 4 утра, а 219 уже накопленных дат остались
+        на полуночи UTC — это 03:00 по Москве, последний час ПРЕДЫДУЩИХ
+        суток. Слово становилось нужным в три ночи и через час объявлялось
+        недопройденным. Наутро — «53 слова недопройдено», хотя накануне
+        пройдено всё.
+
+        Старое значение «полночь дня D» означало «повторить в день D»;
+        новое того же — начало учебных суток дня D. Так и пересчитываем.
+        Записи, уже лежащие на границе, не трогаем.
+
+        Returns: сколько дат сдвинуто.
+        """
+        from common.study_day import day_started_utc, settings_of
+
+        settings = {}
+        try:
+            doc = await self.db.user_language_settings.find_one(
+                {"user_id": ObjectId(user_id), "language_id": ObjectId(language_id)})
+            settings = doc or {}
+        except Exception:
+            return 0
+        tz_name, day_start = settings_of(settings)
+
+        moved = 0
+        async for doc in self.collection.find(
+                {"user_id": user_id, "language_id": language_id,
+                 "next_check_date": {"$ne": None}}):
+            old = doc.get("next_check_date")
+            if not isinstance(old, datetime):
+                continue
+            want = day_started_utc(old.date(), tz_name, day_start)
+            if want == old:
+                continue
+            await self.collection.update_one(
+                {"_id": doc["_id"]}, {"$set": {"next_check_date": want}})
+            moved += 1
+        if moved:
+            logger.info(f"даты проверки переложены на границу суток: {moved} "
+                        f"(user={user_id}, lang={language_id}, {tz_name}/{day_start})")
+            await self._refresh_today_overdue(user_id, language_id, tz_name, day_start)
+        return moved
+
+    async def _refresh_today_overdue(self, user_id, language_id, tz_name, day_start) -> None:
+        """
+        Пересчитать «недопройдено» в сегодняшнем дневном снимке.
+
+        Снимок пишется ОДИН раз за сутки, на первом ответе дня, и потом не
+        трогается — в нём состояние на начало дня. Но «недопройдено» выведено
+        из дат, которые мы только что сдвинули, и без пересчёта график до
+        вечера показывал бы вчерашнюю неправду: у владельца так и вышло —
+        живой показатель стал 0, а на графике до конца дня висело 53.
+
+        Остальные поля снимка не трогаем: они про начало дня и от сдвига дат
+        не зависят.
+        """
+        from common.study_day import day_started_utc, study_day
+
+        now = datetime.utcnow()
+        today = study_day(now, tz_name, day_start)
+        boundary = day_started_utc(today, tz_name, day_start)
+        overdue = await self.collection.count_documents({
+            "user_id": user_id, "language_id": language_id,
+            "next_check_date": {"$lt": boundary},
+            "score": 1, "is_skipped": {"$ne": True},
+        })
+        res = await self.daily_stats_collection.update_one(
+            {"user_id": user_id, "language_id": language_id, "type": "daily",
+             "date": datetime.combine(today, datetime.min.time())},
+            {"$set": {"words_overdue": overdue}},
+        )
+        if res.modified_count:
+            logger.info(f"в снимке за {today} «недопройдено» пересчитано: {overdue}")
+
+    async def ensure_indexes(self):
+        """
+        Единственность пары «человек + слово».
+
+        Правило в самой базе — последняя защита: даже если два запроса придут
+        ровно одновременно и оба решат вставить, вторая вставка будет отвергнута.
+        Создаётся не падая: если в данных ещё остались дубли, индекс не встанет,
+        и это повод их вычистить, а не повод не запускаться.
+        """
+        try:
+            await self.collection.create_index(
+                [("user_id", 1), ("word_id", 1)],
+                name="user_word_unique_idx", unique=True, background=True,
+            )
+        except Exception as e:
+            logger.warning(f"не удалось создать индекс единственности: {e}")
+
     async def get_by_id(self, id: str) -> Optional[UserStatisticsInDB]:
         """
         Get statistics by ID.
@@ -254,7 +402,7 @@ class StatisticsRepository:
             "language_id": language_id
         }
         
-        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        now, today = await self._day_bounds(user_id, language_id)
 
         if validate_words:
             # С валидацией существования слов + получение word_number
@@ -298,7 +446,7 @@ class StatisticsRepository:
                             "$sum": {"$cond": [{"$eq": ["$is_skipped", True]}, 1, 0]}
                         },
                         "words_for_today": {
-                            "$sum": {"$cond": [{"$lte": ["$next_check_date", today]}, 1, 0]}
+                            "$sum": {"$cond": [{"$lte": ["$next_check_date", now]}, 1, 0]}
                         },
                         # Два независимых счётчика недоученного.
                         # Слову, отвеченному «не знаю», дата проверки ставится на
@@ -323,7 +471,7 @@ class StatisticsRepository:
                         "word_numbers_for_today": {
                             "$push": {
                                 "$cond": [
-                                    {"$lte": ["$next_check_date", today]},
+                                    {"$lte": ["$next_check_date", now]},
                                     "$word_number",
                                     "$$REMOVE"  # Исключаем из списка если условие не выполнено
                                 ]
@@ -655,15 +803,15 @@ class StatisticsRepository:
         Returns:
             List of statistics with word information
         """
-        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+        now, _ = await self._day_bounds(user_id, language_id)
+
         pipeline = [
             # Match statistics for the user and language that are due for review
             {
                 "$match": {
                     "user_id": user_id,
                     "language_id": language_id,
-                    "next_check_date": {"$lte": today}
+                    "next_check_date": {"$lte": now}
                 }
             },
             

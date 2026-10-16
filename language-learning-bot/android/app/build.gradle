@@ -101,3 +101,31 @@ dependencies {
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
 }
+
+// ── Собранный APK кладём туда, откуда его раздают ────────────────────────────
+//
+// Файл android/LangBot.apk отдают и бот по команде /android, и веб по
+// /download/android. Он НЕ тот, что лежит в build/outputs: копирование было
+// отдельным пунктом в документации, и его пропускали.
+//
+// Чем это кончается: номер версии на странице скачивания берётся из
+// common/version.py, а байты — из LangBot.apk. Разошлись — и человек видит
+// ссылку «4.11.0», а скачивает 4.6.5. Хуже того, LanguagesActivity сравнивает
+// version_code из BLS с установленным, так что баннер обновления загорается у
+// ВСЕХ и ведёт на сборку, которой нет.
+//
+// Поэтому копирование теперь часть сборки, а не памяти человека.
+tasks.configureEach { task ->
+    if (task.name == 'assembleRelease') {
+        task.doLast {
+            def built = layout.buildDirectory
+                .file('outputs/apk/release/app-release.apk').get().asFile
+            def served = new File(rootProject.projectDir, 'LangBot.apk')
+            // Обычное копирование в doLast, а не задача Copy: Copy объявляет
+            // каталог проекта своим выходом, и Gradle ругается на пересечение
+            // с createReleaseApkListingFileRedirect, который пишет туда же.
+            served.bytes = built.bytes
+            logger.lifecycle("APK для раздачи обновлён: ${served} (${served.length()} байт)")
+        }
+    }
+}

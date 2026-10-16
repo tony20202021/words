@@ -115,6 +115,11 @@ async def connect_to_mongo():
         word_repo = WordRepository(db)
         await word_repo.ensure_indexes()
 
+        # Единственность пары «человек + слово»: защита от повторного создания
+        # записи, когда две отправки офлайн-пачки приходят одновременно.
+        from app.db.repositories.statistics_repository import StatisticsRepository
+        await StatisticsRepository(db).ensure_indexes()
+
         logger.info("Successfully connected to MongoDB")
     except Exception as e:
         logger.error(f"Could not connect to MongoDB: {e}", exc_info=True)

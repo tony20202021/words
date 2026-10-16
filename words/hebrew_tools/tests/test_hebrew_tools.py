@@ -466,7 +466,11 @@ def test_vocalization_agrees_with_transcription_in_the_first_thousand():
 
     data = os.path.join(here, "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
     rows = [r for r in json.load(open(data, encoding="utf-8")) if r["rank"] <= 1000]
-    assert len(rows) == 1000, "первая тысяча неполна"
+    # Не «ровно тысяча»: из частотного списка убраны дубликаты — одно и то же
+    # слово, записанное с вав и без (ktiv male), стояло в нём дважды. Пропуск
+    # в нумерации законен, а вот дыра размером в десяток слов означала бы, что
+    # словарь обрезали по ошибке.
+    assert len(rows) >= 990, f"первая тысяча поредела: осталось {len(rows)}"
 
     # Сравнение — регулярным выражением, а не строкой: у камаца два чтения
     # («a» или «o»), у шва и хатафов гласная может и не звучать, и шаблон это
@@ -552,3 +556,325 @@ def test_words_inside_the_group_get_no_extra_row():
     own = _group_of(rows, 29)
     assert [r["rank"] for r in own] == [19, 29, 43]
     assert [r["rank"] for r in own if r["self"]] == [29]
+
+
+# ── Где в таблице группы встаёт строка самого слова ──────────────────────────
+
+def _rows(*specs):
+    """Строки таблицы: (ранг, перевод) — лемму держим отдельно, как в словаре."""
+    return [{"rank": r, "ru": ru, "ipa": "", "foreign": "", "self": False}
+            for r, ru in specs]
+
+
+def test_own_row_joins_its_namesakes_not_the_last_same_root():
+    """
+    «эти הָאֵלֶּה» встаёт за «эти אֵלֶּה», а не за «такие כָּאֵלֶּה».
+
+    У леммы אלה в указательных местоимениях две строки с разным смыслом —
+    «эти» и «такие», — и поиск с конца таблицы находил вторую. Своя строка
+    уезжала в самый хвост, под «такая», и таблица отвечала на вопрос «где тут
+    я» неправдой: будто это слово из ряда «такой/такая/такие».
+    """
+    import build_tag_groups
+    rows = _rows((3, "это, этот"), (264, "эти"), (620, "такие"))
+    by_rank = {3: {"lemma": "זה"}, 264: {"lemma": "אלה"}, 620: {"lemma": "אלה"}}
+    own = {"rank": 147, "ru": "эти", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "אלה", "ручной")
+    assert [r["rank"] for r in out] == [3, 264, 147, 620]
+
+
+def test_own_row_joins_the_same_root_when_the_translation_differs():
+    """«могу (ж)» идёт за «могу (м)»: та же лемма, перевод другой."""
+    import build_tag_groups
+    rows = _rows((29, "могу (м)"), (43, "нужно"))
+    by_rank = {29: {"lemma": "יכול"}, 43: {"lemma": "צריך"}}
+    own = {"rank": 80, "ru": "могу (ж)", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "יכול", "ручной")
+    assert [r["rank"] for r in out] == [29, 80, 43]
+
+
+def test_the_base_form_keeps_its_place_at_the_tail_of_its_row():
+    """
+    «для, ради בִּשְׁבִיל» — основа всей парадигмы, своего значения среди
+    «для меня / для тебя» у неё нет. Такая строка остаётся в хвосте своего
+    ряда и не вклинивается между «для меня בִּשְׁבִילִי» и «для меня עֲבוּרִי».
+    """
+    import build_tag_groups
+    rows = _rows((402, "для меня"), (1103, "для меня"), (5121, "для них"))
+    by_rank = {402: {"lemma": "בשביל"}, 1103: {"lemma": "עבור"}, 5121: {"lemma": "בשביל"}}
+    own = {"rank": 185, "ru": "для, ради", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "בשביל", "ручной")
+    assert [r["rank"] for r in out] == [402, 1103, 5121, 185]
+
+
+def test_gender_mark_does_not_hide_the_shared_meaning():
+    """«этот (м) הַזֶּה» встаёт за «это, этот זֶה»: пометка рода — не значение."""
+    import build_tag_groups
+    rows = _rows((3, "это, этот"), (60, "это, эта (ж)"), (181, "такой"))
+    by_rank = {3: {"lemma": "זה"}, 60: {"lemma": "זה"}, 181: {"lemma": "זה"}}
+    own = {"rank": 34, "ru": "этот (м)", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "זה", "ручной")
+    assert [r["rank"] for r in out] == [3, 34, 60, 181]
+
+
+def test_own_row_goes_after_the_whole_block_of_its_kin():
+    """
+    Своя строка встаёт ЗА блоком однокоренных, а не внутрь него.
+
+    У числительных «три (м)» и «три (ж)» идут подряд; вклиниваться между ними
+    нельзя — порядок внутри значения задан вручную (сначала мужской род).
+    """
+    import build_tag_groups
+    rows = _rows((532, "три (м)"), (417, "три (ж)"), (1235, "четыре (м)"))
+    by_rank = {532: {"lemma": "שלוש"}, 417: {"lemma": "שלוש"}, 1235: {"lemma": "ארבע"}}
+    own = {"rank": 9999, "ru": "три (разг.)", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "שלוש", "ручной")
+    assert [r["rank"] for r in out] == [532, 417, 9999, 1235]
+
+
+def test_own_row_finds_its_namesakes_even_with_another_root():
+    """
+    Книжное «эти הַלָּלוּ» (лемма הללו) родни по лемме в таблице не имеет, но
+    место его очевидно — среди остальных «эти», а не в конце под «такие».
+    """
+    import build_tag_groups
+    rows = _rows((3, "это, этот"), (264, "эти"), (620, "такие"))
+    by_rank = {3: {"lemma": "זה"}, 264: {"lemma": "אלה"}, 620: {"lemma": "אלה"}}
+    own = {"rank": 773, "ru": "эти", "ipa": "", "foreign": "", "self": True}
+    out = build_tag_groups.insert_own(rows, own, by_rank, "הללו", "ручной")
+    assert [r["rank"] for r in out] == [3, 264, 773, 620]
+
+
+def test_the_demonstratives_table_has_no_repeated_translations():
+    """
+    В таблице группы не должно быть двух строк с одним переводом.
+
+    Жалоба владельца: «слова эти — 4 раза и не подряд, почему?». В состав
+    указательных местоимений попали и формы с артиклем ה, и варианты (זו, אלו,
+    האלו, הללו) — пять строк «эти» вперемешку с «тот» и «такой». По правилу
+    самого словаря формы с артиклем в состав не входят: они получают тег и
+    показывают группу, но своей строки не имеют (иначе «родственники»
+    содержали бы «ребёнок» трижды).
+    """
+    from tag_defs import load_tags
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    by_rank = {r["rank"]: r for r in json.load(open(data, encoding="utf-8"))}
+    members = load_tags()["указательные местоимения"]["members"]
+    seen = {}
+    for rank in members:
+        ru = by_rank[rank]["russian"].split(";")[0].strip()
+        assert ru not in seen, (
+            f"в составе две строки «{ru}»: #{seen[ru]} и #{rank}; "
+            "форму с артиклем или вариант переносят в also")
+        seen[ru] = rank
+
+
+def test_russian_transcription_agrees_with_the_ipa_about_kaf():
+    """
+    Буква כ без дагеша звучит «х», и русская запись обязана говорить то же.
+
+    Жалоба владельца про слово 196: «в транскрипции варианты К и х — как же
+    правильно?». Правильно «х»: לְכָאן — это ל с шва плюс כ без дагеша, и IPA
+    честно писал leˈχan, а русская строка рядом — «лэкАн». Человек видит на
+    одной карточке два разных ответа и не знает, какому верить.
+
+    Проверяем по самому надёжному признаку: если в IPA есть χ, в русской
+    записи на его месте должно стоять «х», а не «к».
+    """
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    wrong = []
+    for r in json.load(open(data, encoding="utf-8")):
+        ipa, ru = r.get("ipa", ""), (r.get("translit_ru") or "").lower()
+        n_khaf = ipa.count("χ")
+        if n_khaf and ru.count("х") != n_khaf and ru.count("к") >= n_khaf:
+            wrong.append(f"#{r['rank']} {r['niqqud']} [{ipa}] {r['translit_ru']}")
+    assert not wrong, "русская запись спорит с IPA про כ:\n  " + "\n  ".join(wrong)
+
+
+def test_no_two_words_share_a_vocalised_form():
+    """
+    Огласованная форма — это то, что видит человек на карточке, и она обязана
+    быть у каждого слова своя.
+
+    Как всплыло: синхронизация словаря в базу молча не доносила три слова —
+    №421 הַכֹּל, №4494 רוֹזִי, №9225 לְהִיפָּגֵשׁ. У базы на эту форму стоит
+    запрет повторов, и он отвергал вторую запись. В частотном списке это одно
+    и то же слово, записанное двумя способами — с вав и без (ktiv male), — и
+    попавшее в список дважды. Решение владельца: из пары оставлять меньший
+    ранг, он же и частотнее.
+    """
+    import collections
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    seen = collections.defaultdict(list)
+    for r in json.load(open(data, encoding="utf-8")):
+        form = (r.get("niqqud") or "").strip()
+        if form:
+            seen[form].append(r["rank"])
+    doubles = {form: ranks for form, ranks in seen.items() if len(ranks) > 1}
+    assert not doubles, "одна огласованная форма у разных номеров:\n  " + "\n  ".join(
+        f"{form}: {ranks}" for form, ranks in doubles.items())
+
+
+def test_a_prefix_table_shows_the_free_standing_word_and_marks_it():
+    """
+    В таблице приставки есть строка «то же отдельным словом», и она помечена.
+
+    Вопрос владельца: «а есть ли такие приставки как отдельные слова, или они
+    только в составе других?». Сами буквы — только в составе: однобуквенных
+    записей в словаре нет ни одной. Но у пяти из семи есть свободные
+    соответствия (מִן при מ, כְּמוֹ при כ, אֲשֶׁר при ש), и им место в той же
+    таблице — с пометкой, иначе их не отличить от приставочных форм.
+    """
+    from tag_defs import load_tags
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    by_rank = {r["rank"]: r for r in json.load(open(data, encoding="utf-8"))}
+    defs = load_tags()
+
+    # מִן — полная форма приставки מ, а не синоним: пометка у него своя.
+    mem = defs["приставка מ"]
+    assert 895 in mem["members"], "מִן не попал в таблицу приставки מ"
+    assert mem["row_notes"]["895"] == "та же приставка целиком"
+    assert by_rank[895]["hebrew"] == "מן"
+
+    # У артикля ה и союза ו свободной формы нет — и выдумывать её нельзя.
+    for letter in ("ה", "ו"):
+        assert not defs[f"приставка {letter}"].get("row_notes"), (
+            f"у приставки {letter} появилось «отдельное слово», которого в языке нет")
+
+    # Помеченное слово не должно быть приставочной формой — иначе пометка
+    # врала бы. Проверяем тем же правилом, каким формы и находятся: буква
+    # плюс слово из словаря при общей лемме. По одной лишь первой букве судить
+    # нельзя: בְּתוֹךְ «внутри» начинается с ב, но это самостоятельный предлог,
+    # а не ב, приставленное к слову תוך.
+    import build_prefix_tags
+
+    found = build_prefix_tags.prefixed_forms(list(by_rank.values()))
+    for letter in ("ש", "ב", "ל", "מ", "כ"):
+        spec = defs[f"приставка {letter}"]
+        assert spec.get("row_notes"), f"у приставки {letter} нет отдельного слова"
+        mechanical = {r["rank"] for r, _ in found[letter]}
+        for rank in spec["row_notes"]:
+            assert int(rank) not in mechanical, (
+                f"#{rank} {by_rank[int(rank)]['hebrew']} помечено как отдельное слово, "
+                "но это приставочная форма")
+
+
+def test_the_note_reaches_the_row_of_the_table():
+    """Пометка должна доехать до строки, а не остаться в определении тега."""
+    import build_tag_groups
+
+    rows = [
+        {"rank": 175, "hebrew": "מזה", "niqqud": "מִזֶּה", "ipa": "miˈze",
+         "russian": "из этого", "lemma": "זה",
+         "tags": [{"tag": "приставка מ", "order": 1, "shown": True}]},
+        {"rank": 895, "hebrew": "מן", "niqqud": "מִן", "ipa": "min",
+         "russian": "из, от", "lemma": "מן",
+         "tags": [{"tag": "приставка מ", "order": 2, "shown": True}]},
+    ]
+    defs = {"приставка מ": {
+        "label": "🔤 Приставка מ — «из, от»", "note": "по частотности", "sort": "ранг",
+        "members": [175, 895], "also": [], "row_notes": {"895": "та же приставка целиком"},
+    }}
+    build_tag_groups.build(rows, defs)
+    table = {r["rank"]: r["ru"] for r in rows[0]["tag_groups"][0]["rows"]}
+    assert table[175] == "из этого", "пометка прилипла не к той строке"
+    assert table[895] == "из, от — та же приставка целиком"
+
+
+def test_homographs_are_voiced_from_the_vocalised_form():
+    """
+    Омографы озвучиваются по огласовке, а не по голым согласным.
+
+    Жалоба владельца про слово 233: транскрипция «бэхА», а голоса говорят
+    «бах», «бех», «бех». Причина — все звуки делались из поля `hebrew`, то
+    есть из написания без огласовки, а у 108 записей оно читается двумя
+    способами. Движок выбирал чтение сам и для בך брал женское בָּךְ.
+    Проверено на слух: из огласованной בְּךָ выходит «беха» — верно.
+
+    Проверяем само правило: для слова с вариантами огласовки на озвучку
+    обязана идти огласованная форма.
+    """
+    import os
+    import sys
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, here)
+    import regen_homograph_sounds as regen
+
+    rows = [
+        {"rank": 233, "hebrew": "בך", "niqqud": "בְּךָ", "russian": "в тебе",
+         "tones": "<b>בך</b>: <i>вариантов огласовки: 2</i>\n - ..."},
+        {"rank": 68, "hebrew": "דבר", "niqqud": "דָּבָר", "russian": "вещь", "tones": ""},
+    ]
+    targets = regen.homographs(rows)
+    assert [r["rank"] for r in targets] == [233], "омограф опознан неверно"
+    # На озвучку идёт огласованная форма — ровно та, которую подтвердили на слух.
+    assert targets[0]["niqqud"] == "בְּךָ"
+    assert targets[0]["niqqud"] != targets[0]["hebrew"]
+
+
+def test_the_new_sound_gets_a_new_path():
+    """
+    Переозвученный файл обязан называться иначе.
+
+    Телефон кеширует звуки по пути: тот же путь — тот же файл, и
+    перезаписанный на сервере до него уже не доедет. Новое имя заодно
+    оставляет прежние файлы на месте, так что откат — это вернуть старые пути.
+    """
+    import os
+    import sys
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, here)
+    import regen_homograph_sounds as regen
+
+    assert regen.SUFFIX, "суффикс пути пуст — новый файл затрёт старый"
+    for folder, _ in regen.VOICES:
+        path = f"sounds/he/{folder}/233{regen.SUFFIX}.mp3"
+        assert path != f"sounds/he/{folder}/233.mp3"
+
+
+def test_the_superlative_is_tied_to_the_word_it_is_made_from():
+    """
+    «Самый» и «больше» связаны: בְּיוֹתֵר — это ב + יוֹתֵר.
+
+    Жалоба владельца: «слово 32 "больше", есть ещё "самый" — отличаются
+    только приставкой», а на карточке они ничем не связаны. Причина: у №193
+    лемма стояла своя собственная (ביותר), тогда как у всех четырёх собратьев
+    по той же основе — יותר. Словарь спорил сам с собой, и №193 выпадал и из
+    группы приставки ב, и из списка однокоренных слова №32.
+
+    Общего правила тут нет: ש и מ в начале слова бывают и приставкой, и частью
+    самого слова — שָׁכֵן «сосед» не из ש+כן, מָרָק «суп» не из מ+רק. Поэтому
+    проверяется семья, в которой связь установлена, а не догадка про все.
+    """
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    by_rank = {r["rank"]: r for r in json.load(open(data, encoding="utf-8"))}
+
+    assert by_rank[193]["lemma"] == "יותר", "превосходная степень снова оторвана от основы"
+    family = {rank for rank, r in by_rank.items() if r.get("lemma") == "יותר"}
+    assert {32, 193, 2612, 2848, 3776, 6703} <= family, sorted(family)
+
+    # И это должно быть видно на карточке самого слова «больше».
+    refs = by_rank[32].get("references") or ""
+    assert "[#193]" in refs, "на карточке «больше» не видно «самый»"

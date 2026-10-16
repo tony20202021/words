@@ -51,7 +51,7 @@ class SettingsActivity : AppCompatActivity() {
         val NUMERIC_SETTINGS = linkedMapOf(
             "start_word"                 to "Начальное слово",
             "reset_same_day_hours"       to "Сброс: перерыв за день (ч)",
-            "reset_cross_midnight_hours" to "Сброс: час после полуночи",
+            "day_start_hour"             to "Начало учебных суток (час)",
             "unknown_limit_new_words"    to "Лимит неизвестных слов",
             "max_check_interval"         to "Макс. интервал повторения (дни)",
             "quiz_options_count"         to "Вариантов в режиме выбора",
@@ -197,6 +197,117 @@ class SettingsActivity : AppCompatActivity() {
             }
             container.addView(row)
             addDivider(container)
+        }
+
+        addTimezoneRow(container, settings, readOnly)
+    }
+
+    /**
+     * Часовой пояс — выпадающим списком, как в системных настройках.
+     *
+     * Перечень приходит с сервера (BLS /settings/timezones): держать его в
+     * каждом клиенте значило бы три копии одного списка, которые разойдутся
+     * при первой правке. Пояс хранится названием, а не числом, чтобы перевод
+     * часов учитывался сам: сдвигом пришлось бы править дважды в год.
+     */
+    private fun addTimezoneRow(container: LinearLayout, settings: Map<String, Any>,
+                               readOnly: Boolean) {
+        val current = (settings["timezone"] as? String)?.takeIf { it.isNotBlank() } ?: "UTC"
+
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.setPadding(0, 16, 0, 16)
+
+        val tvLabel = TextView(this)
+        tvLabel.text = "Часовой пояс"
+        tvLabel.textSize = 15f
+        tvLabel.layoutParams = LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        row.addView(tvLabel)
+
+        val tvValue = TextView(this)
+        tvValue.text = current
+        tvValue.textSize = 15f
+        tvValue.setTextColor(android.graphics.Color.parseColor(
+            if (readOnly) "#9A9A9A" else "#1565C0"))
+        tvValue.setPadding(16, 0, 0, 0)
+        row.addView(tvValue)
+
+        if (!readOnly) {
+            val tvArrow = TextView(this)
+            tvArrow.text = " ›"
+            tvArrow.textSize = 18f
+            tvArrow.setTextColor(android.graphics.Color.parseColor("#BBBBBB"))
+            row.addView(tvArrow)
+            row.setOnClickListener { showTimezoneDialog(current, tvValue) }
+        }
+        container.addView(row)
+        addDivider(container)
+    }
+
+    private fun showTimezoneDialog(current: String, tvValue: TextView) {
+        lifecycleScope.launch {
+            val offsets = try {
+                val resp = BLSClient.api.getTimezones()
+                if (resp.isSuccessful) resp.body()?.offsets.orEmpty() else emptyList()
+            } catch (e: Exception) { emptyList() }
+            if (offsets.isEmpty()) {
+                Toast.makeText(this@SettingsActivity,
+                    "Список поясов не пришёл — нет связи с сервером",
+                    Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            // Шаг первый — смещение. Их около сорока, и своё человек знает.
+            val here = offsets.indexOfFirst { g -> g.zones.any { it.name == current } }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Часовой пояс: смещение")
+                .setSingleChoiceItems(
+                    offsets.map { "${it.label}  (${it.zones.size})" }.toTypedArray(),
+                    here,
+                ) { dialog, which ->
+                    dialog.dismiss()
+                    showCityDialog(offsets[which], current, tvValue)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
+    }
+
+    /** Шаг второй — город внутри выбранного смещения. */
+    private fun showCityDialog(offset: com.langbot.app.network.TimezoneOffset,
+                               current: String, tvValue: TextView) {
+        val zones = offset.zones
+        if (zones.size == 1) {               // выбирать не из чего
+            tvValue.text = zones[0].name
+            saveTimezone(zones[0].name)
+            return
+        }
+        val checked = zones.indexOfFirst { it.name == current }
+        AlertDialog.Builder(this)
+            .setTitle(offset.label)
+            .setSingleChoiceItems(zones.map { it.label }.toTypedArray(), checked) { dialog, which ->
+                tvValue.text = zones[which].name
+                saveTimezone(zones[which].name)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Назад") { _, _ -> showTimezoneDialog(current, tvValue) }
+            .show()
+    }
+
+    private fun saveTimezone(name: String) {
+        lifecycleScope.launch {
+            try {
+                val resp = BLSClient.api.setSetting(
+                    userId, languageId, "timezone", mapOf("value" to name))
+                if (!resp.isSuccessful) {
+                    Toast.makeText(this@SettingsActivity,
+                        "Не удалось сохранить пояс (${resp.code()})",
+                        Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@SettingsActivity,
+                    "Нет связи с сервером — пояс не сохранён", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

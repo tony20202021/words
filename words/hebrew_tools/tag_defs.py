@@ -26,20 +26,30 @@ TAGS = os.path.join(DATA, "tags.json")
 # чтобы результат генератора можно было просмотреть и сравнить, а не собирать
 # на лету при каждом запуске.
 AUTO = os.path.join(DATA, "tags_synonyms.json")
+# Формы одного слова — род и число — тоже выводятся механически
+# (build_form_tags.py): их 285 групп, вручную такое не ведут.
+FORMS = os.path.join(DATA, "tags_forms.json")
+# Приставки — тоже механический вывод (build_prefix_tags.py): одна буква,
+# разные слова. Семь групп, 2597 слов.
+PREFIXES = os.path.join(DATA, "tags_prefixes.json")
 
 SORTS = ("ручной", "ранг")
 
 
-def load_tags(path: str = TAGS, auto: str = AUTO) -> dict:
+def load_tags(path: str = TAGS, auto: str = AUTO, forms: str = FORMS,
+              prefixes: str = PREFIXES) -> dict:
     """Определения тегов с участниками, уже расставленными в порядке показа.
 
     Ручные и выведенные объединяются: слово может попасть и в курированную
-    группу, и в синонимический ряд — это разные поводы для повторения.
+    группу, и в синонимический ряд, и в парадигму своих же форм, и в разбор
+    своей приставки — это разные поводы для повторения.
     """
     with open(path, encoding="utf-8") as fh:
         defs = json.load(fh)["tags"]
-    if auto and os.path.exists(auto):
-        with open(auto, encoding="utf-8") as fh:
+    for generated in (auto, forms, prefixes):
+        if not generated or not os.path.exists(generated):
+            continue
+        with open(generated, encoding="utf-8") as fh:
             for name, spec in json.load(fh)["tags"].items():
                 if name in defs:
                     raise ValueError(f"тег {name!r} задан и вручную, и генератором")

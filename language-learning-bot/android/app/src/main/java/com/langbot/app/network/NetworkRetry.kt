@@ -39,11 +39,18 @@ object NetworkRetry {
      * @param block получает клиент с таймаутом текущей попытки
      * @return результат или null, если ни одна попытка не удалась
      */
+    /**
+     * @param attempts сколько попыток делать. Меньше трёх берут действия, за
+     *        которыми человек ждёт прямо сейчас: ответ на карточке. Полная
+     *        лесенка 2 → 6 → 15 секунд это двадцать три секунды ожидания под
+     *        пальцем, а ответ всё равно запишется в очередь и уйдёт позже.
+     */
     suspend fun <T : Any> call(
         onStatus: (Status) -> Unit = {},
+        attempts: Int = BLSClient.attemptCount,
         block: suspend (BLSApi) -> T,
     ): T? {
-        val total = BLSClient.attemptCount
+        val total = attempts.coerceIn(1, BLSClient.attemptCount)
         var lastError: String? = null
 
         for (attempt in 0 until total) {

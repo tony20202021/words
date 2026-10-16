@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -64,9 +65,23 @@ class StudyActivity : AppCompatActivity() {
     private var playbackGen = 0
     private var activePlayer: MediaPlayer? = null
     private val playbackHandler = Handler(Looper.getMainLooper())
+    // Отложенное «соединяемся…»: показывается, только если первая попытка
+    // затянулась. См. showConnectionStatus.
+    private val connectionHandler = Handler(Looper.getMainLooper())
 
     // Last pick-mode answer result: true=correct, false=wrong/dont_know, null=not a pick answer
-    private var lastPickAnswerResult: Boolean? = null
+    /**
+     * Чем кончился ответ в пик-режиме.
+     *
+     * Состояния три, а не два. Раньше был Boolean, и «не знаю» попадало в
+     * ту же корзину, что и промах: экран отвечал «✗ Неверно». Жалоба
+     * владельца: «я выбираю пункт не знаю, на следующем экране статус
+     * неправильно — нелогично, я честно признался, что не знаю». Признание
+     * незнания и ошибка — разные вещи, и выглядеть должны по-разному.
+     */
+    private enum class PickOutcome { CORRECT, WRONG, DONT_KNOW }
+
+    private var lastPickAnswerResult: PickOutcome? = null
 
     // ── Offline mode ──
     // Non-null while the study loop is running from the local cache (network is down).
@@ -77,6 +92,26 @@ class StudyActivity : AppCompatActivity() {
     private var offlineCurrentRecorded: Boolean = false
     /** Накопленное ушло на сервер — значит, связь есть и офлайн пора закрывать. */
     private var backOnline: Boolean = false
+
+    // Счётчики последней ОНЛАЙН-карточки — отсчёт для офлайна.
+    //
+    // Офлайн складывал свои ответы со счётчиками карточки из скачанной партии,
+    // а они заморожены на времени скачивания — обычно нули. Поэтому в момент
+    // пропажи связи «готово» падало с трёх на один, а полоска прогресса
+    // откатывалась назад. Теперь офлайн продолжает с того места, на котором
+    // человека застала пропажа.
+    private var baseCorrect = 0
+    private var baseWrong = 0
+    private var baseHistory: List<String> = emptyList()
+    /**
+     * Слова, уже учтённые в отсчёте.
+     *
+     * После удачной отправки ответы уходят из очереди в отсчёт. Если то же
+     * слово ответить ещё раз — а так и бывает после «ой, все-таки не знаю», —
+     * оно посчиталось бы дважды, и счётчик сначала подскакивал, а потом падал
+     * обратно, когда приходила правда с сервера.
+     */
+    private var baseWords: MutableSet<String> = mutableSetOf()
     // Засчитано ли текущее офлайновое слово знакомым: от этого зависит, какую
     // ответную сторону показывать — с «Ой, все-таки не знаю» или без.
     private var offlineScoredKnow: Boolean = false
@@ -112,8 +147,46 @@ class StudyActivity : AppCompatActivity() {
         /** Сколько длится уменьшение при возврате (res/anim/zoom_exit.xml). */
         const val ZOOM_EXIT_MS = 420L
 
+        /**
+         * Сколько попыток делать на ответ по карточке.
+         *
+         * Человек ждёт прямо сейчас, а ответ всё равно ляжет в очередь и уйдёт
+         * позже. Полная лесенка — двадцать три секунды под пальцем; на слабой
+         * связи в метро это и выглядело как «нажал и ничего не происходит».
+         */
+        const val ANSWER_ATTEMPTS = 2
+
         /** Сколько длится разворачивание при входе (res/anim/zoom_enter.xml). */
         const val ZOOM_ENTER_MS = 480L
+
+        /**
+         * Через сколько сказать, что ждём ответа, на ПЕРВОЙ попытке.
+         *
+         * Полсекунды — граница, за которой человек перестаёт считать, что
+         * нажатие сработало. Живой сервер отвечает за десятки миллисекунд и до
+         * этой границы не доживает, поэтому на обычном нажатии плашка не
+         * появляется вовсе.
+         */
+        const val FIRST_WAIT_NOTICE_MS = 500L
+
+        /** Пауза между голосами одного и того же слова. */
+        const val BETWEEN_FILES_MS = 350L
+
+        /** Пауза между разными вариантами ответа в пик-режиме. */
+        const val BETWEEN_OPTIONS_MS = 800L
+
+        /**
+         * Сколько молчать перед следующим файлом.
+         *
+         * Внутри одного варианта пауза короткая — это одно и то же слово
+         * разными голосами, и дробить его незачем. На границе вариантов
+         * длиннее: под «▶ Все» они иначе сливаются в один поток, и сравнивать
+         * становится нечего. Просьба владельца: «сделать чуть больше паузу
+         * между разными строками».
+         */
+        @VisibleForTesting
+        fun gapBefore(next: Int?, after: Int?): Long =
+            if (next != after) BETWEEN_OPTIONS_MS else BETWEEN_FILES_MS
 
         /**
          * Рамка вокруг картинки, пока она разворачивается или сходится в точку.
@@ -197,6 +270,14 @@ class StudyActivity : AppCompatActivity() {
      *             карточки (пункт меню «Увеличить»).
      */
     private fun openCardZoom(from: View?) {
+        // Второе нажатие, пока первое окно ещё открыто, не открывает второе.
+        //
+        // Жалоба владельца: «если нажать быстро 2 раза — открываются 2
+        // увеличенных картинки». Нажатие приходит и на блок карточки, и на
+        // пункт меню, а поле cardZoomDialog помнит только последнее окно:
+        // первое оставалось висеть под вторым, и закрыть его было нечем —
+        // возврат убирал верхнее, а под ним оказывалось такое же.
+        if (cardZoomDialog?.isShowing == true) return
         val content = binding.cardScrollContent
         if (content.width <= 0 || content.height <= 0) return
         val picture = Picture()
@@ -208,7 +289,13 @@ class StudyActivity : AppCompatActivity() {
         val box = zoomFrame(this, view, Color.WHITE)
         // Рамка — на время разворачивания, потом снимается.
         framed(box, Color.WHITE, resources.displayMetrics.density)
-        view.showDrawing(PictureDrawable(picture), from?.let { topWithin(it, content) } ?: 0)
+        val focus = from?.let { readableColumns(it, content) }
+        view.showDrawing(
+            PictureDrawable(picture),
+            focus?.first ?: from?.let { topWithin(it, content) } ?: 0,
+            focusLeftPx = focus?.second ?: 0,
+            focusWidthPx = focus?.third ?: 0,
+        )
 
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         // Рост из середины при входе и уменьшение при возврате: без анимации
@@ -228,6 +315,70 @@ class StudyActivity : AppCompatActivity() {
         // Разглядывать карточку в рамке незачем — снимаем, когда доехала.
         box.postDelayed({ box.setBackgroundColor(Color.WHITE) }, ZOOM_ENTER_MS)
         cardZoomDialog = dialog
+    }
+
+    /**
+     * Читаемые колонки таблицы в нажатом блоке: (верх, левый край, ширина).
+     *
+     * Жалоба владельца: «экран увеличения экстра-инфо открывается в размере в
+     * точности как исходный» — то есть не увеличивает. Увеличивать надо по
+     * тому, ради чего в таблицу и смотрят: по переводу и самому слову. Номер
+     * слева и транскрипция справа при этом уезжают за край, и к ним можно
+     * отлистнуть.
+     *
+     * Колонки находим по самой таблице, а не по числам: в строке четыре
+     * ячейки, нужны вторая и третья. Если таблицы в блоке нет — возвращаем
+     * null, и блок открывается как раньше, в натуральную величину.
+     */
+    private fun readableColumns(block: View, root: View): Triple<Int, Int, Int>? {
+        val row = findTableRow(block) ?: return null
+        val ru = row.getChildAt(1) ?: return null
+        val foreign = row.getChildAt(2) ?: return null
+        if (ru.width <= 0 || foreign.width <= 0) return null
+        val table = row.parent as? View ?: return null
+        val left = leftWithin(ru, root)
+        // Сверху начинаем не с таблицы, а с её заголовка: по просьбе владельца
+        // «чтобы влезал заголовок над таблицей». Без него на экране оказывалась
+        // безымянная сетка — непонятно, огласовки это, однокоренные или группа
+        // тега. По ширине ничего не меняется: заголовок стоит выше, а не левее.
+        val anchor = headingAbove(table) ?: table
+        return Triple(topWithin(anchor, root), left, ru.width + foreign.width)
+    }
+
+    /** Ближайшая надпись над таблицей — её заголовок, если он есть. */
+    private fun headingAbove(table: View): View? {
+        val parent = table.parent as? ViewGroup ?: return null
+        for (i in parent.indexOfChild(table) - 1 downTo 0) {
+            val v = parent.getChildAt(i)
+            if (v.visibility != View.VISIBLE) continue
+            return if (v is TextView && v.text.isNotBlank()) v else null
+        }
+        return null
+    }
+
+    /** Первая строка таблицы внутри блока: ряд ровно из четырёх ячеек. */
+    private fun findTableRow(block: View): ViewGroup? {
+        val group = block as? ViewGroup ?: return null
+        if (group is LinearLayout && group.orientation == LinearLayout.HORIZONTAL &&
+            group.childCount == 4 && (0 until 4).all { group.getChildAt(it) is TextView }) {
+            return group
+        }
+        for (i in 0 until group.childCount) {
+            val found = findTableRow(group.getChildAt(i))
+            if (found != null) return found
+        }
+        return null
+    }
+
+    /** Насколько правее начала столбца стоит ячейка: сумма отступов по дереву. */
+    private fun leftWithin(view: View, root: View): Int {
+        var x = 0
+        var v: View? = view
+        while (v != null && v !== root) {
+            x += v.left
+            v = v.parent as? View
+        }
+        return x
     }
 
     /** Насколько ниже начала столбца стоит блок: сумма отступов по дереву. */
@@ -303,11 +454,36 @@ class StudyActivity : AppCompatActivity() {
             // пересчитывает набор на день и уже отвеченное не выдаёт, офлайн
             // должен вести себя так же.
             OfflineCache.excludeAnswered(userId, languageId)
+            // Новый круг — счёт с нуля, в том числе офлайновый отсчёт.
+            baseCorrect = 0; baseWrong = 0; baseHistory = emptyList()
+            baseWords = mutableSetOf()
+            OfflineCache.clearProgress(userId, languageId)
             loadSession()
         }
     }
 
     // ── Session loading ────────────────────────────────────────────────────────
+
+    /** Перезагрузить сессию (для проверок — то же, что «потянуть вниз»). */
+    @VisibleForTesting
+    fun refreshForTest() = loadSession()
+
+    /**
+     * Поставить отметку «звучит сейчас» на вариант (для проверок).
+     *
+     * Сам звук в проверках не играет: MediaPlayer там заглушка, и дождаться от
+     * неё перехода к следующему файлу нельзя. Проверяется то, что видно
+     * человеку, — как отмечен звучащий вариант и снимается ли отметка.
+     */
+    @VisibleForTesting
+    fun markPlayingForTest(option: Int?) = markPlayingOption(option)
+
+    /** Плашка ожидания сети — для проверок: настоящую сеть тут не подождать. */
+    @VisibleForTesting
+    fun showWaitingForTest(status: NetworkRetry.Status) = showConnectionStatus(status)
+
+    @VisibleForTesting
+    fun clearWaitingForTest() = clearConnectionStatus()
 
     private fun loadSession() {
         setLoading(true)
@@ -406,17 +582,35 @@ class StudyActivity : AppCompatActivity() {
      * Показать, что происходит с соединением, пока идут попытки.
      *
      * Без этого нажатие кнопки при недостижимом сервере выглядело как «ничего не
-     * произошло»: экран замирал на время таймаута. Переиспользуем плашку
-     * restart_notice — она уже есть над карточкой.
+     * произошло»: экран замирал на время таймаута.
+     *
+     * Плашка лежит ПОВЕРХ карточки, а не в её столбце. Встроенная в поток, она
+     * сдвигала всё вниз, и по нижней части экрана это читалось как переход к
+     * следующему слову: приходилось перечитывать карточку, чтобы понять, что
+     * ничего не изменилось. Своя плашка нужна и затем, чтобы не делить место с
+     * restart_notice — то сообщение про саму сессию и к связи отношения не имеет.
      */
     private fun showConnectionStatus(status: NetworkRetry.Status) {
-        if (status.attempt == 1) return   // первая попытка короткая, не мельтешим
-        binding.tvRestartNotice.text = status.message
-        binding.tvRestartNotice.visibility = View.VISIBLE
+        connectionHandler.removeCallbacksAndMessages(null)
+        if (status.attempt == 1) {
+            // Первая попытка короткая: живой сервер отвечает за десятки мс, и
+            // показывать «соединяемся» на каждое нажатие значило бы мигать
+            // плашкой впустую. Но если ответа нет и через полсекунды, молчать
+            // нельзя — жалоба владельца: «до первого сообщения про таймаут
+            // непонятно, ждём или зависло».
+            connectionHandler.postDelayed({
+                binding.tvConnection.text = "⏳ ${status.message}"
+                binding.tvConnection.visibility = View.VISIBLE
+            }, FIRST_WAIT_NOTICE_MS)
+            return
+        }
+        binding.tvConnection.text = status.message
+        binding.tvConnection.visibility = View.VISIBLE
     }
 
     private fun clearConnectionStatus() {
-        binding.tvRestartNotice.visibility = View.GONE
+        connectionHandler.removeCallbacksAndMessages(null)
+        binding.tvConnection.visibility = View.GONE
     }
 
     /** Чем закончилась попытка уйти в офлайн. */
@@ -444,6 +638,13 @@ class StudyActivity : AppCompatActivity() {
         offline = eng
         offlineCurrentRecorded = false
         offlineScoredKnow = false
+        // Экран открыт заново без связи: отсчёт берём с диска, иначе счётчики
+        // покажут ноль, хотя человек сегодня уже занимался.
+        if (baseCorrect == 0 && baseWrong == 0 && baseHistory.isEmpty()) {
+            OfflineCache.loadProgress(userId, languageId)?.let {
+                baseCorrect = it.correct; baseWrong = it.wrong; baseHistory = it.history
+            }
+        }
         // render=false, когда вызывающий тут же применит нажатие пользователя и
         // отрисует результат сам. Иначе экран рисовался ДВАЖДЫ: сначала вопрос
         // текущего слова, следом — результат действия. Со стороны это выглядело
@@ -491,7 +692,7 @@ class StudyActivity : AppCompatActivity() {
             // переводом и транскрипцией.
             "record_and_reveal" -> {
                 val r = btn.offline_rating ?: OfflineSemantics.ratingFor(btn.id, btn.rating)
-                recordOffline(r)
+                recordOffline(r, explicit = true)
                 renderOfflineCurrent(showAnswer = true)
             }
 
@@ -516,7 +717,11 @@ class StudyActivity : AppCompatActivity() {
             option?.offline_rating != null -> option.offline_rating
             else -> if (option?.is_correct == true) "know" else "dont_know"
         }
-        lastPickAnswerResult = rating == "know"
+        lastPickAnswerResult = when {
+            selectedWordId == "dont_know" -> PickOutcome.DONT_KNOW
+            rating == "know" -> PickOutcome.CORRECT
+            else -> PickOutcome.WRONG
+        }
         recordOffline(rating)
         // Reveal the answer; the word is already banked, so any follow-up just advances.
         renderOfflineCurrent(showAnswer = true)
@@ -530,9 +735,20 @@ class StudyActivity : AppCompatActivity() {
      *        применяет ответы по времени, и более поздний перекрывает прежний —
      *        иначе отменить засчитанное знакомым без сети было бы нечем.
      */
-    private fun recordOffline(rating: String, correction: Boolean = false) {
+    /**
+     * @param correction поправка к уже записанному ответу («Ой, все-таки не
+     *        знаю»): защиту от повторной записи обходит намеренно — сервер
+     *        применяет ответы по времени, и более поздний перекрывает прежний.
+     * @param explicit человек сам нажал оценку на карточке вопроса. Такой ответ
+     *        тоже обходит защиту: после поправки он возвращается к вопросу и
+     *        отвечает заново, и этот ответ обязан быть записан. Защита нужна
+     *        только от АВТОМАТИЧЕСКОЙ второй записи — когда после «Знаю»
+     *        нажимают «Дальше», и переход пытается записать ещё один ответ.
+     */
+    private fun recordOffline(rating: String, correction: Boolean = false,
+                              explicit: Boolean = false) {
         val eng = offline ?: return
-        if (offlineCurrentRecorded && !correction) return
+        if (offlineCurrentRecorded && !correction && !explicit) return
         eng.record(rating)
         probeNetworkInBackground()
         offlineCurrentRecorded = true
@@ -550,11 +766,27 @@ class StudyActivity : AppCompatActivity() {
     private fun probeNetworkInBackground() {
         if (offline == null) return
         lifecycleScope.launch {
+            // Что сейчас показано из очереди: после удачной отправки эти ответы
+            // из неё исчезнут, и счётчик просел бы на столько же. Поэтому
+            // переносим их в отсчёт — они уже у сервера.
+            val mine = OfflineCache.loadOutbox()
+                .filter { it.userId == userId && it.languageId == languageId }
+                .filterNot { offline?.isExcluded(it.word_id) == true }
+                .sortedBy { it.ts }
+                .associate { it.word_id to it.rating }
             val ok = runCatching {
                 OutboxSync.flush()
                 OfflineCache.pendingCount() == 0
             }.getOrDefault(false)
-            if (ok) backOnline = true
+            if (ok) {
+                val fresh = mine.filterKeys { it !in baseWords }
+                baseCorrect += fresh.values.count { it == "know" }
+                baseWrong += fresh.values.count { it == "dont_know" }
+                baseHistory = baseHistory + fresh.values.filter { it != "skip" }
+                baseWords.addAll(fresh.keys)
+                OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory)
+                backOnline = true
+            }
         }
     }
 
@@ -606,10 +838,19 @@ class StudyActivity : AppCompatActivity() {
         // Ответы прошлых кругов в счёт не идут: перезапуск вывел их из партии,
         // и засчитывать их в «готово» нового круга значило бы показывать
         // прогресс, которого в нём нет.
+        // По одному ответу на СЛОВО, последнему по времени.
+        //
+        // В очереди на одно слово бывает несколько записей: поправка «ой,
+        // все-таки не знаю» дописывает вторую, а повторный ответ — третью.
+        // Считая записи, экран показывал «в сессии: 3» на первом же слове и
+        // завышал «готово».
         val done = OfflineCache.loadOutbox()
             .filter { it.userId == userId && it.languageId == languageId }
             .filterNot { eng != null && eng.isExcluded(it.word_id) }
-            .map { it.rating }
+            .sortedBy { it.ts }
+            .associate { it.word_id to it.rating }
+            .filterKeys { it !in baseWords }      // уже в отсчёте — не считать снова
+            .values.toList()
         val meta = card.meta
         // Размер круга берём у движка: в партии лежат все слова дня, а круг
         // после перезапуска короче на уже отвеченные.
@@ -618,17 +859,23 @@ class StudyActivity : AppCompatActivity() {
         // Счётчик «в сессии: N из M» сервер присылает уже СТРОКОЙ, и в партии
         // он застывает на том, каким был при скачивании: у владельца висело
         // «124 из 121» — позиция из партии, размер из круга. Офлайн считаем
-        // сами: позиция — сколько слов этого круга уже отвечено, плюс текущее.
-        val pos = done.size + 1
+        // сами.
+        //
+        // Позицию берём у движка: его курсор — это и есть номер слова в круге,
+        // с учётом выведенных перезапуском. Прежде позиция считалась по длине
+        // очереди, и после ответов, уже ушедших на сервер, она откатывалась
+        // назад: пройдя слово онлайн и продолжив без сети, экран показывал
+        // «в сессии: 1», стоя на втором слове.
+        val pos = eng?.let { it.cursor + 1 } ?: (done.size + 1)
         val counter = when {
             total == null -> meta.session_counter_text
             pos >= total -> "(завершающее в текущей сессии: $pos)"
             else -> "(в сессии: $pos из $total)"
         }
         return card.copy(meta = meta.copy(
-            correct_count = meta.correct_count + done.count { it == "know" },
-            incorrect_count = meta.incorrect_count + done.count { it == "dont_know" },
-            result_history = meta.result_history + done.filter { it != "skip" },
+            correct_count = baseCorrect + done.count { it == "know" },
+            incorrect_count = baseWrong + done.count { it == "dont_know" },
+            result_history = baseHistory + done.filter { it != "skip" },
             session_pos = pos,
             session_counter_text = counter,
             session_total = total ?: meta.session_total,
@@ -674,6 +921,31 @@ class StudyActivity : AppCompatActivity() {
     private fun renderCard(card: Card) {
         val meta = card.meta
         if (meta.word_id.isNotEmpty()) lastWordId = meta.word_id
+        // Пока мы в сети, запоминаем счётчики: с них продолжит офлайн.
+        if (offline == null) {
+            baseCorrect = meta.correct_count
+            baseWrong = meta.incorrect_count
+            baseHistory = meta.result_history
+            // Сервер посчитал всё сам — своих «уже учтённых» больше нет.
+            //
+            // Кроме одного случая: текущее слово сервер МОГ уже засчитать, а
+            // карточку показать как вопрос. Так бывает после возврата «ой,
+            // все-таки не знаю»: BLS ставит счёт 0, прибавляет ошибку и
+            // возвращает к вопросу. Если человек в этот момент отвечает без
+            // сети, его ответ попадает в очередь — и прибавлялся к счётчикам
+            // ВТОРЫМ: на одном слове выходило «готово 2».
+            //
+            // Узнаём по разнице: правильные с ошибками сервер прибавляет сразу
+            // при оценке, а историю ответов пополняет только на переходе к
+            // следующему слову. Значит, счётчики впереди истории ровно тогда,
+            // когда текущее слово уже посчитано, но ещё не пройдено.
+            baseWords = mutableSetOf()
+            val alreadyScored =
+                meta.correct_count + meta.incorrect_count > meta.result_history.size
+            if (alreadyScored && meta.word_id.isNotEmpty()) baseWords.add(meta.word_id)
+            // И на диск: экран могут открыть заново уже без связи.
+            OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory)
+        }
         val barTotal = meta.session_total?.takeIf { it > 0 }
         binding.tvBadge.visibility = View.GONE  // badge now lives inside cardContent
         binding.divider.visibility = View.VISIBLE  // экран завершения его прячет
@@ -904,6 +1176,8 @@ class StudyActivity : AppCompatActivity() {
         // прослушивания уже не вспомнить, что где.
         listenButtons.clear()
         playedSoundOption = null
+        playingSoundOption = null
+        val soundGroups = mutableListOf<SoundGroup>()
         if (pickOptions != null && !card.show_answer) {
             // Pick mode: show option buttons vertically
             binding.buttonRow.orientation = LinearLayout.VERTICAL
@@ -924,10 +1198,11 @@ class StudyActivity : AppCompatActivity() {
                     listenBtn.strokeWidth = 2
                     val soundPaths = opt.target_text.split("|").filter { it.isNotBlank() }
                     listenButtons.add(listenBtn)
+                    soundGroups.add(SoundGroup(i, soundPaths))
                     listenBtn.setOnClickListener {
                         playedSoundOption = i
                         markPlayedOption()
-                        playSoundSequence(soundPaths)
+                        playGroups(listOf(SoundGroup(i, soundPaths)))
                     }
                     val listenLp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -973,12 +1248,66 @@ class StudyActivity : AppCompatActivity() {
                     binding.buttonRow.addView(b)
                 }
             }
+            // «▶ Все» — проиграть варианты подряд, по порядку.
+            //
+            // Кнопок прослушивания столько же, сколько вариантов, и чтобы
+            // сравнить их между собой, приходилось жать каждую по очереди,
+            // удерживая предыдущую в памяти на слух. Одна кнопка проигрывает
+            // все, подсвечивая тот, что звучит сейчас.
+            val playAll = if (soundGroups.size > 1) {
+                MaterialButton(this).apply {
+                    text = "▶ Все"
+                    textSize = 15f
+                    setPadding(16, 20, 16, 20)
+                    setBackgroundColor(ContextCompat.getColor(
+                        this@StudyActivity, android.R.color.white))
+                    setTextColor(ContextCompat.getColor(this@StudyActivity, R.color.btnSecondary))
+                    strokeColor = ContextCompat.getColorStateList(
+                        this@StudyActivity, R.color.btnSecondary)
+                    strokeWidth = 2
+                    setOnClickListener {
+                        // Снимаем отметку «прослушан»: она отвечает на вопрос
+                        // «что я слушал отдельно», а после проигрывания всех
+                        // подряд ответа нет — слушали всё. Иначе на экране
+                        // горят две подсветки сразу: бегущая «звучит сейчас» и
+                        // застрявшая от прошлого одиночного нажатия, и какая
+                        // из них про что — не понять.
+                        playedSoundOption = null
+                        markPlayedOption()
+                        playGroups(soundGroups)
+                    }
+                }
+            } else null
+
             // Кнопки под вариантами приходят из card.buttons. Раньше «Не знаю»
             // была зашита прямо здесь, а весь card.buttons в пик-режиме не
             // читался — вместе с ним пропадала «Пропускать», и настройка
             // show_skip_button тут молча не работала.
-            for (btn in card.buttons) {
-                binding.buttonRow.addView(makeCardButton(btn))
+            val cardButtons = card.buttons.map { makeCardButton(it) }
+            if (playAll != null && cardButtons.isNotEmpty()) {
+                // «Все» встаёт в один ряд с «Не знаю»: обе про вопрос целиком,
+                // а не про отдельный вариант, — и ряд вариантов на них
+                // заканчивается, вместо того чтобы продолжаться ещё одной
+                // кнопкой, похожей на вариант.
+                val row = LinearLayout(this)
+                row.orientation = LinearLayout.HORIZONTAL
+                playAll.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginEnd = dpToPx(4) }
+                row.addView(playAll)
+                cardButtons.first().layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                row.addView(cardButtons.first())
+                row.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dpToPx(4) }
+                binding.buttonRow.addView(row)
+                cardButtons.drop(1).forEach { binding.buttonRow.addView(it) }
+            } else {
+                playAll?.let { binding.buttonRow.addView(it) }
+                cardButtons.forEach { binding.buttonRow.addView(it) }
             }
         } else if (mainButtons.size >= 3) {
             binding.buttonRow.orientation = LinearLayout.VERTICAL
@@ -1048,9 +1377,24 @@ class StudyActivity : AppCompatActivity() {
         // Pick mode result banner
         val pickResult = lastPickAnswerResult
         if (card.show_answer && pickResult != null) {
-            binding.tvPickResult.text = if (pickResult) "✓  Правильно!" else "✗  Неверно"
-            val bgColor = if (pickResult) Color.parseColor("#E8F5E9") else Color.parseColor("#FFEBEE")
-            val textColor = if (pickResult) Color.parseColor("#2E7D32") else Color.parseColor("#C62828")
+            // «Не знал» — не ошибка, и цвет у него не красный: человек не
+            // промахнулся, а сказал правду о себе. Красным остаётся только
+            // промах — выбранный и неверный вариант.
+            binding.tvPickResult.text = when (pickResult) {
+                PickOutcome.CORRECT -> "✓  Правильно!"
+                PickOutcome.WRONG -> "✗  Неверно"
+                PickOutcome.DONT_KNOW -> "？  Не знал"
+            }
+            val bgColor = when (pickResult) {
+                PickOutcome.CORRECT -> Color.parseColor("#E8F5E9")
+                PickOutcome.WRONG -> Color.parseColor("#FFEBEE")
+                PickOutcome.DONT_KNOW -> Color.parseColor("#FFF3CD")
+            }
+            val textColor = when (pickResult) {
+                PickOutcome.CORRECT -> Color.parseColor("#2E7D32")
+                PickOutcome.WRONG -> Color.parseColor("#C62828")
+                PickOutcome.DONT_KNOW -> Color.parseColor("#856404")
+            }
             binding.tvPickResult.setBackgroundColor(bgColor)
             binding.tvPickResult.setTextColor(textColor)
             binding.tvPickResult.visibility = View.VISIBLE
@@ -1260,7 +1604,8 @@ class StudyActivity : AppCompatActivity() {
                 if (btnId !in setOf("know", "show_answer", "rate", "reconsider", "toggle_skip")) {
                     return@launch
                 }
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) },
+                                              attempts = ANSWER_ATTEMPTS) { api ->
                     when (btnId) {
                         "know"        -> api.knowWord(sid)
                         "show_answer" -> api.showAnswer(sid)
@@ -1338,6 +1683,7 @@ class StudyActivity : AppCompatActivity() {
     private fun stopPlayback() {
         playbackGen++
         playbackHandler.removeCallbacksAndMessages(null)
+        markPlayingOption(null)
         val p = activePlayer ?: return
         activePlayer = null
         if (players.contains(p)) {
@@ -1347,21 +1693,39 @@ class StudyActivity : AppCompatActivity() {
         }
     }
 
+    /** Чьи это звуки и какие файлы: номер варианта пик-режима или null. */
+    private data class SoundGroup(val option: Int?, val paths: List<String>)
+
     /** Play a list of sound paths sequentially, with a short pause between them. */
-    private fun playSoundSequence(paths: List<String>) {
-        if (paths.isEmpty()) return
+    private fun playSoundSequence(paths: List<String>) =
+        playGroups(listOf(SoundGroup(null, paths)))
+
+    /**
+     * Проиграть подряд несколько вариантов, подсвечивая звучащий.
+     *
+     * Кнопки прослушивания в пик-режиме неразличимы на вид — «▶ 1», «▶ 2»,
+     * «▶ 3», — и при воспроизведении всех подряд было не понять, который
+     * сейчас звучит. Поэтому проигрыватель тут один на все группы: он знает,
+     * чей файл ставит, и держит подсветку на нужной кнопке.
+     */
+    private fun playGroups(groups: List<SoundGroup>) {
+        val flat = groups.flatMap { g -> g.paths.map { g.option to it } }
+        if (flat.isEmpty()) return
         stopPlayback()
         val mine = playbackGen
         var idx = 0
         fun playNext() {
-            if (mine != playbackGen || idx >= paths.size) return
-            val path = paths[idx]; idx++
+            if (mine != playbackGen) return
+            if (idx >= flat.size) { markPlayingOption(null); return }
+            val (option, path) = flat[idx]; idx++
+            markPlayingOption(option)
+            val gap = gapBefore(next = flat.getOrNull(idx)?.first, after = option)
             // Prefer the offline-cached file; fall back to streaming from BLS.
             val source = AudioCache.sourceFor(path)
             val mp = MediaPlayer()
             fun done(released: MediaPlayer) {
                 if (activePlayer === released) activePlayer = null
-                if (mine == playbackGen) playbackHandler.postDelayed({ playNext() }, 350)
+                if (mine == playbackGen) playbackHandler.postDelayed({ playNext() }, gap)
             }
             try {
                 mp.setDataSource(source)
@@ -1391,7 +1755,8 @@ class StudyActivity : AppCompatActivity() {
                 // Как и в onButtonClick: короткая первая попытка с эскалацией.
                 // Общий BLSClient.api — самый терпеливый клиент, и ждать на нём
                 // 15 с, чтобы потом всё равно уйти в офлайн, пользователю незачем.
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) },
+                                              attempts = ANSWER_ATTEMPTS) { api ->
                     api.pickAnswer(sid, mapOf("selected_word_id" to selectedWordId))
                 }
                 clearConnectionStatus()
@@ -1418,9 +1783,9 @@ class StudyActivity : AppCompatActivity() {
                     handleResponse(batchBody ?: body); return@launch
                 }
                 lastPickAnswerResult = when {
-                    selectedWordId == "dont_know" -> false
-                    body.card?.last_wrong_distractor_id != null -> false
-                    else -> true
+                    selectedWordId == "dont_know" -> PickOutcome.DONT_KNOW
+                    body.card?.last_wrong_distractor_id != null -> PickOutcome.WRONG
+                    else -> PickOutcome.CORRECT
                 }
                 handleResponse(body)
                 flushOutboxInBackground()
@@ -1449,7 +1814,8 @@ class StudyActivity : AppCompatActivity() {
             try {
                 // Кнопка в цикле учёбы: ждать на терпеливом клиенте нечего,
                 // нужен быстрый провал с эскалацией, как у остальных нажатий.
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) },
+                                              attempts = ANSWER_ATTEMPTS) { api ->
                     api.addForbiddenPair(sid, mapOf("bad_word_id" to badWordId))
                 }
                 clearConnectionStatus()
@@ -1692,9 +2058,10 @@ class StudyActivity : AppCompatActivity() {
 
     /** Одна строка таблицы: две ячейки с границами, у каждой своё направление. */
     /** Таблица группы тега: № | перевод | транскрипция | слово. */
-    /** Кнопки прослушивания звуковых вариантов и та, которую уже нажали. */
+    /** Кнопки прослушивания звуковых вариантов, прослушанный и звучащий. */
     private val listenButtons = mutableListOf<MaterialButton>()
     private var playedSoundOption: Int? = null
+    private var playingSoundOption: Int? = null
 
     /**
      * Отметить прослушанный вариант.
@@ -1704,14 +2071,40 @@ class StudyActivity : AppCompatActivity() {
      * вспомнить, что именно только что играло. Залитый фон держит ответ на
      * экране, пока варианты не сменятся.
      */
-    private fun markPlayedOption() {
+    private fun markPlayedOption() = paintListenButtons()
+
+    /**
+     * Отметить вариант, который звучит ПРЯМО СЕЙЧАС.
+     *
+     * Это другая отметка, чем «прослушан»: та остаётся надолго и отвечает на
+     * вопрос «что я уже слушал», а эта живёт ровно столько, сколько играет
+     * звук. Без неё кнопка «▶ Все» проигрывала варианты подряд, и уследить, на
+     * каком из них ты сейчас, было нельзя.
+     */
+    private fun markPlayingOption(option: Int?) {
+        if (playingSoundOption == option) return
+        playingSoundOption = option
+        paintListenButtons()
+    }
+
+    /** Вид кнопок прослушивания: звучит сейчас / уже слушали / ещё нет. */
+    private fun paintListenButtons() {
         listenButtons.forEachIndexed { i, btn ->
+            val playing = i == playingSoundOption
             val played = i == playedSoundOption
-            btn.setBackgroundColor(ContextCompat.getColor(
-                this, if (played) R.color.btnSecondary else android.R.color.white))
+            val bg = when {
+                playing -> R.color.btnPrimary
+                played -> R.color.btnSecondary
+                else -> android.R.color.white
+            }
+            btn.setBackgroundColor(ContextCompat.getColor(this, bg))
             btn.setTextColor(ContextCompat.getColor(
-                this, if (played) android.R.color.white else R.color.btnSecondary))
-            btn.text = if (played) "🔊 ${i + 1}" else "🔊 ▶ ${i + 1}"
+                this, if (playing || played) android.R.color.white else R.color.btnSecondary))
+            btn.text = when {
+                playing -> "🔈 ${i + 1}"
+                played -> "🔊 ${i + 1}"
+                else -> "🔊 ▶ ${i + 1}"
+            }
         }
     }
 

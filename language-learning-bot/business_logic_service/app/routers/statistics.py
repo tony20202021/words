@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from starlette.status import HTTP_502_BAD_GATEWAY, HTTP_404_NOT_FOUND
 from datetime import date
 from typing import Optional, Dict, Any
-from app.services import chart_cache, statistics_service
+from app.services import chart_cache, settings_service, statistics_service
 from app.api.client import get_api_client
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
@@ -78,7 +78,8 @@ async def update_daily(
     api_client=Depends(get_api_client),
 ):
     if action_date is None:
-        action_date = statistics_service.study_day()
+        settings = await settings_service.get_settings(user_id, language_id, api_client)
+        action_date = statistics_service.study_day(settings=settings)
     progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
     written = await statistics_service.update_daily_statistics(
         user_id, language_id, action_date, progress, api_client

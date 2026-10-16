@@ -11,6 +11,7 @@ from app.bls_client.client import get_bls_client
 from app.bot.keyboards import build_welcome_keyboard
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
+from common.apk_version import apk_version
 from common.version import __version__
 
 router = Router()
@@ -167,8 +168,13 @@ async def cmd_android(message: Message) -> None:
         return
     web_url = os.environ.get("WEB_URL", "http://77.81.226.56:8548")
     download_url = f"{web_url}/download/android"
+    # Версию берём из самого APK, а не из common/version.py: раздаётся
+    # отдельный артефакт, и между «подняли версию» и «пересобрали APK» эти два
+    # числа расходятся. 09.10.2026 так и вышло — сообщение обещало 4.11.0,
+    # а приходил файл 4.6.5. См. common/apk_version.py.
+    version = apk_version(_APK_PATH)
     text = (
-        f"📱 <b>LangBot для Android</b> v{__version__}\n\n"
+        f"📱 <b>LangBot для Android</b> v{version}\n\n"
         f"1. Нажмите на файл → <b>Открыть</b>\n"
         f"2. Разрешите установку из Telegram (один раз)\n"
         f"3. Установите приложение\n"
@@ -186,7 +192,7 @@ async def cmd_android(message: Message) -> None:
         )
     else:
         await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
-    apk = FSInputFile(_APK_PATH, filename=f"LangBot-v{__version__}.apk")
+    apk = FSInputFile(_APK_PATH, filename=f"LangBot-v{version}.apk")
     await message.answer_document(apk)
 
 
@@ -317,9 +323,10 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         f"📊 Графики: <b>{b(s.get('show_charts', False))}</b>",
         f"📤 Получать сообщения: <b>{b(s.get('receive_messages', True))}</b>",
         "",
-        "🔄 <b>Сброс сессии:</b>",
-        f"   • перерыв за день: <b>{s.get('reset_same_day_hours', 16)}</b> ч",
-        f"   • час после полуночи: <b>{s.get('reset_cross_midnight_hours', 6)}</b>",
+        "🕓 <b>Учебные сутки:</b>",
+        f"   • часовой пояс: <b>{s.get('timezone', 'UTC')}</b>",
+        f"   • начинаются в: <b>{s.get('day_start_hour', 0)}:00</b>",
+        f"   • сброс сессии при перерыве: <b>{s.get('reset_same_day_hours', 16)}</b> ч",
         f"🔄 Лимит неизвестных слов: <b>{s.get('unknown_limit_new_words', 10)}</b>",
         f"🔁 Макс. интервал: <b>{s.get('max_check_interval', 365)}</b> дн",
     ]

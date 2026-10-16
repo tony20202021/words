@@ -46,6 +46,9 @@ PUBLIC_ROUTES = frozenset({
     "/qr",
     "/hints/schema",
     "/statistics/chart_manifest",
+    # Перечень часовых поясов — такой же справочник, как схема подсказок:
+    # ничьих данных в нём нет, а нужен он экрану настроек до всякого входа.
+    "/settings/timezones",
     "/sounds/{sound_path:path}",
     "/auth/mobile/activate",
 })

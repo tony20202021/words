@@ -120,3 +120,6 @@ local_settings.py
 .docker/
 
 .claude/
+
+# Выгрузки из базы перед правками: это данные человека, а не исходники.
+language-learning-bot/backups/

@@ -37,7 +37,10 @@ class UserLanguageSettingsBase(BaseModel):
     receive_messages: bool = Field(True, description="Whether to receive messages")
 
     reset_same_day_hours: int = Field(16, description="Hours of inactivity within same day before session reset")
-    reset_cross_midnight_hours: int = Field(6, description="Hour of day (0-23) after midnight crossing before session reset")
+    # Граница учебных суток: одна на статистику, выдачу слов и сброс сессии.
+    # Прежде их было три и все по UTC; см. common/study_day.py.
+    timezone: str = Field("UTC", description="IANA timezone name, e.g. Europe/Rome")
+    day_start_hour: int = Field(0, description="Hour (0-23, local) when the study day begins")
     unknown_limit_new_words: int = Field(10, description="Number of unknown words to learn per day")
     max_check_interval: int = Field(32, description="Maximum spaced-repetition interval in days")
     random_pick_mode: bool = Field(False, description="Randomly use pick mode (multiple choice) per word")
@@ -77,7 +80,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_short_captions: Optional[bool] = None
     receive_messages: Optional[bool] = None
     reset_same_day_hours: Optional[int] = None
-    reset_cross_midnight_hours: Optional[int] = None
+    timezone: Optional[str] = None
+    day_start_hour: Optional[int] = None
     unknown_limit_new_words: Optional[int] = None
     max_check_interval: Optional[int] = None
     random_pick_mode: Optional[bool] = None

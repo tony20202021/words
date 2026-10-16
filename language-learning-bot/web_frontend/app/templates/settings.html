@@ -40,6 +40,24 @@
       </form>
     </div>
     {% endfor %}
+    <div class="list-group-item d-flex justify-content-between align-items-center">
+      <span>Часовой пояс</span>
+      <form method="post" action="/settings/{{ language_id }}/timezone"
+            class="d-flex gap-2 align-items-center m-0">
+        <select name="value" class="form-select form-select-sm" style="width:300px">
+          {# Группами по смещению: плоским списком это 491 строка, где пояса
+             различаются только городом. #}
+          {% for g in timezones %}
+          <optgroup label="{{ g.label }}">
+            {% for z in g.zones %}
+            <option value="{{ z.name }}" {% if z.name == timezone %}selected{% endif %}>{{ z.label }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline-primary">✓</button>
+      </form>
+    </div>
   </div>
 </div>
 

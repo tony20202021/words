@@ -110,6 +110,9 @@ class TestSettingsFlow:
 
         bls.get_settings = _async_value({"show_big": True, "show_debug": False})
         bls.toggle_setting = _async_value({"ok": True, "value": True})
+        # Справочник поясов страница настроек тянет у BLS — см. common/study_day.
+        bls.get_timezones = _async_value([{"minutes": 0, "label": "UTC+00:00",
+                                           "zones": [{"name": "UTC", "label": "UTC"}]}])
 
         with patch("app.routers.settings.get_bls_client", return_value=bls):
             before = client.get("/settings/lang1")
@@ -139,6 +142,8 @@ class TestSettingsFlow:
             return {"start_word": 1 if language_id == "lang1" else 10}
 
         bls.get_settings = get_settings
+        bls.get_timezones = _async_value([{"minutes": 0, "label": "UTC+00:00",
+                                           "zones": [{"name": "UTC", "label": "UTC"}]}])
         with patch("app.routers.settings.get_bls_client", return_value=bls):
             client.get("/settings/lang1")
             client.get("/settings/lang2")
