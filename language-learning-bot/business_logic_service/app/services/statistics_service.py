@@ -131,6 +131,81 @@ async def update_daily_statistics(
     return True
 
 
+async def after_answers_applied(
+    user_id: str,
+    language_id: str,
+    api_client,
+    word_number: int = 0,
+) -> None:
+    """
+    Что делается после того, как ответы человека записаны.
+
+    Дневной снимок, максимум пройденного номера, подогрев графиков и — если
+    дневная порция на этом закончилась — «первый финиш».
+
+    Зачем общей функцией. Ответы приходят двумя путями: по одному через
+    /session/.../rate и пачкой через /results/batch, когда телефон
+    догоняет накопленное офлайн. Онлайн-путь всё это делал, а путь пачки —
+    ничего: офлайновые занятия для статистики не существовали. Так у
+    владельца «первый финиш» перестал записываться после 20.09 — на графике
+    осталось четыре точки за месяц.
+    """
+    from app.services import chart_cache, settings_service
+
+    try:
+        # Граница суток у человека своя — без его настроек запись легла бы в
+        # соседний день. См. common/study_day.py.
+        settings = await settings_service.get_settings(user_id, language_id, api_client)
+        today = study_day(settings=settings)
+        # Прогресс нужен только когда дневной записи ещё нет (раз в сутки), а
+        # ответ у него тяжёлый — массивы номеров слов на тысячи элементов.
+        # Поэтому передаём загрузчик, а не результат.
+        await update_daily_statistics(
+            user_id, language_id, today,
+            lambda: get_user_progress(user_id, language_id, api_client),
+            api_client)
+        if word_number:
+            await update_daily_max_word_number(
+                user_id, language_id, today, word_number, api_client)
+        # Графики перерисуются через две минуты после последнего ответа — когда
+        # человек закончит, а не посреди занятия. См. chart_cache.
+        chart_cache.schedule_warm(user_id, language_id, api_client)
+    except Exception as e:
+        logger.warning(f"не удалось обновить дневную статистику "
+                       f"{user_id}/{language_id}: {e}")
+
+
+async def write_first_finish_if_day_is_done(
+    user_id: str,
+    language_id: str,
+    api_client,
+) -> bool:
+    """
+    «Первый финиш», когда дневная порция кончилась — по пути офлайн-пачки.
+
+    Онлайн это видно сразу: в сессии не осталось слов. У пачки сессии может не
+    быть вовсе (человек занимался в метро, приложение сессию не держало), и
+    единственный честный признак — что на сегодня слов больше нет.
+
+    Сама запись идёт через write_first_finish_if_missing: она пишется один раз
+    в сутки и повторный вызов ничего не портит.
+    """
+    try:
+        progress = await get_user_progress(user_id, language_id, api_client)
+        if progress.get("words_for_today", 0) > 0:
+            return False
+        from app.services import settings_service
+
+        settings = await settings_service.get_settings(user_id, language_id, api_client)
+        return await write_first_finish_if_missing(
+            user_id, language_id, study_day(settings=settings),
+            progress.get("words_unknown_now", 0), api_client)
+    except Exception as e:
+        logger.warning(f"не удалось записать первый финиш "
+                       f"{user_id}/{language_id}: {e}")
+        return False
+
+
 async def write_first_finish_if_missing(
     user_id: str,
     language_id: str,

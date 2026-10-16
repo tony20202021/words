@@ -15,26 +15,12 @@ logger = setup_logger(__name__)
 
 
 async def _bg_update_daily(user_id: str, language_id: str, api_client, word_number: int = 0) -> None:
-    """Update daily record and max_word_number after each word rating."""
-    try:
-        # Граница суток у человека своя — без его настроек запись легла бы в
-        # соседний день. См. common/study_day.py.
-        settings = await settings_service.get_settings(user_id, language_id, api_client)
-        today = statistics_service.study_day(settings=settings)
-        # Прогресс нужен только когда дневной записи ещё нет (раз в сутки), а
-        # ответ у него тяжёлый — массивы номеров слов на тысячи элементов.
-        # Поэтому передаём загрузчик, а не результат.
-        await statistics_service.update_daily_statistics(
-            user_id, language_id, today,
-            lambda: statistics_service.get_user_progress(user_id, language_id, api_client),
-            api_client)
-        await statistics_service.update_daily_max_word_number(
-            user_id, language_id, today, word_number, api_client)
-        # Графики перерисуются через две минуты после последнего ответа — когда
-        # человек закончит, а не посреди занятия. См. chart_cache.
-        chart_cache.schedule_warm(user_id, language_id, api_client)
-    except Exception as e:
-        logger.warning(f"bg daily stats update failed for {user_id}/{language_id}: {e}")
+    """Дневная запись и максимум номера после каждой оценки.
+
+    Тело общее с путём офлайн-пачки — см. statistics_service.
+    """
+    await statistics_service.after_answers_applied(
+        user_id, language_id, api_client, word_number)
 
 
 async def _bg_first_finish_on_completion(user_id: str, language_id: str, api_client) -> None:
