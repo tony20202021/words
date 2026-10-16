@@ -341,6 +341,14 @@ class APIClient:
             # Для получения всех прогрессов используем другой маршрут
             return await self._make_request("GET", f"/users/{user_id}/progress")
     
+    async def get_portion_state(self, user_id: str, language_id: str) -> Optional[Dict]:
+        """
+        Сегодняшняя порция: сколько слов осталось непоказанными и сколько
+        отвечено за сутки. Лёгкий ответ — спрашивается на каждый ответ.
+        """
+        return await self._make_request(
+            "GET", f"/users/{user_id}/languages/{language_id}/portion-state")
+
     # User Word Data
     
     async def get_user_word_data(self, user_id: str, word_id: str) -> Optional[Dict]:

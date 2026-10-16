@@ -363,6 +363,27 @@ async def get_user_progress(
     return progress
 
 
+@router.get("/{user_id}/languages/{language_id}/portion-state", response_model=Dict[str, int])
+async def get_portion_state(
+    user_id: str,
+    language_id: str,
+    statistics_service: StatisticsService = Depends(get_statistics_service),
+):
+    """
+    Состояние сегодняшней порции: сколько слов ещё не показано и сколько
+    отвечено за сутки.
+
+    Отдельно от прогресса потому, что спрашивается на каждый ответ — иначе не
+    поймать момент, когда порция только что закрылась, а в ответе прогресса
+    лежат массивы номеров слов по записи на каждое изученное слово.
+
+    Существование пользователя здесь не проверяется: ручку зовёт фоновая
+    статистика по уже записанным ответам, и лишний запрос к базе на каждую
+    оценку ей не нужен. У несуществующего пользователя счётчики нулевые.
+    """
+    return await statistics_service.get_portion_state(user_id, language_id)
+
+
 @router.get("/{user_id}/languages/{language_id}/review", response_model=List[Dict[str, Any]])
 async def get_words_for_review(
     user_id: str,

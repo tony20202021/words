@@ -78,6 +78,13 @@ class UserProgress(BaseModel):
     # в оба счётчика. Поэтому просроченные считаются только среди известных.
     words_unknown_now: int = Field(0, description="Слов со статусом «не знаю» (score=0, не пропущено)")
     words_overdue: int = Field(0, description="Известных слов, у которых срок повторения прошёл — недопройденные")
+    # Первый проход сегодняшней порции. «Не знаю» переносит срок проверки на
+    # сегодня, поэтому words_for_today не доходит до нуля, пока человек не
+    # выучит всё: по нему «порция пройдена» не определить. Эти два считают
+    # только назначенные НА сегодня повторы и различают их по тому, был ли
+    # ответ в сегодняшних сутках.
+    words_portion_left: int = Field(0, description="Слов сегодняшней порции, ещё не показанных сегодня")
+    words_answered_today: int = Field(0, description="Слов, отвеченных в сегодняшних сутках")
     progress_percentage: float = Field(0.0, description="Percentage of progress")
     last_study_date: Optional[datetime] = Field(None, description="Last study date")
     word_numbers_for_today: List[int] = Field(default_factory=list, description="Word numbers for today review")

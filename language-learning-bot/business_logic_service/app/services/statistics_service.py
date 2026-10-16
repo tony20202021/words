@@ -167,6 +167,9 @@ async def after_answers_applied(
         if word_number:
             await update_daily_max_word_number(
                 user_id, language_id, today, word_number, api_client)
+        # Здесь, а не в каждой ручке: признак один и для одиночных ответов, и
+        # для пачки. Своя обработка ошибок внутри — остальное не ломает.
+        await write_first_finish_if_day_is_done(user_id, language_id, api_client)
         # Графики перерисуются через две минуты после последнего ответа — когда
         # человек закончит, а не посреди занятия. См. chart_cache.
         chart_cache.schedule_warm(user_id, language_id, api_client)
@@ -181,25 +184,53 @@ async def write_first_finish_if_day_is_done(
     api_client,
 ) -> bool:
     """
-    «Первый финиш», когда дневная порция кончилась — по пути офлайн-пачки.
+    «Первый финиш» — когда сегодняшняя порция пройдена первый раз.
 
-    Онлайн это видно сразу: в сессии не осталось слов. У пачки сессии может не
-    быть вовсе (человек занимался в метро, приложение сессию не держало), и
-    единственный честный признак — что на сегодня слов больше нет.
+    Признак берётся из данных, а не из события в сессии, и потому работает на
+    любом пути: и когда ответы идут по одному, и когда приходят пачкой из
+    офлайна, где сессии может не быть вовсе.
 
-    Сама запись идёт через write_first_finish_if_missing: она пишется один раз
-    в сутки и повторный вызов ничего не портит.
+    Чем он был раньше и почему молчал. Сначала финишем считался конец партии
+    сессии — но партия это BATCH_SIZE=100 слов (назначенные повторы плюс
+    новые), а владелец проходит 25–60 слов в день. Партия перестала
+    кончаться, и событие не наступало: последняя запись — 20.09.2026.
+    Потом я поставил условием «слов на сегодня больше нет» — и это не
+    наступает в принципе: ответ «не знаю» переносит срок проверки на сегодня,
+    слово возвращается в тот же день, и счётчик «на сегодня» не доходит до
+    нуля, пока человек не выучит всё до последнего слова.
+
+    Что считается теперь. Порция — это назначенные на сегодня повторы. Первый
+    проход кончился, когда ни одного слова порции не осталось непоказанным в
+    этих сутках (words_portion_left == 0) и человек сегодня вообще занимался
+    (words_answered_today > 0). Повторы того же дня в порцию не входят: они
+    второй проход, по ним считается «последний финиш».
+
+    Вторая половина условия — оговорка к первой: пустая порция тоже даёт ноль, и
+    без неё запись легла бы в день, когда человек не открывал приложение.
+
+    Почему своя лёгкая ручка, а не прогресс. Спрашивать приходится на каждый
+    ответ: момент, когда порция только что закрылась, иначе не поймать. В ответе
+    прогресса лежат массивы номеров слов — по записи на каждое изученное слово,
+    и тянуть их десятки раз за занятие нельзя. Поэтому portion-state: три числа.
+
+    Сама запись идёт через write_first_finish_if_missing: один раз в сутки,
+    повторный вызов ничего не портит.
     """
     try:
-        progress = await get_user_progress(user_id, language_id, api_client)
-        if progress.get("words_for_today", 0) > 0:
+        response = await api_client.get_portion_state(user_id, language_id)
+        if not response or not response.get("success"):
+            return False
+        state = response.get("result") or {}
+        if state.get("words_portion_left", 0) > 0:
+            return False
+        if state.get("words_answered_today", 0) <= 0:
             return False
         from app.services import settings_service
 
         settings = await settings_service.get_settings(user_id, language_id, api_client)
         return await write_first_finish_if_missing(
             user_id, language_id, study_day(settings=settings),
-            progress.get("words_unknown_now", 0), api_client)
+            state.get("words_unknown_now", 0), api_client)
     except Exception as e:
         logger.warning(f"не удалось записать первый финиш "
                        f"{user_id}/{language_id}: {e}")

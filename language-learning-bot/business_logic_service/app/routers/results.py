@@ -46,10 +46,11 @@ async def results_batch(req: ResultsBatchRequest,
     )
     applied = any(a.get("status") == "ok" for a in result.get("acks", []))
     if applied:
+        # Одна задача, а не две: «первый финиш» теперь внутри
+        # after_answers_applied — признак у обоих путей общий, и лишний запрос
+        # прогресса здесь ни к чему (в ответе массивы номеров слов на тысячи
+        # элементов).
         background_tasks.add_task(
             statistics_service.after_answers_applied,
-            req.user_id, req.language_id, api_client)
-        background_tasks.add_task(
-            statistics_service.write_first_finish_if_day_is_done,
             req.user_id, req.language_id, api_client)
     return result

@@ -388,7 +388,8 @@ class StatisticsRepository:
         self,
         user_id: str,
         language_id: str,
-        validate_words: bool = True
+        validate_words: bool = True,
+        with_lists: bool = True,
     ) -> Dict[str, Any]:
         """
         Подсчет всех метрик + списки номеров слов одним запросом.
@@ -467,7 +468,47 @@ class StatisticsRepository:
                             ]}, 1, 0]}
                         },
 
+                        # Первый проход сегодняшней порции: сколько слов,
+                        # назначенных НА сегодня, ещё ни разу сегодня не
+                        # показывались, и сколько уже показано.
+                        #
+                        # Зачем. «Не знаю» переносит дату проверки на сегодня,
+                        # поэтому words_for_today не опускается до нуля, пока
+                        # человек не выучит всё, — и событие «порция пройдена»
+                        # не наступает никогда. Ответ сегодняшнего дня видно по
+                        # updated_at: оно обновляется на каждую оценку. Значит,
+                        # «осталось» — это срок подошёл, а ответа сегодня не
+                        # было; повторы того же дня в него не попадают.
+                        #
+                        # Подделать этот счётчик нельзя: слово, которому дату
+                        # перенесли сегодняшним ответом, тем же ответом
+                        # получает свежий updated_at и из «осталось» выпадает.
+                        #
+                        # Пропущенные не в счёт: их не выдают на занятии, и они
+                        # держали бы порцию незакрытой вечно.
+                        "words_portion_left": {
+                            "$sum": {"$cond": [{"$and": [
+                                {"$lte": ["$next_check_date", today]},
+                                {"$lt": ["$updated_at", today]},
+                                {"$ne": ["$is_skipped", True]}
+                            ]}, 1, 0]}
+                        },
+                        # Занимался ли человек сегодня вообще. Нужно как
+                        # оговорка к предыдущему: пустая порция тоже даёт ноль,
+                        # и без этого запись легла бы в день, когда человек не
+                        # открывал приложение.
+                        #
+                        # Считать «сколько порции уже пройдено» бессмысленно:
+                        # слово, отвеченное «знаю», получает срок в будущем и из
+                        # порции исчезает. Такой счётчик мерил бы не пройденное,
+                        # а незнакомые повторы, и в день, когда человек знал всё,
+                        # показывал бы ноль — то есть «порции не было».
+                        "words_answered_today": {
+                            "$sum": {"$cond": [{"$gte": ["$updated_at", today]}, 1, 0]}
+                        },
+
                         # 🆕 списки номеров слов
+                        **({} if not with_lists else {
                         "word_numbers_for_today": {
                             "$push": {
                                 "$cond": [
@@ -501,9 +542,10 @@ class StatisticsRepository:
                                 ]
                             }
                         }
+                        }),
                     }
                 },
-                
+            ] + ([
                 # 🆕 Сортируем списки номеров слов
                 {
                     "$addFields": {
@@ -512,7 +554,7 @@ class StatisticsRepository:
                         "word_check_interval": {"$sortArray": {"input": "$word_check_interval", "sortBy": 1}},
                     }
                 }
-            ]
+            ] if with_lists else [])
         else:
             # Упрощенная версия без валидации - НО БЕЗ word_number
             # (нужен отдельный запрос для получения word_number без валидации)
@@ -529,9 +571,12 @@ class StatisticsRepository:
                 "words_for_today": result[0]["words_for_today"],
                 "words_unknown_now": result[0]["words_unknown_now"],
                 "words_overdue": result[0]["words_overdue"],
-                "word_numbers_for_today": result[0]["word_numbers_for_today"],
-                "word_numbers_unknown": result[0]["word_numbers_unknown"],
-                "word_check_interval": result[0]["word_check_interval"]
+                "words_portion_left": result[0]["words_portion_left"],
+                "words_answered_today": result[0]["words_answered_today"],
+                **({"word_numbers_for_today": result[0]["word_numbers_for_today"],
+                    "word_numbers_unknown": result[0]["word_numbers_unknown"],
+                    "word_check_interval": result[0]["word_check_interval"]}
+                   if with_lists else {}),
             }
         else:
             return {
@@ -541,11 +586,31 @@ class StatisticsRepository:
                 "words_for_today": 0,
                 "words_unknown_now": 0,
                 "words_overdue": 0,
-                "word_numbers_for_today": [],
-                "word_numbers_unknown": [],
-                "word_check_interval": []
+                "words_portion_left": 0,
+                "words_answered_today": 0,
+                **({"word_numbers_for_today": [],
+                    "word_numbers_unknown": [],
+                    "word_check_interval": []} if with_lists else {}),
             }
 
+
+    async def get_portion_state(self, user_id: str, language_id: str) -> Dict[str, int]:
+        """
+        Три числа о сегодняшней порции — чтобы спрашивать их на каждый ответ.
+
+        Прогресс для этого не годится: в его ответе лежат массивы номеров слов
+        (по записи на каждое изученное слово), а спрашивать надо после каждой
+        оценки — иначе не поймать момент, когда порция только что закрылась.
+        Поэтому та же агрегация, но без списков.
+        """
+        data = await self.count_user_statistics_by_conditions(
+            user_id=user_id, language_id=language_id,
+            validate_words=True, with_lists=False)
+        return {
+            "words_portion_left": data["words_portion_left"],
+            "words_answered_today": data["words_answered_today"],
+            "words_unknown_now": data["words_unknown_now"],
+        }
 
     async def get_by_user_and_word(
         self, 
@@ -942,6 +1007,8 @@ class StatisticsRepository:
                 words_for_today=stats_data["words_for_today"],
                 words_unknown_now=stats_data["words_unknown_now"],
                 words_overdue=stats_data["words_overdue"],
+                words_portion_left=stats_data["words_portion_left"],
+                words_answered_today=stats_data["words_answered_today"],
                 progress_percentage=round(progress_percentage, 2),
                 last_study_date=last_study_date,
                 word_numbers_for_today=stats_data["word_numbers_for_today"],
@@ -964,6 +1031,8 @@ class StatisticsRepository:
                 words_overdue=0,
                 words_skipped=0,
                 words_for_today=0,
+                words_portion_left=0,
+                words_answered_today=0,
                 progress_percentage=0.0,
                 last_study_date=None,
                 word_numbers_for_today=[],

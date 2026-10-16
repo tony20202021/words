@@ -235,6 +235,13 @@ class StatisticsService:
             language_id=language_id
         )
   
+    async def get_portion_state(self, user_id: str, language_id: str) -> Dict[str, int]:
+        """Состояние сегодняшней порции — лёгкий ответ, без списков номеров."""
+        return await self.repository.get_portion_state(
+            user_id=user_id,
+            language_id=language_id
+        )
+
     async def get_words_for_study(
         self,
         user_id: str,
