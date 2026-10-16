@@ -276,6 +276,21 @@ class TestChartsVersion:
         assert await chart_cache.charts_version("u1", "l1", api_client=None) != before
 
     @pytest.mark.asyncio
+    async def test_a_new_release_changes_the_version(self, monkeypatch):
+        """
+        Картинка зависит не только от данных, но и от того, как её рисуют. В
+        4.27.0 горизонтальная ось стала пропорциональной датам — данные при этом
+        не менялись, и телефон показывал бы сохранённые картинки со старой осью
+        до первой новой записи в статистике. На сервере это незаметно: его кеш
+        живёт в памяти и умирает при перезапуске.
+        """
+        _stub(monkeypatch, [_day("2026-09-01T00:00:00")])
+        self._progress(monkeypatch)
+        before = await chart_cache.charts_version("u1", "l1", api_client=None)
+        monkeypatch.setattr(chart_cache, "__version__", "99.99.99")
+        assert await chart_cache.charts_version("u1", "l1", api_client=None) != before
+
+    @pytest.mark.asyncio
     async def test_fields_not_on_the_picture_do_not_change_it(self, monkeypatch):
         """Иначе телефон качал бы всё заново из-за времени обновления записи."""
         state = _stub(monkeypatch, [_day("2026-09-01T00:00:00")])

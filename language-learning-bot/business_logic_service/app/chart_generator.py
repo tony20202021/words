@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 matplotlib.rcParams['axes.unicode_minus'] = False
 
+from matplotlib.dates import AutoDateLocator, DateFormatter
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from collections import Counter
@@ -217,7 +218,33 @@ class ProgressChartGenerator:
         title_value: str,
         y_axis_limits: str = "min_max"
     ) -> BytesIO:
-        dates = [datetime.datetime.fromisoformat(s["date"]).date().isoformat()
+        """Картинка по дневным записям. Построение — в counts_figure."""
+        return _save_fig(ProgressChartGenerator.counts_figure(
+            daily_stats, field_name, title, title_value, y_axis_limits))
+
+    @staticmethod
+    def counts_figure(
+        daily_stats: List[Dict],
+        field_name: str,
+        title: str,
+        title_value: str,
+        y_axis_limits: str = "min_max"
+    ) -> Figure:
+        """
+        Сама отрисовка, отдельно от сохранения.
+
+        Разделено, чтобы ось можно было проверить: у картинки проверяемы только
+        пиксели, а у фигуры — положения точек. Жалоба владельца была именно про
+        ось, и проверять её по байтам PNG значило бы не проверять вовсе.
+        """
+        # Даты — датами, а не подписями.
+        #
+        # Раньше здесь были строки, и matplotlib ставил их как названия
+        # категорий: промежутки получались одинаковыми, хотя между точками
+        # могли лежать день и три недели. На графике «не знал на первом
+        # проходе», где записи шли через пропуски, провал в месяц выглядел
+        # таким же шагом, как соседние дни, — читать по нему динамику нельзя.
+        dates = [datetime.datetime.fromisoformat(s["date"]).date()
                  for s in daily_stats if s[field_name] is not None]
         counts = [s[field_name] for s in daily_stats if s[field_name] is not None]
 
@@ -233,16 +260,19 @@ class ProgressChartGenerator:
                          fontsize=20, fontweight='bold')
 
         ax.set_xlabel('Дата')
-        step = max(1, len(dates) // 10)
-        tick_indices = list(range(0, len(dates), step))
-        if dates and tick_indices[-1] != len(dates) - 1:
-            tick_indices.append(len(dates) - 1)
-            if len(tick_indices) >= 2:
-                min_gap = max(1, len(dates) // 20)
-                if tick_indices[-1] - tick_indices[-2] < min_gap:
-                    tick_indices.pop(-2)
-        ax.set_xticks(tick_indices)
-        ax.set_xticklabels([dates[i] for i in tick_indices], rotation=45, ha='right')
+        # Подписи расставляет календарный локатор: по круглым датам и через
+        # равные промежутки ВРЕМЕНИ. Прежний отбор «каждая десятая точка» на
+        # пропорциональной оси сбивался бы в кучу там, где записи идут густо.
+        if dates:
+            ax.xaxis.set_major_locator(AutoDateLocator(minticks=3, maxticks=9))
+            ax.xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+            # Одна точка: иначе ось вырождается в ноль шириной.
+            if len(dates) == 1:
+                day = datetime.timedelta(days=1)
+                ax.set_xlim(dates[0] - day, dates[0] + day)
+            for label in ax.get_xticklabels():
+                label.set_rotation(45)
+                label.set_horizontalalignment('right')
 
         ax.set_ylabel('Количество слов')
         # prune='both' срезал крайние метки. Пока точек много, это лишь убирало
@@ -258,4 +288,4 @@ class ProgressChartGenerator:
 
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
-        return _save_fig(fig)
+        return fig

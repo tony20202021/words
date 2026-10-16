@@ -27,6 +27,7 @@ from collections import OrderedDict
 from functools import partial
 from typing import Any, Callable, Dict, Hashable, Tuple
 
+from common.version import __version__
 from app.logger import setup_logger
 from app import chart_generator
 from app.services import settings_service, statistics_service
@@ -137,11 +138,18 @@ async def charts_version(user_id: str, language_id: str, api_client) -> str:
 
     Считается из тех же полей, по которым кешируются сами картинки, поэтому
     «версия не изменилась» и «картинки те же» — одно и то же утверждение.
+
+    В отпечаток входит и версия приложения. Картинка зависит не только от
+    данных, но и от того, КАК её рисуют: в 4.27.0 горизонтальная ось стала
+    пропорциональной датам, данные при этом не менялись — и телефон показывал
+    бы сохранённые картинки со старой осью, пока не изменится статистика. Сам
+    сервер такого не замечает: его кеш живёт в памяти и умирает при
+    перезапуске, поэтому заметить это можно было только на телефоне.
     """
     progress = await statistics_service.get_user_progress(user_id, language_id, api_client)
     settings = await settings_service.get_settings(user_id, language_id, api_client)
     today = statistics_service.study_day(settings=settings)
-    parts = [_fingerprint(_today_payload(progress))]
+    parts = [__version__, _fingerprint(_today_payload(progress))]
     for show_all in (False, True):
         all_days, first_finish = await statistics_service.get_monthly_statistics(
             user_id, language_id, today, api_client, show_all=show_all)
