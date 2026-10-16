@@ -21,13 +21,37 @@ set -u
 
 LB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Окружение проекта.
+#
+# Хук запускается не из той оболочки, в которой работает человек: git зовёт его
+# коротким неинтерактивным шеллом, где conda-окружение не поднято. В PATH
+# остаётся базовый python, pytest в нём не стоит — и первый же push умер на
+# FileNotFoundError: 'pytest'. Сам сторож при этом отработал верно (push
+# остановлен), но причина была не в коде, а в нём самом.
+#
+# Путь прибит так же, как в start_*.sh и deploy/*.service: машина одна,
+# окружение одно, искать его нечего. Переопределяется LANGBOT_PYTHON_BIN.
+#
+# Ненайденный pytest — ОШИБКА, а не повод прогнать тесты базовым python: он
+# собрал бы ноль тестов и бодро отчитался, что всё зелено. Это ровно та ловушка,
+# в которую уже попала проверка версии APK на iconv.
+ENV_BIN="${LANGBOT_PYTHON_BIN:-/home/tony/miniconda3/envs/amikhalev_language_learning_bot/bin}"
+if [ ! -x "$ENV_BIN/pytest" ]; then
+  echo "pre-push: в $ENV_BIN нет pytest." >&2
+  echo "Это окружение проекта (README, раздел требований). Если оно переехало —" >&2
+  echo "задайте LANGBOT_PYTHON_BIN. Прогонять тесты не тем python нельзя:" >&2
+  echo "они соберутся пустыми и push пройдёт ни на чём." >&2
+  exit 1
+fi
+export PATH="$ENV_BIN:$PATH"
+
 if [ -n "${SKIP_TESTS:-}" ]; then
   echo "pre-push: SKIP_TESTS задан — тесты пропущены" >&2
   exit 0
 fi
 
 echo "pre-push: прогоняю все тесты (SKIP_TESTS=1 чтобы пропустить)…" >&2
-if ! python "$LB/run_tests.sh" >/tmp/langbot-pre-push.log 2>&1; then
+if ! "$ENV_BIN/python" "$LB/run_tests.sh" >/tmp/langbot-pre-push.log 2>&1; then
   echo "" >&2
   echo "pre-push: ТЕСТЫ НЕ ПРОШЛИ — push остановлен." >&2
   echo "Полный вывод: /tmp/langbot-pre-push.log" >&2
@@ -51,6 +75,6 @@ echo "pre-push: тесты зелёные" >&2
 # web_frontend. Первая попытка была на iconv, и она молча возвращала пустую
 # строку: проверка «проходила» всегда. Поэтому неопределимая версия здесь —
 # ОШИБКА, а не повод пропустить.
-python "$LB/scripts/hooks/check_apk_version.py" || exit 1
+"$ENV_BIN/python" "$LB/scripts/hooks/check_apk_version.py" || exit 1
 
 exit 0
