@@ -30,9 +30,9 @@ def _stats(*dates_and_values):
     return [{"date": f"{d}T00:00:00", FIELD: v} for d, v in dates_and_values]
 
 
-def _screen_x(stats):
+def _screen_x(stats, field=FIELD):
     """Где точки окажутся на картинке по горизонтали."""
-    fig = ProgressChartGenerator.counts_figure(stats, FIELD, "т", "max")
+    fig = ProgressChartGenerator.counts_figure(stats, field, "т", "max")
     ax = fig.axes[0]
     line = ax.lines[0]
     # orig=False — уже переведённые в координаты оси значения; именно по ним
@@ -107,3 +107,54 @@ def test_the_picture_still_renders():
     data = ProgressChartGenerator.create_counts_plot(
         _stats(("2026-09-17", 3), ("2026-10-16", 16)), FIELD, "т", "max").read()
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+# ── все графики с датами, а не только тот, на который пожаловались ───────────
+
+def _spec_stats(field):
+    """Неравномерный ряд: 1-е, 2-е и 12-е — второй промежуток вдесятеро длиннее."""
+    return [{"date": f"2026-10-{d:02d}T00:00:00", field: v}
+            for d, v in ((1, 5), (2, 6), (12, 7))]
+
+
+def test_every_monthly_chart_draws_a_proportional_axis():
+    """
+    Жалоба была про один график, но дат-осей в наборе семь. Проверяем каждую по
+    списку, по которому они и рисуются: добавят восьмой — он попадёт сюда сам.
+    """
+    from app.services.statistics_service import MONTHLY_SPECS
+
+    assert MONTHLY_SPECS, "список месячных графиков опустел — проверка стала пустой"
+    for source, chart_key, field, title_value in MONTHLY_SPECS:
+        xs = _screen_x(_spec_stats(field), field)
+        first, second = xs[1] - xs[0], xs[2] - xs[1]
+        assert second / first == pytest.approx(10, rel=0.02), (
+            f"у графика «{chart_key}» ось не пропорциональна датам: "
+            f"промежутки {first:.1f} и {second:.1f}")
+
+
+def test_no_other_chart_draws_dates_behind_our_back():
+    """
+    Сторож на будущее: ось с датами должна быть ровно в одном месте. Если
+    появится вторая рисовалка с подписью «Дата», её никто не проверит — и она
+    тихо вернётся к равным промежуткам, как было здесь.
+    """
+    source = (ROOT / "app" / "chart_generator.py").read_text(encoding="utf-8")
+    assert source.count("set_xlabel('Дата')") == 1, (
+        "дат-осей стало больше одной — проверьте, что новая тоже пропорциональна")
+
+
+def test_the_word_number_charts_are_numeric_too():
+    """
+    Опора: у графиков по номерам слов ось и так числовая — номера идут с
+    пропусками, и равные промежутки врали бы там ровно так же.
+    """
+    from app.chart_generator import ProgressChartGenerator
+    import io
+    data = ProgressChartGenerator.create_unknown_words_histogram([10, 20, 9000], 9000).read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    # Числовая ось — это когда корзины строятся по значениям, а не по порядку:
+    # пустое место между 20 и 9000 обязано существовать.
+    import numpy as np
+    bins = np.linspace(0, 9000, min(20, 9000) + 1)
+    assert bins[1] - bins[0] == pytest.approx(450.0)

@@ -182,7 +182,7 @@ class OfflineMatrixTest {
      */
     private fun cardText(): String {
         val a = study ?: return ""
-        return visibleText(a.get().findViewById(R.id.swipeRefresh), skip = R.id.tvRestartNotice)
+        return visibleText(a.get().findViewById(R.id.swipeRefresh), skip = R.id.restartNotice)
     }
 
     private fun statsText(): String {

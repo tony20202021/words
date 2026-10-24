@@ -177,7 +177,12 @@ object Screenshots {
     fun layoutProblems(root: View, rootWidth: Int): List<String> {
         val problems = mutableListOf<String>()
         fun walk(v: View) {
-            if (v is TextView && v.text.isNotEmpty() && v.visibility == View.VISIBLE) {
+            // За скрытый узел заходить нечего: его детей не измеряют, и у них
+            // законно нулевой размер. Обходчик этого не знал и ругался на
+            // кнопку внутри спрятанной плашки — видимую саму по себе, но не
+            // существующую на экране.
+            if (v.visibility != View.VISIBLE) return
+            if (v is TextView && v.text.isNotEmpty()) {
                 val label = v.text.toString().take(30).replace("\n", " ")
                 v.layout?.let { lay ->
                     for (line in 0 until lay.lineCount) {
@@ -193,7 +198,7 @@ object Screenshots {
             }
             val loc = IntArray(2)
             v.getLocationInWindow(loc)
-            if (v.visibility == View.VISIBLE && v.width > 0 && loc[0] + v.width > rootWidth + 1) {
+            if (v.width > 0 && loc[0] + v.width > rootWidth + 1) {
                 val what = (v as? TextView)?.text?.toString()?.take(30) ?: v.javaClass.simpleName
                 problems += "выходит за правый край: «$what» (до ${loc[0] + v.width} при ширине $rootWidth)"
             }
@@ -207,7 +212,8 @@ object Screenshots {
     fun texts(root: View): List<TextView> {
         val out = mutableListOf<TextView>()
         fun walk(v: View) {
-            if (v is TextView && v.visibility == View.VISIBLE && v.text.isNotEmpty()) out += v
+            if (v.visibility != View.VISIBLE) return   // то же: скрытое — не на экране
+            if (v is TextView && v.text.isNotEmpty()) out += v
             if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
         }
         walk(root)

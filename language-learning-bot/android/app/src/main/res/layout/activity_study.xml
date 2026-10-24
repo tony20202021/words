@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -46,17 +47,39 @@
                     android:layout_height="0dp"
                     android:visibility="gone" />
 
-                <!-- Restart recommendation notice (shown above card when error limit reached) -->
-                <TextView
-                    android:id="@+id/tvRestartNotice"
+                <!-- Restart recommendation notice (shown above card when error limit reached).
+                     Плашка советует перезапустить сессию — и тут же даёт это сделать:
+                     раньше совет был, а ход к нему лежал через меню. -->
+                <LinearLayout
+                    android:id="@+id/restartNotice"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="8dp"
                     android:background="#FFF3CD"
+                    android:orientation="vertical"
                     android:padding="12dp"
-                    android:textSize="13sp"
-                    android:textColor="#856404"
-                    android:visibility="gone" />
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvRestartNotice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="13sp"
+                        android:textColor="#856404" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnRestartNow"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="🔄 Начать заново"
+                        android:textColor="#856404"
+                        android:textSize="13sp"
+                        app:strokeColor="#856404" />
+                </LinearLayout>
 
                 <!-- Stale session notice -->
                 <TextView

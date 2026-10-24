@@ -240,6 +240,8 @@ class StudyActivity : AppCompatActivity() {
             loadSession()
         }
 
+        binding.btnRestartNow.setOnClickListener { confirmRestart() }
+
         OfflineCache.init(this)  // defensive — normally done in LangBotApp
         AudioCache.init(this)
 
@@ -423,15 +425,25 @@ class StudyActivity : AppCompatActivity() {
             return true
         }
         if (item.itemId == MENU_RESTART) {
-            AlertDialog.Builder(this)
-                .setTitle("Начать заново?")
-                .setMessage("Текущая сессия будет сброшена. Слова начнутся с начала.")
-                .setPositiveButton("Начать") { _, _ -> restartSession() }
-                .setNegativeButton("Отмена", null)
-                .show()
+            confirmRestart()
             return true
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    /**
+     * Спросить и перезапустить. Одно и то же и для меню, и для кнопки в плашке:
+     * плашка советует перезапустить сессию, и ход к этому должен быть прямо в
+     * ней, а не через меню — но подтверждение нужно одинаковое, сброс круга
+     * необратим.
+     */
+    private fun confirmRestart() {
+        AlertDialog.Builder(this)
+            .setTitle("Начать заново?")
+            .setMessage("Текущая сессия будет сброшена. Слова начнутся с начала.")
+            .setPositiveButton("Начать") { _, _ -> restartSession() }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun restartSession() {
@@ -953,9 +965,9 @@ class StudyActivity : AppCompatActivity() {
         // Restart notice above card
         if (!card.restart_notice.isNullOrEmpty()) {
             binding.tvRestartNotice.text = card.restart_notice
-            binding.tvRestartNotice.visibility = View.VISIBLE
+            binding.restartNotice.visibility = View.VISIBLE
         } else {
-            binding.tvRestartNotice.visibility = View.GONE
+            binding.restartNotice.visibility = View.GONE
         }
 
         // Main content — header row (word number + badge) then content items
@@ -1888,7 +1900,7 @@ class StudyActivity : AppCompatActivity() {
     @VisibleForTesting
     internal fun showAllDone(offline: Boolean = false) {
         binding.tvBadge.visibility = View.GONE
-        binding.tvRestartNotice.visibility = View.GONE
+        binding.restartNotice.visibility = View.GONE
         binding.progressArea.visibility = View.GONE
         binding.bigWordArea.visibility = View.GONE
         binding.soundsRow.visibility = View.GONE

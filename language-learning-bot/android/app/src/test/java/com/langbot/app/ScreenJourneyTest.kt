@@ -218,7 +218,7 @@ class ScreenJourneyTest(
         // Плашку «соединение нестабильно» из снимка исключаем: иначе ожидание
         // кончается на ней, пока нажатие ещё висит в сети.
         val snapshot = { buttons().map { it.text.toString() } to
-            visibleText(studyRoot(), skip = R.id.tvRestartNotice) }
+            visibleText(studyRoot(), skip = R.id.restartNotice) }
         val before = snapshot()
         btn.performClick()
         runCatching {
