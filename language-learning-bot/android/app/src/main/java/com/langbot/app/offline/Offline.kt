@@ -200,6 +200,29 @@ object OfflineCache {
         loadBundle(u, l)?.let { saveBundle(it.copy(cursor = cursor)) }
     }
 
+    /**
+     * Отметить в офлайн-партии слово, на котором человек стоит ОНЛАЙН.
+     *
+     * Курсор партии двигали только офлайновые ответы, а онлайновые — нет. Пока
+     * связь есть, это незаметно; но стоит открыть экран без сети — и
+     * приложение садится на то место, где курсор застыл в прошлый раз. С
+     * экрана это выглядит как перескок на чужое слово: человек вчера дошёл до
+     * двухсотого, а сегодня видит стодвадцатое.
+     *
+     * Слова нет в партии — ничего не делаем: место останется прежним, и это
+     * честнее, чем встать наугад.
+     */
+    fun rememberPlace(u: String, l: String, wordId: String) = synchronized(lock) {
+        if (wordId.isEmpty()) return
+        val bundle = loadBundle(u, l) ?: return
+        // Отсчёт — по тому же списку, по которому ходит движок: выведенные
+        // прошлым кругом слова в него не входят, и индексы иначе разъедутся.
+        val excluded = bundle.excluded ?: emptySet()
+        val i = bundle.words.filter { it.word_id !in excluded }
+            .indexOfFirst { it.word_id == wordId }
+        if (i >= 0 && i != bundle.cursor) saveBundle(bundle.copy(cursor = i))
+    }
+
     // ── Outbox ──
     fun addResult(u: String, l: String, wordId: String, rating: String) = synchronized(lock) {
         if (!ready()) return

@@ -261,15 +261,78 @@ class OfflineReconsiderTest {
     }
 
     @Test
-    fun taking_it_back_returns_to_the_question() {
+    fun taking_it_back_moves_on_just_like_online() {
+        """
+        Жалоба владельца: «нажимаю "ой все-таки не знаю" — ожидаю что перейду
+        на следующее слово, так в онлайн режиме. Но в офлайн возвращается снова
+        на слово, которое проходил, и надо отвечать "не знаю" ещё раз».
+
+        Онлайн /reconsider ставит «не знаю» И листает дальше — одним действием.
+        Офлайн возвращал на вопрос того же слова: поправка записана, а круг
+        стоит, и человек отвечает второй раз за то же слово.
+        """
         saveBundle(withKnownCard = true)
         val a = launch()
         click(a, "Знаю")
         click(a, "все-таки не знаю")
 
+        // Позицию смотрим по сохранённому месту в круге: на последнем слове
+        // заголовок пишется иначе («завершающее»), и по тексту не отличить.
+        assertEquals("круг не сдвинулся после поправки, заголовок: ${headerText(a)}",
+                     1, OfflineCache.loadBundle(u, l)?.cursor)
         val texts = buttonTexts(a)
-        assertTrue("после отмены должен быть виден вопрос, а кнопки: $texts",
+        assertTrue("показан не вопрос следующего слова, а кнопки: $texts",
             texts.any { it.contains("Знаю") } && texts.none { it.contains("все-таки") })
+    }
+
+    @Test
+    fun taking_it_back_does_not_answer_the_next_word_for_you() {
+        """
+        Переход не должен тащить поправку на следующее слово: в очереди ровно
+        два ответа, и оба — о первом.
+        """
+        saveBundle(withKnownCard = true)
+        val a = launch()
+        click(a, "Знаю")
+        click(a, "все-таки не знаю")
+
+        val entries = outbox().sortedBy { it.ts }
+        assertEquals("лишние записи в очереди: ${entries.map { it.word_id to it.rating }}",
+                     2, entries.size)
+        assertTrue("поправка ушла не за то слово: ${entries.map { it.word_id }}",
+                   entries.all { it.word_id == "w1" })
+    }
+
+    @Test
+    fun without_a_rating_from_the_server_we_stay_on_the_word() {
+        """
+        Старый сервер мог прислать кнопку без оценки — действие тогда
+        подставляется по её id. Листать в этом случае нельзя: поправку никто не
+        записал, и переход потерял бы её молча. Остаётся прежнее поведение.
+        """
+        OfflineCache.saveBundle(
+            StoredBundle(u, l, listOf(
+                BundleWord("w1", 1, front(), answer(), Card(
+                    show_answer = true,
+                    content = listOf(CardItem("translation", "перевод")),
+                    buttons = listOf(
+                        CardButton("rate", "✅ К следующему слову", "success", "know", "advance", null),
+                        // без offline_rating — как у старого сервера
+                        CardButton("reconsider", "❌ Ой, все-таки не знаю", "outline-danger",
+                                   null, "reveal_question", null),
+                    ),
+                    meta = meta(1),
+                )),
+                BundleWord("w2", 2, front(), answer(), known()),
+            ), cursor = 0, savedAt = System.currentTimeMillis(), requestedSize = 2)
+        )
+        val a = launch()
+        click(a, "Знаю")
+        click(a, "все-таки не знаю")
+
+        assertEquals("круг сдвинулся, хотя поправку никто не записал",
+                     0, OfflineCache.loadBundle(u, l)?.cursor)
+        assertEquals(listOf("know"), outbox().map { it.rating })
     }
 
     @Test

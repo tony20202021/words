@@ -690,12 +690,29 @@ class StudyActivity : AppCompatActivity() {
         when (effect) {
             "reveal_answer"   -> renderOfflineCurrent(showAnswer = true)
 
-            // Возврат к вопросу. У «Ой, все-таки не знаю» с ним приходит и
-            // оценка: без сети отменить записанное «знаю» можно только дописав
-            // в очередь более поздний ответ — сервер применит последний.
+            // «Ой, все-таки не знаю»: записать поправку и ПЕРЕЙТИ ДАЛЬШЕ —
+            // ровно то, что делает онлайн. Там /reconsider ставит «не знаю» и
+            // сразу листает; офлайн же возвращал на вопрос того же слова, и
+            // человеку приходилось отвечать «не знаю» второй раз, чтобы
+            // сдвинуться. Жалоба владельца: «ожидаю что перейду на следующее
+            // слово — так в онлайн режиме».
+            //
+            // Поправка без сети пишется более поздним ответом в очередь:
+            // сервер применяет последний по времени, иначе отменить
+            // засчитанное знакомым было бы нечем.
+            //
+            // Если оценки с кнопкой не пришло (старый сервер — действие
+            // подставляет OfflineSemantics по id кнопки), листать нельзя:
+            // поправку никто не записал, и переход потерял бы её молча.
+            // Тогда остаётся прежнее поведение — назад к вопросу.
             "reveal_question" -> {
-                btn.offline_rating?.let { recordOffline(it, correction = true) }
-                renderOfflineCurrent(showAnswer = false)
+                val rating = btn.offline_rating
+                if (rating != null) {
+                    recordOffline(rating, correction = true)
+                    advanceOffline()
+                } else {
+                    renderOfflineCurrent(showAnswer = false)
+                }
             }
 
             // «Знаю»: записать оценку и ПОКАЗАТЬ ответ, не листая дальше — так же,
@@ -935,6 +952,13 @@ class StudyActivity : AppCompatActivity() {
         if (meta.word_id.isNotEmpty()) lastWordId = meta.word_id
         // Пока мы в сети, запоминаем счётчики: с них продолжит офлайн.
         if (offline == null) {
+            // И само место в круге — тоже. Курсор офлайн-партии двигали только
+            // офлайновые ответы; экран, открытый без сети, садился на то место,
+            // где курсор застыл в прошлый раз, и это выглядело как перескок на
+            // чужое слово. См. OfflineCache.rememberPlace.
+            if (meta.word_id.isNotEmpty()) {
+                OfflineCache.rememberPlace(userId, languageId, meta.word_id)
+            }
             baseCorrect = meta.correct_count
             baseWrong = meta.incorrect_count
             baseHistory = meta.result_history
