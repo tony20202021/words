@@ -240,7 +240,12 @@ class StudyActivity : AppCompatActivity() {
             loadSession()
         }
 
-        binding.btnRestartNow.setOnClickListener { confirmRestart() }
+        // Обе плашки ведут к одному действию. Подчёркивание ставим кодом:
+        // в разметке его нет, а без него ссылка читается как обычный текст.
+        listOf(binding.linkRestartNow, binding.linkRestartStale).forEach { link ->
+            link.paintFlags = link.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            link.setOnClickListener { confirmRestart() }
+        }
 
         OfflineCache.init(this)  // defensive — normally done in LangBotApp
         AudioCache.init(this)
@@ -916,7 +921,10 @@ class StudyActivity : AppCompatActivity() {
         val pending = OfflineCache.pendingCount()
         binding.tvStaleSession.text =
             "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении"
-        binding.tvStaleSession.visibility = View.VISIBLE
+        // Та же плашка, но без ссылки: сообщение об офлайне ничего не советует
+        // перезапускать.
+        binding.linkRestartStale.visibility = View.GONE
+        binding.staleNotice.visibility = View.VISIBLE
     }
 
     private fun showOfflineDone() {
@@ -924,7 +932,7 @@ class StudyActivity : AppCompatActivity() {
         flushOutboxInBackground()
         showAllDone(offline = true)
         // Карточка уже говорит всё; плашка сверху повторяла бы её слово в слово.
-        binding.tvStaleSession.visibility = View.GONE
+        binding.staleNotice.visibility = View.GONE
     }
 
     private fun handleResponse(resp: SessionResponse?) {
@@ -933,9 +941,11 @@ class StudyActivity : AppCompatActivity() {
         if (resp.session_stale) {
             binding.tvStaleSession.text =
                 "⏰ Сессия устарела — вы давно не занимались. Можно продолжить или начать заново."
-            binding.tvStaleSession.visibility = View.VISIBLE
+            // Плашка сама предлагает начать заново — ссылка рядом с этими словами.
+            binding.linkRestartStale.visibility = View.VISIBLE
+            binding.staleNotice.visibility = View.VISIBLE
         } else {
-            binding.tvStaleSession.visibility = View.GONE
+            binding.staleNotice.visibility = View.GONE
         }
         val card = resp.card
         if (card == null) {

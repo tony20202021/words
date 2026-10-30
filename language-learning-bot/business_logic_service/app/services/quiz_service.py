@@ -19,10 +19,12 @@ Probability weighting:
 
 import random
 import math
+import re
 import json
 import unicodedata
 from typing import Any, Dict, List, Optional, Set, Tuple
 from app.logger import setup_logger
+from app.services.card_builder import primary_meaning
 
 logger = setup_logger(__name__)
 
@@ -91,6 +93,29 @@ def _shares_units(text: str, correct_units: Set[str], target_modality: str) -> b
     return False
 
 
+def meanings_of(translation: str) -> Set[str]:
+    """
+    Значения перевода по отдельности — чтобы не предлагать синонимы вариантами.
+
+    Жалоба владельца: «слово 101, в пик-режиме кажется выбрал правильное, но
+    ответ не принят — либо ошибка, либо два слова очень похожих».
+
+    Так и было: 35 כָּאן «здесь, тут (чаще на письме)» и 101 פֹּה «здесь, тут
+    (чаще в речи)». Отвлекающие отсеивались по совпадению ПОКАЗАННОГО текста, а
+    тексты у них разные — и на иврите, и в переводе (уточнение в скобках
+    различается). Для алгоритма прекрасная пара, для человека — подбрасывание
+    монеты: оба слова значат «здесь», а по какому из них спрашивают, из вопроса
+    не видно.
+
+    Поэтому сравниваем не показанный текст, а смысл: уточнения в скобках
+    убираем, перечисление разбиваем. Пересеклись — значит, у вопроса два верных
+    ответа, и такой вариант предлагать нельзя.
+    """
+    text = primary_meaning(translation or "")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    return {part.strip().lower() for part in re.split(r"[;,]", text) if part.strip()}
+
+
 def _collect_distractors(
     candidates: List[Dict],
     correct_id: str,
@@ -99,6 +124,7 @@ def _collect_distractors(
     n: int,
     target_modality: str,
     correct_units: Set[str],
+    correct_meanings: Set[str],
     unit_count_filter: Optional[int] = None,
 ) -> List[Dict]:
     """
@@ -115,6 +141,10 @@ def _collect_distractors(
             continue
         text = _get_text_for_modality(c, target_modality)
         if not text or text == correct_text:
+            continue
+        # Синоним — не отвлекающий: у вопроса стало бы два верных ответа.
+        # Текста это не видно, когда показывают не перевод, а само слово.
+        if correct_meanings and meanings_of(c.get("translation") or "") & correct_meanings:
             continue
         if unit_count_filter is not None and _unit_count(text) != unit_count_filter:
             continue
@@ -338,9 +368,10 @@ async def generate_quiz_options(
 
     # Collect distractors: shared-unit candidates first, others fill remaining slots.
     # Apply unit-count filter to avoid trivially-guessable options by word length.
+    correct_meanings = meanings_of(word.get("translation") or "")
     distractors = _collect_distractors(
         candidates, correct_id, correct_text, forbidden_ids,
-        n_distractors, target_modality, correct_units,
+        n_distractors, target_modality, correct_units, correct_meanings,
         unit_count_filter=correct_word_count if apply_word_count_filter else None,
     )
 
@@ -353,7 +384,7 @@ async def generate_quiz_options(
             f"отвлекающих, добираем без него")
         distractors = _collect_distractors(
             candidates, correct_id, correct_text, forbidden_ids,
-            n_distractors, target_modality, correct_units,
+            n_distractors, target_modality, correct_units, correct_meanings,
             unit_count_filter=None,
         )
 

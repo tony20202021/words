@@ -3,8 +3,8 @@ package com.langbot.app
 import android.content.Intent
 import android.os.Looper
 import android.view.View
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
-import com.google.android.material.button.MaterialButton
 import com.google.gson.Gson
 import com.langbot.app.network.BLSClient
 import com.langbot.app.network.Card
@@ -109,7 +109,8 @@ class RestartFromNoticeTest {
     }
 
     private fun box(a: StudyActivity): View = a.findViewById(R.id.restartNotice)
-    private fun button(a: StudyActivity): MaterialButton = a.findViewById(R.id.btnRestartNow)
+    // Ссылка, а не кнопка: рамка на полстроки спорила с карточкой за внимание.
+    private fun button(a: StudyActivity): TextView = a.findViewById(R.id.linkRestartNow)
 
     @Test
     fun `кнопка стоит в самой плашке и видна вместе с ней`() {

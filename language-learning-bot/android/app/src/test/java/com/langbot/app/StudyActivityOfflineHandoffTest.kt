@@ -167,9 +167,9 @@ class StudyActivityOfflineHandoffTest {
     }
 
     private fun offlineBannerShown(a: StudyActivity): Boolean =
-        a.findViewById<TextView>(R.id.tvStaleSession).let {
-            it.visibility == View.VISIBLE && it.text.contains("Офлайн")
-        }
+        // Видимостью управляет коробка: текст внутри неё видим всегда.
+        a.findViewById<View>(R.id.staleNotice).visibility == View.VISIBLE &&
+            a.findViewById<TextView>(R.id.tvStaleSession).text.contains("Офлайн")
 
     // ── сценарии ─────────────────────────────────────────────────────────────
 

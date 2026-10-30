@@ -328,3 +328,86 @@ async def test_two_is_the_floor():
 
     result = await generate_quiz_options(session, current, make_api_client(pool))
     assert len(result["options"]) == 2
+
+
+# ── синонимы не идут в отвлекающие ───────────────────────────────────────────
+
+def test_meanings_are_split_and_stripped_of_notes():
+    """
+    Уточнение в скобках — не значение. Из-за него два синонима выглядели
+    разными строками и спокойно становились вариантами одного вопроса.
+    """
+    from app.services.quiz_service import meanings_of
+    assert meanings_of("здесь, тут (чаще на письме)") == {"здесь", "тут"}
+    assert meanings_of("здесь, тут (чаще в речи)") == {"здесь", "тут"}
+    assert meanings_of("хватит, довольно; достаточно") == {"хватит", "довольно", "достаточно"}
+
+
+def test_a_homograph_note_does_not_leak_into_meanings():
+    """У омографов перевод многострочный; вторая строка — пометка, не значение."""
+    from app.services.quiz_service import meanings_of
+    assert meanings_of("здесь\n⚠ то же написание читается иначе: рот") == {"здесь"}
+
+
+@pytest.mark.asyncio
+async def test_a_synonym_is_never_offered_as_a_distractor():
+    """
+    Жалоба владельца: «слово 101, в пик-режиме кажется выбрал правильное, но
+    ответ не принят — либо ошибка, либо два слова очень похожих».
+
+    Похожих: 35 כָּאן «здесь, тут (чаще на письме)» и 101 פֹּה «здесь, тут
+    (чаще в речи)». Оба значат «здесь», и по вопросу не понять, о каком речь.
+    Отвлекающие отсеивались по совпадению показанного ТЕКСТА — а тексты у них
+    разные, и на иврите тем более.
+    """
+    current = make_word("w101", "פֹּה", "здесь, тут (чаще в речи)", word_number=101)
+    distractors = [
+        make_word("w35", "כָּאן", "здесь, тут (чаще на письме)", word_number=35),
+        make_word("w7", "כֶּלֶב", "собака", word_number=7),
+    ]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=200, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    assert result is not None
+    ids = [o["word_id"] for o in result["options"]]
+    assert "w35" not in ids, f"синоним предложен вариантом: {result['options']}"
+    assert "w101" in ids
+
+
+@pytest.mark.asyncio
+async def test_the_synonym_rule_works_when_the_word_itself_is_shown():
+    """
+    Самый злой случай: показывают не перевод, а само слово. Тексты вариантов
+    тогда различаются всегда, и прежняя защита по тексту не срабатывала вовсе.
+    """
+    current = make_word("w101", "פֹּה", "здесь, тут (чаще в речи)", word_number=101)
+    distractors = [make_word("w35", "כָּאן", "здесь, тут (чаще на письме)", word_number=35)]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=200, show_mode="translation", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    # Единственный кандидат — синоним, поэтому вопроса не выходит вовсе.
+    # Это честнее, чем вопрос с двумя верными ответами.
+    assert result is None or all(
+        o["word_id"] != "w35" for o in result["options"]), result
+
+
+@pytest.mark.asyncio
+async def test_a_different_word_is_still_a_good_distractor():
+    """Опора: обычные слова отсеиваться не должны."""
+    current = make_word("w1", "פֹּה", "здесь", word_number=101)
+    distractors = [
+        make_word("w2", "כֶּלֶב", "собака", word_number=7),
+        make_word("w3", "בַּיִת", "дом", word_number=8),
+    ]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=200, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    assert result is not None
+    ids = {o["word_id"] for o in result["options"]}
+    assert ids & {"w2", "w3"}, f"отвлекающие пропали вовсе: {result['options']}"

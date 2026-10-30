@@ -210,9 +210,9 @@ class OfflineReconsiderTest {
     }
 
     private fun offlineBannerShown(a: StudyActivity): Boolean =
-        a.findViewById<android.widget.TextView>(R.id.tvStaleSession).let {
-            it.visibility == android.view.View.VISIBLE && it.text.contains("Офлайн")
-        }
+        // Видимостью теперь управляет коробка: текст внутри неё видим всегда.
+        a.findViewById<android.view.View>(R.id.staleNotice).visibility == android.view.View.VISIBLE &&
+            a.findViewById<android.widget.TextView>(R.id.tvStaleSession).text.contains("Офлайн")
 
     @Test
     fun the_counter_moves_offline_and_never_passes_the_round_size() {
