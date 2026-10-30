@@ -13,6 +13,7 @@ from app.bot.keyboards import build_welcome_keyboard
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 from common.apk_version import apk_version
 from common.version import __version__
+from common.host import server_name
 
 router = Router()
 
@@ -50,7 +51,8 @@ async def cmd_start(message: Message, state: FSMContext, bls_user_id: str) -> No
     # Сообщение 1 — приветствие
     await message.answer(
         f"Здравствуйте, {first_name}!\n"
-        f"Добро пожаловать в бот для изучения иностранных слов! <i>(v{__version__})</i>",
+        f"Добро пожаловать в бот для изучения иностранных слов! "
+        f"<i>(v{__version__} · {server_name()})</i>",
         parse_mode="HTML",
     )
 

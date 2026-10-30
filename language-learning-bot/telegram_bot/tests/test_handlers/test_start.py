@@ -187,3 +187,42 @@ async def test_select_language_stores_language_id_in_state():
     # Ищем вызов, где language_id передан как kwarg
     all_kwargs = [c.kwargs for c in state.update_data.call_args_list]
     assert any(kw.get("language_id") == "lang2" for kw in all_kwargs)
+
+
+# ── приветствие называет машину ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_the_greeting_names_the_version_and_the_server():
+    """
+    Просьба владельца: «добавить в это сообщение сервер i-04, а то я уже
+    забываю где что». Серверов у него несколько, а бот из приветствия выглядит
+    одинаково на всех.
+    """
+    from app.bot.handlers.start import cmd_start
+    from common.version import __version__
+    from common.host import server_name
+
+    bls = _make_bls()
+    msg = _make_message()
+    state = _make_state()
+    with patch("app.bot.handlers.start.get_bls_client", return_value=bls):
+        await cmd_start(msg, state, bls_user_id="u1")
+
+    greeting = msg.answer.call_args_list[0][0][0]
+    assert f"v{__version__}" in greeting, greeting
+    assert server_name() in greeting, f"приветствие не называет машину: {greeting}"
+
+
+def test_the_server_name_is_short_and_never_raises():
+    """
+    Имя берётся у системы: настройка переехала бы вместе с кодом и начала
+    врать молча. Длинное имя режем до первой точки — в приветствии нужен
+    i-04, а не i-04.example.net.
+    """
+    from unittest.mock import patch as _patch
+    from common.host import server_name
+
+    with _patch("socket.gethostname", return_value="i-04.example.net"):
+        assert server_name() == "i-04"
+    with _patch("socket.gethostname", side_effect=OSError("нет имени")):
+        assert server_name() == "?"
