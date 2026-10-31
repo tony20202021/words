@@ -114,6 +114,19 @@ def apk_version_code(blob: bytes, tmp: str) -> int | None:
     return None
 
 
+def public_bls_url() -> str:
+    """BLS_PUBLIC_URL из .env — без разбора остального файла и без печати секретов."""
+    env = os.path.join(os.path.dirname(HERE), ".env")
+    try:
+        with open(env, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("BLS_PUBLIC_URL="):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -170,6 +183,14 @@ def main() -> int:
 
     # ── доступность и безопасность ──────────────────────────────────────────
     check("веб отвечает на /login", status(f"{web}/login") == 200)
+
+    # Адрес, который бот диктует человеку в /connect_android вместе с
+    # одноразовым кодом входа. Был открытый http://…:8531 — код уходил в
+    # открытую. Проверяется настройка, а не код: подменить её можно одной
+    # строкой в .env, и никакой тест этого не заметит.
+    public = public_bls_url()
+    check("адрес для входа в приложение раздаётся по TLS",
+          public.startswith("https://"), f"BLS_PUBLIC_URL={public or 'не задан'}")
     code = status(f"{web}/sound/%2e%2e%2f%2e%2e%2fetc%2fx.mp3")
     check("прокси звука отбивает обход каталога", code == 400, f"HTTP {code}")
 
