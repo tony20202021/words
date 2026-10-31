@@ -43,7 +43,7 @@ curl http://localhost:8531/health
 cd web_frontend
 BLS_URL=http://localhost:8531 \
 SECRET_KEY=<секретный_ключ> \
-WEB_URL=http://77.81.226.56:8548 \
+WEB_URL=https://77.81.226.56:8544 \
 conda run -n amikhalev_language_learning_bot \
     uvicorn app.main:app --host 0.0.0.0 --port 8548
 
@@ -58,7 +58,7 @@ curl http://localhost:8548/health
 | `BLS_URL` | `http://localhost:8531` | URL BLS |
 | `BACKEND_URL` | `http://localhost:8573` | URL Backend (для proxy звуков) |
 | `SECRET_KEY` | `change-me-in-production-please` | Ключ подписи сессионных cookie |
-| `WEB_URL` | `http://localhost:8548` | Публичный URL сайта (для ссылок из бота) |
+| `WEB_URL` | `https://<ip>:8544` | Публичный URL сайта (для ссылок из бота) |
 
 ## Новый Telegram Bot — порт не нужен
 

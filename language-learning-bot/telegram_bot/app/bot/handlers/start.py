@@ -112,7 +112,7 @@ async def welcome_nav(callback: CallbackQuery, state: FSMContext, bls_user_id: s
 
 @router.message(Command("web"))
 async def cmd_web(message: Message, bls_user_id: str) -> None:
-    web_url = os.environ.get("WEB_URL", "http://77.81.226.56:8548")
+    web_url = os.environ.get("WEB_URL", "https://77.81.226.56:8544")
     bls = get_bls_client()
     result = await bls.mobile_create_token(bls_user_id)
     code = result.get("code") if result else None
@@ -168,7 +168,7 @@ async def cmd_android(message: Message) -> None:
     if not _APK_PATH.exists():
         await message.answer("APK не найден. Обратитесь к администратору.")
         return
-    web_url = os.environ.get("WEB_URL", "http://77.81.226.56:8548")
+    web_url = os.environ.get("WEB_URL", "https://77.81.226.56:8544")
     download_url = f"{web_url}/download/android"
     # Версию берём из самого APK, а не из common/version.py: раздаётся
     # отдельный артефакт, и между «подняли версию» и «пересобрали APK» эти два

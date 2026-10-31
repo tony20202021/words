@@ -114,13 +114,13 @@ def apk_version_code(blob: bytes, tmp: str) -> int | None:
     return None
 
 
-def public_bls_url() -> str:
-    """BLS_PUBLIC_URL из .env — без разбора остального файла и без печати секретов."""
+def env_value(key: str) -> str:
+    """Значение из .env по имени — без разбора остального файла и без печати секретов."""
     env = os.path.join(os.path.dirname(HERE), ".env")
     try:
         with open(env, encoding="utf-8") as f:
             for line in f:
-                if line.startswith("BLS_PUBLIC_URL="):
+                if line.startswith(key + "="):
                     return line.split("=", 1)[1].strip()
     except OSError:
         pass
@@ -184,13 +184,16 @@ def main() -> int:
     # ── доступность и безопасность ──────────────────────────────────────────
     check("веб отвечает на /login", status(f"{web}/login") == 200)
 
-    # Адрес, который бот диктует человеку в /connect_android вместе с
-    # одноразовым кодом входа. Был открытый http://…:8531 — код уходил в
-    # открытую. Проверяется настройка, а не код: подменить её можно одной
-    # строкой в .env, и никакой тест этого не заметит.
-    public = public_bls_url()
-    check("адрес для входа в приложение раздаётся по TLS",
-          public.startswith("https://"), f"BLS_PUBLIC_URL={public or 'не задан'}")
+    # Адреса, которые бот диктует человеку: BLS_PUBLIC_URL идёт вместе с
+    # одноразовым кодом входа в приложение, WEB_URL — ссылкой на вход в веб,
+    # где следом ставится сессионная кука. Оба были открытым http, хотя TLS
+    # рядом есть. Проверяется НАСТРОЙКА, а не код: подменить её можно одной
+    # строкой в .env, и никакой модульный тест этого не заметит.
+    for key, what in (("BLS_PUBLIC_URL", "вход в приложение"),
+                      ("WEB_URL", "вход в веб")):
+        value = env_value(key)
+        check(f"адрес, который раздаётся людям, идёт по TLS — {what}",
+              value.startswith("https://"), f"{key}={value or 'не задан'}")
     code = status(f"{web}/sound/%2e%2e%2f%2e%2e%2fetc%2fx.mp3")
     check("прокси звука отбивает обход каталога", code == 400, f"HTTP {code}")
 

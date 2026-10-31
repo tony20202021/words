@@ -226,3 +226,29 @@ def test_the_server_name_is_short_and_never_raises():
         assert server_name() == "i-04"
     with _patch("socket.gethostname", side_effect=OSError("нет имени")):
         assert server_name() == "?"
+
+
+# ── адреса, которые бот диктует людям, не должны быть открытым HTTP ──────────
+
+def test_the_fallback_addresses_are_tls():
+    """
+    Если WEB_URL не задан, срабатывает значение, зашитое в коде. Раньше там был
+    открытый http://77.81.226.56:8548 — то есть на новой установке, где .env
+    забыли заполнить, ссылка на вход в веб тихо уходила бы в открытую, а следом
+    за ней сессионная кука. Документация про это предупреждала словами
+    («WEB_URL задавать обязательно»), но словами такое не удержать.
+
+    Проверяем сам исходник: запасной адрес обязан быть https.
+    """
+    from pathlib import Path
+    import re
+
+    source = (Path(__file__).parent.parent.parent / "app" / "bot" / "handlers"
+              / "start.py").read_text(encoding="utf-8")
+    fallbacks = re.findall(r'os\.environ\.get\(\s*"(?:WEB_URL|BLS_PUBLIC_URL|BLS_URL)"\s*,\s*"([^"]+)"',
+                           source)
+    assert fallbacks, "запасные адреса пропали из кода — проверка стала пустой"
+    external = [u for u in fallbacks if "localhost" not in u and "127.0.0.1" not in u]
+    assert external, "внешних запасных адресов не осталось — проверить вручную"
+    for url in external:
+        assert url.startswith("https://"), f"запасной адрес идёт по открытому HTTP: {url}"

@@ -44,7 +44,7 @@ cp .env.example .env
 MONGODB_URL=mongodb://localhost:8527
 MONGODB_DB_NAME=language_learning_bot
 BLS_PUBLIC_URL=https://<ip>:8543
-WEB_URL=http://<ip>:8548
+WEB_URL=https://<ip>:8544
 BOT_TOKEN=<токен от @BotFather>
 SECRET_KEY=<случайная строка>
 TELEGRAM_BOT_URL=https://t.me/<имя бота>
