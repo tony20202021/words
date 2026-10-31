@@ -14,8 +14,12 @@
 
 Читает журналы nginx, поэтому запускать под sudo:
 
-    sudo python deploy/old_ports_usage.sh
-    sudo python deploy/old_ports_usage.sh --days 3
+    sudo python3 deploy/old_ports_usage.sh
+    sudo python3 deploy/old_ports_usage.sh --days 3
+
+Именно python3, а не python: sudo сбрасывает PATH, и conda-питон пользователя
+root не виден — выходит «sudo: python: command not found». Скрипту conda и не
+нужна, он обходится стандартной библиотекой.
 """
 
 import argparse
