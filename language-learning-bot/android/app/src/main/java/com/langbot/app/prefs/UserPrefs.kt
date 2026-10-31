@@ -14,7 +14,32 @@ object UserPrefs {
      * Подмены одной только записи в настройках не хватало — любой тест,
      * вызвавший clear(), стирал её, и следующий запрос уходил в рабочий сервис.
      */
-    @Volatile var defaultBlsUrl: String = "https://77.81.226.56:8443"
+    @Volatile var defaultBlsUrl: String = "https://77.81.226.56:8543"
+
+    /**
+     * Прежние адреса, с которых надо переехать на текущий.
+     *
+     * Порт сменился 8443 → 8543: владелец свёл все порты хозяйства к виду 85**.
+     * Одной смены умолчания мало — при входе LoginActivity СОХРАНЯЕТ адрес в
+     * настройки, и у всех, кто хоть раз входил, там лежит старый порт. После
+     * обновления приложения они продолжили бы ходить на 8443 и однажды упёрлись
+     * бы в закрытый порт, причём молча: с виду это «нет сети».
+     */
+    private val legacyUrls = setOf("https://77.81.226.56:8443")
+
+    /**
+     * Перевести сохранённый адрес на новый порт.
+     *
+     * Трогаем только known-адреса из [legacyUrls]: если человек вписал свой
+     * сервер руками, это его выбор, и переписывать его нельзя.
+     */
+    fun migrateBlsUrl(ctx: Context) {
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_BLS_URL, null) ?: return
+        if (saved in legacyUrls) {
+            prefs.edit().putString(KEY_BLS_URL, defaultBlsUrl).apply()
+        }
+    }
 
     fun getUserId(ctx: Context): String? =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_USER_ID, null)

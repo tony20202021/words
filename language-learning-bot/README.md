@@ -12,9 +12,9 @@
 | Платформа | Технологии | Адрес / запуск |
 |-----------|-----------|----------------|
 | **Telegram-бот** | Python + aiogram 3.x | [@language_learning_words_bot](https://t.me/language_learning_words_bot) |
-| **Веб-приложение** | FastAPI + Jinja2 + HTMX | порт 8548, TLS — 8444 |
+| **Веб-приложение** | FastAPI + Jinja2 + HTMX | порт 8548, TLS — 8544 |
 | **Android** | Kotlin + Retrofit | `android/LangBot.apk` |
-| **BLS** | FastAPI (логика) | порт 8531, TLS — 8443 |
+| **BLS** | FastAPI (логика) | порт 8531, TLS — 8543 |
 | **Backend** | FastAPI + MongoDB | порт 8573 (только локально) |
 
 Все фронтенды stateless — вся логика и состояние сессий в BLS.
@@ -23,8 +23,8 @@
 
 | Порт | Что | Примечание |
 |------|-----|------------|
-| 8443 | BLS через TLS | nginx, дефолт в Android-приложении |
-| 8444 | web через TLS | nginx |
+| 8543 | BLS через TLS | nginx, дефолт в Android-приложении |
+| 8544 | web через TLS | nginx |
 | 8531 | BLS, plain HTTP | для клиентов, установленных до перехода на TLS |
 | 8548 | web, plain HTTP | то же |
 

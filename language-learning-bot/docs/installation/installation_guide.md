@@ -43,7 +43,7 @@ cp .env.example .env
 ```env
 MONGODB_URL=mongodb://localhost:8527
 MONGODB_DB_NAME=language_learning_bot
-BLS_PUBLIC_URL=https://<ip>:8443
+BLS_PUBLIC_URL=https://<ip>:8543
 WEB_URL=http://<ip>:8548
 BOT_TOKEN=<токен от @BotFather>
 SECRET_KEY=<случайная строка>
@@ -85,8 +85,9 @@ sudo systemctl enable --now langbot-db langbot-backend langbot-bls langbot-web l
 
 ## 6. TLS
 
-Порт 443 занят посторонним сервисом, поэтому TLS вынесен на **8443** (BLS) и
-**8444** (web). Сертификат Let's Encrypt выписан на IP-адрес — домен не нужен.
+Порт 443 занят посторонним сервисом, поэтому TLS вынесен на **8543** (BLS) и
+**8544** (web): все порты хозяйства сведены к виду 85**. Сертификат Let's Encrypt
+выписан на IP-адрес — домен не нужен.
 
 Схема и подводные камни (порт 80 под ACME-челлендж, перезагрузка nginx после
 продления сертификата): [../architecture.md](../architecture.md)

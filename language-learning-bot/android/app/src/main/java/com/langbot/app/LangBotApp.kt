@@ -35,6 +35,11 @@ open class LangBotApp : Application() {
 
         // BLSClient is normally initialised in LoginActivity; do it here too so the
         // background flush can reach the server before any activity is opened.
+        // Безусловно и до инициализации клиента: у всех, кто входил раньше, в
+        // настройках лежит прежний порт. Внутри условия перенос можно было бы
+        // молча пропустить — и приложение продолжило бы ходить на старый.
+        UserPrefs.migrateBlsUrl(this)
+
         if (!BLSClient.isInitialized) {
             BLSClient.init(UserPrefs.getBlsUrl(this))
         }

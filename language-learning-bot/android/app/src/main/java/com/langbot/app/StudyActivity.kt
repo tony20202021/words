@@ -15,6 +15,11 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -240,8 +245,8 @@ class StudyActivity : AppCompatActivity() {
             loadSession()
         }
 
-        // Обе плашки ведут к одному действию. Подчёркивание ставим кодом:
-        // в разметке его нет, а без него ссылка читается как обычный текст.
+        // Запасные ссылки отдельной строкой: нужны, только если в тексте
+        // плашки не нашлось слов, на которые ссылку вешать. См. showNotice.
         listOf(binding.linkRestartNow, binding.linkRestartStale).forEach { link ->
             link.paintFlags = link.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
             link.setOnClickListener { confirmRestart() }
@@ -917,14 +922,52 @@ class StudyActivity : AppCompatActivity() {
         ))
     }
 
+    /**
+     * Показать плашку, сделав ссылкой сами слова о перезапуске.
+     *
+     * Жалоба владельца: «сделать не отдельной строкой, а прямо в тексте, на
+     * словах о рекомендации перезапуска». Отдельная строка — это ещё один
+     * предмет на экране; слово, по которому можно нажать, не занимает ничего.
+     *
+     * Текст плашки приходит с сервера, и слов в нём может не оказаться (сервер
+     * старее приложения или текст переписали). Тогда показываем запасную
+     * ссылку отдельной строкой: потерять ход к действию нельзя.
+     */
+    private fun showNotice(box: View, textView: TextView, fallback: View,
+                           text: String, phrase: String?) {
+        // Отдельная переменная, а не phrase: из «нашлось» компилятор не выводит
+        // «не null», и ниже понадобилась бы длина.
+        val words = phrase.orEmpty()
+        val at = if (words.isEmpty()) -1 else text.indexOf(words)
+        if (at < 0) {
+            textView.text = text
+            textView.movementMethod = null
+            fallback.visibility = if (phrase == null) View.GONE else View.VISIBLE
+        } else {
+            val span = SpannableString(text)
+            span.setSpan(object : ClickableSpan() {
+                override fun onClick(widget: View) = confirmRestart()
+                override fun updateDrawState(ds: TextPaint) {
+                    // Цвет оставляем плашкин: синяя ссылка на жёлтом фоне
+                    // выглядит чужой. Подчёркивание и насыщенность говорят
+                    // «сюда можно нажать» не хуже.
+                    ds.isUnderlineText = true
+                    ds.isFakeBoldText = true
+                }
+            }, at, at + words.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            textView.text = span
+            textView.movementMethod = LinkMovementMethod.getInstance()
+            fallback.visibility = View.GONE
+        }
+        box.visibility = View.VISIBLE
+    }
+
     private fun showOfflineBanner() {
         val pending = OfflineCache.pendingCount()
-        binding.tvStaleSession.text =
-            "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении"
-        // Та же плашка, но без ссылки: сообщение об офлайне ничего не советует
-        // перезапускать.
-        binding.linkRestartStale.visibility = View.GONE
-        binding.staleNotice.visibility = View.VISIBLE
+        // Без ссылки вовсе: сообщение об офлайне ничего не советует перезапускать.
+        showNotice(binding.staleNotice, binding.tvStaleSession, binding.linkRestartStale,
+                   "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении",
+                   phrase = null)
     }
 
     private fun showOfflineDone() {
@@ -939,11 +982,11 @@ class StudyActivity : AppCompatActivity() {
         if (resp == null) { showError("Нет ответа от сервера"); return }
         sessionId = resp.session_id
         if (resp.session_stale) {
-            binding.tvStaleSession.text =
-                "⏰ Сессия устарела — вы давно не занимались. Можно продолжить или начать заново."
-            // Плашка сама предлагает начать заново — ссылка рядом с этими словами.
-            binding.linkRestartStale.visibility = View.VISIBLE
-            binding.staleNotice.visibility = View.VISIBLE
+            // Плашка сама предлагает начать заново — эти слова и есть ссылка.
+            showNotice(binding.staleNotice, binding.tvStaleSession, binding.linkRestartStale,
+                       "⏰ Сессия устарела — вы давно не занимались. "
+                       + "Можно продолжить или начать заново.",
+                       phrase = "начать заново")
         } else {
             binding.staleNotice.visibility = View.GONE
         }
@@ -998,8 +1041,8 @@ class StudyActivity : AppCompatActivity() {
 
         // Restart notice above card
         if (!card.restart_notice.isNullOrEmpty()) {
-            binding.tvRestartNotice.text = card.restart_notice
-            binding.restartNotice.visibility = View.VISIBLE
+            showNotice(binding.restartNotice, binding.tvRestartNotice, binding.linkRestartNow,
+                       card.restart_notice, phrase = "перезапустить сессию")
         } else {
             binding.restartNotice.visibility = View.GONE
         }

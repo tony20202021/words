@@ -118,8 +118,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="77.81.226.56")
-    ap.add_argument("--bls-port", type=int, default=8443, help="порт BLS (через nginx)")
-    ap.add_argument("--web-port", type=int, default=8444, help="порт веба (через nginx)")
+    ap.add_argument("--bls-port", type=int, default=8543, help="порт BLS (через nginx)")
+    ap.add_argument("--web-port", type=int, default=8544, help="порт веба (через nginx)")
     ap.add_argument("--scheme", default="https")
     ap.add_argument("--word-id", default="", help="id слова для проверки полей API")
     ap.add_argument("--backend", default="http://localhost:8573")

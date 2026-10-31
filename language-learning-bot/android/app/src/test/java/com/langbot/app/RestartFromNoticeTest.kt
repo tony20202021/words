@@ -109,20 +109,56 @@ class RestartFromNoticeTest {
     }
 
     private fun box(a: StudyActivity): View = a.findViewById(R.id.restartNotice)
-    // Ссылка, а не кнопка: рамка на полстроки спорила с карточкой за внимание.
-    private fun button(a: StudyActivity): TextView = a.findViewById(R.id.linkRestartNow)
+    private fun notice(a: StudyActivity): TextView = a.findViewById(R.id.tvRestartNotice)
+    /** Запасная ссылка отдельной строкой — должна молчать, пока слова нашлись. */
+    private fun fallback(a: StudyActivity): TextView = a.findViewById(R.id.linkRestartNow)
+
+    /** Нажатие по самому слову в тексте плашки. */
+    private fun linkSpans(a: StudyActivity): List<android.text.style.ClickableSpan> {
+        val text = notice(a).text
+        if (text !is android.text.Spanned) return emptyList()
+        return text.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).toList()
+    }
+
+    private fun clickLink(a: StudyActivity) {
+        val span = linkSpans(a).firstOrNull() ?: fail("в тексте плашки нет ссылки").let { return }
+        span.onClick(notice(a))
+    }
+
+    /** Какие слова сделаны ссылкой. */
+    private fun linkedPhrase(a: StudyActivity): String? {
+        val text = notice(a).text
+        if (text !is android.text.Spanned) return null
+        val span = linkSpans(a).firstOrNull() ?: return null
+        return text.subSequence(text.getSpanStart(span), text.getSpanEnd(span)).toString()
+    }
 
     @Test
-    fun `кнопка стоит в самой плашке и видна вместе с ней`() {
+    fun `ссылкой сделаны сами слова о перезапуске`() {
+        """
+        Жалоба владельца: «сделать не отдельной строкой, а прямо в тексте, на
+        словах о рекомендации перезапуска».
+        """
         val a = study()
         pumpUntil("плашка показана") { box(a).visibility == View.VISIBLE }
-        assertEquals("кнопки не видно, хотя плашка на экране",
-                     View.VISIBLE, button(a).visibility)
-        assertTrue("кнопка не внутри плашки — она уедет вместе с другим содержимым",
-                   generateSequence(button(a).parent) { (it as? View)?.parent }
-                       .any { it === box(a) })
-        val text = button(a).text.toString()
-        assertTrue("по кнопке не понять, что она делает: «$text»", text.contains("заново"))
+        assertEquals("ссылкой сделаны не те слова",
+                     "перезапустить сессию", linkedPhrase(a))
+        assertEquals("запасная строка показана, хотя слова нашлись",
+                     View.GONE, fallback(a).visibility)
+    }
+
+    @Test
+    fun `без нужных слов остаётся запасная ссылка строкой`() {
+        """
+        Текст приходит с сервера. Если слов в нём нет (сервер старее или текст
+        переписали), ход к действию теряться не должен.
+        """
+        notice = "⚠️ Ошибок слишком много."
+        val a = study()
+        pumpUntil("плашка показана") { box(a).visibility == View.VISIBLE }
+        assertTrue("ссылка повисла на чужих словах", linkSpans(a).isEmpty())
+        assertEquals("запасной ссылки нет — действие стало недостижимо",
+                     View.VISIBLE, fallback(a).visibility)
     }
 
     @Test
@@ -136,7 +172,7 @@ class RestartFromNoticeTest {
     fun `нажатие спрашивает подтверждение, а не рушит круг молча`() {
         val a = study()
         pumpUntil("плашка показана") { box(a).visibility == View.VISIBLE }
-        button(a).performClick()
+        clickLink(a)
         shadowOf(Looper.getMainLooper()).idle()
 
         // Диалог у экрана из appcompat, а не из android.app: тамошняя подделка
@@ -150,7 +186,7 @@ class RestartFromNoticeTest {
         val a = study()
         pumpUntil("плашка показана") { box(a).visibility == View.VISIBLE }
         paths.clear()
-        button(a).performClick()
+        clickLink(a)
         shadowOf(Looper.getMainLooper()).idle()
         (ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog)
             .getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
@@ -167,7 +203,7 @@ class RestartFromNoticeTest {
         val a = study()
         pumpUntil("плашка показана") { box(a).visibility == View.VISIBLE }
         paths.clear()
-        button(a).performClick()
+        clickLink(a)
         shadowOf(Looper.getMainLooper()).idle()
         (ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog)
             .getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
