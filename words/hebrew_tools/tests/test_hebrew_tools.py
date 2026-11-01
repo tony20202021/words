@@ -317,7 +317,49 @@ def test_gender_marks_keep_words_apart():
     """«они (м)» и «они (ж)» — הם и הן — разные слова, а не синонимический ряд."""
     from build_synonym_tags import sense
     assert sense("они (м)") != sense("они (ж)")
-    assert sense("сейчас, теперь; ныне") == "сейчас, теперь"
+
+
+def test_a_comma_ends_the_meaning_just_like_a_semicolon():
+    """
+    Раньше здесь стояло sense("сейчас, теперь; ныне") == "сейчас, теперь":
+    значение кончалось только на «;». Из-за этого «как» (#44) и «как,
+    подобно» (#47) попадали в разные ключи, и ряд не собирался — хотя
+    meanings_of() в quiz_service режет и по запятой и давно считает их одним
+    значением. Два места понимали «значение» по-разному.
+
+    Владелец заметил это на своих словах: «komo и eih — хорошо бы объединить
+    в общий тег». Теперь разделителя два, и ключ — только первое значение.
+    """
+    from build_synonym_tags import sense
+    assert sense("сейчас, теперь; ныне") == "сейчас"
+    assert sense("как") == sense("как, подобно") == sense("как, каким образом")
+
+
+def test_a_comma_inside_a_note_is_not_a_separator():
+    """
+    Пометы в скобках различают пары вроде «они (м)» и «они (ж)», и резать их
+    нельзя. Запятая внутри скобок — часть пометы, а не конец значения.
+    """
+    from build_synonym_tags import sense
+    assert sense("тут (чаще в речи, не на письме)") == "тут (чаще в речи, не на письме)"
+    assert sense("тут (в речи), здесь") == "тут (в речи)"
+
+
+def test_a_derived_synonym_row_is_marked_interchangeable():
+    """
+    Ряд собран по совпадению значения — значит его участники годятся друг за
+    друга как ответ. Пометку читает бот: в пик-режиме такие слова нельзя
+    подставлять вариантами одного вопроса.
+    """
+    from build_synonym_tags import build
+    rows = [
+        {"rank": 44, "hebrew": "איך", "lemma": "איך", "russian": "как"},
+        {"rank": 993, "hebrew": "כיצד", "lemma": "כיצד", "russian": "как, каким образом"},
+    ]
+    tags = build(rows, curated={})
+    assert tags, "ряд не собрался — проверка стала пустой"
+    for spec in tags.values():
+        assert spec["взаимозаменяемы"] is True
 
 
 def test_spelling_variants_are_not_synonyms():
@@ -878,3 +920,73 @@ def test_the_superlative_is_tied_to_the_word_it_is_made_from():
     # И это должно быть видно на карточке самого слова «больше».
     refs = by_rank[32].get("references") or ""
     assert "[#193]" in refs, "на карточке «больше» не видно «самый»"
+
+
+# ── пометка «взаимозаменяемы»: от определения тега до записи слова ───────────
+
+def _defs_file(tmp_path, spec):
+    path = tmp_path / "tags.json"
+    path.write_text(json.dumps({"tags": {"проба": spec}}, ensure_ascii=False),
+                    encoding="utf-8")
+    return str(path)
+
+
+def test_the_interchangeable_mark_reaches_the_word(tmp_path):
+    """
+    Пометка нужна боту, а он живёт в другом репозитории и tags.json не видит.
+    Единственный путь к нему — сама запись слова.
+    """
+    import apply_tags
+    from tag_defs import load_tags
+
+    defs = load_tags(_defs_file(tmp_path, {
+        "label": "проба", "sort": "ранг", "взаимозаменяемы": True,
+        "members": [1, 2], "also": [3]}), auto=None, forms=None, prefixes=None)
+    rows = [{"rank": n, "hebrew": "x", "russian": "y"} for n in (1, 2, 3)]
+    apply_tags.apply(rows, defs)
+
+    for row in rows:
+        assert row["tags"][0]["взаимозаменяемы"] is True, row
+    # Форма из "also" в списке группы не показывается, но пометку наследует:
+    # הנכון рядом с נכון — это выбор между словом и им же с артиклем.
+    assert rows[2]["tags"][0]["shown"] is False
+
+
+def test_an_unmarked_tag_leaves_the_word_record_alone(tmp_path):
+    """Помечен не всякий тег. У 465 тегов лишнее поле в каждой записи — вес без смысла."""
+    import apply_tags
+    from tag_defs import load_tags
+
+    defs = load_tags(_defs_file(tmp_path, {
+        "label": "проба", "sort": "ранг", "members": [1]}),
+        auto=None, forms=None, prefixes=None)
+    rows = [{"rank": 1, "hebrew": "x", "russian": "y"}]
+    apply_tags.apply(rows, defs)
+
+    assert "взаимозаменяемы" not in rows[0]["tags"][0]
+
+
+def test_a_misspelled_field_in_a_tag_definition_is_refused(tmp_path):
+    """
+    Опечатка в имени поля не делает ничего и ничего не говорит — а выглядит
+    как сделанная работа. Ровно так ведёт себя «взаимозаменяемый» вместо
+    «взаимозаменяемы».
+    """
+    from tag_defs import load_tags
+
+    path = _defs_file(tmp_path, {
+        "label": "проба", "sort": "ранг", "members": [1],
+        "взаимозаменяемый": True})
+    with pytest.raises(ValueError, match="неизвестные поля"):
+        load_tags(path, auto=None, forms=None, prefixes=None)
+
+
+def test_the_interchangeable_field_must_be_a_boolean(tmp_path):
+    """«взаимозаменяемы»: "да" — строка, она истинна всегда, в том числе "нет"."""
+    from tag_defs import load_tags
+
+    path = _defs_file(tmp_path, {
+        "label": "проба", "sort": "ранг", "members": [1],
+        "взаимозаменяемы": "нет"})
+    with pytest.raises(ValueError, match="взаимозаменяемы"):
+        load_tags(path, auto=None, forms=None, prefixes=None)

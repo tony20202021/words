@@ -53,6 +53,21 @@ def validate(rows, defs):
     return problems
 
 
+def _entry(tag: str, spec: dict, order: int, shown: bool) -> dict:
+    """Запись тега в слове.
+
+    Пометка «взаимозаменяемы» переносится в каждое слово, а не остаётся в
+    определениях, потому что читать её будет бот: у него есть слово целиком и
+    нет доступа к tags.json — он живёт в другом репозитории. Ставим её только
+    когда она истинна: у 465 тегов на 5236 слов лишнее поле в каждой записи
+    ничего не объясняет, а место занимает.
+    """
+    entry = {"tag": tag, "order": order, "shown": shown}
+    if spec.get("взаимозаменяемы"):
+        entry["взаимозаменяемы"] = True
+    return entry
+
+
 def apply(rows, defs):
     by_rank = {r["rank"]: r for r in rows}
     for r in rows:
@@ -60,10 +75,13 @@ def apply(rows, defs):
     for tag, spec in defs.items():
         for order, rank in enumerate(spec.get("members", []), start=1):
             by_rank[rank].setdefault("tags", []).append(
-                {"tag": tag, "order": order, "shown": True})
+                _entry(tag, spec, order, True))
+        # Формы с артиклем и притяжательные в списке не показываются, но как
+        # варианты ответа они путают сильнее самих слов: הַנָּכוֹן рядом с
+        # נָכוֹן — выбор между словом и им же с артиклем. Пометку наследуют.
         for rank in spec.get("also", []):
             by_rank[rank].setdefault("tags", []).append(
-                {"tag": tag, "order": 0, "shown": False})
+                _entry(tag, spec, 0, False))
     return sum(1 for r in rows if r.get("tags"))
 
 

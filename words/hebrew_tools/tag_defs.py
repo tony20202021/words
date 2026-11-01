@@ -35,6 +35,13 @@ PREFIXES = os.path.join(DATA, "tags_prefixes.json")
 
 SORTS = ("ручной", "ранг")
 
+# Поля определения тега. Список закрытый: опечатка в имени поля иначе проходит
+# молча и ничего не делает — именно так ведёт себя "взаимозаменяемы", если
+# написать его с ошибкой. Проверка дешевле, чем потом искать, почему пометка
+# не сработала.
+KEYS = {"label", "note", "sort", "members", "also", "row_notes",
+        "взаимозаменяемы"}
+
 
 def load_tags(path: str = TAGS, auto: str = AUTO, forms: str = FORMS,
               prefixes: str = PREFIXES) -> dict:
@@ -55,6 +62,12 @@ def load_tags(path: str = TAGS, auto: str = AUTO, forms: str = FORMS,
                     raise ValueError(f"тег {name!r} задан и вручную, и генератором")
                 defs[name] = spec
     for tag, spec in defs.items():
+        unknown = set(spec) - KEYS
+        if unknown:
+            raise ValueError(f"{tag}: неизвестные поля {sorted(unknown)}, "
+                             f"ожидались {sorted(KEYS)}")
+        if not isinstance(spec.get("взаимозаменяемы", False), bool):
+            raise ValueError(f"{tag}: «взаимозаменяемы» должно быть true или false")
         sort = spec.get("sort", "ручной")
         if sort not in SORTS:
             raise ValueError(f"{tag}: неизвестный порядок {sort!r}, ожидалось {SORTS}")

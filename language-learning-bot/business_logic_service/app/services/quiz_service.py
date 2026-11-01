@@ -116,6 +116,30 @@ def meanings_of(translation: str) -> Set[str]:
     return {part.strip().lower() for part in re.split(r"[;,]", text) if part.strip()}
 
 
+def interchangeable_tags(word: Dict[str, Any]) -> Set[str]:
+    """
+    Теги, участники которых годятся друг за друга как ответ.
+
+    Зачем отдельно от совпадения значений. meanings_of сравнивает перевод
+    дословно и ловит «как» против «как, подобно». Но владелец ошибся на слове
+    51 נָכוֹן «верно, правильно», а среди вариантов стояло 451 צוֹדֵק «прав» —
+    дословно не пересекается, по смыслу подходит. Механически такую пару не
+    вывести: это разные русские слова.
+
+    Зато человек уже свёл их в тег «верно и ясно» и расписал оттенки в
+    примечании. Пометка «взаимозаменяемы» у тега говорит: участники этой
+    группы — ответы друг за друга, в варианты их подставлять нельзя.
+
+    Помечен НЕ всякий тег, и это главное. Теги в основном тематические
+    («размер», «части тела», «вопросительные слова») и приставочные
+    («приставка ה» — 1144 слова). Их участники как раз лучшие отвлекающие:
+    близкие по теме, но разные по смыслу. Отсеивать по любому общему тегу
+    значило бы выхолостить пик-режим.
+    """
+    return {t.get("tag") for t in (word.get("tags") or [])
+            if isinstance(t, dict) and t.get("взаимозаменяемы") and t.get("tag")}
+
+
 def _collect_distractors(
     candidates: List[Dict],
     correct_id: str,
@@ -125,6 +149,7 @@ def _collect_distractors(
     target_modality: str,
     correct_units: Set[str],
     correct_meanings: Set[str],
+    correct_tags: Optional[Set[str]] = None,
     unit_count_filter: Optional[int] = None,
 ) -> List[Dict]:
     """
@@ -145,6 +170,11 @@ def _collect_distractors(
         # Синоним — не отвлекающий: у вопроса стало бы два верных ответа.
         # Текста это не видно, когда показывают не перевод, а само слово.
         if correct_meanings and meanings_of(c.get("translation") or "") & correct_meanings:
+            continue
+        # Человек назвал эти слова ответами друг за друга — см.
+        # interchangeable_tags. Дословно они не совпадают, и предыдущая
+        # проверка их пропускает.
+        if correct_tags and interchangeable_tags(c) & correct_tags:
             continue
         if unit_count_filter is not None and _unit_count(text) != unit_count_filter:
             continue
@@ -369,9 +399,11 @@ async def generate_quiz_options(
     # Collect distractors: shared-unit candidates first, others fill remaining slots.
     # Apply unit-count filter to avoid trivially-guessable options by word length.
     correct_meanings = meanings_of(word.get("translation") or "")
+    correct_tags = interchangeable_tags(word)
     distractors = _collect_distractors(
         candidates, correct_id, correct_text, forbidden_ids,
         n_distractors, target_modality, correct_units, correct_meanings,
+        correct_tags=correct_tags,
         unit_count_filter=correct_word_count if apply_word_count_filter else None,
     )
 
@@ -385,6 +417,7 @@ async def generate_quiz_options(
         distractors = _collect_distractors(
             candidates, correct_id, correct_text, forbidden_ids,
             n_distractors, target_modality, correct_units, correct_meanings,
+            correct_tags=correct_tags,
             unit_count_filter=None,
         )
 

@@ -104,7 +104,8 @@ def test_choose_target_excludes_disabled_transcription():
 
 # ── generate_quiz_options ─────────────────────────────────────────────────────
 
-def make_word(word_id, word_foreign, translation, word_number, transcription="trnsc"):
+def make_word(word_id, word_foreign, translation, word_number, transcription="trnsc",
+              tags=None):
     return {
         "_id": word_id,
         "word_number": word_number,
@@ -112,8 +113,17 @@ def make_word(word_id, word_foreign, translation, word_number, transcription="tr
         "translation": translation,
         "transcription": f"{transcription}-{word_id}",
         "sounds": None,
+        "tags": tags,
         "user_word_data": {},
     }
+
+
+def tag(name, взаимозаменяемы=False, shown=True):
+    """Запись тега в слове — такая же, какую кладёт apply_tags.py."""
+    entry = {"tag": name, "order": 1, "shown": shown}
+    if взаимозаменяемы:
+        entry["взаимозаменяемы"] = True
+    return entry
 
 
 def make_session(words_studied=5, show_mode="foreign", settings=None, session_words=None):
@@ -411,3 +421,101 @@ async def test_a_different_word_is_still_a_good_distractor():
     assert result is not None
     ids = {o["word_id"] for o in result["options"]}
     assert ids & {"w2", "w3"}, f"отвлекающие пропали вовсе: {result['options']}"
+
+
+# ── взаимозаменяемые теги: синонимы, которые дословно не совпадают ───────────
+
+def test_interchangeable_tags_takes_only_the_marked_ones():
+    """
+    Пометка стоит не у всякого тега, и это главное свойство. Из 465 тегов
+    большинство тематические («размер») и приставочные («приставка ה» —
+    1144 слова); их участники — лучшие отвлекающие, а не синонимы.
+    """
+    from app.services.quiz_service import interchangeable_tags
+
+    word = {"tags": [tag("верно и ясно", взаимозаменяемы=True),
+                     tag("приставка ה"),
+                     tag("размер")]}
+    assert interchangeable_tags(word) == {"верно и ясно"}
+
+
+def test_interchangeable_tags_survives_words_without_tags():
+    """У 4756 слов из 9992 тегов нет вовсе, и у части словарей поля нет совсем."""
+    from app.services.quiz_service import interchangeable_tags
+
+    assert interchangeable_tags({}) == set()
+    assert interchangeable_tags({"tags": None}) == set()
+    assert interchangeable_tags({"tags": ["мусор", None]}) == set()
+
+
+@pytest.mark.asyncio
+async def test_a_curated_synonym_is_not_offered_even_without_a_word_match():
+    """
+    Ошибка владельца 01.11.2026 на слове 51 נָכוֹן «верно, правильно». Рядом в
+    словаре 451 צוֹדֵק «прав» — по смыслу тот же ответ, но дословно переводы
+    не пересекаются, и meanings_of их синонимами не считает.
+
+    Человек свёл их в тег «верно и ясно» ещё раньше и расписал оттенки в
+    примечании. Код об этом не знал.
+    """
+    вместе = lambda: tag("верно и ясно", взаимозаменяемы=True)
+    current = make_word("w51", "נָכוֹן", "верно, правильно; правда?", word_number=51,
+                        tags=[вместе()])
+    distractors = [
+        make_word("w451", "צוֹדֵק", "прав", word_number=451, tags=[вместе()]),
+        make_word("w7", "כֶּלֶב", "собака", word_number=7),
+    ]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=500, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    assert result is not None
+    ids = [o["word_id"] for o in result["options"]]
+    assert "w451" not in ids, f"кураторский синоним предложен вариантом: {result['options']}"
+
+
+@pytest.mark.asyncio
+async def test_a_form_hidden_from_the_group_is_still_kept_out_of_the_options():
+    """
+    Формы с артиклем в списке группы не показываются (shown=false), но как
+    вариант ответа путают сильнее самих слов: הַנָּכוֹן рядом с נָכוֹן — это
+    выбор между словом и им же с артиклем. Пометку они наследуют.
+    """
+    current = make_word("w51", "נָכוֹן", "верно, правильно", word_number=51,
+                        tags=[tag("верно и ясно", взаимозаменяемы=True)])
+    distractors = [
+        make_word("w875", "הַנָּכוֹן", "правильный, верный", word_number=875,
+                  tags=[tag("верно и ясно", взаимозаменяемы=True, shown=False)]),
+        make_word("w7", "כֶּלֶב", "собака", word_number=7),
+    ]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=900, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    assert result is not None
+    assert "w875" not in [o["word_id"] for o in result["options"]], result["options"]
+
+
+@pytest.mark.asyncio
+async def test_a_shared_topical_tag_does_not_remove_a_distractor():
+    """
+    Опора против очевидной неверной реализации: «отсеивать по любому общему
+    тегу». Эта проверка падает не на прежнем коде, а на наивном — и ради
+    этого она здесь. «Большой» и «маленький» лежат в одном теге «размер»,
+    синонимами не являются и обязаны оставаться отвлекающими друг для друга.
+    """
+    current = make_word("w1", "גָּדוֹל", "большой", word_number=1,
+                        tags=[tag("размер")])
+    distractors = [make_word("w2", "קָטָן", "маленький", word_number=2,
+                             tags=[tag("размер")])]
+    settings = {"quiz_options_count": 2, "random_transcription": False, "random_sound": False}
+    session = make_session(words_studied=50, show_mode="foreign", settings=settings)
+
+    result = await generate_quiz_options(session, current, make_api_client(distractors))
+
+    assert result is not None
+    assert "w2" in [o["word_id"] for o in result["options"]], (
+        "слово из тематического тега пропало из вариантов — "
+        "фильтр отсеивает по любому тегу, а должен только по помеченным")
