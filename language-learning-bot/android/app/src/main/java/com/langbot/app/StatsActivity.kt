@@ -1,8 +1,11 @@
 package com.langbot.app
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.Gravity
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -37,8 +40,12 @@ class StatsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityStatsBinding
     private lateinit var userId: String
     private lateinit var languageId: String
+    private var languageName: String = ""
 
     companion object {
+        const val MENU_STUDY     = 1
+        const val MENU_LANGUAGES = 2
+
         /** Сколько больших картинок качать одновременно — не забивать канал. */
         const val ZOOM_PREFETCH_PARALLEL = 2
 
@@ -65,16 +72,60 @@ class StatsActivity : AppCompatActivity() {
 
         userId     = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
-        val langName = intent.getStringExtra("language_name") ?: "Статистика"
+        languageName = intent.getStringExtra("language_name") ?: ""
 
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.title = "Статистика: $langName"
+        supportActionBar?.title = "Статистика: ${languageName.ifEmpty { "Статистика" }}"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
 
         binding.swipeRefresh.setOnRefreshListener { loadStats() }
 
         loadStats()
+    }
+
+    /**
+     * Куда уйти со статистики.
+     *
+     * «Назад» остаётся и ведёт туда, откуда пришли, — но откуда именно,
+     * заранее не видно: на статистику попадают и из сессии обучения, и из
+     * списка языков. Владелец: «она возвращает на предыдущий экран, и он может
+     * быть разный — лучше добавить явно переход в обучение и переход на выбор
+     * языков». Стрелка отвечает на вопрос «вернуться», меню — на вопрос
+     * «пойти куда хочу».
+     */
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menu.add(0, MENU_STUDY,     0, "📚 К обучению")
+        menu.add(0, MENU_LANGUAGES, 1, "🌐 Выбор языка")
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == MENU_STUDY) {
+            goTo(StudyActivity::class.java)
+            return true
+        }
+        if (item.itemId == MENU_LANGUAGES) {
+            goTo(LanguagesActivity::class.java)
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    /**
+     * Переход к уже открытому экрану, а не к его второй копии.
+     *
+     * CLEAR_TOP со SINGLE_TOP снимают со стека всё, что лежит выше нужного
+     * экрана, и отдают управление ему же. Без этого путь «обучение →
+     * статистика → к обучению» клал бы вторую сессию поверх первой, и
+     * «назад» пришлось бы жать дважды, проходя статистику по дороге.
+     */
+    private fun goTo(target: Class<*>) {
+        startActivity(Intent(this, target).apply {
+            putExtra("language_id", languageId)
+            putExtra("language_name", languageName)
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        })
     }
 
     /** Перезагрузить экран (для проверок — обычный путь «потянуть вниз»). */
