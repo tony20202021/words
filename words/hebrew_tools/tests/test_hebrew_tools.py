@@ -990,3 +990,35 @@ def test_the_interchangeable_field_must_be_a_boolean(tmp_path):
         "взаимозаменяемы": "нет"})
     with pytest.raises(ValueError, match="взаимозаменяемы"):
         load_tags(path, auto=None, forms=None, prefixes=None)
+
+
+def test_every_word_in_the_god_tag_really_means_god():
+    """
+    Кураторский тег «бог» собран руками по номерам, и опечатка в номере
+    пометит молча чужое слово: проверка в apply_tags ловит только
+    несуществующий ранг, а существующий, но не тот, пройдёт.
+
+    Тег появился потому, что генератор синонимов эту группу создать НЕ может:
+    переводы с заглавной он отсеивает как имена собственные — и правильно,
+    из 19 таких значений 18 это Том, Мэри, Дэвид, Париж. Единственное живое
+    среди них «бог», да и то схлопнулось бы в одну запись: אלוהים и אלוקים —
+    одна лемма, האל и האלוהים — варианты написания.
+    """
+    from tag_defs import load_tags
+    import json
+    import os
+
+    data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "..", "data", "hebrew_freq", "hebrew_freq_10000_full.json")
+    by_rank = {r["rank"]: r for r in json.load(open(data, encoding="utf-8"))}
+    spec = load_tags()["бог"]
+
+    assert spec["взаимозаменяемы"] is True, (
+        "все они переводятся «Бог» — в пик-режиме это вопрос с несколькими "
+        "верными ответами")
+
+    for rank in spec["members"] + spec["also"]:
+        ru = by_rank[rank]["russian"].lower()
+        assert any(w in ru for w in ("бог", "господ", "всевышн")), (
+            f"#{rank} {by_rank[rank]['hebrew']} «{by_rank[rank]['russian']}» "
+            f"в теге «бог», но про бога там ничего нет")
