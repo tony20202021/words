@@ -174,6 +174,9 @@ class StudyActivity : AppCompatActivity() {
          */
         const val FIRST_WAIT_NOTICE_MS = 500L
 
+        /** Плашка связи не должна читаться как «подожди, не трогай». */
+        const val ANSWER_WHILE_CONNECTING = "Можно отвечать, не дожидаясь"
+
         /** Пауза между голосами одного и того же слова. */
         const val BETWEEN_FILES_MS = 350L
 
@@ -612,6 +615,20 @@ class StudyActivity : AppCompatActivity() {
      * ничего не изменилось. Своя плашка нужна и затем, чтобы не делить место с
      * restart_notice — то сообщение про саму сессию и к связи отношения не имеет.
      */
+    /**
+     * Плашка состояния связи — и прямое разрешение не ждать её.
+     *
+     * Владелец, 04.11.2026: связь пропала, висела плашка соединения, он не
+     * дождался и нажал ответ — и всё прошло. «Если это осознанная реализация,
+     * получилось хорошо: попытки коннекта не останавливают процесс».
+     *
+     * Осознанной она не была: блокировки кнопок в экране нет вовсе, setLoading
+     * только показывает полоску. Работало это потому, что от двойной записи
+     * прикрывают две защиты, поставленные для другого: word_processed на
+     * сервере и offlineCurrentRecorded в офлайн-движке. Поведение решено
+     * оставить и закрепить проверками — а плашка теперь говорит об этом прямо,
+     * иначе она читается как «подожди, не трогай».
+     */
     private fun showConnectionStatus(status: NetworkRetry.Status) {
         connectionHandler.removeCallbacksAndMessages(null)
         if (status.attempt == 1) {
@@ -621,14 +638,27 @@ class StudyActivity : AppCompatActivity() {
             // нельзя — жалоба владельца: «до первого сообщения про таймаут
             // непонятно, ждём или зависло».
             connectionHandler.postDelayed({
-                binding.tvConnection.text = "⏳ ${status.message}"
+                binding.tvConnection.text = connectionNoticeText(status)
                 binding.tvConnection.visibility = View.VISIBLE
             }, FIRST_WAIT_NOTICE_MS)
             return
         }
-        binding.tvConnection.text = status.message
+        binding.tvConnection.text = connectionNoticeText(status)
         binding.tvConnection.visibility = View.VISIBLE
     }
+
+    /**
+     * Текст плашки отдельной функцией — чтобы её можно было проверить.
+     *
+     * Внутри showConnectionStatus наблюдать её нечем: плашка живёт десятки
+     * миллисекунд между попытками и снимается сразу после ответа, так что
+     * проверка «успеть увидеть» была бы шаткой, а шаткая проверка хуже
+     * отсутствующей — её отключают первой.
+     */
+    @VisibleForTesting
+    fun connectionNoticeText(status: NetworkRetry.Status): String =
+        if (status.attempt == 1) "⏳ ${status.message}\n$ANSWER_WHILE_CONNECTING"
+        else "${status.message}\n$ANSWER_WHILE_CONNECTING"
 
     private fun clearConnectionStatus() {
         connectionHandler.removeCallbacksAndMessages(null)
