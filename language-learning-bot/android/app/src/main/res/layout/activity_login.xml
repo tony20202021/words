@@ -6,10 +6,23 @@
     android:gravity="center"
     android:padding="32dp">
 
+    <!--
+        Значок приложения на экране входа. Раньше здесь стояло эмодзи 📚:
+        оно рисуется шрифтом телефона и на разных прошивках выглядит
+        по-разному, а к значку на рабочем столе отношения не имеет вовсе.
+        Теперь это тот же рисунок, что и значок, и аватарка бота.
+    -->
+    <ImageView
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:src="@drawable/app_logo"
+        android:contentDescription="@string/app_name"
+        android:layout_marginBottom="12dp" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="📚 LangBot"
+        android:text="LangBot"
         android:textSize="32sp"
         android:textStyle="bold"
         android:layout_marginBottom="8dp" />

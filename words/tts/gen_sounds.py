@@ -130,7 +130,7 @@ async def edge_save(text: str, voice: str, path: Path, tries: int = 3) -> bool:
     return False
 
 
-def load_words(language: str, limit: int):
+def load_words(language: str, limit: int, first: int = 1, last: int = 0):
     from bson import ObjectId          # noqa: F401  (нужен pymongo)
     from pymongo import MongoClient
     db = MongoClient(env_value("MONGODB_URL"), serverSelectionTimeoutMS=5000)[
@@ -138,7 +138,14 @@ def load_words(language: str, limit: int):
     lang = db.languages.find_one({"name_ru": language})
     if not lang:
         raise SystemExit(f"языка {language!r} в базе нет")
+    номер = {}
+    if first > 1:
+        номер["$gte"] = first
+    if last:
+        номер["$lte"] = last
     q = {"language_id": lang["_id"]}
+    if номер:
+        q["word_number"] = номер
     cur = db.words.find(q, {"word_number": 1, "word_foreign": 1}).sort("word_number", 1)
     if limit:
         cur = cur.limit(limit)
@@ -150,6 +157,14 @@ async def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--language", required=True, choices=sorted(LANGUAGES))
     ap.add_argument("--limit", type=int, default=0, help="сколько слов (0 — все)")
+    # Диапазон номеров. Нужен потому, что генерация идёт часами, а людям
+    # звук нужен там, где они сейчас занимаются, а не с самого частотного
+    # слова: 07.11.2026 второй пользователь шёл по номерам около 4000, и
+    # очередь дошла бы до него только через пять часов.
+    ap.add_argument("--from", dest="first", type=int, default=1,
+                    help="с какого номера слова")
+    ap.add_argument("--to", dest="last", type=int, default=0,
+                    help="по какой номер включительно (0 — до конца)")
     ap.add_argument("--write-db", action="store_true",
                     help="записать пути в поле sounds у слов")
     args = ap.parse_args()
@@ -159,8 +174,11 @@ async def main() -> int:
     for d in VOICE_DIRS:
         (base / d).mkdir(parents=True, exist_ok=True)
 
-    db, language_id, words = load_words(args.language, args.limit)
-    print(f"{args.language}: слов {len(words)}, каталог {base}")
+    db, language_id, words = load_words(args.language, args.limit,
+                                        args.first, args.last)
+    отрезок = (f"номера {args.first}–{args.last or 'конец'}"
+               if (args.first > 1 or args.last) else "все номера")
+    print(f"{args.language}: {отрезок}, слов {len(words)}, каталог {base}")
 
     t0 = time.time()
     сделано = пропущено = не_вышло = 0

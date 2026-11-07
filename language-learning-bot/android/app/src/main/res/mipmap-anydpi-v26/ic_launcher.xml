@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Значок для Android 8+. Система рисует его из двух слоёв на холсте 108dp и
+    обрезает по вкусу производителя: кругом, квадратом со скруглением, каплей.
+    Гарантированно видна только центральная зона 72dp — поэтому знак на
+    переднем слое уменьшен, иначе углы листа срезало бы на круглых значках.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
