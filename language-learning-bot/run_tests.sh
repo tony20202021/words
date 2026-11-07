@@ -25,6 +25,10 @@ COMPONENT_DIRS = {
     # код: за неделю в нём нашлись три тихих дефекта, каждый портил данные
     # молча. «Все тесты» без него — снова неполный набор.
     "hebrew": PROJECT_ROOT.parent / "words" / "hebrew_tools",
+    # Озвучка слов — общий инструмент для всех языков. Тоже рабочий код: он
+    # решает, под каким именем ляжет файл, а ошибка в этом выглядит как «у
+    # слова нет озвучки» и ничего о себе не сообщает.
+    "tts": PROJECT_ROOT.parent / "words" / "tts",
     "telegram": PROJECT_ROOT / "telegram_bot",
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
@@ -37,7 +41,8 @@ def setup_parser():
     parser.add_argument(
         "--component",
         "-c",
-        choices=["bls", "telegram", "web", "backend", "common", "android", "hebrew", "all"],
+        choices=["bls", "telegram", "web", "backend", "common", "android", "hebrew",
+                 "tts", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -83,8 +88,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 464, "telegram": 256, "web": 201, "backend": 190, "common": 187,
-    "hebrew": 73, "android": 273,
+    "bls": 464, "telegram": 256, "web": 201, "backend": 190, "common": 189,
+    "hebrew": 73, "android": 273, "tts": 6,
 }
 
 
@@ -208,6 +213,10 @@ def run_hebrew_tests(args):
     return run_component_tests("hebrew", COMPONENT_DIRS["hebrew"], args)
 
 
+def run_tts_tests(args):
+    return run_component_tests("tts", COMPONENT_DIRS["tts"], args)
+
+
 def run_android_tests(args):
     """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
     directory = COMPONENT_DIRS["android"]
@@ -257,10 +266,12 @@ def main():
         "common": run_common_tests,
         "android": run_android_tests,
         "hebrew": run_hebrew_tests,
+        "tts": run_tts_tests,
     }
 
     if args.component == "all":
-        components = ["bls", "telegram", "web", "backend", "common", "hebrew", "android"]
+        components = ["bls", "telegram", "web", "backend", "common", "hebrew",
+                      "tts", "android"]
     else:
         components = [args.component]
 
