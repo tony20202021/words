@@ -60,11 +60,17 @@ root не виден — выходит «sudo: python: command not found». С�
 
 import argparse
 import collections
+import glob
+import gzip
 import os
 import re
 import sys
 from datetime import datetime, timedelta
 
+# Журналы вместе с ротацией. logrotate режет их раз в сутки, и читать только
+# текущий значило бы, что --days врёт: сколько ни проси, дальше сегодняшнего
+# дня не заглянешь. Поймано 07.11.2026 на вопросе «ходит ли кто-то ещё на
+# старые порты»: в каталоге лежало четырнадцать дней, скрипт смотрел один.
 LOGS = {
     "/var/log/nginx/langbot-bls.access.log": "bls",
     "/var/log/nginx/langbot-web.access.log": "web",
@@ -75,14 +81,18 @@ OLD, NEW = {8443, 8444}, {8543, 8544}
 # роутеров: business_logic_service/app и web_frontend/app. Список нужен, чтобы
 # отличить «наш клиент получил законный 404» от «сканер щупал чужую админку».
 ROUTES = {
+    # «admin» в списке НЕТ намеренно: наружу nginx отдаёт по нему 404 сам
+    # (location ^~ /admin { return 404; }), а приложение туда не ходит. Любой
+    # запрос к /admin снаружи — чужой, и держать из-за него порт открытым
+    # незачем. Поймано 07.11.2026: такие пробы висели в «безличных».
     "bls": {
-        "admin", "auth", "batch", "confirm", "create", "deny", "get_or_create",
+        "auth", "batch", "confirm", "create", "deny", "get_or_create",
         "health", "help", "hints", "languages", "lookup", "mobile", "qr",
         "results", "session", "settings", "sounds", "statistics", "stats",
         "status", "timezones", "user", "users", "version", "words",
     },
     "web": {
-        "", "admin", "auth", "autologin", "broadcast", "connect", "diagnostics",
+        "", "auth", "autologin", "broadcast", "connect", "diagnostics",
         "download", "health", "help", "languages", "login", "logout", "qr",
         "settings", "sound", "static", "stats", "study", "users", "words",
     },
@@ -100,7 +110,7 @@ APP_UA = re.compile(r"okhttp|stagefright|dalvik|langbot", re.I)
 SCANNER_UA = re.compile(
     r"zgrab|censys|shodan|masscan|nmap|paloaltonetworks|expanse|internet-measurement"
     r"|netsystemsresearch|leakix|binaryedge|odin\.io|projectdiscovery|scanworld"
-    r"|securityscanner|stretchoid|CriminalIP", re.I)
+    r"|securityscanner|stretchoid|CriminalIP|infrawatch|infrawat\.ch", re.I)
 
 # Ответы, которыми сервер говорит «я этого не обслуживаю». Если путь при этом
 # не наш — терять было нечего.
@@ -183,15 +193,31 @@ def analyse(entries):
         lambda: {"клиент": 0, "шум": 0, "безличное": 0, "непонятное": 0,
                  "addrs": set(), "users": set(), "last": None, "strange": []})
     window = {"first": None, "last": None}
+    # Когда каждого человека в последний раз видели на старых портах и на
+    # новых. Без времени вердикт слеп: «заходил на 8443 шесть дней назад» и
+    # «ходит на 8443 сейчас» для него одно и то же, хотя между ними как раз и
+    # лежит обновление приложения.
+    people = collections.defaultdict(lambda: {"old": None, "new": None})
+    # То же для обращений, опознанных как клиент, но без user_id в пути.
+    anon = {"old": None, "new": None}
+
+    def позже(куда, ключ, когда):
+        if когда and (куда[ключ] is None or когда > куда[ключ]):
+            куда[ключ] = когда
+
     for rec, service in entries:
         kind = classify(rec, service)
         p = ports[rec["port"]]
         p[kind] += 1
         if kind == "клиент":
             p["addrs"].add(rec["addr"])
+            сторона = "old" if rec["port"] in OLD else "new"
             u = user_of(rec["path"])
             if u:
                 p["users"].add(u)
+                позже(people[u], сторона, rec["when"])
+            else:
+                позже(anon, сторона, rec["when"])
             if p["last"] is None or (rec["when"] and rec["when"] > p["last"]):
                 p["last"] = rec["when"]
         elif kind in ("непонятное", "безличное") and len(p["strange"]) < 10:
@@ -201,70 +227,103 @@ def analyse(entries):
                 window["first"] = rec["when"]
             if window["last"] is None or rec["when"] > window["last"]:
                 window["last"] = rec["when"]
-    return ports, window
+    return ports, window, dict(people), anon
 
 
-def verdict(ports, expect=()):
+def verdict(ports, expect=(), people=None, anon=None):
     """(код возврата, строки вывода). Код 0 — можно закрывать.
 
-    expect — user_id, которых обязательно надо увидеть на новых портах.
-    Без этого списка скрипт ручается только за тех, кого застал: человек,
-    не заходивший за окно наблюдения, в журнале неотличим от перешедшего, а
-    его приложение всё это время держит старый адрес.
+    Решение принимается ПО ЛЮДЯМ И ПО ВРЕМЕНИ, а не по счёту запросов.
+
+    Почему так. 07.11.2026 второй пользователь сказал, что обновился, и
+    журналы это подтверждали: на новом 8543 он есть. Но за ту же неделю на
+    старом 8443 лежали его же 96 запросов — от 01.11, ДО обновления. Прежний
+    вердикт сложил окно целиком и ответил «закрывать рано», хотя шесть дней
+    там никого не было. Он не различал «ходил тогда» и «ходит сейчас», а
+    ровно между этими двумя моментами и происходит переезд.
+
+    Признак переезда: последний раз человека видели на НОВОМ порту позже, чем
+    на старом. Признак застревания: наоборот, либо на новом не видели вовсе.
+
+    expect — user_id, которых обязательно надо увидеть. Без этого списка
+    скрипт ручается только за тех, кого застал, и говорит об этом.
     """
     out = []
-    busy = sorted(p for p in OLD if ports.get(p, {}).get("клиент"))
+    people = people or {}
+    anon = anon or {"old": None, "new": None}
+
+    def когда(t):
+        return f"{t:%d.%m %H:%M}" if t else "не видели"
+
+    застряли = sorted(u for u, t in people.items()
+                      if t["old"] and (t["new"] is None or t["old"] > t["new"]))
+    переехали = sorted(u for u, t in people.items()
+                       if t["old"] and t["new"] and t["new"] > t["old"])
+    только_новые = sorted(u for u, t in people.items() if t["new"] and not t["old"])
+
+    if застряли:
+        out.append("ЗАКРЫВАТЬ РАНО: эти люди в последний раз приходили на СТАРЫЙ порт.")
+        for u in застряли:
+            t = people[u]
+            out.append(f"  {u}: старый {когда(t['old'])}, новый {когда(t['new'])}")
+        out.append("  Их приложения держат старый адрес, и перенос случится только")
+        out.append("  при первом запуске новой версии. Закрытие оборвёт их молча.")
+        return 1, out
+
+    подтверждены = set(переехали) | set(только_новые)
+    missing = sorted(set(expect) - подтверждены)
+    if missing:
+        out.append("ЖДЁМ ЛЮДЕЙ: на старых портах никто не застрял, но и на новых")
+        out.append("видели не всех, кого вы назвали.")
+        for u in missing:
+            t = people.get(u, {"old": None, "new": None})
+            out.append(f"  {u}: старый {когда(t['old'])}, новый {когда(t['new'])}")
+        out.append("  «Не заходил» и «перешёл» в журнале выглядят одинаково.")
+        return 1, out
+
+    if not подтверждены:
+        out.append("ДАННЫХ НЕ ХВАТАЕТ: за это окно опознанных людей не было вовсе —")
+        out.append("  ни на старых портах, ни на новых. Тишина на 8443 тут ничего не")
+        out.append("  доказывает: она одинаково выглядит и когда все перешли, и когда")
+        out.append("  никто не заходил. Подождать и запустить снова.")
+        return 1, out
+
+    # Без списка ожидаемых нельзя утверждать, что мы знаем всех, — тогда
+    # неопознанное на старых портах остаётся поводом не закрывать.
     strange = sorted(p for p in OLD
                      if ports.get(p, {}).get("непонятное")
                      or ports.get(p, {}).get("безличное"))
-    clients_new = sorted(p for p in NEW if ports.get(p, {}).get("клиент"))
-
-    if busy:
-        out.append(f"ЗАКРЫВАТЬ РАНО: на {', '.join(map(str, busy))} приходят живые клиенты.")
-        for p in busy:
-            users = ", ".join(sorted(ports[p]["users"])) or "id не видно в путях"
-            out.append(f"  {p}: {ports[p]['клиент']} запросов, кто: {users}")
-        return 1, out
-
-    if strange:
-        out.append(f"РАЗБИРАТЬСЯ: на {', '.join(map(str, strange))} есть запросы, "
-                   f"про которые не видно, человек это или нет.")
-        out.append("  Неизвестное — не то же самое, что безвредное. Строки:")
+    if strange and not expect:
+        out.append(f"РАЗБИРАТЬСЯ: на {', '.join(map(str, strange))} есть запросы, про")
+        out.append("которые не видно, человек это или нет, а кого ждать — вы не сказали.")
+        out.append("  Назовите людей через --expect либо разберите строки:")
         for p in strange:
             for line in ports[p]["strange"]:
                 out.append(f"    {line}")
         return 1, out
 
-    if not clients_new:
-        out.append("ДАННЫХ НЕ ХВАТАЕТ: за это окно клиентов не было вообще — ни на старых")
-        out.append("  портах, ни на новых. Тишина на 8443 тут ничего не доказывает: она")
-        out.append("  одинаково выглядит и когда все перешли, и когда никто не заходил.")
-        out.append("  Подождать, пока люди позанимаются, и запустить снова.")
-        return 1, out
+    out.append("МОЖНО ЗАКРЫВАТЬ: все названные люди подтверждены на новых портах.")
+    for u in sorted(подтверждены):
+        t = people[u]
+        out.append(f"  {u}: старый {когда(t['old'])} -> новый {когда(t['new'])}")
 
-    seen = set()
-    for p in clients_new:
-        seen |= ports[p]["users"]
-    missing = sorted(set(expect) - seen)
-    if missing:
-        out.append("ЖДЁМ ЛЮДЕЙ: на старых портах чисто, но на новых видели не всех.")
-        out.append(f"  не появлялись: {', '.join(missing)}")
-        out.append("  Их приложения всё это время держат старый адрес, и перенос")
-        out.append("  случится только при первом запуске новой версии. Пока они не")
-        out.append("  зайдут, закрытие оборвёт их молча.")
-        return 1, out
-
-    out.append("МОЖНО ЗАКРЫВАТЬ: на старых портах только шум сканеров, а клиенты")
-    out.append("подтверждены на новых:")
-    for p in clients_new:
-        users = ", ".join(sorted(ports[p]["users"])) or "id не видно в путях"
-        out.append(f"  {p}: {ports[p]['клиент']} запросов, кто: {users}")
+    if anon["old"]:
+        out.append("")
+        out.append(f"  Оговорка: на старых портах есть обращения, похожие на клиента, но")
+        out.append(f"  без user_id в пути; последнее {когда(anon['old'])}. Чьи они — не")
+        out.append("  видно. Решение принято по названным вами людям, не по ним.")
+    if strange:
+        out.append(f"  Там же неопознанного: "
+                   f"{sum(ports[p]['безличное'] + ports[p]['непонятное'] for p in strange)} "
+                   f"запросов. Примеры:")
+        for p in strange:
+            for line in ports[p]["strange"][:3]:
+                out.append(f"    {line}")
     if not expect:
         out.append("")
-        out.append("  Важно: ручаюсь только за тех, кого застал в этом окне. Человек,")
-        out.append("  который просто не заходил, выглядит в журнале так же, как")
-        out.append("  перешедший. Журналы nginx ротируются раз в сутки, поэтому окно")
-        out.append("  короче, чем --days. Кого ждать — задайте через --expect.")
+        out.append("  Важно: ручаюсь только за тех, кого застал в этом окне. Кого")
+        out.append("  ждать — задайте через --expect.")
+
     out.append("")
     out.append("  убрать listen 8443/8444 из deploy/langbot-tls.conf, поставить конфиг,")
     out.append("  sudo nginx -t && sudo systemctl reload nginx")
@@ -272,25 +331,40 @@ def verdict(ports, expect=()):
     return 0, out
 
 
+def rotated(path: str):
+    """Сам журнал и все его ротации: file.log, file.log.1, file.log.2.gz…"""
+    found = [path] if os.path.exists(path) else []
+    found += sorted(glob.glob(path + ".*"))
+    return found
+
+
+def open_log(path: str):
+    """Ротации старше первой лежат пожатыми."""
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt", encoding="utf-8", errors="replace")
+    return open(path, encoding="utf-8", errors="replace")
+
+
 def read_logs(days: int):
     since = datetime.now() - timedelta(days=days)
     entries, read, no_port = [], [], 0
-    for path, service in LOGS.items():
-        if not os.path.exists(path):
-            continue
-        try:
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                read.append(path)
-                for line in fh:
-                    rec = parse_line(line)
-                    if rec is None:
-                        no_port += 1          # строка старого формата, без порта
-                        continue
-                    if rec["when"] is None or rec["when"] < since:
-                        continue
-                    entries.append((rec, service))
-        except PermissionError:
-            return None, path, 0
+    for base, service in LOGS.items():
+        for path in rotated(base):
+            try:
+                with open_log(path) as fh:
+                    read.append(os.path.basename(path))
+                    for line in fh:
+                        rec = parse_line(line)
+                        if rec is None:
+                            no_port += 1      # строка старого формата, без порта
+                            continue
+                        if rec["when"] is None or rec["when"] < since:
+                            continue
+                        entries.append((rec, service))
+            except PermissionError:
+                return None, path, 0
+            except OSError:
+                continue
     return entries, read, no_port
 
 
@@ -312,9 +386,10 @@ def main() -> int:
         print("журналов nginx не найдено")
         return 2
 
-    ports, window = analyse(entries)
+    ports, window, people, anon = analyse(entries)
 
-    print(f"за последние {args.days} сут., журналы: {', '.join(read)}")
+    print(f"за последние {args.days} сут., прочитано журналов: {len(read)} "
+          f"(с ротациями)")
     if window["first"]:
         print(f"окно с портом в журнале: {window['first']:%d.%m %H:%M} — "
               f"{window['last']:%d.%m %H:%M}")
@@ -338,7 +413,7 @@ def main() -> int:
             for u in sorted(p["users"]):
                 print(f"        user_id {u}")
 
-    code, lines = verdict(ports, expect)
+    code, lines = verdict(ports, expect, people, anon)
     print()
     for line in lines:
         print(line)
