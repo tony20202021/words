@@ -9,7 +9,7 @@ cleanup_and_exit() {
 trap cleanup_and_exit SIGINT SIGTERM
 
 # Слушаем только localhost. Снаружи сюда ходить некому: андроид идёт через
-# nginx на 8443, веб и телеграм — с этой же машины. На 0.0.0.0 порт был
+# nginx на 8543, веб и телеграм — с этой же машины. На 0.0.0.0 порт был
 # открыт в интернет в обход nginx, и в журнале были только сканеры.
 
 cd /home/tony/repos/words/language-learning-bot/business_logic_service
