@@ -155,6 +155,12 @@ data class Statistics(
     val words_unknown: Int = 0,
     val total_words: Int = 0,
     val words_for_today: Int = 0,
+    // Настройка «начальный номер слова» отсекает от занятия ВСЕ слова ниже
+    // порога, включая пришедшие на повторение. Человек, подняв её, чтобы идти
+    // дальше, перестаёт видеть повторения пройденного — и узнать об этом ему
+    // было неоткуда.
+    val words_hidden_by_start_word: Int = 0,
+    val start_word: Int = 1,
     val progress_percentage: Double = 0.0,
 )
 

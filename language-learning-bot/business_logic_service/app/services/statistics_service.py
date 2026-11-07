@@ -38,6 +38,8 @@ EMPTY_PROGRESS: Dict[str, Any] = {
     "words_for_today": 0,
     "words_unknown_now": 0,
     "words_overdue": 0,
+    "words_hidden_by_start_word": 0,
+    "start_word": 1,
     "progress_percentage": 0,
     "word_numbers_for_today": [],
     "word_numbers_unknown": [],

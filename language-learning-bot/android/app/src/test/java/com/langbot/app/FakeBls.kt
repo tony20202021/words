@@ -138,11 +138,19 @@ class FakeBls(
             |"words_for_today":${words.size}}""".trimMargin()
     }
 
+    /**
+     * Сколько повторений отсечено настройкой «начальный номер слова» и каков
+     * сам порог. Задаются проверкой: экран обязан молчать, пока их нет.
+     */
+    @Volatile var hiddenByStartWord: Int = 0
+    @Volatile var startWord: Int = 1
+
     private fun summary(): String {
         val known = answers.values.count { it == "know" }
         return """{"words_studied":${answers.size},"words_known":$known,"words_skipped":0,
             |"words_unknown":${answers.values.count { it == "dont_know" }},
             |"total_words":${words.size},"words_for_today":${words.size - answers.size},
+            |"words_hidden_by_start_word":$hiddenByStartWord,"start_word":$startWord,
             |"progress_percentage":${known * 100.0 / words.size}}""".trimMargin()
     }
 

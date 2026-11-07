@@ -85,6 +85,13 @@ class UserProgress(BaseModel):
     # ответ в сегодняшних сутках.
     words_portion_left: int = Field(0, description="Слов сегодняшней порции, ещё не показанных сегодня")
     words_answered_today: int = Field(0, description="Слов, отвеченных в сегодняшних сутках")
+    # Настройка «начальный номер слова» фильтрует отбор на занятие целиком, а
+    # не только новые слова: всё, что ниже порога, перестаёт показываться —
+    # включая пришедшее на повторение. У живого пользователя так накопилось
+    # 2546 невидимых повторений, и узнать об этом было неоткуда.
+    words_hidden_by_start_word: int = Field(
+        0, description="Слов ждут повторения, но отсечены настройкой «начальный номер»")
+    start_word: int = Field(1, description="Текущее значение настройки «начальный номер слова»")
     progress_percentage: float = Field(0.0, description="Percentage of progress")
     last_study_date: Optional[datetime] = Field(None, description="Last study date")
     word_numbers_for_today: List[int] = Field(default_factory=list, description="Word numbers for today review")

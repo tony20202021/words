@@ -168,19 +168,37 @@ class AnswerWhileConnectingTest {
          * офлайне — offlineCurrentRecorded. Проверка держит обе.
          */
         open()
+        // Пакет для офлайна обязан приехать ДО обрыва. Без него приложение не
+        // уходит в офлайн, а показывает «нет сети и нет сохранённой сессии»,
+        // и ответ не записывается вовсе. Успел он или нет — вопрос времени,
+        // поэтому прежде проверка молча меряла то одно, то другое: по
+        // отдельности зелёная, в общем прогоне падала.
+        runCatching {
+            Screenshots.pumpUntil("офлайн-пакет сохранён", timeoutMs = 25_000) {
+                OfflineCache.loadBundle("user-1", "lang-1") != null
+            }
+        }
+        assertTrue("офлайн-пакет не приехал — проверять нечего",
+            OfflineCache.loadBundle("user-1", "lang-1") != null)
         bls.online = false
 
         val btn = buttons().firstOrNull { it.text.contains("Знаю") }
         assertTrue("кнопки «Знаю» нет", btn != null)
+        // Ждать надо смены состояния, а не появления слова «правильных»: оно
+        // есть на экране с самого начала, со значением 0. Прежнее условие
+        // выполнялось мгновенно, проверка читала счётчик до обработки ответа
+        // и держалась на везении — 07.11.2026 везение кончилось.
+        val было = buttons().map { it.text.toString() } to texts()
         btn!!.performClick()
         btn.performClick()          // второе нажатие, пока первое ещё в пути
         runCatching {
-            Screenshots.pumpUntil("экран ответил", timeoutMs = 25_000) {
-                texts().contains("правильны")
+            Screenshots.pumpUntil("экран ответил на двойное нажатие", timeoutMs = 25_000) {
+                (buttons().map { it.text.toString() } to texts()) != было
             }
         }
 
-        assertEquals("слово засчитано дважды: ${texts().lines().firstOrNull { it.contains("правильны") }}",
+        assertEquals("ответ засчитан не один раз: " +
+            "${texts().lines().firstOrNull { it.contains("правильны") }}",
             1, correctCount())
     }
 

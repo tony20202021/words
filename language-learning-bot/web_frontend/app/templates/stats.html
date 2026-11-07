@@ -37,6 +37,18 @@
           </div>
         {% endif %}
 
+        {# Отбор на занятие фильтрует по «начальному номеру слова» ВСЕ слова
+           сразу, включая пришедшие на повторение. Подняв порог, человек
+           перестаёт видеть повторения всего, что ниже, — и узнать об этом
+           ему неоткуда. Поведение оставлено, молчание убрано. #}
+        {% set hidden = s.get('words_hidden_by_start_word', 0) %}
+        {% if hidden > 0 %}
+          <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:0.85rem">
+            {{ hidden }} слов ждут повторения, но отсечены настройкой
+            «начальный номер слова» = {{ s.get('start_word', 1) }}
+          </div>
+        {% endif %}
+
         <div class="d-flex align-items-center gap-2" style="overflow-x:auto">
 
           {% macro cell_inner(value, label, color) %}

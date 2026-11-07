@@ -712,6 +712,16 @@ class StatsActivity : AppCompatActivity() {
         if (s.words_skipped > 0) {
             addStatRow(c, "Пропущено", s.words_skipped.toString(), "#ffc107")
         }
+        // Слова, которым пора на повторение, но они лежат ниже порога
+        // «начальный номер слова» и на занятии не появятся. Поведение отбора
+        // намеренно оставлено прежним — человеку просто сказано, что
+        // происходит: у живого пользователя так накопилось 2546 невидимых
+        // повторений, и увидеть их было негде.
+        if (s.words_hidden_by_start_word > 0) {
+            addStatRow(c,
+                "Ждут повторения, но отсечены (начальный номер = ${s.start_word})",
+                s.words_hidden_by_start_word.toString(), "#dc3545")
+        }
     }
 
     private fun dpToPx(dp: Int): Int =

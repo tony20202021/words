@@ -384,6 +384,28 @@ class StatisticsRepository:
             
             return result[0]["total"] if result else 0
 
+    async def _start_word(self, user_id: str, language_id: str) -> int:
+        """
+        Настройка «начальный номер слова» этого человека.
+
+        Она не только говорит, откуда брать НОВЫЕ слова: отбор на занятие
+        фильтрует по ней все слова сразу (statistics_service.get_words_for_study,
+        word_number >= start_word), включая пришедшие на повторение. Подняв её,
+        человек перестаёт видеть всё, что ниже, — и повторения пройденного
+        тоже. Молча.
+
+        07.11.2026 у живого пользователя так накопилось 2546 слов, ждущих
+        повторения ниже порога 3000: в диапазоне 1–2000 просрочено было всё до
+        единого слова. Сам он об этом знать не мог. Поэтому число считается и
+        показывается — поведение отбора при этом не меняется.
+        """
+        try:
+            doc = await self.db.user_language_settings.find_one(
+                {"user_id": ObjectId(user_id), "language_id": ObjectId(language_id)})
+            return int((doc or {}).get("start_word") or 1)
+        except Exception:
+            return 1   # настроек нет или id не разбирается — порога нет
+
     async def count_user_statistics_by_conditions(
         self,
         user_id: str,
@@ -404,6 +426,7 @@ class StatisticsRepository:
         }
         
         now, today = await self._day_bounds(user_id, language_id)
+        start_word = await self._start_word(user_id, language_id)
 
         if validate_words:
             # С валидацией существования слов + получение word_number
@@ -506,6 +529,16 @@ class StatisticsRepository:
                         "words_answered_today": {
                             "$sum": {"$cond": [{"$gte": ["$updated_at", today]}, 1, 0]}
                         },
+                        # Срок повторения подошёл, но слово лежит НИЖЕ порога
+                        # «начальный номер слова» — и на занятии не появится.
+                        # Пропущенные не в счёт: их не выдают и так.
+                        "words_hidden_by_start_word": {
+                            "$sum": {"$cond": [{"$and": [
+                                {"$lte": ["$next_check_date", now]},
+                                {"$lt": ["$word_number", start_word]},
+                                {"$ne": ["$is_skipped", True]}
+                            ]}, 1, 0]}
+                        },
 
                         # 🆕 списки номеров слов
                         **({} if not with_lists else {
@@ -573,6 +606,8 @@ class StatisticsRepository:
                 "words_overdue": result[0]["words_overdue"],
                 "words_portion_left": result[0]["words_portion_left"],
                 "words_answered_today": result[0]["words_answered_today"],
+                "words_hidden_by_start_word": result[0]["words_hidden_by_start_word"],
+                "start_word": start_word,
                 **({"word_numbers_for_today": result[0]["word_numbers_for_today"],
                     "word_numbers_unknown": result[0]["word_numbers_unknown"],
                     "word_check_interval": result[0]["word_check_interval"]}
@@ -588,6 +623,8 @@ class StatisticsRepository:
                 "words_overdue": 0,
                 "words_portion_left": 0,
                 "words_answered_today": 0,
+                "words_hidden_by_start_word": 0,
+                "start_word": start_word,
                 **({"word_numbers_for_today": [],
                     "word_numbers_unknown": [],
                     "word_check_interval": []} if with_lists else {}),
