@@ -118,3 +118,34 @@ def test_the_site_has_the_icon_and_asks_for_it():
     for файл in ("favicon.ico", "icon-192.png", "apple-touch-icon.png"):
         assert (STATIC / файл).exists(), f"нет {файл}"
         assert файл in base, f"{файл} есть, но base.html на него не ссылается"
+
+
+def test_every_screen_with_a_toolbar_shows_the_icon():
+    """
+    Панель сверху настраивают шесть экранов, и общего предка у них нет. Шесть
+    одинаковых правок означают, что седьмой экран про значок забудут — и он
+    будет отличаться от остальных, пока кто-нибудь случайно не заметит.
+
+    Проверка читает исходники: кто ставит панель, тот обязан позвать и
+    showAppIcon(). Само решение при этом живёт в одном месте — util/AppIcon.kt.
+    """
+    активности = sorted((RES.parent / "java" / "com" / "langbot" / "app").glob("*Activity.kt"))
+    assert активности, "экранов не нашлось — проверка стала пустой"
+
+    забыли = []
+    for путь in активности:
+        src = путь.read_text(encoding="utf-8")
+        if "setSupportActionBar" in src and "showAppIcon()" not in src:
+            забыли.append(путь.name)
+
+    assert not забыли, (
+        f"эти экраны ставят панель, но не показывают значок: {забыли}; "
+        f"добавьте showAppIcon() сразу после setSupportActionBar")
+
+
+def test_the_icon_helper_lives_in_one_place():
+    """Опора: если решение расползётся по экранам, они разойдутся по виду."""
+    помощник = (RES.parent / "java" / "com" / "langbot" / "app"
+                / "util" / "AppIcon.kt")
+    assert помощник.exists(), "util/AppIcon.kt пропал"
+    assert "setLogo" in помощник.read_text(encoding="utf-8")

@@ -44,6 +44,12 @@ def _make_bls():
                       "progress_percentage": 5.0}],
     })
     bls.admin_toggle_admin = AsyncMock(return_value={"ok": True})
+    # Рассылка теперь спрашивает языки и настройку «Получать сообщения»:
+    # без них страница падала бы на попытке дождаться MagicMock.
+    bls.get_languages = AsyncMock(return_value=[
+        {"id": "lang1", "name_ru": "Китайский", "name_foreign": "中文"},
+    ])
+    bls.get_settings = AsyncMock(return_value={"receive_messages": True})
     bls.admin_create_language = AsyncMock(return_value={"ok": True, "result": {"id": "new1"}})
     bls.admin_update_language = AsyncMock(return_value={"ok": True})
     bls.admin_delete_language = AsyncMock(return_value={"ok": True})

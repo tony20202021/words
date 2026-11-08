@@ -8,6 +8,7 @@ import com.langbot.app.network.CardButton
 import com.langbot.app.network.CardMeta
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -117,7 +118,8 @@ class OfflineScenarioTest {
 
         runBlocking { OutboxSync.flush() }
 
-        val req = server.takeRequest()
+        val req = server.takeRequest(5, TimeUnit.SECONDS)
+            ?: error("приложение не отправило запрос за пять секунд")
         assertTrue(req.path!!, req.path!!.endsWith("/results/batch"))
         assertEquals("после успешной отправки очередь пуста", 0, OfflineCache.pendingCount())
     }

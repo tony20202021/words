@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -37,6 +38,7 @@ class LanguagesActivity : AppCompatActivity() {
         binding = ActivityLanguagesBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setSupportActionBar(binding.toolbar)
+        showAppIcon()
         supportActionBar?.title = "LangBot"
         supportActionBar?.subtitle = "v${packageManager.getPackageInfo(packageName, 0).versionName}"
 

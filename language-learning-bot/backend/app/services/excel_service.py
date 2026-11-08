@@ -139,8 +139,22 @@ class ExcelService:
                             sounds=sounds,
                         )
                         
-                        await self.word_service.update_word(word_id, update_data.dict(exclude_unset=True))
-                        result["updated"] += 1
+                        # Результат проверяется. Прежде он отбрасывался, и
+                        # отказ базы — например дубликат по уникальному
+                        # индексу (language_id, word_foreign) — выглядел
+                        # успешным обновлением. Отчёт «обновлено 8466» при
+                        # словаре, не изменившемся наполовину, хуже честной
+                        # ошибки: по нему нечего заметить.
+                        обновлено = await self.word_service.update_word(
+                            word_id, update_data.dict(exclude_unset=True))
+                        if обновлено:
+                            result["updated"] += 1
+                        else:
+                            result["skipped"] += 1
+                            result["errors"].append(
+                                f"строка {index+1}: слово {word_foreign!r} "
+                                f"(№{word_number}) обновить не удалось — "
+                                f"см. журнал backend")
                     else:
                         # Create new word
                         await self.word_service.create_word(word_data.model_dump())

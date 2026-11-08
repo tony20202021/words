@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.os.Bundle
 import android.view.View
 import android.widget.*
@@ -40,6 +41,7 @@ class HintsActivity : AppCompatActivity() {
         enabledTypes = intent.getStringArrayListExtra("enabled_types") ?: ALL_HINT_TYPES.keys.toList()
 
         setSupportActionBar(binding.toolbar)
+        showAppIcon()
         supportActionBar?.title = "💡 Подсказки"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }

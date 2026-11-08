@@ -69,6 +69,10 @@ android {
     }
     buildFeatures {
         viewBinding true
+        // Нужен ради BuildConfig.VERSION_NAME: приложение сообщает свою
+        // версию в заголовке X-App-Version. В новых версиях плагина
+        // BuildConfig по умолчанию не генерируется вовсе.
+        buildConfig true
     }
 }
 

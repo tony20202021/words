@@ -314,7 +314,14 @@ class WordRepository:
             )
             
             return await self.get_by_id(id)
-        except Exception:
+        except Exception as e:
+            # Причина отказа обязана попасть в журнал. Молчаливый None здесь
+            # стоил дорого: при замене словаря английского обновление падало
+            # на уникальном индексе lang_word_foreign_idx — слово переезжает
+            # с номера на номер, и в этот миг оно занято прежним владельцем, —
+            # а загрузка рапортовала «обновлено» и шла дальше.
+            logger.error(f"Не удалось обновить слово id={id}: "
+                         f"{type(e).__name__}: {e}")
             return None
     
     async def delete(self, id: str) -> bool:

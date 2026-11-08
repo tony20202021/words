@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.app.Dialog
 import android.content.Intent
 import android.graphics.Color
@@ -240,6 +241,7 @@ class StudyActivity : AppCompatActivity() {
         val langName = intent.getStringExtra("language_name") ?: "Учёба"
 
         setSupportActionBar(binding.toolbar)
+        showAppIcon()
         supportActionBar?.title = langName
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }

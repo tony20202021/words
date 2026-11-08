@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -17,6 +18,7 @@ class HelpActivity : AppCompatActivity() {
 
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
+        showAppIcon()
         supportActionBar?.title = "Помощь"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         toolbar.setNavigationOnClickListener { finish() }

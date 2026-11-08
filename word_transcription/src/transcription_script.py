@@ -76,7 +76,18 @@ def process_words(data: Dict[str, Dict[str, Any]],
         Кортеж (успешно_обработано, всего_слов)
     """
     success_count = 0
-    
+
+    # Пауза между словами нужна только сетевым службам: их просят не чаще, чем
+    # они позволяют. Локальному словарю она не нужна вовсе, а стоит дорого —
+    # на десяти тысячах слов это лишний час ожидания при работе, которая
+    # занимает секунды.
+    СЕТЕВЫЕ = {"WiktionaryService", "ForvoService", "GoogleService",
+               "EasyPronunciationService", "IBMWatsonService", "OpenAIService"}
+    нужна_пауза = any(type(s).__name__ in СЕТЕВЫЕ
+                      for s in getattr(transcription_manager, "services", []))
+    if not нужна_пауза:
+        logger.info("Сетевые службы не включены — работаем без паузы между словами")
+
     # Создаем контекст для определения языка
     all_words = ' '.join([word_data.get(word_field, '') for word_data in data.values() if word_field in word_data])
     
@@ -128,8 +139,9 @@ def process_words(data: Dict[str, Dict[str, Any]],
             # Сохранение результатов
             save_json_file(output_file, data, count_processed=index)
 
-        # Добавляем паузу, чтобы не перегружать API
-        time.sleep(0.2)
+        # Пауза только для сетевых служб (см. выше).
+        if нужна_пауза:
+            time.sleep(0.2)
         
     return success_count, len(data)
 

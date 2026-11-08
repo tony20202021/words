@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -75,6 +76,7 @@ class StatsActivity : AppCompatActivity() {
         languageName = intent.getStringExtra("language_name") ?: ""
 
         setSupportActionBar(binding.toolbar)
+        showAppIcon()
         supportActionBar?.title = "Статистика: ${languageName.ifEmpty { "Статистика" }}"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }

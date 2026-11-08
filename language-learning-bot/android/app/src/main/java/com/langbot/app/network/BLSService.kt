@@ -2,6 +2,7 @@ package com.langbot.app.network
 
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
+import com.langbot.app.BuildConfig
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
@@ -222,9 +223,21 @@ object BLSClient {
     // Картинки графиков идут через тот же Retrofit, поэтому токен получают и они.
     private val authInterceptor = Interceptor { chain ->
         val t = token
-        val request = if (t.isNullOrEmpty()) chain.request()
-            else chain.request().newBuilder().header("Authorization", "Bearer $t").build()
-        val response = chain.proceed(request)
+        // Версия приложения в каждом запросе.
+        //
+        // Зачем. Владелец спросил, как узнать, какая сборка у пользователя, —
+        // и узнать было нельзя: наружу приложение представлялось только как
+        // «okhttp/4.12.0», то есть версией сетевой библиотеки, одинаковой у
+        // всех сборок от первой до нынешней. Теперь версия попадает в журналы
+        // nginx сама, вместе с любым запросом.
+        //
+        // Оговорка, которая не чинится кодом: так видно только тех, кто уже
+        // обновился ПОСЛЕ этой правки. Сидящему на старой сборке нечем о себе
+        // сообщить, и его по-прежнему видно не будет.
+        val builder = chain.request().newBuilder()
+            .header("X-App-Version", BuildConfig.VERSION_NAME)
+        if (!t.isNullOrEmpty()) builder.header("Authorization", "Bearer $t")
+        val response = chain.proceed(builder.build())
         if (response.code == 401) onUnauthorized?.invoke()
         response
     }

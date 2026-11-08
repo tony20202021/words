@@ -84,6 +84,21 @@ words/data/hebrew_freq/*
 # Синонимы выведены генератором, но коммитятся: их просматривают глазами, и
 # в истории должно быть видно, как менялся состав рядов.
 !words/data/hebrew_freq/tags_synonyms.json
+
+# Английский частотный словарь. Коммитятся ИСХОДНИКИ — то, чего не
+# восстановить: 2765 переводов, сделанных вручную порциями, список слов с
+# отметкой происхождения каждого, список выброшенного с причиной у каждого
+# слова и подсказка по именам. Потерять их значит переделать работу заново.
+!words/data/eng_freq/
+words/data/eng_freq/*
+!words/data/eng_freq/frequency.txt
+!words/data/eng_freq/translations.json
+!words/data/eng_freq/dropped.json
+!words/data/eng_freq/rejected.json
+!words/data/eng_freq/names.txt
+# Готовый словарь eng10k.json НЕ коммитится: три мегабайта, и он целиком
+# выводится из файлов выше одной командой build_dictionary.py. Хранить его
+# значит переписывать три мегабайта при каждой пересборке.
 *.db
 .DS_Store
 *.pid

@@ -197,3 +197,106 @@ def test_diagnostics_without_session_goes_to_login():
     r, _ = _get({}, "/admin/diagnostics", follow_redirects=False)
     assert r.status_code == 302
     assert "/login" in r.headers["location"]
+
+
+# ── рассылка: кому и с чьего согласия ────────────────────────────────────────
+
+def _bls_for_consent(согласие):
+    """
+    согласие: {(user_id, language_id): bool} — «Получать сообщения».
+
+    Языков два, чтобы было видно разницу между «про язык» и «независимо».
+    Получателей тоже два: с одним проверка «письмо одному» проходила бы и на
+    прежнем коде, где рассылка шла всем, — отличить «всем» от «одному» было
+    бы не на чем.
+    """
+    bls = _bls_with_users()
+    bls.admin_list_users = AsyncMock(return_value={
+        "users": [
+            {"id": "admin-1", "first_name": "Admin", "telegram_id": 1, "is_admin": True},
+            {"id": "u1", "first_name": "Alice", "telegram_id": 111, "is_admin": False},
+            {"id": "u3", "first_name": "Carol", "telegram_id": 333, "is_admin": False},
+            {"id": "u2", "first_name": "Bob", "telegram_id": None, "is_admin": False},
+        ],
+        "page": 1, "per_page": 20, "total": 4, "total_pages": 1,
+    })
+    bls.get_languages = AsyncMock(return_value=[
+        {"id": "lang1", "name_ru": "Английский", "name_foreign": "English"},
+        {"id": "lang2", "name_ru": "Иврит", "name_foreign": "עברית"},
+    ])
+
+    async def settings(user_id, language_id):
+        return {"receive_messages": согласие.get((user_id, language_id), True)}
+
+    bls.get_settings = AsyncMock(side_effect=settings)
+    return bls
+
+
+def test_a_message_can_go_to_one_person(telegram):
+    """
+    Просьба владельца: «нужно сказать одному человеку про его настройку».
+    Раньше рассылка умела только «всем», и ради одного письма пришлось бы
+    написать всем двадцати.
+    """
+    bls = _bls_for_consent({})
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "включите звук", "recipient": "u1",
+                       "language_id": "any"})
+
+    assert r.status_code == 200
+    assert telegram.chat_ids == [111], "письмо ушло не только выбранному"
+    assert 333 not in telegram.chat_ids, "второй получатель тоже получил письмо"
+    assert telegram.texts == ["включите звук"]
+
+
+def test_someone_who_switched_messages_off_is_not_written_to(telegram):
+    """
+    Настройка «Получать сообщения» показывается человеку и хранится по языку,
+    но при отправке её НЕ ЧИТАЛИ: рассылка шла всем подряд. Настройка была
+    обещанием, которого код не выполнял.
+    """
+    bls = _bls_for_consent({("u1", "lang1"): False})
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "привет", "recipient": "all", "language_id": "lang1"})
+
+    assert 111 not in telegram.chat_ids, "письмо ушло тому, кто от них отказался"
+    assert "Не отправлено по их же настройке" in r.text, \
+        "пропуск промолчал — «отправлено 0» выглядит поломкой"
+
+
+def test_consent_is_asked_for_the_language_the_message_is_about(telegram):
+    """
+    Разрешение несоответствия, которое заметил владелец: настройка живёт по
+    языку, а рассылка языка может и не касаться. Если язык выбран — спрашиваем
+    настройку именно этого языка.
+    """
+    bls = _bls_for_consent({("u1", "lang1"): False, ("u1", "lang2"): True})
+
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "про английский", "recipient": "all",
+                       "language_id": "lang1"})
+    assert 111 not in telegram.chat_ids, "выключено для этого языка, а письмо ушло"
+
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "про иврит", "recipient": "all",
+                       "language_id": "lang2"})
+    assert 111 in telegram.chat_ids, "включено для этого языка, а письма нет"
+
+
+def test_a_system_wide_message_reaches_everyone(telegram):
+    """
+    «Независимо от языка» значит именно независимо — решение владельца:
+    «в этом режиме вообще не проверять языки, рассылать всегда, это будут
+    какие-нибудь общесистемные сообщения».
+
+    Сторож стоит на том, что настройка про ЯЗЫК не должна отвечать за
+    сообщение о самой службе. Здесь человек отказался от писем по всем
+    языкам до единого — и всё равно обязан получить общесистемное.
+    """
+    bls = _bls_for_consent({("u1", "lang1"): False, ("u1", "lang2"): False})
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "общее", "recipient": "all", "language_id": "any"})
+
+    assert 111 in telegram.chat_ids, \
+        "общесистемное письмо не дошло из-за настройки про язык"
+    assert 333 in telegram.chat_ids

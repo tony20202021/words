@@ -3,6 +3,7 @@ package com.langbot.app
 import com.langbot.app.network.BLSClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,7 +43,7 @@ class AuthHeaderTest {
     private fun requestHeader(): String? {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"version":"x","version_code":1}"""))
         runBlocking { BLSClient.api.getVersion() }
-        return server.takeRequest().getHeader("Authorization")
+        return server.takeRequest(5, TimeUnit.SECONDS)?.getHeader("Authorization")
     }
 
     @Test

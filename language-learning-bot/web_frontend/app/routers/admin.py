@@ -276,50 +276,101 @@ async def broadcast_page(request: Request):
     user_id, redirect = _require_admin(request)
     if redirect:
         return redirect
-    return _render(request, "admin/broadcast.html", {})
+    bls = get_bls_client()
+    return _render(request, "admin/broadcast.html", {
+        "users": await _broadcast_users(bls, user_id),
+        "languages": await bls.get_languages(),
+    })
+
+
+async def _broadcast_users(bls, admin_id: str) -> list:
+    """Все, кому вообще можно написать: есть telegram_id и это не сам админ."""
+    out = []
+    первая = await bls.admin_list_users(admin_id, page=1)
+    for pg in range(1, (первая.get("total_pages", 1) or 1) + 1):
+        data = первая if pg == 1 else await bls.admin_list_users(admin_id, page=pg)
+        for u in data.get("users", []):
+            uid = str(u.get("id") or u.get("user_id") or "")
+            if not u.get("telegram_id") or uid == str(admin_id):
+                continue
+            имя = " ".join(x for x in (u.get("first_name"), u.get("last_name")) if x)
+            out.append({"id": uid, "telegram_id": u.get("telegram_id"),
+                        "name": имя or u.get("username") or uid,
+                        "username": u.get("username") or ""})
+    return out
+
+
+async def _wants_messages(bls, uid: str, language_id: str) -> bool:
+    """
+    Согласен ли человек получать это письмо.
+
+    Настройка «Получать сообщения» живёт ПО ЯЗЫКУ, а рассылка языка может и не
+    касаться — отсюда несоответствие, которое заметил владелец. Разрешено так:
+
+      выбран язык            спрашиваем настройку ИМЕННО ЭТОГО языка;
+      независимо от языка    не спрашиваем вовсе, шлём всем.
+
+    Второе — решение владельца: «в этом режиме вообще не проверять языки,
+    рассылать всегда, это будут какие-нибудь общесистемные сообщения».
+    Настройка про язык и не может отвечать за сообщение о самой службе.
+
+    Раньше настройку не читали НИГДЕ: рассылка шла всем подряд, и выключивший
+    её человек всё равно получал письма про свой язык. Настройка была
+    обещанием, которого код не выполнял.
+    """
+    if not language_id or language_id == "any":
+        return True
+    s = await bls.get_settings(uid, language_id)
+    return bool(s.get("receive_messages", True))
 
 
 @router.post("/broadcast/send")
-async def broadcast_send(request: Request, text: str = Form(...)):
+async def broadcast_send(request: Request, text: str = Form(...),
+                         recipient: str = Form("all"),
+                         language_id: str = Form("any")):
     user_id, redirect = _require_admin(request)
     if redirect:
         return redirect
 
+    import os
+    import httpx as _httpx
+
     bls = get_bls_client()
-    users_data = await bls.admin_list_users(user_id, page=1)
-    total_pages = users_data.get("total_pages", 1)
+    languages = await bls.get_languages()
+    все = await _broadcast_users(bls, user_id)
+    цель = все if recipient == "all" else [u for u in все if u["id"] == recipient]
 
-    import os, httpx as _httpx
     bot_token = os.environ.get("BOT_TOKEN", "")
-    sent = 0
-    errors = []
+    sent, errors, skipped = 0, [], []
 
-    for pg in range(1, total_pages + 1):
-        page_data = await bls.admin_list_users(user_id, page=pg)
-        for u in page_data.get("users", []):
-            tg_id = u.get("telegram_id")
-            # Сравнение шло с int(0): user_id — это ObjectId, дефиса в нём нет,
-            # так что условие «это я сам» не выполнялось никогда и админ всегда
-            # получал собственную рассылку. Сверяем по идентификатору пользователя.
-            if not tg_id or str(u.get("id") or u.get("user_id") or "") == str(user_id):
-                continue
-            if not bot_token:
-                break
-            try:
-                async with _httpx.AsyncClient(timeout=5) as hc:
-                    r = await hc.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        json={"chat_id": tg_id, "text": text},
-                    )
-                if r.json().get("ok"):
-                    sent += 1
-                else:
-                    errors.append(f"tg:{tg_id} → {r.json().get('description', '?')}")
-            except Exception as e:
-                errors.append(f"tg:{tg_id} → {e}")
+    if not цель:
+        errors.append("получатель не найден — возможно, у него нет телеграма")
+    if not bot_token:
+        errors.append("BOT_TOKEN не задан — отправлять нечем")
+
+    for u in цель if bot_token else []:
+        if not await _wants_messages(bls, u["id"], language_id):
+            # Пропуск называется вслух: иначе «отправлено 0» выглядит поломкой,
+            # а человек просто отказался от сообщений.
+            skipped.append(f"{u['name']} — выключено «Получать сообщения» "
+                           f"для этого языка")
+            continue
+        try:
+            async with _httpx.AsyncClient(timeout=5) as hc:
+                r = await hc.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": u["telegram_id"], "text": text},
+                )
+            if r.json().get("ok"):
+                sent += 1
+            else:
+                errors.append(f"{u['name']} → {r.json().get('description', '?')}")
+        except Exception as e:
+            errors.append(f"{u['name']} → {type(e).__name__}")
 
     return _render(request, "admin/broadcast.html", {
-        "sent": sent, "errors": errors, "done": True,
+        "sent": sent, "errors": errors, "skipped": skipped, "done": True,
+        "users": все, "languages": languages,
     })
 
 

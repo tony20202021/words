@@ -29,6 +29,11 @@ COMPONENT_DIRS = {
     # решает, под каким именем ляжет файл, а ошибка в этом выглядит как «у
     # слова нет озвучки» и ничего о себе не сообщает.
     "tts": PROJECT_ROOT.parent / "words" / "tts",
+    # Оснастка учебного словаря английского. Тоже рабочий код, и тоже с тихими
+    # ошибками: правило «слово короче трёх букв — сокращение» вырезало из
+    # списка «to», «a», «in», «is», и на остатке, уходящем в перевод, этого
+    # было не видно вовсе.
+    "eng": PROJECT_ROOT.parent / "words" / "eng_tools",
     "telegram": PROJECT_ROOT / "telegram_bot",
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
@@ -42,7 +47,7 @@ def setup_parser():
         "--component",
         "-c",
         choices=["bls", "telegram", "web", "backend", "common", "android", "hebrew",
-                 "tts", "all"],
+                 "tts", "eng", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -88,8 +93,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 464, "telegram": 256, "web": 201, "backend": 190, "common": 196,
-    "hebrew": 73, "android": 273, "tts": 8,
+    "bls": 464, "telegram": 256, "web": 205, "backend": 192, "common": 201,
+    "hebrew": 73, "android": 282, "tts": 18, "eng": 34,
 }
 
 
@@ -217,6 +222,10 @@ def run_tts_tests(args):
     return run_component_tests("tts", COMPONENT_DIRS["tts"], args)
 
 
+def run_eng_tests(args):
+    return run_component_tests("eng", COMPONENT_DIRS["eng"], args)
+
+
 def run_android_tests(args):
     """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
     directory = COMPONENT_DIRS["android"]
@@ -267,11 +276,12 @@ def main():
         "android": run_android_tests,
         "hebrew": run_hebrew_tests,
         "tts": run_tts_tests,
+        "eng": run_eng_tests,
     }
 
     if args.component == "all":
         components = ["bls", "telegram", "web", "backend", "common", "hebrew",
-                      "tts", "android"]
+                      "tts", "eng", "android"]
     else:
         components = [args.component]
 

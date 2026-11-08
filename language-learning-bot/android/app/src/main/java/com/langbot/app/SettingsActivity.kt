@@ -1,5 +1,6 @@
 package com.langbot.app
 
+import com.langbot.app.util.showAppIcon
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
@@ -39,6 +40,17 @@ class SettingsActivity : AppCompatActivity() {
             "random_transcription"          to "Доп. использовать транскрипцию",
             "random_sound"                  to "Доп. использовать звук",
             "random_pick_mode"              to "Режим выбора (pick mode)",
+            // Эта настройка жила только в телеграм-боте и на сайте, и человеку
+            // в приложении нечем было её включить: он не получал ни
+            // напоминаний, ни объявлений и не мог понять, почему.
+            "receive_messages"              to "Получать сообщения",
+        )
+
+        // Переключатели, которые по умолчанию ВКЛЮЧЕНЫ на сервере. Без этого
+        // списка отсутствующее значение показывалось бы выключенным, и человек
+        // читал бы «Получать сообщения: нет» там, где на деле «да».
+        val TOGGLE_DEFAULTS = mapOf(
+            "receive_messages" to true,
         )
 
         // Чего ждать, если значение не пришло. Ноль здесь был бы ложью: «слов в
@@ -69,6 +81,7 @@ class SettingsActivity : AppCompatActivity() {
         val langName = intent.getStringExtra("language_name") ?: "Настройки"
 
         setSupportActionBar(binding.toolbar)
+        showAppIcon()
         supportActionBar?.title = "⚙️ $langName"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
@@ -129,7 +142,7 @@ class SettingsActivity : AppCompatActivity() {
                 is Boolean -> v
                 is Double  -> v != 0.0
                 is String  -> v == "true"
-                else       -> false
+                else       -> TOGGLE_DEFAULTS[key] ?: false
             }
 
             val row = LinearLayout(this)
