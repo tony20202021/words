@@ -28,7 +28,7 @@ try:
 except ImportError:
     hydra_available = False
 
-from app.api.routes import languages, users, words, statistics, sounds
+from app.api.routes import languages, users, words, statistics, sounds, broadcasts
 from app.api.routes.user_language_settings import router as user_language_settings_router
 from app.db.database import connect_to_mongo, close_mongo_connection
 from app.utils.logger import setup_logger
@@ -152,6 +152,7 @@ def create_application() -> FastAPI:
     app.include_router(statistics.router, prefix=api_prefix)
     app.include_router(user_language_settings_router, prefix=api_prefix)
     app.include_router(sounds.router, prefix=api_prefix)
+    app.include_router(broadcasts.router, prefix=api_prefix)
 
     # Add health check endpoint
     @app.get(f"{api_prefix}/health", tags=["health"])

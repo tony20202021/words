@@ -21,6 +21,8 @@ class UserLanguageSettingsBase(BaseModel):
     show_references: bool = Field(True, description="Whether to show references")
     show_tags: bool = Field(True, description="Показывать группы слов по тегам")
     show_tones: bool = Field(True, description="Whether to show tones")
+    show_reading: bool = Field(True, description="Показывать предложения для чтения")
+    show_simplified: bool = Field(True, description="Показывать упрощённое написание")
     show_sounds: bool = Field(True, description="Whether to show sounds")
     show_skip_button: bool = Field(True, description="Whether to show skip button")
     random_foreign: bool = Field(True, description="Whether to randomly show foreign words")
@@ -65,6 +67,8 @@ class UserLanguageSettingsUpdate(BaseModel):
     show_references: Optional[bool] = None
     show_tags: Optional[bool] = None
     show_tones: Optional[bool] = None
+    show_reading: Optional[bool] = None
+    show_simplified: Optional[bool] = None
     show_sounds: Optional[bool] = None
     show_skip_button: Optional[bool] = None
     random_foreign: Optional[bool] = None

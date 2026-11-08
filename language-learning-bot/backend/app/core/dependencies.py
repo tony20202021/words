@@ -9,6 +9,7 @@ from app.db.repositories.language_repository import LanguageRepository
 from app.db.repositories.user_repository import UserRepository
 from app.db.repositories.word_repository import WordRepository
 from app.db.repositories.statistics_repository import StatisticsRepository
+from app.db.repositories.broadcast_repository import BroadcastRepository
 from app.services.language_service import LanguageService
 from app.services.user_service import UserService
 from app.services.word_service import WordService
@@ -59,6 +60,11 @@ async def get_word_repository(db = Depends(get_db_session)) -> WordRepository:
         WordRepository instance
     """
     return WordRepository(db)
+
+
+async def get_broadcast_repository(db = Depends(get_db_session)) -> BroadcastRepository:
+    """Репозиторий истории рассылок."""
+    return BroadcastRepository(db)
 
 
 async def get_statistics_repository(db = Depends(get_db_session)) -> StatisticsRepository:

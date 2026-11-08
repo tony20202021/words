@@ -53,7 +53,26 @@
       {% if item.type == 'label' %}
         <div class="text-muted small mb-1{% if item.get('align') == 'center' %} text-center{% endif %}">{{ item.text }}</div>
       {% elif item.type == 'foreign' %}
+        {# Две формы написания — значок переключения рядом со словом.
+           Владелец: «реальные тексты без огласовок, нужен промежуточный этап,
+           когда огласовка включается по простому нажатию, без переходов на
+           другой экран». Обе формы уже пришли в карточке, поэтому переключение
+           ничего не запрашивает у сервера.
+           Когда второй формы нет (английский, слово без огласовки) — значка
+           нет вовсе: кнопка, которая ничего не меняет, хуже её отсутствия. #}
+        {% if item.text_simple and item.text_full and item.text_simple != item.text_full %}
+        <div class="word-foreign text-center {% if card.show_answer %}mb-1{% else %}mb-3{% endif %}">
+          <span class="js-foreign-form">{{ item.text }}</span>
+          <button type="button" class="btn btn-link p-0 ms-2 align-middle text-decoration-none"
+                  style="font-size:1.1rem" title="Переключить огласовку"
+                  data-simple="{{ item.text_simple }}" data-full="{{ item.text_full }}"
+                  data-big-simple="{{ card.big_word.word_simple if card.big_word else '' }}"
+                  data-big-full="{{ card.big_word.word_full if card.big_word else '' }}"
+                  onclick="toggleNiqqud(this)">🔤</button>
+        </div>
+        {% else %}
         <div class="word-foreign text-center {% if card.show_answer %}mb-1{% else %}mb-3{% endif %}">{{ item.text }}</div>
+        {% endif %}
       {% elif item.type == 'transcription' %}
         <div class="word-transcription text-center mb-2">{{ item.text }}</div>
       {% elif item.type == 'translation' %}
@@ -279,7 +298,7 @@
    которые ниже не отрисовываются (их показывает отдельная карточка и кнопка),
    поэтому карточка выходила пустой — белый прямоугольник под словом. #}
 {% for extra_group in card.extra_groups or [] %}
-{% if extra_group['items'] | selectattr('type', 'in', ['label', 'extra', 'tag_group']) | list %}
+{% if extra_group['items'] | selectattr('type', 'in', ['label', 'extra', 'tag_group', 'reading']) | list %}
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 px-4">
     {% for item in extra_group['items'] %}
@@ -331,6 +350,31 @@
           {# Радикалы и всё, что не разобралось в строки: направление задаём блоку. #}
           <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
         {% endif %}
+      {% elif item.type == 'reading' %}
+        {# Примеры для чтения — две колонки: номер и текст. Таблицу
+           однокоренных переиспользовать нельзя: там на слово отведено 33%
+           ширины, и предложение в такую колонку не влезает.
+           На предложение приходится две строки: иностранная и под ней русская,
+           чтобы перевод не лез в глаза вместе с текстом. Номер стоит только у
+           иностранной строки — у русской колонка пустая, и видно, что это
+           продолжение, а не следующий пример. #}
+        <table class="table table-sm table-bordered mb-2" dir="ltr">
+          <tbody>
+          {% for row in item.rows %}
+            {% if row.foreign %}
+              <tr>
+                <td class="text-end align-middle text-muted text-nowrap small" style="width:10%">{{ row.marker }}</td>
+                <td class="text-end align-middle word-extra-foreign" dir="rtl">{{ row.foreign }}</td>
+              </tr>
+            {% elif row.ru %}
+              <tr>
+                <td style="width:10%"></td>
+                <td class="text-start align-middle text-muted small" dir="ltr">{{ row.ru }}</td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+          </tbody>
+        </table>
       {% elif item.type == 'tag_group' %}
         {# Группа тега — четыре колонки: номер в частотном словаре, перевод,
            транскрипция, само слово. Строка текущего слова выделена: иначе в
@@ -375,3 +419,4 @@
    подключён из base.html один раз. Здесь ему не место: этот фрагмент целиком
    приезжает по hx-swap, а <script> внутри свопнутого фрагмента браузер
    выполняет заново — обработчики на document копились с каждым ответом. #}
+

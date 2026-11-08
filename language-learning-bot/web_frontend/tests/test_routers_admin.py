@@ -50,6 +50,9 @@ def _make_bls():
         {"id": "lang1", "name_ru": "Китайский", "name_foreign": "中文"},
     ])
     bls.get_settings = AsyncMock(return_value={"receive_messages": True})
+    # История рассылок: запись при отправке и чтение на отдельной странице.
+    bls.add_broadcast = AsyncMock(return_value={"id": "b1"})
+    bls.get_broadcasts = AsyncMock(return_value=[])
     bls.admin_create_language = AsyncMock(return_value={"ok": True, "result": {"id": "new1"}})
     bls.admin_update_language = AsyncMock(return_value={"ok": True})
     bls.admin_delete_language = AsyncMock(return_value={"ok": True})

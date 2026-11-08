@@ -317,6 +317,8 @@ async def select_language(callback: CallbackQuery, state: FSMContext, bls_user_i
         f"   • Радикалы: <b>{b(s.get('show_radicals', True))}</b>",
         f"   • Ссылки: <b>{b(s.get('show_references', True))}</b>",
         f"   • Тоны: <b>{b(s.get('show_tones', True))}</b>",
+        f"   • Предложения для чтения: <b>{b(s.get('show_reading', True))}</b>",
+        f"   • Упрощённое написание: <b>{b(s.get('show_simplified', True))}</b>",
         f"   • Звуки: <b>{b(s.get('show_sounds', True))}</b>",
         f"   • Доп. транскрипция: <b>{b(s.get('random_transcription', True))}</b>",
         f"   • Доп. звук: <b>{b(s.get('random_sound', True))}</b>",

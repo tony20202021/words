@@ -36,6 +36,8 @@ class SettingsActivity : AppCompatActivity() {
             "show_references"               to "Показывать ссылки",
         "show_tags"                     to "Показывать группы слов",
             "show_tones"                    to "Показывать тоны",
+            "show_reading"                  to "Показывать предложения для чтения",
+            "show_simplified"               to "Показывать упрощённое написание",
             "show_sounds"                   to "Показывать звуки",
             "random_transcription"          to "Доп. использовать транскрипцию",
             "random_sound"                  to "Доп. использовать звук",
@@ -51,6 +53,11 @@ class SettingsActivity : AppCompatActivity() {
         // читал бы «Получать сообщения: нет» там, где на деле «да».
         val TOGGLE_DEFAULTS = mapOf(
             "receive_messages" to true,
+            // Обе новые галки на сервере включены по умолчанию. Без этой
+            // строки экран настроек показывал бы «нет» там, где на деле «да»,
+            // и человек искал бы, почему блок предложений всё равно виден.
+            "show_reading" to true,
+            "show_simplified" to true,
         )
 
         // Чего ждать, если значение не пришло. Ноль здесь был бы ложью: «слов в

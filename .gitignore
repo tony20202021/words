@@ -96,6 +96,20 @@ words/data/eng_freq/*
 !words/data/eng_freq/dropped.json
 !words/data/eng_freq/rejected.json
 !words/data/eng_freq/names.txt
+
+# Предложения для чтения. Это ровно то же, что переводы английского: их не
+# восстановить ничем. Сочинены порциями в диалоге, по пять на слово, каждая
+# порция проверена сторожем состава; иврит — 1500 штук на 300 слов. Правило
+# words/data/* их глотало, и без этих строк дневная работа в коммит бы не
+# попала — в точности как 08.11 чуть не выпали 2765 переводов.
+!words/data/reading/
+words/data/reading/*
+!words/data/reading/he/
+!words/data/reading/en/
+words/data/reading/he/*
+words/data/reading/en/*
+!words/data/reading/he/sentences.json
+!words/data/reading/en/sentences.json
 # Готовый словарь eng10k.json НЕ коммитится: три мегабайта, и он целиком
 # выводится из файлов выше одной командой build_dictionary.py. Хранить его
 # значит переписывать три мегабайта при каждой пересборке.

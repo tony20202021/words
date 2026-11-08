@@ -65,6 +65,14 @@ data class CardItem(
     val text: String,
     val variant: String? = null,
     val align: String? = null,
+    // Две формы написания одного слова: упрощённая (иврит без огласовки, как
+    // пишут в жизни) и полная (с огласовкой). Приходят ОБЕ, потому что
+    // переключение клиентское: карточки пререндерятся в офлайн-партию, и
+    // форма, которой в партии нет, в офлайне не появилась бы никогда.
+    // Пусто — у языка второй формы нет, и переключателя быть не должно.
+    val text_simple: String? = null,
+    val text_full: String? = null,
+    val simplified_first: Boolean = true,
 )
 
 data class ExtraRow(
@@ -104,6 +112,10 @@ data class ExtraContentItem(
 data class BigWord(
     val word: String,
     val transcription: String,
+    // Те же две формы, что и у элемента foreign: крупное написание — то же
+    // самое слово, и переключаться должно вместе с ним.
+    val word_simple: String = "",
+    val word_full: String = "",
 )
 
 data class CardButton(

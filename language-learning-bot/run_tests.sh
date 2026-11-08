@@ -34,6 +34,12 @@ COMPONENT_DIRS = {
     # списка «to», «a», «in», «is», и на остатке, уходящем в перевод, этого
     # было не видно вовсе.
     "eng": PROJECT_ROOT.parent / "words" / "eng_tools",
+    # Тексты для чтения. Сторож состава — единственное, что отделяет понятный
+    # текст от непонятного: предложение собрано только из слов, которые человек
+    # уже прошёл, и проверить это может лишь машина — у сочиняющего лишнее
+    # слово проскакивает незаметно. Без прогона в общем наборе первая же
+    # правка морфологии развалила бы проверку молча.
+    "reading": PROJECT_ROOT.parent / "words" / "reading",
     "telegram": PROJECT_ROOT / "telegram_bot",
     "web": PROJECT_ROOT / "web_frontend",
     "backend": PROJECT_ROOT / "backend",
@@ -47,7 +53,7 @@ def setup_parser():
         "--component",
         "-c",
         choices=["bls", "telegram", "web", "backend", "common", "android", "hebrew",
-                 "tts", "eng", "all"],
+                 "tts", "eng", "reading", "all"],
         default="all",
         help="Component to test (default: all)",
     )
@@ -93,8 +99,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 464, "telegram": 256, "web": 205, "backend": 192, "common": 201,
-    "hebrew": 73, "android": 282, "tts": 18, "eng": 34,
+    "bls": 476, "telegram": 259, "web": 217, "backend": 198, "common": 208,
+    "hebrew": 73, "android": 287, "tts": 18, "eng": 34, "reading": 37,
 }
 
 
@@ -226,6 +232,33 @@ def run_eng_tests(args):
     return run_component_tests("eng", COMPONENT_DIRS["eng"], args)
 
 
+def run_reading_tests(args):
+    return run_component_tests("reading", COMPONENT_DIRS["reading"], args)
+
+
+def android_failed_tests(directory):
+    """Павшие проверки из отчётов gradle: [(имя, сообщение)]."""
+    import xml.etree.ElementTree as ET
+    out = []
+    отчёты = (directory / "app" / "build" / "test-results" / "testDebugUnitTest")
+    if not отчёты.is_dir():
+        return out
+    for f in sorted(отчёты.glob("*.xml")):
+        try:
+            корень = ET.parse(f).getroot()
+        except Exception:
+            continue
+        for tc in корень.iter("testcase"):
+            узел = tc.find("failure")
+            if узел is None:
+                узел = tc.find("error")
+            if узел is None:
+                continue
+            класс = (tc.get("classname") or "").split(".")[-1]
+            out.append((f"{класс}.{tc.get('name')}", узел.get("message") or ""))
+    return out
+
+
 def run_android_tests(args):
     """JVM-тесты андроида (gradle testDebugUnitTest) — без эмулятора."""
     directory = COMPONENT_DIRS["android"]
@@ -251,6 +284,23 @@ def run_android_tests(args):
         # сервисы делили с ним память. Гасим сразу — и при упавшем прогоне тоже.
         subprocess.run(["./gradlew", "--stop", "-q"])
     if code != 0:
+        # Почему упало — надо сказать вслух. С -q gradle молчит, и падение
+        # выглядит как «android tests failed» без единой подробности: 08.11.2026
+        # на этом ушло полчаса, а причина была не в тестах вовсе — ни один не
+        # упал, спор шёл за блокировку gradle. Если отчёты есть, называем
+        # павшие проверки; если их нет, честно говорим, что дело не в тестах.
+        павшие = android_failed_tests(directory)
+        if павшие:
+            print(f"\n  упавших проверок: {len(павшие)}")
+            for имя, сообщение in павшие[:10]:
+                print(f"    {имя}")
+                if сообщение:
+                    print(f"      {сообщение[:160]}")
+        else:
+            print("\n  ни одна проверка не упала — дело не в тестах, "
+                  "а в самой сборке.")
+            print("  Повторите без подавления вывода: "
+                  "python run_tests.sh --component android --verbose")
         return code
     if args.specific:
         return 0
@@ -277,11 +327,12 @@ def main():
         "hebrew": run_hebrew_tests,
         "tts": run_tts_tests,
         "eng": run_eng_tests,
+        "reading": run_reading_tests,
     }
 
     if args.component == "all":
         components = ["bls", "telegram", "web", "backend", "common", "hebrew",
-                      "tts", "eng", "android"]
+                      "tts", "eng", "reading", "android"]
     else:
         components = [args.component]
 

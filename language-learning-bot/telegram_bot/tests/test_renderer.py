@@ -310,3 +310,55 @@ def test_extra_block_without_rows_still_renders():
     ]}
     assert "水 — вода" in "\n".join(render_extra_texts(card))
 
+
+
+# ── примеры для чтения ──────────────────────────────────────────────────────
+#
+# Новый тип блока. В Telegram у рендереров есть свойство, которое уже один раз
+# стоило показа: тип без рендерера проходит через _warn_unknown_type и ИСЧЕЗАЕТ
+# с экрана. Так пропадали запрещённые дистракторы — в логе предупреждение, у
+# пользователя пусто. Поэтому проверка требует не «не упало», а чтобы текст
+# предложений был в сообщении.
+
+БЛОК_ЧТЕНИЯ = {
+    "type": "reading", "group": "reading",
+    "rows": [
+        {"marker": "1", "rank": 1, "foreign": "יש זמן", "ru": ""},
+        {"marker": "", "rank": None, "foreign": "", "ru": "Время есть."},
+        {"marker": "2", "rank": 2, "foreign": "זמן טוב", "ru": ""},
+        {"marker": "", "rank": None, "foreign": "", "ru": "Хорошее время."},
+    ],
+}
+
+
+def test_примеры_для_чтения_не_исчезают():
+    from app.bot.renderer import render_extra_texts
+    тексты = render_extra_texts({"extra_content": [
+        {"type": "label", "text": "📖 Примеры для чтения:", "group": "reading"},
+        БЛОК_ЧТЕНИЯ,
+    ]})
+    собрано = "\n".join(тексты)
+    assert "יש זמן" in собрано, "предложение пропало из сообщения"
+    assert "Время есть." in собрано, "перевод пропал из сообщения"
+
+
+def test_перевод_идёт_своей_строкой_под_предложением():
+    """Тот же порядок, что в приложении и на сайте: текст, под ним перевод."""
+    from app.bot.renderer import _reading_text
+    строки = _reading_text(БЛОК_ЧТЕНИЯ).split("\n")
+    assert len(строки) == 4
+    assert строки[0].startswith("1.") and "יש זמן" in строки[0]
+    assert строки[1] == "<i>Время есть.</i>"
+
+
+def test_текст_предложения_экранируется():
+    """
+    Сообщение уходит с parse_mode=HTML, а предложения — данные. Символ «<» в
+    примере ломал бы разбор, и карточка не показалась бы вовсе.
+    """
+    from app.bot.renderer import _reading_text
+    вышло = _reading_text({"rows": [
+        {"marker": "1", "foreign": "a < b", "ru": ""},
+        {"marker": "", "foreign": "", "ru": "a & b"},
+    ]})
+    assert "&lt;" in вышло and "&amp;" in вышло

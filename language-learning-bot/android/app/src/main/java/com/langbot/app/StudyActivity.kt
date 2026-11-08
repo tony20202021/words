@@ -1202,7 +1202,7 @@ class StudyActivity : AppCompatActivity() {
 
         for (item in card.content) {
             when (item.type) {
-                "foreign"       -> addText(item.text, 44f, true, Gravity.CENTER)
+                "foreign"       -> addForeignWord(item)
                 "translation"   -> addText(item.text, 22f, false, Gravity.CENTER)
                 "transcription" -> addText(item.text, 22f, false, Gravity.CENTER, "#666666")
                 "label"         -> addText(item.text, 13f, false, Gravity.START, "#888888")
@@ -1585,6 +1585,11 @@ class StudyActivity : AppCompatActivity() {
 
         // bigWordArea is no longer standalone — big_word is shown in extraCardsArea
         binding.bigWordArea.visibility = View.GONE
+        // Ссылка на крупное слово живёт ровно одну карточку: без сброса значок
+        // новой карточки менял бы текст в виде предыдущей.
+        bigWordView = null
+        bigWordSimple = ""
+        bigWordFull = ""
 
         // Extra content — web order: radicals → references → tones; one card per group
         // big_word gets its own card at the top
@@ -1617,6 +1622,12 @@ class StudyActivity : AppCompatActivity() {
             tvBig.setTypeface(null, android.graphics.Typeface.BOLD)
             tvBig.gravity = Gravity.CENTER
             inner.addView(tvBig)
+            // Значок переключения стоит у обычного написания выше; крупное
+            // слово — то же самое, и менять его надо тем же нажатием, иначе на
+            // одном экране окажутся две разные записи одного слова.
+            bigWordView = tvBig
+            bigWordSimple = bw.word_simple.ifEmpty { bw.word }
+            bigWordFull = bw.word_full.ifEmpty { bw.word }
             if (bw.transcription.isNotEmpty()) {
                 val tvTr = TextView(this)
                 tvTr.text = "[${bw.transcription}]"
@@ -1659,6 +1670,13 @@ class StudyActivity : AppCompatActivity() {
                         // подсвечена — иначе в списке из двадцати одного
                         // числительного своё не найти.
                         addTagTable(inner, item.rows ?: emptyList())
+                    }
+                    "reading" -> {
+                        // Две колонки вместо четырёх. Таблицу однокоренных
+                        // переиспользовать нельзя: там на слово отведено 3/10
+                        // ширины, и предложение в такую колонку не влезает —
+                        // оно рвалось бы по слову на строку.
+                        addReadingTable(inner, item.rows ?: emptyList())
                     }
                     "extra" -> {
                         val rows = item.rows
@@ -2042,6 +2060,77 @@ class StudyActivity : AppCompatActivity() {
         addText(msg, 14f, false, Gravity.CENTER, "#D32F2F")
     }
 
+    /**
+     * Слово на иностранном и — если форм две — значок переключения рядом.
+     *
+     * Владелец: «реальные тексты без огласовок, нужен промежуточный этап,
+     * когда огласовка включается по простому нажатию, без лишних скроллов и
+     * переходов на другой экран». Поэтому переключение здесь же, на карточке,
+     * и ничего не запрашивает у сервера: обе формы уже пришли, значит это
+     * работает и офлайн.
+     *
+     * Почему значок, а не нажатие на само слово. Нажатие по блоку карточки уже
+     * занято увеличением (makeZoomable -> openCardZoom), и отнимать привычный
+     * жест ради новой возможности — плохой размен. Значка раньше не было, он
+     * ничего не отнимает.
+     *
+     * Когда вторая форма не пришла (английский, да и любое слово без
+     * огласовки) — значка нет вовсе: кнопка, которая ничего не меняет, хуже
+     * её отсутствия.
+     */
+    private fun addForeignWord(item: com.langbot.app.network.CardItem) {
+        val простая = item.text_simple?.trim().orEmpty()
+        val полная = item.text_full?.trim().orEmpty()
+        if (простая.isEmpty() || полная.isEmpty() || простая == полная) {
+            addText(item.text, 44f, true, Gravity.CENTER)
+            return
+        }
+
+        val строка = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        var упрощённое = item.simplified_first
+        val tv = TextView(this)
+        tv.text = if (упрощённое) простая else полная
+        tv.textSize = 44f
+        tv.setTypeface(null, android.graphics.Typeface.BOLD)
+        tv.gravity = Gravity.CENTER
+        tv.layoutParams = LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+        val значок = TextView(this)
+        значок.text = "🔤"
+        значок.textSize = 20f
+        значок.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+        значок.contentDescription = "Переключить огласовку"
+        значок.setOnClickListener {
+            упрощённое = !упрощённое
+            tv.text = if (упрощённое) простая else полная
+            // Крупное написание — то же слово, и ехать должно вместе с ним.
+            bigWordView?.text = if (упрощённое) bigWordSimple else bigWordFull
+        }
+        // Пустышка слева той же ширины, что значок справа. Без неё слово
+        // съезжает влево ровно на ширину значка: оно центрируется в остатке
+        // строки, а не в строке. На снимке это было видно сразу.
+        val уравновес = View(this)
+        уравновес.layoutParams = LinearLayout.LayoutParams(
+            dpToPx(36), LinearLayout.LayoutParams.WRAP_CONTENT)
+        строка.addView(уравновес)
+        строка.addView(tv)
+        строка.addView(значок)
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        lp.bottomMargin = 8
+        строка.layoutParams = lp
+        binding.cardContent.addView(строка)
+    }
+
+    /** Крупное написание: держим ссылку, чтобы значок переключал и его. */
+    private var bigWordView: TextView? = null
+    private var bigWordSimple: String = ""
+    private var bigWordFull: String = ""
+
     private fun addText(text: String, sizeSp: Float, bold: Boolean, gravity: Int,
                         colorHex: String? = null) {
         val tv = TextView(this)
@@ -2227,6 +2316,74 @@ class StudyActivity : AppCompatActivity() {
                 else -> "🔊 ▶ ${i + 1}"
             }
         }
+    }
+
+    /**
+     * Примеры для чтения: номер и текст, две колонки.
+     *
+     * На предложение приходится ДВЕ строки: иностранная и под ней русская.
+     * Так перевод не лезет в глаза вместе с текстом — владелец просил именно
+     * этого. Номер стоит только у иностранной строки; у русской колонка номера
+     * пустая, и видно, что это продолжение, а не следующий пример.
+     *
+     * Какая строка какая — видно по тому, какое поле заполнено: сервер кладёт
+     * текст в foreign, перевод в ru, и вторым полем строки всегда пусто.
+     */
+    private fun addReadingTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            background = GradientDrawable().apply {
+                setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
+                setColor(Color.TRANSPARENT)
+            }
+        }
+        for (row in rows) {
+            val иностранная = row.foreign.isNotBlank()
+            val текст = if (иностранная) row.foreign else row.ru
+            if (текст.isBlank()) continue
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutDirection = View.LAYOUT_DIRECTION_LTR
+            }
+
+            val номер = TextView(this)
+            номер.text = row.marker
+            номер.textSize = 13f
+            номер.setTextColor(Color.parseColor("#777777"))
+            номер.maxLines = 1
+            номер.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            номер.layoutParams = LinearLayout.LayoutParams(dpToPx(28),
+                LinearLayout.LayoutParams.MATCH_PARENT)
+
+            val tv = TextView(this)
+            tv.text = текст
+            // Иностранная строка крупнее: ради неё блок и заведён, а русская
+            // под ней — служебная, и своим размером не должна с ней спорить.
+            tv.textSize = if (иностранная) 20f else 14f
+            if (!иностранная) tv.setTextColor(Color.parseColor("#777777"))
+            // Направление по строке, а не по абзацу: иврит и русский идут
+            // разными строками, и каждая должна прижиматься к своему краю.
+            tv.textDirection = if (иностранная) View.TEXT_DIRECTION_RTL
+                               else View.TEXT_DIRECTION_LTR
+            tv.textAlignment = if (иностранная) View.TEXT_ALIGNMENT_VIEW_END
+                               else View.TEXT_ALIGNMENT_VIEW_START
+            tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            tv.layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+            line.addView(номер)
+            line.addView(tv)
+            line.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT)
+            table.addView(line)
+        }
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        lp.topMargin = dpToPx(4)
+        table.layoutParams = lp
+        parent.addView(table)
     }
 
     private fun addTagTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {

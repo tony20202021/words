@@ -1,7 +1,10 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Рассылка{% endblock %}
 {% block admin_content %}
-<h4 class="mb-4">📢 Рассылка сообщений</h4>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">📢 Рассылка сообщений</h4>
+  <a href="/admin/broadcasts" class="btn btn-outline-secondary btn-sm">📜 История</a>
+</div>
 
 {% if done %}
 <div class="alert {% if sent > 0 %}alert-success{% else %}alert-warning{% endif %}">

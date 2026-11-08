@@ -1,0 +1,50 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}История рассылок{% endblock %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">📜 История рассылок</h4>
+  <a href="/admin/broadcast" class="btn btn-primary btn-sm">📢 Отправить новую</a>
+</div>
+
+{% if not broadcasts %}
+  {# Пустая история до 08.11.2026 — не поломка: рассылки просто не сохранялись,
+     и отправленное раньше восстановить неоткуда. #}
+  <div class="alert alert-secondary">
+    Пока пусто. Сообщения, отправленные до того, как завелась история,
+    нигде не сохранялись — показать их неоткуда.
+  </div>
+{% else %}
+  <p class="text-muted small">Всего записей: {{ broadcasts|length }}</p>
+  {% for b in broadcasts %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <span class="badge bg-{% if b.sent_count > 0 %}success{% else %}warning text-dark{% endif %}">
+            отправлено: {{ b.sent_count }}
+          </span>
+          <span class="badge bg-light text-dark">кому: {{ b.recipient_name }}</span>
+          <span class="badge bg-light text-dark">{{ b.language_name }}</span>
+        </div>
+        <small class="text-muted">{{ b.sent_at }}</small>
+      </div>
+
+      <div class="border rounded p-2 bg-light" style="white-space: pre-wrap">{{ b.text }}</div>
+
+      {% if b.skipped %}
+      <div class="mt-2 small">
+        <strong>Не отправлено по их же настройке:</strong>
+        <ul class="mb-0">{% for s in b.skipped %}<li>{{ s }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if b.errors %}
+      <div class="mt-2 small text-danger">
+        <strong>Ошибки:</strong>
+        <ul class="mb-0">{% for e in b.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

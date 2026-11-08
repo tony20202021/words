@@ -324,6 +324,18 @@ async def _wants_messages(bls, uid: str, language_id: str) -> bool:
     return bool(s.get("receive_messages", True))
 
 
+@router.get("/broadcasts")
+async def broadcasts_page(request: Request):
+    """История отправленных рассылок."""
+    user_id, redirect = _require_admin(request)
+    if redirect:
+        return redirect
+    bls = get_bls_client()
+    return _render(request, "admin/broadcasts.html", {
+        "broadcasts": await bls.get_broadcasts(user_id, limit=100),
+    })
+
+
 @router.post("/broadcast/send")
 async def broadcast_send(request: Request, text: str = Form(...),
                          recipient: str = Form("all"),
@@ -367,6 +379,31 @@ async def broadcast_send(request: Request, text: str = Form(...),
                 errors.append(f"{u['name']} → {r.json().get('description', '?')}")
         except Exception as e:
             errors.append(f"{u['name']} → {type(e).__name__}")
+
+    # История пишется всегда, в том числе когда не ушло ничего: «отправлено 0»
+    # без записи выглядит как сбой, а причина — отказ человека от сообщений —
+    # видна только здесь. Отчёт на странице живёт до перезагрузки, запись —
+    # сколько нужно.
+    кому = "всем" if recipient == "all" else next(
+        (u["name"] for u in цель), recipient)
+    язык = "независимо от языка" if language_id == "any" else next(
+        (l.get("name_ru", "") for l in languages if str(l.get("id")) == language_id),
+        language_id)
+    try:
+        await bls.add_broadcast(user_id, {
+            "text": text,
+            "sent_by": user_id,
+            "recipient": recipient,
+            "recipient_name": кому,
+            "language_id": language_id,
+            "language_name": язык,
+            "sent_count": sent,
+            "skipped": skipped,
+            "errors": errors,
+        })
+    except Exception as e:                      # история не должна ломать отправку
+        errors.append(f"рассылка ушла, но в историю не записалась: "
+                      f"{type(e).__name__}")
 
     return _render(request, "admin/broadcast.html", {
         "sent": sent, "errors": errors, "skipped": skipped, "done": True,

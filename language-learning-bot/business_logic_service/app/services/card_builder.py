@@ -4,6 +4,7 @@ Clients (web, Telegram) render whatever this returns; they contain no display lo
 """
 
 import json
+import random
 import re
 from typing import Any, Dict, List
 from app.hint_constants import HINT_ORDER, HINT_SETTINGS_MAP, HINT_ICONS, HINT_TYPE_MAP
@@ -62,7 +63,7 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
     show_skip = settings.get("show_skip_button", True)
     if not show_answer:
-        _add_before_answer(content, word, show_mode)
+        _add_before_answer(content, word, show_mode, settings)
         sounds = all_sounds if show_mode == "sound" else []
         _add_hints(content, word, uwd, settings)
         buttons = _buttons_before(is_skipped, show_skip)
@@ -76,8 +77,13 @@ def build_card(session: Dict[str, Any], word: Dict[str, Any], show_answer: bool)
 
     big_word = None
     if show_answer and settings.get("show_big", False) and (word or {}).get("word_foreign"):
+        формы = _foreign_forms(word, settings)
         big_word = {
-            "word": word.get("word_foreign", ""),
+            # Крупное написание — то же самое слово, значит и форма та же:
+            # иначе на одном экране стояли бы две разные записи одного слова.
+            "word": формы["text"],
+            "word_simple": формы.get("text_simple", ""),
+            "word_full": формы.get("text_full", ""),
             "transcription": word.get("transcription") or "",
         }
 
@@ -192,7 +198,33 @@ def primary_meaning(translation: str) -> str:
     return (translation or "").split("\n", 1)[0].strip()
 
 
-def _add_before_answer(content: list, word: dict, show_mode: str) -> None:
+def _foreign_forms(word: dict, settings: dict) -> Dict[str, Any]:
+    """Элемент foreign: обе формы написания и какая показывается первой.
+
+    Владелец: «реальные тексты без огласовок, нужен промежуточный этап — когда
+    огласовка включается по простому нажатию». Значит обе формы нужны на экране
+    одновременно, а не по запросу к серверу: карточки пререндерятся в офлайн-
+    партию, и форма, которой в партии нет, в офлайне не появится никогда.
+    Поэтому кладём обе, а переключение остаётся клиентским.
+
+    Когда формы совпадают — огласовки в слове нет вовсе, как у английского, —
+    второй формы не отдаём: иконка была бы кнопкой, которая ничего не делает.
+    """
+    полная = (word.get("word_foreign") or "")
+    простая = (word.get("word_foreign_simple") or "").strip()
+    if not простая or простая == полная.strip():
+        return {"text": полная}
+    простой_первым = bool(settings.get("show_simplified", True))
+    return {
+        "text": простая if простой_первым else полная,
+        "text_simple": простая,
+        "text_full": полная,
+        "simplified_first": простой_первым,
+    }
+
+
+def _add_before_answer(content: list, word: dict, show_mode: str,
+                       settings: dict | None = None) -> None:
     if show_mode == "translation":
         content.append({"type": "label", "text": "🔍 Слово на русском:"})
         # Только основное значение: полный перевод с другими чтениями
@@ -205,7 +237,7 @@ def _add_before_answer(content: list, word: dict, show_mode: str) -> None:
         content.append({"type": "label", "text": "🎧 Угадайте слово по звуку:", "align": "center"})
     else:
         content.append({"type": "label", "text": "📝 Слово на иностранном:"})
-        content.append({"type": "foreign", "text": word.get("word_foreign", "")})
+        content.append({"type": "foreign", **_foreign_forms(word, settings or {})})
 
 
 POS_FULL = {
@@ -374,7 +406,7 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
         content.append({"type": "label", "text": "🔊 Транскрипция:"})
         content.append({"type": "transcription", "text": f"[{word.get('transcription')}]"})
     content.append({"type": "label", "text": "📝 Слово на иностранном:"})
-    content.append({"type": "foreign", "text": word.get("word_foreign", "")})
+    content.append({"type": "foreign", **_foreign_forms(word, settings)})
     # Часть речи и словарная форма — тип label, потому что его рисуют все три
     # клиента; новый тип пришлось бы добавлять в каждый.
     grammar = _grammar_note(word)
@@ -411,6 +443,46 @@ def _add_after_answer(content: list, word: dict, settings: dict, extra: list,
         extra.append({"type": "extra", "text": word.get("radicals"), "group": "radicals"})
     if settings.get("show_tags", True):
         _add_tag_groups(word, extra, words_studied)
+    _add_reading(word, extra, settings)
+
+
+# Сколько примеров показывать за раз. Сочинено по пять на слово, но запас может
+# дорасти до десяти, и тогда одни и те же пять надоедают: показываем выборку.
+ЧТЕНИЕ_ПОКАЗЫВАТЬ = 5
+
+
+def _add_reading(word: dict, extra: list, settings: dict) -> None:
+    """Примеры для чтения — предложения только из уже пройденных слов.
+
+    Зачем это на карточке. Разбор Крашена (задача 33) сводится к одному: язык
+    усваивается из понятного ввода, а не из упражнений. Отдельное слово ввода не
+    образует — нужна фраза, и обязательно понятная целиком. Поэтому предложения
+    собраны заранее из слов с номером не больше этого (words/reading), состав
+    проверен машинно, и на карточку они едут готовыми.
+
+    Строк на предложение ДВЕ: иностранная и под ней русская. Так переводы не
+    лезут в глаза вместе с текстом — владелец просил именно этого. Номер стоит
+    только у иностранной строки, русская идёт без номера, под ней.
+    """
+    if not settings.get("show_reading", True):
+        return
+    предложения = [п for п in (word.get("reading_sentences") or [])
+                   if (п or {}).get("text")]
+    if not предложения:
+        return
+    if len(предложения) > ЧТЕНИЕ_ПОКАЗЫВАТЬ:
+        предложения = random.sample(предложения, ЧТЕНИЕ_ПОКАЗЫВАТЬ)
+    rows = []
+    for i, п in enumerate(предложения, 1):
+        rows.append({"marker": str(i), "rank": i,
+                     "foreign": п.get("text", ""), "ru": ""})
+        # Перевод отдельной строкой и без номера: номер связывает её с
+        # предложением выше, а повтор номера читался бы как шестой пример.
+        rows.append({"marker": "", "rank": None,
+                     "foreign": "", "ru": п.get("ru", "")})
+    extra.append({"type": "label", "text": "📖 Примеры для чтения:",
+                  "group": "reading"})
+    extra.append({"type": "reading", "group": "reading", "rows": rows})
 
 
 def _add_tag_groups(word: dict, extra: list, words_studied: int = 0) -> None:

@@ -300,3 +300,92 @@ def test_a_system_wide_message_reaches_everyone(telegram):
     assert 111 in telegram.chat_ids, \
         "общесистемное письмо не дошло из-за настройки про язык"
     assert 333 in telegram.chat_ids
+
+
+# ── История рассылок ────────────────────────────────────────────────────────
+
+def test_a_sent_broadcast_is_written_to_history(telegram):
+    """
+    Рассылка уходит в телеграм и нигде не остаётся. 08.11.2026 владелец
+    отправил четыре сообщения, и восстановить их тексты было уже неоткуда:
+    отчёт об отправке живёт одну страницу и исчезает с перезагрузкой.
+    """
+    bls = _make_bls()
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "привет", "recipient": "all", "language_id": "any"})
+
+    assert r.status_code == 200
+    bls.add_broadcast.assert_awaited_once()
+    (переданный_админ, запись), _ = bls.add_broadcast.await_args
+    assert переданный_админ == "admin-1"
+    assert запись["text"] == "привет"
+    assert запись["recipient"] == "all"
+    assert "sent_count" in запись
+
+
+def test_history_is_written_even_when_nothing_was_sent(telegram):
+    """
+    Самый нужный случай. «Отправлено 0» выглядит поломкой, а причина — отказ
+    человека от сообщений — видна только в записи. Если не писать историю при
+    нуле, разбираться будет не с чем.
+    """
+    # Нужна заглушка с живыми получателями: без них рассылка не дойдёт до
+    # проверки настройки, и пропускать будет некого.
+    bls = _bls_with_users()
+    bls.get_settings = AsyncMock(return_value={"receive_messages": False})
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "текст", "recipient": "all", "language_id": "lang1"})
+
+    assert r.status_code == 200
+    bls.add_broadcast.assert_awaited_once()
+    (_, запись), _ = bls.add_broadcast.await_args
+    assert запись["sent_count"] == 0
+    assert запись["skipped"], "пропуски не записаны — разбираться будет не с чем"
+
+
+def test_a_broken_history_does_not_break_the_broadcast(telegram):
+    """
+    Опора: запись в историю второстепенна. Если она не удалась, сообщения уже
+    ушли людям, и падать страницей поздно — надо сказать об этом и показать
+    отчёт.
+    """
+    bls = _make_bls()
+    bls.add_broadcast = AsyncMock(side_effect=RuntimeError("база недоступна"))
+    r, _ = _post(ADMIN_SESSION, "/admin/broadcast/send", bls=bls,
+                 data={"text": "привет", "recipient": "all", "language_id": "any"})
+
+    assert r.status_code == 200, "падение истории уронило страницу рассылки"
+    assert "в историю не записалась" in r.text
+
+
+def test_the_history_page_shows_what_was_sent():
+    bls = _make_bls()
+    bls.get_broadcasts = AsyncMock(return_value=[{
+        "id": "b1", "text": "вышла версия 6", "sent_at": "2026-11-08 09:56",
+        "recipient_name": "всем", "language_name": "независимо от языка",
+        "sent_count": 3, "skipped": [], "errors": [],
+    }])
+    r, _ = _get(ADMIN_SESSION, "/admin/broadcasts", bls=bls)
+
+    assert r.status_code == 200, r.text[:300]
+    assert "вышла версия 6" in r.text
+    assert "всем" in r.text
+    bls.get_broadcasts.assert_awaited_once_with("admin-1", limit=100)
+
+
+def test_the_empty_history_explains_itself():
+    """
+    Пустая история — не поломка: до 08.11.2026 рассылки не сохранялись вовсе.
+    Человек должен прочесть это, а не гадать, куда делись отправленные письма.
+    """
+    bls = _make_bls()
+    r, _ = _get(ADMIN_SESSION, "/admin/broadcasts", bls=bls)
+
+    assert r.status_code == 200
+    assert "нигде не сохранялись" in r.text
+
+
+def test_the_history_is_closed_to_non_admins():
+    bls = _make_bls()
+    r, _ = _get(USER_SESSION, "/admin/broadcasts", bls=bls, follow_redirects=False)
+    assert r.status_code in (302, 303, 307), "история открыта не админу"

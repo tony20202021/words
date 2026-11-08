@@ -112,6 +112,16 @@ def pick_session(**over):
     )
 
 
+# Предложения для чтения — собраны заранее (words/reading) только из слов, до
+# которых человек уже дошёл. Здесь три настоящих примера к слову זְמַן «время»:
+# пяти в снимке хватило бы, чтобы вытеснить всё остальное за край экрана.
+READING = [
+    {"text": "יש זמן", "ru": "Время есть."},
+    {"text": "אין יותר זמן", "ru": "Больше нет времени."},
+    {"text": "כמה זמן עוד", "ru": "Сколько ещё времени?"},
+]
+
+
 # Отбор сценариев — по журналу дефектов: каждый снимок стоит на месте, где уже
 # что-то ломалось, либо на краю, где ломается обычно (единица, длинный текст,
 # спецсимволы разметки).
@@ -161,6 +171,21 @@ CASES = {
                                  # предлогом со словарной формой עם.
                                  part_of_speech="числ", lemma="שלוש",
                                  tag_groups=TAG_GROUPS), True),
+
+    # Предложения для чтения и переключение огласовки — обе новые вещи сразу:
+    # на карточке они стоят рядом, и ломает их обычно одно и то же (блок
+    # неизвестного типа тихо исчезает, вторая форма не доезжает до клиента).
+    "reading_niqqud":      (session(show_answer=True, word_processed=True,
+                                    settings={"show_sounds": False, "show_tones": False,
+                                              "show_references": False,
+                                              "show_skip_button": True,
+                                              "show_reading": True,
+                                              "show_simplified": True}),
+                            word(word_foreign="זְמַן", word_foreign_simple="זמן",
+                                 translation="время", transcription="zman",
+                                 word_number=87, part_of_speech="сущ", lemma="זמן",
+                                 tones="", references="",
+                                 reading_sentences=READING), True),
 }
 
 

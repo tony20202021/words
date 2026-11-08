@@ -1,0 +1,530 @@
+{
+ "1": [
+  {
+   "text": "The time is good.",
+   "ru": "Время хорошее."
+  },
+  {
+   "text": "I know the people.",
+   "ru": "Я знаю этих людей."
+  },
+  {
+   "text": "The new time was good.",
+   "ru": "Новое время было хорошим."
+  },
+  {
+   "text": "She has the one.",
+   "ru": "У неё есть тот самый."
+  },
+  {
+   "text": "They want the time.",
+   "ru": "Им нужно время."
+  }
+ ],
+ "2": [
+  {
+   "text": "I want to go.",
+   "ru": "Я хочу пойти."
+  },
+  {
+   "text": "He has to know.",
+   "ru": "Он должен знать."
+  },
+  {
+   "text": "We want to see.",
+   "ru": "Мы хотим увидеть."
+  },
+  {
+   "text": "She will go to him.",
+   "ru": "Она пойдёт к нему."
+  },
+  {
+   "text": "They want to make it.",
+   "ru": "Они хотят это сделать."
+  }
+ ],
+ "3": [
+  {
+   "text": "You and I know.",
+   "ru": "Мы с тобой знаем."
+  },
+  {
+   "text": "He and she were there.",
+   "ru": "Он и она были там."
+  },
+  {
+   "text": "I can see and think.",
+   "ru": "Я могу видеть и думать."
+  },
+  {
+   "text": "This and that.",
+   "ru": "То и это."
+  },
+  {
+   "text": "We have time and people.",
+   "ru": "У нас есть время и люди."
+  }
+ ],
+ "4": [
+  {
+   "text": "Some of them know.",
+   "ru": "Некоторые из них знают."
+  },
+  {
+   "text": "One of my people was there.",
+   "ru": "Один из моих людей был там."
+  },
+  {
+   "text": "All of this was new.",
+   "ru": "Всё это было новым."
+  },
+  {
+   "text": "Two of their people can go.",
+   "ru": "Двое из их людей могут пойти."
+  },
+  {
+   "text": "Some of the time he is good.",
+   "ru": "Иногда он хороший."
+  }
+ ],
+ "5": [
+  {
+   "text": "I want a new one.",
+   "ru": "Я хочу новый."
+  },
+  {
+   "text": "He has a good time.",
+   "ru": "Он хорошо проводит время."
+  },
+  {
+   "text": "She will make a new one.",
+   "ru": "Она сделает новый."
+  },
+  {
+   "text": "This is a good time.",
+   "ru": "Сейчас подходящее время."
+  },
+  {
+   "text": "They want a new one.",
+   "ru": "Они хотят новый."
+  }
+ ],
+ "6": [
+  {
+   "text": "He is in there.",
+   "ru": "Он там внутри."
+  },
+  {
+   "text": "I was in time.",
+   "ru": "Я успел вовремя."
+  },
+  {
+   "text": "They are in there now.",
+   "ru": "Они сейчас там."
+  },
+  {
+   "text": "She will be in time.",
+   "ru": "Она успеет вовремя."
+  },
+  {
+   "text": "We are in this.",
+   "ru": "Мы в этом участвуем."
+  }
+ ],
+ "7": [
+  {
+   "text": "I know you.",
+   "ru": "Я тебя знаю."
+  },
+  {
+   "text": "I want to go now.",
+   "ru": "Я хочу пойти сейчас."
+  },
+  {
+   "text": "I can see them.",
+   "ru": "Я их вижу."
+  },
+  {
+   "text": "I was there.",
+   "ru": "Я был там."
+  },
+  {
+   "text": "I don't know her.",
+   "ru": "Я её не знаю."
+  }
+ ],
+ "8": [
+  {
+   "text": "This is good.",
+   "ru": "Это хорошо."
+  },
+  {
+   "text": "He is my new one.",
+   "ru": "Он мой новый."
+  },
+  {
+   "text": "It is time.",
+   "ru": "Пора."
+  },
+  {
+   "text": "She is there.",
+   "ru": "Она там."
+  },
+  {
+   "text": "What is this?",
+   "ru": "Что это?"
+  }
+ ],
+ "9": [
+  {
+   "text": "This is for you.",
+   "ru": "Это для тебя."
+  },
+  {
+   "text": "I want it for my people.",
+   "ru": "Я хочу это для моих людей."
+  },
+  {
+   "text": "He was there for some time.",
+   "ru": "Он был там некоторое время."
+  },
+  {
+   "text": "It is good for them.",
+   "ru": "Это хорошо для них."
+  },
+  {
+   "text": "We have time for this.",
+   "ru": "У нас есть время на это."
+  }
+ ],
+ "10": [
+  {
+   "text": "I know that.",
+   "ru": "Я это знаю."
+  },
+  {
+   "text": "That is good.",
+   "ru": "Это хорошо."
+  },
+  {
+   "text": "He said that.",
+   "ru": "Он это сказал."
+  },
+  {
+   "text": "I think that we can.",
+   "ru": "Я думаю, что мы можем."
+  },
+  {
+   "text": "That was new.",
+   "ru": "Это было ново."
+  }
+ ],
+ "11": [
+  {
+   "text": "You can go.",
+   "ru": "Ты можешь идти."
+  },
+  {
+   "text": "What do you want?",
+   "ru": "Чего ты хочешь?"
+  },
+  {
+   "text": "You have time.",
+   "ru": "У тебя есть время."
+  },
+  {
+   "text": "I will see you.",
+   "ru": "Я тебя увижу."
+  },
+  {
+   "text": "You said that.",
+   "ru": "Ты это сказал."
+  }
+ ],
+ "12": [
+  {
+   "text": "It is good.",
+   "ru": "Это хорошо."
+  },
+  {
+   "text": "I want it.",
+   "ru": "Я этого хочу."
+  },
+  {
+   "text": "He has it.",
+   "ru": "У него это есть."
+  },
+  {
+   "text": "It was new.",
+   "ru": "Это было новым."
+  },
+  {
+   "text": "Make it good.",
+   "ru": "Сделай это хорошо."
+  }
+ ],
+ "13": [
+  {
+   "text": "I will be on time.",
+   "ru": "Я приду вовремя."
+  },
+  {
+   "text": "He has it on him.",
+   "ru": "Это у него с собой."
+  },
+  {
+   "text": "What is on your back?",
+   "ru": "Что у тебя на спине?"
+  },
+  {
+   "text": "We can go on.",
+   "ru": "Мы можем идти дальше."
+  },
+  {
+   "text": "There is more on this.",
+   "ru": "Об этом есть ещё."
+  }
+ ],
+ "14": [
+  {
+   "text": "I want to go with you.",
+   "ru": "Я хочу пойти с тобой."
+  },
+  {
+   "text": "He is with his people.",
+   "ru": "Он со своими людьми."
+  },
+  {
+   "text": "She was with me at the time.",
+   "ru": "Тогда она была со мной."
+  },
+  {
+   "text": "We have more time with them.",
+   "ru": "С ними у нас больше времени."
+  },
+  {
+   "text": "Think about it with her.",
+   "ru": "Подумай об этом вместе с ней."
+  }
+ ],
+ "15": [
+  {
+   "text": "This is my new one.",
+   "ru": "Это мой новый."
+  },
+  {
+   "text": "Who said this?",
+   "ru": "Кто это сказал?"
+  },
+  {
+   "text": "I don't want this.",
+   "ru": "Я этого не хочу."
+  },
+  {
+   "text": "This was not good.",
+   "ru": "Это было плохо."
+  },
+  {
+   "text": "We can do this.",
+   "ru": "Мы это можем."
+  }
+ ],
+ "16": [
+  {
+   "text": "She was not there.",
+   "ru": "Её там не было."
+  },
+  {
+   "text": "What was that?",
+   "ru": "Что это было?"
+  },
+  {
+   "text": "He was my first one.",
+   "ru": "Он был моим первым."
+  },
+  {
+   "text": "I was just there.",
+   "ru": "Я только что там был."
+  },
+  {
+   "text": "There was more time.",
+   "ru": "Времени было больше."
+  }
+ ],
+ "17": [
+  {
+   "text": "I want to be there.",
+   "ru": "Я хочу быть там."
+  },
+  {
+   "text": "It will be good.",
+   "ru": "Будет хорошо."
+  },
+  {
+   "text": "She can be with us.",
+   "ru": "Она может быть с нами."
+  },
+  {
+   "text": "This will be my first.",
+   "ru": "Это будет мой первый."
+  },
+  {
+   "text": "Do not be like them.",
+   "ru": "Не будь как они."
+  }
+ ],
+ "18": [
+  {
+   "text": "He is as good as her.",
+   "ru": "Он так же хорош, как она."
+  },
+  {
+   "text": "Do it as I said.",
+   "ru": "Сделай, как я сказал."
+  },
+  {
+   "text": "She is not as new as you.",
+   "ru": "Она здесь не такая новенькая, как ты."
+  },
+  {
+   "text": "It was just as good.",
+   "ru": "Было ровно так же хорошо."
+  },
+  {
+   "text": "They want it as it is.",
+   "ru": "Они хотят это как есть."
+  }
+ ],
+ "19": [
+  {
+   "text": "They are my people.",
+   "ru": "Это мои люди."
+  },
+  {
+   "text": "We are not there.",
+   "ru": "Мы не там."
+  },
+  {
+   "text": "You are good.",
+   "ru": "Ты молодец."
+  },
+  {
+   "text": "What are these?",
+   "ru": "Что это такое?"
+  },
+  {
+   "text": "How are you?",
+   "ru": "Как ты?"
+  }
+ ],
+ "20": [
+  {
+   "text": "I have two of them.",
+   "ru": "У меня их два."
+  },
+  {
+   "text": "We have to go now.",
+   "ru": "Нам надо идти."
+  },
+  {
+   "text": "They have more time.",
+   "ru": "У них больше времени."
+  },
+  {
+   "text": "Do you have it?",
+   "ru": "У тебя это есть?"
+  },
+  {
+   "text": "I don't have any.",
+   "ru": "У меня нет ни одного."
+  }
+ ],
+ "21": [
+  {
+   "text": "I will see you at two.",
+   "ru": "Увижу тебя в два."
+  },
+  {
+   "text": "We can be there at any time.",
+   "ru": "Мы можем быть там в любое время."
+  },
+  {
+   "text": "At two they were all there.",
+   "ru": "В два они все были там."
+  },
+  {
+   "text": "At this time it is not good.",
+   "ru": "Сейчас это не годится."
+  },
+  {
+   "text": "At first it was good.",
+   "ru": "Сначала всё было хорошо."
+  }
+ ],
+ "22": [
+  {
+   "text": "He will go with them.",
+   "ru": "Он пойдёт с ними."
+  },
+  {
+   "text": "He can see us.",
+   "ru": "Он нас видит."
+  },
+  {
+   "text": "He said he would go.",
+   "ru": "Он сказал, что пойдёт."
+  },
+  {
+   "text": "He is just like me.",
+   "ru": "Он совсем как я."
+  },
+  {
+   "text": "He will not be there.",
+   "ru": "Его там не будет."
+  }
+ ],
+ "23": [
+  {
+   "text": "This is not for me.",
+   "ru": "Это не для меня."
+  },
+  {
+   "text": "She will not go.",
+   "ru": "Она не пойдёт."
+  },
+  {
+   "text": "I do not know how.",
+   "ru": "Я не знаю как."
+  },
+  {
+   "text": "It is not about you.",
+   "ru": "Дело не в тебе."
+  },
+  {
+   "text": "Not all of them know.",
+   "ru": "Не все из них знают."
+  }
+ ],
+ "24": [
+  {
+   "text": "I know it by now.",
+   "ru": "Я уже это знаю."
+  },
+  {
+   "text": "By then it will be good.",
+   "ru": "К тому времени станет хорошо."
+  },
+  {
+   "text": "She will be there by two.",
+   "ru": "Она будет там к двум."
+  },
+  {
+   "text": "It was said by her.",
+   "ru": "Это сказала она."
+  },
+  {
+   "text": "What was said by them?",
+   "ru": "Что они сказали?"
+  }
+ ]
+}

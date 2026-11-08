@@ -286,6 +286,20 @@ class BLSClient:
                                      params=params, files=files)
             return resp.json() if resp.is_success else {"ok": False, "error": resp.text}
 
+    async def add_broadcast(self, user_id: str, запись: Dict[str, Any]) -> Dict[str, Any]:
+        """Записать отправленную рассылку в историю."""
+        async with httpx.AsyncClient(timeout=20, headers=_service_headers()) as client:
+            resp = await client.post(f"{self.base_url}/admin/broadcasts",
+                                     params={"user_id": user_id}, json=запись)
+            return resp.json() if resp.is_success else {"ok": False, "error": resp.text}
+
+    async def get_broadcasts(self, user_id: str, limit: int = 50) -> list:
+        """История рассылок, новые сверху."""
+        async with httpx.AsyncClient(timeout=20, headers=_service_headers()) as client:
+            resp = await client.get(f"{self.base_url}/admin/broadcasts",
+                                    params={"user_id": user_id, "limit": limit})
+            return resp.json() if resp.is_success else []
+
     # ── Hints ─────────────────────────────────────────────────────────────────
 
     async def get_word_hints(self, user_id: str, word_id: str) -> Dict[str, str]:

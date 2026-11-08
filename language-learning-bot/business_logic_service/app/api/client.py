@@ -140,6 +140,14 @@ class APIClient:
         result = await self._make_request("GET", "/languages")
         return result
         
+    async def add_broadcast(self, запись: Dict) -> Optional[Dict]:
+        """Сохранить отправленную рассылку."""
+        return await self._make_request("POST", "/broadcasts", data=запись)
+
+    async def get_broadcasts(self, limit: int = 50) -> Optional[Dict]:
+        """Последние рассылки, новые сверху."""
+        return await self._make_request("GET", f"/broadcasts?limit={limit}")
+
     async def get_language(self, language_id: str) -> Optional[Dict]:
         """Get language by ID."""
         return await self._make_request("GET", f"/languages/{language_id}")

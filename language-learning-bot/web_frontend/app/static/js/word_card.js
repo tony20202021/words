@@ -105,3 +105,23 @@ function markListened(btn) {
   document.addEventListener('htmx:responseError', function () { onDone(); window.location.reload(); });
   document.addEventListener('htmx:sendError', function () { onDone(); window.location.reload(); });
 })();
+
+
+// Переключение огласовки — обе формы уже лежат в разметке карточки, поэтому
+// сети оно не требует. Функция глобальная, её вызывает атрибут onclick самой
+// кнопки: вешать обработчик при загрузке страницы нельзя — HTMX подменяет
+// фрагмент карточки на каждый ответ, и подписка на старый узел пропала бы.
+// Сам скрипт при этом грузится один раз страницей (см. test_htmx_assets).
+//
+// Крупное написание едет вместе с обычным: иначе на одном экране окажутся
+// две разные записи одного слова.
+function toggleNiqqud(btn) {
+  var span = btn.parentElement.querySelector('.js-foreign-form');
+  if (!span) return;
+  var simple = btn.dataset.simple, full = btn.dataset.full;
+  var toFull = span.textContent.trim() === simple.trim();
+  span.textContent = toFull ? full : simple;
+  var big = document.querySelector('.word-big');
+  var bigSimple = btn.dataset.bigSimple, bigFull = btn.dataset.bigFull;
+  if (big && bigSimple && bigFull) big.textContent = toFull ? bigFull : bigSimple;
+}

@@ -47,12 +47,14 @@
    "rows": [
     {
      "marker": "",
+     "rank": null,
      "foreign": "עִם",
      "ipa": "ʔim",
      "ru": "с, вместе с"
     },
     {
      "marker": "",
+     "rank": null,
      "foreign": "עַם",
      "ipa": "ʔam",
      "ru": "народ"

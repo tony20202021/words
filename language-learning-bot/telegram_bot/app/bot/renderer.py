@@ -75,6 +75,31 @@ def _tag_group_text(item: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _reading_text(item: Dict[str, Any]) -> str:
+    """Примеры для чтения: номер и текст, перевод отдельной строкой под ним.
+
+    Таблиц в Telegram нет, поэтому колонок тоже нет — остаётся порядок строк.
+    Перевод идёт следующей строкой и курсивом: так он не лезет в глаза вместе
+    с текстом, ради чего блок и затевался. Сервер уже разложил предложение на
+    две строки, здесь только оформление.
+
+    Экранируем: текст предложений — данные, а сообщение уходит с parse_mode
+    HTML. Апостроф в английском примере разбор не ломает, а вот «<» сломал бы
+    всю карточку, как это уже бывало с переводами.
+    """
+    lines = []
+    for row in item.get("rows") or []:
+        foreign = (row.get("foreign") or "").strip()
+        ru = (row.get("ru") or "").strip()
+        if foreign:
+            marker = (row.get("marker") or "").strip()
+            номер = f"{escape(marker, quote=False)}. " if marker else ""
+            lines.append(f"{номер}<b>{escape(foreign, quote=False)}</b>")
+        elif ru:
+            lines.append(f"<i>{escape(ru, quote=False)}</i>")
+    return "\n".join(lines)
+
+
 def _ltr_lines(text: str) -> str:
     """Задать строкам направление слева направо, не трогая сам текст."""
     return "\n".join(LRM + line if line.strip() else line for line in (text or "").split("\n"))
@@ -120,6 +145,10 @@ _ITEM_RENDERERS = {
     # блок молча исчезал бы: _warn_unknown_type сообщает о таком в лог, но
     # пользователь всё равно ничего бы не увидел.
     "tag_group":     lambda i: _ltr_lines(_tag_group_text(i)),
+    # Примеры для чтения — свой тип: у них две колонки, номер и текст, а не
+    # четыре. Без рендерера блок исчезал бы молча, как когда-то исчезали
+    # запрещённые дистракторы.
+    "reading":       lambda i: _ltr_lines(_reading_text(i)),
     # card_builder кладёт сюда список запрещённых дистракторов (без "text").
     # Пока рендерера не было, блок молча пропадал: пользователь Telegram не
     # видел, что запреты копятся, и не мог их снять.

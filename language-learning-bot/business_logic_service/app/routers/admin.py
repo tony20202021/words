@@ -3,7 +3,7 @@ Admin API router — all endpoints require the caller to pass a user_id that is 
 The web frontend verifies admin status from session; the bot verifies via is_admin().
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import Body, APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import Response
 from typing import Optional
 from pydantic import BaseModel
@@ -218,6 +218,30 @@ async def export_words(
 
 
 # ── Import ────────────────────────────────────────────────────────────────────
+
+@router.post("/broadcasts")
+async def add_broadcast(
+    user_id: str = Query(...),
+    запись: dict = Body(...),
+    api_client=Depends(get_api_client),
+):
+    """Сохранить отправленную рассылку в историю."""
+    await _check_admin(user_id, api_client)
+    ответ = await api_client.add_broadcast(запись)
+    return ответ.get("result") if isinstance(ответ, dict) else ответ
+
+
+@router.get("/broadcasts")
+async def list_broadcasts(
+    user_id: str = Query(...),
+    limit: int = Query(50),
+    api_client=Depends(get_api_client),
+):
+    """История рассылок, новые сверху."""
+    await _check_admin(user_id, api_client)
+    ответ = await api_client.get_broadcasts(limit)
+    return ответ.get("result") if isinstance(ответ, dict) else ответ
+
 
 @router.post("/languages/{language_id}/import")
 async def import_words(

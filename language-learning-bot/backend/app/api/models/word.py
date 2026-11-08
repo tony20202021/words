@@ -21,6 +21,8 @@ class WordBase(BaseModel):
     part_of_speech: Optional[str] = Field(None, description="Часть речи: сущ, глаг, прил…")
     lemma: Optional[str] = Field(None, description="Словарная форма, если отличается от самого слова")
     sounds: Optional[str] = Field(None, description="List of sounds files")
+    word_foreign_simple: Optional[str] = Field(None, description="Упрощённое написание: иврит без огласовки, как пишут в жизни. Пусто — у языка второй формы нет")
+    reading_sentences: Optional[list] = Field(None, description="Предложения для чтения: собраны заранее только из пройденных слов")
     word_foreign_unit_count: Optional[int] = Field(None, description="Unit count of word_foreign (CJK: char count, other: word count)")
     transcription_unit_count: Optional[int] = Field(None, description="Syllable count in transcription")
 
@@ -42,6 +44,8 @@ class WordUpdate(BaseModel):
     part_of_speech: Optional[str] = Field(None, description="Часть речи: сущ, глаг, прил…")
     lemma: Optional[str] = Field(None, description="Словарная форма, если отличается от самого слова")
     sounds: Optional[str] = Field(None, description="List of sounds files")
+    word_foreign_simple: Optional[str] = Field(None, description="Упрощённое написание: иврит без огласовки, как пишут в жизни. Пусто — у языка второй формы нет")
+    reading_sentences: Optional[list] = Field(None, description="Предложения для чтения: собраны заранее только из пройденных слов")
 
 class WordInDB(WordBase):
     """Database model for word."""
@@ -72,6 +76,8 @@ class WordForReview(BaseModel):
     part_of_speech: Optional[str] = Field(None, description="Часть речи: сущ, глаг, прил…")
     lemma: Optional[str] = Field(None, description="Словарная форма, если отличается от самого слова")
     sounds: Optional[str] = Field(None, description="List of sounds files")
+    word_foreign_simple: Optional[str] = Field(None, description="Упрощённое написание: иврит без огласовки, как пишут в жизни. Пусто — у языка второй формы нет")
+    reading_sentences: Optional[list] = Field(None, description="Предложения для чтения: собраны заранее только из пройденных слов")
     score: int = Field(0, description="Current score (0 or 1)")
     check_interval: int = Field(0, description="Current check interval in days")
     next_check_date: Optional[datetime] = Field(None, description="Next check date")
