@@ -70,8 +70,19 @@ class CardStructureTest {
 
     @After
     fun tearDown() {
+        // Экран обязан быть разрушен. Оставленный живым, он ломает соседние
+        // проверки в общем прогоне: Robolectric держит состояние между
+        // тестами, и ConnectionNoticeDoesNotShiftTheCardTest начал падать на
+        // «карточка уехала вниз на 8» — в одиночку проходя трижды подряд. В
+        // ReceiveMessagesToggleTest про этот капкан написано прямо, здесь его
+        // просто не было.
+        controller?.let { runCatching { it.pause().stop().destroy() } }
+        controller = null
         runCatching { server.shutdown() }
     }
+
+    private var controller:
+        org.robolectric.android.controller.ActivityController<StudyActivity>? = null
 
     private fun open(fixture: String): StudyActivity {
         val file = File("src/test/resources/cards/$fixture.json")
@@ -80,7 +91,9 @@ class CardStructureTest {
         val intent = Intent(ApplicationProvider.getApplicationContext(), StudyActivity::class.java)
             .putExtra("language_id", "lang-1")
             .putExtra("language_name", "Иврит")
-        val activity = Robolectric.buildActivity(StudyActivity::class.java, intent).setup().get()
+        val c = Robolectric.buildActivity(StudyActivity::class.java, intent).setup()
+        controller = c
+        val activity = c.get()
         Screenshots.pumpUntil("$fixture: карточка отрисована") {
             activity.findViewById<ViewGroup>(R.id.cardContent).childCount > 0 ||
                 activity.findViewById<ViewGroup>(R.id.buttonRow).childCount > 0
