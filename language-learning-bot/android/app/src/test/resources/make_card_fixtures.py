@@ -186,6 +186,19 @@ CASES = {
                                  word_number=87, part_of_speech="сущ", lemma="זמן",
                                  tones="", references="",
                                  reading_sentences=READING), True),
+    # Лицевая сторона с переключателем огласовки. Снимок обратной стороны этот
+    # случай не ловил: там содержимое длиннее экрана. На лицевой оно короткое,
+    # прокрутка с fillViewport растягивает колонку до высоты экрана, и строка
+    # со словом забирала всю свободную высоту — кнопки уезжали за край
+    # (снимок владельца 09.11.2026, слово №42 עכשיו).
+    "question_niqqud":     (session(show_mode="foreign",
+                                    settings={"show_sounds": False, "show_tones": False,
+                                              "show_references": False,
+                                              "show_skip_button": True,
+                                              "show_simplified": True}),
+                            word(word_foreign="עַכְשָׁיו", word_foreign_simple="עכשיו",
+                                 translation="сейчас", transcription="axˈʃav",
+                                 word_number=42, tones="", references=""), False),
 }
 
 

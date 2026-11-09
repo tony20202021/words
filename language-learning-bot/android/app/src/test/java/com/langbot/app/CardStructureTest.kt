@@ -3,6 +3,7 @@ package com.langbot.app
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import com.langbot.app.network.BLSClient
@@ -343,5 +344,53 @@ class CardStructureTest {
         значок.performClick()
         assertEquals("повторное нажатие должно вернуть упрощённую форму",
             "זמן", слово.text.toString())
+    }
+
+    @Test
+    fun on_the_question_side_the_niqqud_row_does_not_push_the_buttons_off_the_screen() {
+        /*
+         * Владелец прислал снимок (09.11.2026, слово №42 עכשיו): слово с
+         * переключателем огласовки стоит посреди экрана, а кнопок «Знаю / Не
+         * знаю» нет — они уехали за нижний край.
+         *
+         * Причина — пустышка-уравновес слева от слова. Голый View с высотой
+         * WRAP_CONTENT при ограничении «не больше N» берёт ровно N: так устроен
+         * View.getDefaultSize. На лицевой стороне содержимое короче экрана,
+         * прокрутка с fillViewport растягивает колонку до высоты экрана — и
+         * пустышка забирает всю свободную высоту.
+         *
+         * Снимки этого не видели и не увидят: они меряют колонку с высотой
+         * UNSPECIFIED, чтобы показать всё содержимое. Поэтому здесь экран
+         * раскладывается как на телефоне — прокрутка ровно в высоту экрана.
+         */
+        val a = open("question_niqqud")
+        val swipe = a.findViewById<ViewGroup>(R.id.swipeRefresh)
+        val прокрутка = (0 until swipe.childCount).map { swipe.getChildAt(it) }
+            .filterIsInstance<ScrollView>().first()
+        val ширина = Screenshots.screenWidthPx()
+        val высота = a.resources.displayMetrics.heightPixels
+        прокрутка.measure(
+            View.MeasureSpec.makeMeasureSpec(ширина, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(высота, View.MeasureSpec.EXACTLY))
+        прокрутка.layout(0, 0, ширина, высота)
+
+        val содержимое = a.findViewById<ViewGroup>(R.id.cardContent)
+        val слово = Screenshots.texts(содержимое).first { it.text.toString() == "עכשיו" }
+        val значок = Screenshots.texts(содержимое).first { it.text.toString() == "🔤" }
+        val строка = значок.parent as View
+        assertTrue("строка со словом раздулась до ${строка.height} px при высоте " +
+            "слова ${слово.height} px — пустышка забрала свободную высоту экрана",
+            строка.height <= слово.height + значок.height)
+
+        fun сверху(v: View): Int {
+            var y = 0
+            var c: View = v
+            while (c !== прокрутка) { y += c.top; c = c.parent as View }
+            return y
+        }
+        val кнопки = a.findViewById<ViewGroup>(R.id.buttonRow)
+        assertTrue("кнопок не видно без прокрутки: низ ряда на " +
+            "${сверху(кнопки) + кнопки.height} px при высоте экрана $высота px",
+            кнопки.height > 0 && сверху(кнопки) + кнопки.height <= высота)
     }
 }
