@@ -224,10 +224,46 @@ class StudyActivity : AppCompatActivity() {
             val box = android.widget.FrameLayout(context)
             box.fitsSystemWindows = true
             box.setBackgroundColor(background)
+            // Полосы сверху и снизу — постоянные, а не на время движения.
+            // Владелец (09.11.2026): «добавить какую-нибудь рамку сверху и
+            // снизу — чтобы показать, что это увеличенный экран». Без них окно
+            // увеличения ничем не отличалось от самой карточки, и по нему
+            // пытались нажимать как по карточке.
+            //
+            // Картинка стоит МЕЖДУ полосами (отступы сверху и снизу), а не под
+            // ними: иначе полоса закрывала бы заголовок, с которого увеличение
+            // и начинается. Порядок детей держим: картинка — первая.
+            val полоса = (ZOOM_BAR_DP * context.resources.displayMetrics.density + 0.5f).toInt()
             box.addView(content, android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT).apply {
+                    topMargin = полоса
+                    bottomMargin = полоса
+                })
+            box.addView(zoomBar(context, "🔍 Увеличение", полоса),
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT, полоса, Gravity.TOP))
+            box.addView(zoomBar(context, "«назад» — вернуться к карточке", полоса),
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT, полоса, Gravity.BOTTOM))
             return box
+        }
+
+        /** Высота полос окна увеличения. */
+        const val ZOOM_BAR_DP = 26
+
+        /** Цвет полос — цвет панели приложения: видно, что это часть программы. */
+        const val ZOOM_BAR_COLOR = "#1565C0"
+
+        private fun zoomBar(context: android.content.Context, text: String, height: Int): TextView {
+            val tv = TextView(context)
+            tv.text = text
+            tv.textSize = 12f
+            tv.setTextColor(Color.WHITE)
+            tv.gravity = Gravity.CENTER
+            tv.setBackgroundColor(Color.parseColor(ZOOM_BAR_COLOR))
+            tv.minHeight = height
+            return tv
         }
     }
 
@@ -279,9 +315,10 @@ class StudyActivity : AppCompatActivity() {
      * письма, и при увеличении текст перерисовывается буквами, а не
      * растягивается пикселями, как было бы со снимком картинкой.
      *
-     * Рисунок — весь столбец, включая то, что ниже края экрана: увеличение не
-     * должно обрываться там, где кончилась видимая часть. Кнопки ответа в него
-     * тоже попадают, но там они просто нарисованы и ничего не делают.
+     * Рисунок — все блоки экстра инфо, включая то, что ниже края экрана:
+     * увеличение не должно обрываться там, где кончилась видимая часть. Кнопок
+     * ответа в нём нет: нарисованные, они выглядели настоящими, и по ним
+     * пытались нажимать.
      *
      * @param from блок, по которому нажали: с него и открываем. null — от начала
      *             карточки (пункт меню «Увеличить»).
@@ -295,7 +332,16 @@ class StudyActivity : AppCompatActivity() {
         // первое оставалось висеть под вторым, и закрыть его было нечем —
         // возврат убирал верхнее, а под ним оказывалось такое же.
         if (cardZoomDialog?.isShowing == true) return
-        val content = binding.cardScrollContent
+        // Только блоки экстра инфо, без кнопок ответа. Владелец (09.11.2026):
+        // «экран увеличения сейчас показывает всю карточку, включая кнопки,
+        // которые по ошибке пытаешься нажать». Кнопки в рисунке были просто
+        // нарисованы и ничего не делали — а выглядели как настоящие.
+        //
+        // Блоков нет (лицевая сторона) — тогда сама карточка, тоже без кнопок:
+        // пункт меню «Увеличить» должен что-то открывать и там.
+        val content: View = binding.extraCardsArea.takeIf {
+            it.visibility == View.VISIBLE && it.width > 0 && it.height > 0
+        } ?: binding.cardContent
         if (content.width <= 0 || content.height <= 0) return
         val picture = Picture()
         content.draw(picture.beginRecording(content.width, content.height))
@@ -1672,10 +1718,12 @@ class StudyActivity : AppCompatActivity() {
                         addTagTable(inner, item.rows ?: emptyList())
                     }
                     "reading" -> {
-                        // Две колонки вместо четырёх. Таблицу однокоренных
-                        // переиспользовать нельзя: там на слово отведено 3/10
-                        // ширины, и предложение в такую колонку не влезает —
-                        // оно рвалось бы по слову на строку.
+                        // Четыре колонки лесенкой, как просил владелец: номер,
+                        // текст и транскрипция в первой строке, перевод — во
+                        // второй, в третьей колонке. Узкая колонка переносит
+                        // предложение на несколько строк — для разглядывания
+                        // есть увеличение по нажатию, оно наводится как раз на
+                        // текст и перевод.
                         addReadingTable(inner, item.rows ?: emptyList())
                     }
                     "extra" -> {
@@ -2325,71 +2373,131 @@ class StudyActivity : AppCompatActivity() {
     }
 
     /**
-     * Примеры для чтения: номер и текст, две колонки.
+     * Примеры для чтения: четыре колонки лесенкой.
      *
-     * На предложение приходится ДВЕ строки: иностранная и под ней русская.
-     * Так перевод не лезет в глаза вместе с текстом — владелец просил именно
-     * этого. Номер стоит только у иностранной строки; у русской колонка номера
-     * пустая, и видно, что это продолжение, а не следующий пример.
+     * Владелец (09.11.2026): «надо сделать 4 колонки — как в предыдущих
+     * таблицах: номер, на иврите — в 1 строке, на русском — во 2 строке,
+     * транскрипция — в 1 строке». До этого колонок было две, иврит и русский
+     * шли во всю ширину и прижимались к противоположным краям: глазу каждый
+     * раз приходилось перескакивать через весь экран — «читать неудобно».
      *
-     * Какая строка какая — видно по тому, какое поле заполнено: сервер кладёт
-     * текст в foreign, перевод в ru, и вторым полем строки всегда пусто.
+     * Лесенка: в первой строке номер, текст и транскрипция, во второй — перевод
+     * в ТРЕТЬЕЙ колонке. Иврит прижат к правому краю своей колонки, русский —
+     * к левому краю своей, то есть оба начинаются от одной линии посередине.
+     * Перевод по-прежнему на следующей строке, как владелец просил раньше:
+     * не стоит рядом с текстом.
+     *
+     * Четыре ячейки в строке — ещё и ради увеличения по нажатию. Окно
+     * увеличения наводится на вторую и третью колонки таблицы и ищет для
+     * этого строку ровно из четырёх ячеек (findTableRow). Двухколоночная
+     * таблица такой строки не имела и открывалась в натуральную величину —
+     * «по клику таблица не увеличивается».
+     *
+     * Между строкой текста и строкой перевода горизонтальной линии нет: это
+     * одна запись, и линия разрезала бы её пополам. Вертикальные — сквозные.
+     *
+     * Какая строка какая — по заполненному полю: сервер кладёт текст и
+     * транскрипцию (ipa) в одну строку, перевод — в следующую.
      */
     private fun addReadingTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {
         val table = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
-            background = GradientDrawable().apply {
-                setStroke(dpToPx(1), Color.parseColor("#d0d0d0"))
-                setColor(Color.TRANSPARENT)
-            }
         }
-        for (row in rows) {
-            val иностранная = row.foreign.isNotBlank()
-            val текст = if (иностранная) row.foreign else row.ru
-            if (текст.isBlank()) continue
-            val line = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutDirection = View.LAYOUT_DIRECTION_LTR
+        var i = 0
+        while (i < rows.size) {
+            val row = rows[i]
+            if (row.foreign.isNotBlank()) {
+                val перевод = rows.getOrNull(i + 1)
+                    ?.takeIf { it.foreign.isBlank() }?.ru.orEmpty()
+                table.addView(readingLine(row.marker, row.foreign, "", row.ipa,
+                                          top = true, bottom = перевод.isBlank()))
+                if (перевод.isNotBlank()) {
+                    table.addView(readingLine("", "", перевод, "", top = false, bottom = true))
+                    i += 2
+                } else {
+                    i += 1
+                }
+            } else {
+                // Перевод без текста над ним — так сервер не шлёт, но и терять
+                // строку молча незачем.
+                if (row.ru.isNotBlank()) {
+                    table.addView(readingLine("", "", row.ru, "", top = true, bottom = true))
+                }
+                i += 1
             }
-
-            val номер = TextView(this)
-            номер.text = row.marker
-            номер.textSize = 13f
-            номер.setTextColor(Color.parseColor("#777777"))
-            номер.maxLines = 1
-            номер.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
-            номер.layoutParams = LinearLayout.LayoutParams(dpToPx(28),
-                LinearLayout.LayoutParams.MATCH_PARENT)
-
-            val tv = TextView(this)
-            tv.text = текст
-            // Иностранная строка крупнее: ради неё блок и заведён, а русская
-            // под ней — служебная, и своим размером не должна с ней спорить.
-            tv.textSize = if (иностранная) 20f else 14f
-            if (!иностранная) tv.setTextColor(Color.parseColor("#777777"))
-            // Направление по строке, а не по абзацу: иврит и русский идут
-            // разными строками, и каждая должна прижиматься к своему краю.
-            tv.textDirection = if (иностранная) View.TEXT_DIRECTION_RTL
-                               else View.TEXT_DIRECTION_LTR
-            tv.textAlignment = if (иностранная) View.TEXT_ALIGNMENT_VIEW_END
-                               else View.TEXT_ALIGNMENT_VIEW_START
-            tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
-            tv.layoutParams = LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-
-            line.addView(номер)
-            line.addView(tv)
-            line.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT)
-            table.addView(line)
         }
         val lp = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         lp.topMargin = dpToPx(4)
         table.layoutParams = lp
         parent.addView(table)
+    }
+
+    /**
+     * Строка таблицы чтения: четыре ячейки, ширины как у однокоренных.
+     *
+     * @param top    рисовать ли линию сверху (начало записи)
+     * @param bottom рисовать ли линию снизу (конец записи)
+     */
+    private fun readingLine(номер: String, текст: String, перевод: String, ipa: String,
+                            top: Boolean, bottom: Boolean): LinearLayout {
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+        val толщина = dpToPx(1)
+
+        fun рамка(): android.graphics.drawable.Drawable {
+            val линия = GradientDrawable().apply {
+                setStroke(толщина, Color.parseColor("#d0d0d0"))
+                setColor(Color.TRANSPARENT)
+            }
+            // Лишнюю сторону прячем за край ячейки: у GradientDrawable рамка
+            // либо со всех сторон, либо никакой.
+            return android.graphics.drawable.LayerDrawable(arrayOf(линия)).apply {
+                setLayerInset(0, 0, if (top) 0 else -толщина, 0, if (bottom) 0 else -толщина)
+            }
+        }
+
+        fun cell(text: String, sizeSp: Float, weight: Float, muted: Boolean = false,
+                 single: Boolean = false): TextView {
+            val tv = TextView(this)
+            tv.text = text
+            tv.textSize = sizeSp
+            if (muted) tv.setTextColor(Color.parseColor("#777777"))
+            if (single) {
+                tv.maxLines = 1
+                tv.ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            tv.setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            tv.background = рамка()
+            tv.layoutParams = LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.MATCH_PARENT, weight)
+            return tv
+        }
+
+        val tvНомер = cell(номер, 15f, 1.5f, muted = true, single = true)
+        // Текст: направление по первой сильной букве. Жёсткое RTL, как у
+        // таблицы огласовок, для английского предложения унесло бы точку в
+        // начало строки; здесь текст бывает и ивритский, и английский.
+        val tvТекст = cell(текст, 20f, 3f)
+        tvТекст.textDirection = View.TEXT_DIRECTION_FIRST_STRONG_LTR
+        tvТекст.textAlignment = View.TEXT_ALIGNMENT_TEXT_START
+        val tvПеревод = cell(перевод, 15f, 3f)
+        tvПеревод.textDirection = View.TEXT_DIRECTION_LTR
+        tvПеревод.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        val tvТр = cell(if (ipa.isBlank()) "" else "[$ipa]", 15f, 2.5f, muted = true)
+        tvТр.textDirection = View.TEXT_DIRECTION_LTR
+        tvТр.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+
+        line.addView(tvНомер)
+        line.addView(tvТекст)
+        line.addView(tvПеревод)
+        line.addView(tvТр)
+        line.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        return line
     }
 
     private fun addTagTable(parent: LinearLayout, rows: List<com.langbot.app.network.ExtraRow>) {

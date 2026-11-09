@@ -351,25 +351,31 @@
           <div class="small mb-1" dir="ltr" style="white-space: pre-wrap">{{ item.text | safe }}</div>
         {% endif %}
       {% elif item.type == 'reading' %}
-        {# Примеры для чтения — две колонки: номер и текст. Таблицу
-           однокоренных переиспользовать нельзя: там на слово отведено 33%
-           ширины, и предложение в такую колонку не влезает.
-           На предложение приходится две строки: иностранная и под ней русская,
-           чтобы перевод не лез в глаза вместе с текстом. Номер стоит только у
-           иностранной строки — у русской колонка пустая, и видно, что это
-           продолжение, а не следующий пример. #}
-        <table class="table table-sm table-bordered mb-2" dir="ltr">
+        {# Примеры для чтения — четыре колонки лесенкой, как в приложении.
+           Владелец (09.11.2026): «надо сделать 4 колонки — как в предыдущих
+           таблицах: номер, на иврите — в 1 строке, на русском — во 2 строке,
+           транскрипция — в 1 строке». Иврит прижат к правому краю своей
+           колонки, русский — к левому краю своей: оба начинаются от одной
+           линии посередине, и глазу не надо перескакивать через всю ширину.
+           Между строкой текста и строкой перевода линии нет: это одна запись.
+           Направление текста — dir="auto": блок бывает и ивритским, и
+           английским, а жёсткое rtl унесло бы у английского точку в начало. #}
+        <table class="table table-sm table-bordered mb-2 small" dir="ltr">
           <tbody>
           {% for row in item.rows %}
             {% if row.foreign %}
-              <tr>
-                <td class="text-end align-middle text-muted text-nowrap small" style="width:10%">{{ row.marker }}</td>
-                <td class="text-end align-middle word-extra-foreign" dir="rtl">{{ row.foreign }}</td>
+              <tr class="reading-text-row">
+                <td class="align-top text-muted text-nowrap border-bottom-0" style="width:12%">{{ row.marker }}</td>
+                <td class="align-top word-extra-foreign border-bottom-0" dir="auto" style="width:33%; text-align:start">{{ row.foreign }}</td>
+                <td class="border-bottom-0" style="width:30%"></td>
+                <td class="align-top text-muted border-bottom-0" dir="ltr">{% if row.ipa %}[{{ row.ipa }}]{% endif %}</td>
               </tr>
             {% elif row.ru %}
-              <tr>
-                <td style="width:10%"></td>
-                <td class="text-start align-middle text-muted small" dir="ltr">{{ row.ru }}</td>
+              <tr class="reading-translation-row">
+                <td class="border-top-0"></td>
+                <td class="border-top-0"></td>
+                <td class="align-top text-start border-top-0" dir="ltr">{{ row.ru }}</td>
+                <td class="border-top-0"></td>
               </tr>
             {% endif %}
           {% endfor %}

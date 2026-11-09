@@ -3,6 +3,7 @@ package com.langbot.app
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
@@ -319,6 +320,63 @@ class CardStructureTest {
             -1, предложение.layout.getParagraphDirection(0))
         assertEquals("русская строка должна раскладываться слева направо",
             1, перевод.layout.getParagraphDirection(0))
+    }
+
+    /** Строки таблиц ровно из четырёх ячеек — так их ищет окно увеличения. */
+    private fun строкиИзЧетырёх(root: View): List<List<TextView>> {
+        val out = mutableListOf<List<TextView>>()
+        fun walk(v: View) {
+            if (v is LinearLayout && v.orientation == LinearLayout.HORIZONTAL &&
+                v.childCount == 4 && (0 until 4).all { v.getChildAt(it) is TextView }) {
+                out.add((0 until 4).map { v.getChildAt(it) as TextView })
+                return
+            }
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(root)
+        return out
+    }
+
+    @Test
+    fun reading_table_is_four_columns_in_a_staircase() {
+        /*
+         * Владелец (09.11.2026): «сейчас иврит пишется с правого края, а русский
+         * с левого — читать неудобно, и по клику таблица не увеличивается. Надо
+         * сделать 4 колонки, как в предыдущих таблицах: номер, на иврите — в 1
+         * строке, на русском — во 2 строке, транскрипция — в 1 строке».
+         *
+         * Четыре ячейки в строке нужны не только для вида: окно увеличения
+         * наводится на вторую и третью колонки и ищет строку ровно из четырёх
+         * ячеек. Двухколоночная таблица такой строки не имела — потому и не
+         * увеличивалась.
+         */
+        val a = open("reading_niqqud")
+        val строки = строкиИзЧетырёх(extras(a))
+        val первая = строки.firstOrNull { r -> r.any { it.text.toString() == "יש זמן" } }
+        val вторая = строки.firstOrNull { r -> r.any { it.text.toString() == "Время есть." } }
+        assertTrue("строки с предложением из четырёх ячеек нет — окно увеличения " +
+            "её не найдёт", первая != null)
+        assertTrue("строки с переводом из четырёх ячеек нет", вторая != null)
+        val т1 = первая!!.map { it.text.toString() }
+        val т2 = вторая!!.map { it.text.toString() }
+        assertEquals("первая строка: номер, текст, пусто, транскрипция",
+            listOf("1", "יש זמן", "", "[jeʃ zman]"), т1)
+        assertEquals("вторая строка: перевод в третьей колонке",
+            listOf("", "", "Время есть.", ""), т2)
+
+        // Иврит прижат к правому краю своей колонки, русский — к левому краю
+        // своей: оба начинаются от общей линии посередине. Сверяем раскладку,
+        // а не атрибуты — Robolectric выставленное направление не возвращает.
+        val иврит = первая[1]
+        val русский = вторая[2]
+        val ширинаИврита = иврит.width - иврит.totalPaddingLeft - иврит.totalPaddingRight
+        assertEquals("иврит раскладывается справа налево",
+            -1, иврит.layout.getParagraphDirection(0))
+        assertTrue("иврит должен прижиматься к правому краю колонки: строка " +
+            "кончается на ${иврит.layout.getLineRight(0)} из $ширинаИврита",
+            иврит.layout.getLineRight(0) >= ширинаИврита - 1)
+        assertEquals("русский должен прижиматься к левому краю своей колонки",
+            0f, русский.layout.getLineLeft(0), 1f)
     }
 
     @Test

@@ -76,7 +76,7 @@ def _tag_group_text(item: Dict[str, Any]) -> str:
 
 
 def _reading_text(item: Dict[str, Any]) -> str:
-    """Примеры для чтения: номер и текст, перевод отдельной строкой под ним.
+    """Примеры для чтения: номер, текст и транскрипция, перевод строкой ниже.
 
     Таблиц в Telegram нет, поэтому колонок тоже нет — остаётся порядок строк.
     Перевод идёт следующей строкой и курсивом: так он не лезет в глаза вместе
@@ -94,7 +94,11 @@ def _reading_text(item: Dict[str, Any]) -> str:
         if foreign:
             marker = (row.get("marker") or "").strip()
             номер = f"{escape(marker, quote=False)}. " if marker else ""
-            lines.append(f"{номер}<b>{escape(foreign, quote=False)}</b>")
+            # Транскрипция — в той же строке, что текст, как в таблице
+            # приложения: текст и транскрипция сверху, перевод под ними.
+            ipa = (row.get("ipa") or "").strip()
+            хвост = f" [{escape(ipa, quote=False)}]" if ipa else ""
+            lines.append(f"{номер}<b>{escape(foreign, quote=False)}</b>{хвост}")
         elif ru:
             lines.append(f"<i>{escape(ru, quote=False)}</i>")
     return "\n".join(lines)

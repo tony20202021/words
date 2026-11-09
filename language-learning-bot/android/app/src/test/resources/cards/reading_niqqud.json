@@ -48,37 +48,43 @@
      "marker": "1",
      "rank": 1,
      "foreign": "יש זמן",
-     "ru": ""
+     "ru": "",
+     "ipa": "jeʃ zman"
     },
     {
      "marker": "",
      "rank": null,
      "foreign": "",
-     "ru": "Время есть."
+     "ru": "Время есть.",
+     "ipa": ""
     },
     {
      "marker": "2",
      "rank": 2,
      "foreign": "אין יותר זמן",
-     "ru": ""
+     "ru": "",
+     "ipa": "ʔejn joˈter zman"
     },
     {
      "marker": "",
      "rank": null,
      "foreign": "",
-     "ru": "Больше нет времени."
+     "ru": "Больше нет времени.",
+     "ipa": ""
     },
     {
      "marker": "3",
      "rank": 3,
      "foreign": "כמה זמן עוד",
-     "ru": ""
+     "ru": "",
+     "ipa": "ˈkama zman ʔod"
     },
     {
      "marker": "",
      "rank": null,
      "foreign": "",
-     "ru": "Сколько ещё времени?"
+     "ru": "Сколько ещё времени?",
+     "ipa": ""
     }
    ]
   }

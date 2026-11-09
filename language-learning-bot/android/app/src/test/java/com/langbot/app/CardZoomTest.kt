@@ -33,10 +33,14 @@ import java.io.File
  * и огласовки в них в обычном кегле не разглядеть. Нажатие на блок открывает
  * карточку целиком на весь экран.
  *
- * Проверяется то, ради чего это делалось: открывается ВСЯ карточка, включая
- * то, что ниже края экрана; открывается в натуральную величину, а не вписанной
- * в экран (вписанная была бы мельче исходной и совсем нечитаемой); и открывается
- * с того блока, по которому нажали.
+ * Проверяется то, ради чего это делалось: открываются ВСЕ блоки экстра инфо,
+ * включая то, что ниже края экрана; открываются в натуральную величину, а не
+ * вписанными в экран (вписанные были бы мельче исходных и совсем нечитаемы); и
+ * открываются с того блока, по которому нажали.
+ *
+ * С 09.11.2026 в рисунке только блоки экстра инфо, без кнопок ответа (владелец:
+ * «показывает всю карточку, включая кнопки, которые по ошибке пытаешься
+ * нажать»). Поэтому мерки ниже снимаются с области блоков, а не со столбца.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -107,9 +111,9 @@ class CardZoomTest {
         FloatArray(9).also { view.imageMatrix.getValues(it) }[Matrix.MTRANS_Y]
 
     @Test
-    fun tapping_a_table_opens_the_whole_card_not_just_the_visible_part() {
+    fun tapping_a_table_opens_all_extra_blocks_not_just_the_visible_part() {
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         val block = blocks(a).getChildAt(blocks(a).childCount - 1)
         assertTrue("по блоку экстра инфо нельзя нажать", block.isClickable)
         block.performClick()
@@ -117,12 +121,66 @@ class CardZoomTest {
         val zoom = shownView(a, column.width, 891)
         val drawing = zoom.drawable as? PictureDrawable
         assertNotNull("карточка показана не рисунком: ${zoom.drawable}", drawing)
-        assertEquals("в рисунок попала не вся ширина карточки",
+        assertEquals("в рисунок попала не вся ширина блоков",
             column.width, drawing!!.intrinsicWidth)
         // Столбец длиннее экрана: увеличение не должно обрываться там, где
         // кончается видимая часть.
-        assertEquals("в рисунок попала не вся карточка",
+        assertEquals("в рисунок попали не все блоки",
             column.height, drawing.intrinsicHeight)
+    }
+
+    @Test
+    fun the_zoom_shows_only_the_extra_info_without_the_answer_buttons() {
+        """
+        Владелец (09.11.2026): «экран увеличения сейчас просто показывает всю
+        карточку увеличенную, включая кнопки, которые по ошибке пытаешься
+        нажать — можно ли ограничить только экстра инфо?»
+
+        Кнопки в рисунке были нарисованы и ничего не делали, но выглядели
+        настоящими. Теперь рисунок — ровно область блоков экстра инфо, а она
+        стоит ниже кнопок и их не содержит.
+        """
+        val a = open("tag_group")
+        val столбец = column(a)
+        val блоки = blocks(a)
+        блоки.getChildAt(0).performClick()
+        val zoom = shownView(a, блоки.width, 891)
+        val drawing = zoom.drawable as PictureDrawable
+        assertEquals("в рисунке не только экстра инфо",
+            блоки.height, drawing.intrinsicHeight)
+        assertTrue("рисунок высотой со весь столбец — значит, кнопки снова в нём",
+            drawing.intrinsicHeight < столбец.height)
+    }
+
+    @Test
+    fun the_zoom_window_has_bands_at_the_top_and_the_bottom() {
+        """
+        Владелец (09.11.2026): «добавить какую-нибудь рамку сверху и снизу —
+        чтобы показать, что это увеличенный экран».
+
+        Полосы стоят постоянно, а картинка — между ними, с отступами: под
+        полосой оказался бы заголовок, с которого увеличение начинается.
+        """
+        val a = open("tag_group")
+        blocks(a).getChildAt(0).performClick()
+        val box = a.cardZoomDialog!!.findViewById<ViewGroup>(android.R.id.content)
+            .getChildAt(0) as ViewGroup
+        val полосы = (0 until box.childCount).map { box.getChildAt(it) }
+            .filter { it !is ZoomImageView }
+        fun по(v: View) = (v.layoutParams as android.widget.FrameLayout.LayoutParams).gravity and
+            android.view.Gravity.VERTICAL_GRAVITY_MASK
+        val верх = полосы.firstOrNull { по(it) == android.view.Gravity.TOP }
+        val низ = полосы.firstOrNull { по(it) == android.view.Gravity.BOTTOM }
+        assertNotNull("полосы сверху нет", верх)
+        assertNotNull("полосы снизу нет", низ)
+        val высота = верх!!.layoutParams.height
+        assertTrue("полоса нулевой высоты", высота > 0)
+
+        val zoom = box.getChildAt(0) as ZoomImageView
+        val lp = zoom.layoutParams as android.widget.FrameLayout.LayoutParams
+        assertEquals("картинка заходит под верхнюю полосу", высота, lp.topMargin)
+        assertEquals("картинка заходит под нижнюю полосу",
+            низ!!.layoutParams.height, lp.bottomMargin)
     }
 
     @Test
@@ -193,9 +251,11 @@ class CardZoomTest {
         // натуральная величина по-прежнему верна: увеличивать нечего — на
         // экране весь столбец, а не одна таблица.
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         a.onOptionsItemSelected(org.robolectric.fakes.RoboMenuItem(4 /* MENU_ZOOM */))
-        val zoom = shownView(a, column.width, 891)
+        // Окно ниже рисунка: блоки одной таблицы могут целиком влезать в экран,
+        // и тогда уменьшать нечего. Проверяем случай, когда уменьшать есть что.
+        val zoom = shownView(a, column.width, column.height / 2)
 
         assertEquals("карточка открылась не в натуральную величину",
             1f, zoom.currentScale, 0.01f)
@@ -248,7 +308,7 @@ class CardZoomTest {
         за край, к ним можно отлистнуть.
         """
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         val block = blocks(a).getChildAt(0)
         val row = tableRow(block)
         assertNotNull("в блоке нет таблицы — проверять нечего", row)
@@ -296,7 +356,7 @@ class CardZoomTest {
         понятно, что можно отлистнуть.
         """
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         val block = blocks(a).getChildAt(0)
         val row = tableRow(block)!!
         val readable = row.getChildAt(1).width + row.getChildAt(2).width
@@ -325,7 +385,7 @@ class CardZoomTest {
         натуральную величину, с той высоты, по которой нажали.
         """
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         val plain = (0 until blocks(a).childCount)
             .map { blocks(a).getChildAt(it) }
             .firstOrNull { tableRow(it) == null }
@@ -342,11 +402,13 @@ class CardZoomTest {
     @Test
     fun the_menu_opens_the_card_from_its_top() {
         val a = open("tag_group")
-        val column = column(a)
+        val column = blocks(a)  // рисунок — область блоков
         a.onOptionsItemSelected(org.robolectric.fakes.RoboMenuItem(4 /* MENU_ZOOM */))
         val zoom = shownView(a, column.width, 891)
-        assertEquals("пункт меню открыл карточку не с начала",
-            0f, translationY(zoom), 2f)
+        // Короче экрана рисунок стоит посередине, и сдвиг тогда больше нуля;
+        // важно другое — чтобы начало не уехало за верхний край.
+        assertTrue("пункт меню открыл карточку не с начала: верх на ${translationY(zoom)}",
+            translationY(zoom) >= -1f)
     }
     @Test
     fun a_double_tap_opens_only_one_window() {
