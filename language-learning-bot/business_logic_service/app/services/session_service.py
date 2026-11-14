@@ -287,11 +287,23 @@ async def load_next_batch(session: Dict[str, Any], api_client) -> bool:
     """
     settings = session.get("settings", {})
     shift = session.get("next_start") or (session["batch_start"] + BATCH_SIZE)
-    words, next_start = await _load_words(
-        api_client, session["user_id"], session["language_id"], settings, shift
-    )
-    if not words:
-        return False
+    processed = session.get("offline_processed_results", {})
+    while True:
+        words, next_start = await _load_words(
+            api_client, session["user_id"], session["language_id"], settings, shift
+        )
+        if not words:
+            return False
+        # Офлайн-партия может быть больше серверной. Уже пройденные
+        # «не знаю» всё ещё подходят под запрос слов, но в этом круге
+        # повторно показываться не должны. Их оценки/история уже учтены.
+        words = [w for w in words if str(w.get("_id") or w.get("id") or
+                                       w.get("word_id", "")) not in processed]
+        if words:
+            break
+        if next_start <= shift:
+            return False
+        shift = next_start
 
     session["words"] = words
     session["current_index"] = 0
@@ -471,6 +483,16 @@ def _advance(session: Dict[str, Any]) -> None:
     settings = session.get("settings", {})
     session["current_index"] += 1
     session["total_words_processed"] += 1
+    # Кеш мог пройти следующие слова раньше этой серверной карточки.
+    # Их оценки/история уже учтены при ACK — здесь только пропускаем позиции.
+    words = session.get("words") or []
+    processed = session.get("offline_processed_results", {})
+    while session["current_index"] < len(words):
+        word = words[session["current_index"]]
+        wid = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
+        if wid not in processed:
+            break
+        session["current_index"] += 1
     session["word_processed"] = False
     session["score_changed"] = False
     session["show_answer"] = False
@@ -714,42 +736,51 @@ def _advance_session_past(user_id: str, language_id: str,
     session = get_session(user_id, language_id)
     if session is None:
         return
-    done = {wid: rating for wid, rating in applied}
+    # Оценки считаются по реально пройденным на телефоне словам, а не
+    # только по текущей серверной партии (она может быть гораздо короче).
+    # Индекс истории позволяет исправить ранее подтверждённую оценку.
+    processed = session.setdefault("offline_processed_results", {})
+    history = session.setdefault("result_history", [])
+    before_history = len(history)
+    before_total = session.get("total_words_processed", 0)
     words = session.get("words") or []
-    moved = 0
 
-    # Слово, на котором стоит сессия, могло быть УЖЕ отвечено — онлайн, перед
-    # самым обрывом: человек нажал «Знаю», увидел ответ, а «дальше» нажать не
-    # успел. Среди офлайновых ответов такого слова нет, и цикл ниже
-    # останавливался на нём сразу же: сессия оставалась на пройденном слове, и
-    # вернувшись в онлайн, человек попадал на него заново.
-    #
-    # Ровно это и случилось 16.10.2026: 20:28:45 слово 132 отвечено «знаю»
-    # онлайн, связь пропала, офлайн человек ушёл вперёд, в 20:29:25 пачка
-    # принесла слово 136 — и сессия всё равно отдала 132.
-    #
-    # Доводим такое слово до конца так же, как это сделала бы кнопка «дальше»:
-    # дописываем оценку в историю и сдвигаемся. Какая это была оценка, помнит
-    # score_changed — по нему же карточка показывает pending_result.
+    def change_counts(old, new):
+        for key, rating in (("correct_count", "know"), ("incorrect_count", "dont_know")):
+            session[key] = session.get(key, 0) + int(new == rating) - int(old == rating)
+
     if session.get("word_processed") and session.get("current_index", 0) < len(words):
-        session.setdefault("result_history", []).append(
-            "know" if session.get("score_changed") else "dont_know")
-        _advance(session)
-        moved += 1
+        word = words[session["current_index"]]
+        wid = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
+        if wid not in processed:
+            # Оценка перед обрывом уже вошла в счётчики, но ещё не в историю.
+            old = "know" if session.get("score_changed") else "dont_know"
+            processed[wid] = {"rating": old, "history_index": len(history)}
+            history.append(old)
+
+    for wid, rating in dict(applied).items():
+        previous = processed.get(wid)
+        if previous is not None:
+            change_counts(previous["rating"], rating)
+            history[previous["history_index"]] = rating
+            previous["rating"] = rating
+        else:
+            change_counts(None, rating)
+            processed[wid] = {"rating": rating, "history_index": len(history)}
+            history.append(rating)
+
+    moved = 0
     while session.get("current_index", 0) < len(words):
         word = words[session["current_index"]]
         wid = str(word.get("_id") or word.get("id") or word.get("word_id", ""))
-        rating = done.get(wid)
-        if rating is None:
+        if wid not in processed:
             break
-        if rating == "know":
-            session["correct_count"] = session.get("correct_count", 0) + 1
-        elif rating == "dont_know":
-            session["incorrect_count"] = session.get("incorrect_count", 0) + 1
-        session.setdefault("result_history", []).append(rating)
         _advance(session)
         moved += 1
+    # _advance считает шаги серверного курсора. Офлайн мог пройти больше:
+    # за границей этой партии или в другом порядке. Считаем новые результаты.
+    session["total_words_processed"] = before_total + len(history) - before_history
+    touch_session(session)
     if moved:
-        touch_session(session)
         logger.info(f"Session advanced past {moved} offline result(s): "
                     f"user={user_id} lang={language_id} index={session.get('current_index')}")

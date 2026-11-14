@@ -215,22 +215,19 @@ class OfflineReconsiderTest {
             a.findViewById<android.widget.TextView>(R.id.tvStaleSession).text.contains("Офлайн")
 
     @Test
-    fun the_counter_moves_offline_and_never_passes_the_round_size() {
-        """
-        Жалоба владельца: «в офлайн-режиме счётчик не увеличивается, показывает
-        124/121». Строку «в сессии: N из M» присылает сервер, и в скачанной
-        партии она застывала: позиция оттуда, размер круга отсюда.
-        """
+    fun the_counter_moves_offline_and_keeps_the_session_size_when_cache_is_smaller() {
+        // Сервер сообщает сессию из трёх слов, но сохранены только два.
+        // Объём доступного кеша не должен менять размер самой сессии.
         saveBundle(withKnownCard = true)
         val a = launch()
         assertTrue("счётчик не с первого слова: ${headerText(a)}",
-            headerText(a).contains("1 из 2"))
+            headerText(a).contains("1 из 3"))
 
         click(a, "Знаю")
         click(a, "К следующему слову")
         val text = headerText(a)
-        assertTrue("счётчик не сдвинулся: $text", text.contains("2 из 2") || text.contains("завершающее"))
-        assertFalse("позиция обогнала размер круга: $text", text.contains("3 из 2"))
+        assertTrue("счётчик не сдвинулся в пределах сессии: $text", text.contains("2 из 3"))
+        assertFalse("размер кеша подменил размер сессии: $text", text.contains("2 из 2"))
     }
 
     @Test

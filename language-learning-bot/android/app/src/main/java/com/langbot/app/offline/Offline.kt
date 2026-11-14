@@ -9,6 +9,11 @@ import com.langbot.app.network.ResultEvent
 import com.langbot.app.network.ResultsBatchRequest
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** A prefetched session bundle persisted on disk, plus the local study cursor. */
 data class StoredBundle(
@@ -75,11 +80,22 @@ object BundleRefresh {
  * хотя человек прошёл сегодня несколько слов. Храним с датой: в новый день
  * сервер считает заново, и старый отсчёт врал бы.
  */
+/** Позиция в сессии привязана к слову, а не к размеру/началу кеша. */
+data class SessionProgress(
+    val wordId: String = "",
+    val position: Int = 1,
+    val total: Int? = null,
+    val wordsForToday: Int = 0,
+)
+
 data class SavedProgress(
     val correct: Int = 0,
     val wrong: Int = 0,
     val history: List<String> = emptyList(),
     val day: String = "",
+    // Локальные оценки хранятся отдельно от серверного отсчёта и переживают ACK/перезапуск.
+    val localRatings: Map<String, String>? = null,
+    val session: SessionProgress? = null,
 )
 
 /** One accumulated, not-yet-synced study result. */
@@ -172,12 +188,14 @@ object OfflineCache {
         return StudyDay.of(nowMillis, rule.second, rule.third)
     }
 
-    fun saveProgress(u: String, l: String, correct: Int, wrong: Int, history: List<String>) {
+    fun saveProgress(u: String, l: String, correct: Int, wrong: Int, history: List<String>,
+                     localRatings: Map<String, String>? = null,
+                     session: SessionProgress? = null) {
         synchronized(lock) {
             if (!ready()) return
             runCatching {
                 progressFile(u, l).writeText(
-                    gson.toJson(SavedProgress(correct, wrong, history, studyToday(u, l))))
+                    gson.toJson(SavedProgress(correct, wrong, history, studyToday(u, l), localRatings, session)))
             }
         }
     }
@@ -261,26 +279,32 @@ object OfflineCache {
  * Acked events are removed. Safe to call repeatedly; no-op when empty/offline.
  */
 object OutboxSync {
-    suspend fun flush() {
-        val all = OfflineCache.loadOutbox()
-        if (all.isEmpty()) return
-        val acked = mutableSetOf<String>()
-        all.groupBy { it.userId to it.languageId }.forEach { (key, entries) ->
-            val (uid, lid) = key
-            val req = ResultsBatchRequest(
-                user_id = uid, language_id = lid,
-                events = entries.map { ResultEvent(it.event_id, it.word_id, it.rating, it.ts) },
-            )
-            try {
-                val resp = BLSClient.api.postResultsBatch(req)
-                if (resp.isSuccessful) {
-                    resp.body()?.acks
-                        ?.filter { it.status == "ok" || it.status == "duplicate" }
-                        ?.forEach { acked.add(it.event_id) }
-                }
-            } catch (_: Exception) { /* offline — keep for next flush */ }
+    private val mutex = Mutex()
+
+    suspend fun flush(): Unit = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val all = OfflineCache.loadOutbox()
+            if (all.isEmpty()) return@withLock
+            val acked = mutableSetOf<String>()
+            all.groupBy { it.userId to it.languageId }.forEach { (key, entries) ->
+                val (uid, lid) = key
+                val req = ResultsBatchRequest(
+                    user_id = uid, language_id = lid,
+                    events = entries.map { ResultEvent(it.event_id, it.word_id, it.rating, it.ts) },
+                )
+                try {
+                    val resp = BLSClient.api.postResultsBatch(req)
+                    if (resp.isSuccessful) {
+                        resp.body()?.acks
+                            ?.filter { it.status == "ok" || it.status == "duplicate" }
+                            ?.forEach { acked.add(it.event_id) }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) { /* offline — keep for next flush */ }
+            }
+            if (acked.isNotEmpty()) OfflineCache.removeEvents(acked)
         }
-        if (acked.isNotEmpty()) OfflineCache.removeEvents(acked)
     }
 }
 
@@ -312,11 +336,15 @@ class OfflineEngine(private val bundle: StoredBundle) {
      */
     fun positionAtWord(wordId: String?): Boolean {
         if (wordId.isNullOrEmpty()) return true
-        val i = words.indexOfFirst { it.word_id == wordId }
-        if (i < 0) return false
+        val i = indexOfWord(wordId) ?: return false
         cursor = i
         return true
     }
+
+    fun indexOfWord(wordId: String): Int? =
+        words.indexOfFirst { it.word_id == wordId }.takeIf { it >= 0 }
+
+    val excludedCount: Int get() = bundle.excluded?.size ?: 0
 
     fun hasCurrent(): Boolean = cursor in words.indices
     fun frontCard(): Card? = words.getOrNull(cursor)?.card_front

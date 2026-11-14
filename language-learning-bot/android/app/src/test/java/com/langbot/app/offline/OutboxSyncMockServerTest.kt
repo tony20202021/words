@@ -3,6 +3,7 @@ package com.langbot.app.offline
 import androidx.test.core.app.ApplicationProvider
 import com.langbot.app.network.BLSClient
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import okhttp3.mockwebserver.MockResponse
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockWebServer
@@ -147,4 +148,53 @@ class OutboxSyncMockServerTest {
         assertEquals("one request per (user, language) pair", 2, server.requestCount)
         assertEquals("nothing acked — everything stays", 2, OfflineCache.pendingCount())
     }
+    @Test
+    fun concurrent_flushes_keep_corrections_ordered_and_do_not_resend_acknowledged_events() = runBlocking {
+        val firstArrived = java.util.concurrent.CountDownLatch(1)
+        val releaseFirst = java.util.concurrent.CountDownLatch(1)
+        val requests = java.util.concurrent.atomic.AtomicInteger()
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                val body = request.body.clone().readUtf8()
+                if (requests.incrementAndGet() == 1) {
+                    firstArrived.countDown()
+                    releaseFirst.await(5, TimeUnit.SECONDS)
+                }
+                val ids = Regex("\"event_id\":\"([^\"]+)\"").findAll(body).map { it.groupValues[1] }.toList()
+                return MockResponse().setBody("{\"acks\":[" + ids.joinToString(",") {
+                    "{\"event_id\":\"$it\",\"status\":\"ok\"}"
+                } + "]}")
+            }
+        }
+        OfflineCache.addResult(u, l, "w1", "know")
+        val first = async(kotlinx.coroutines.Dispatchers.IO) { OutboxSync.flush() }
+        try {
+            kotlinx.coroutines.withTimeout(5_000) {
+                while (firstArrived.count > 0) kotlinx.coroutines.delay(10)
+            }
+            val original = server.takeRequest(5, TimeUnit.SECONDS)!!
+            assertTrue(original.body.readUtf8().contains("know"))
+            OfflineCache.addResult(u, l, "w1", "dont_know")
+            val secondStarted = java.util.concurrent.CountDownLatch(1)
+            val second = async(kotlinx.coroutines.Dispatchers.IO) {
+                secondStarted.countDown()
+                OutboxSync.flush()
+            }
+            kotlinx.coroutines.withTimeout(5_000) {
+                while (secondStarted.count > 0) kotlinx.coroutines.delay(10)
+            }
+            assertEquals("second request must wait for the first ACK", null, server.takeRequest(200, TimeUnit.MILLISECONDS))
+            releaseFirst.countDown()
+            first.await(); second.await()
+            val correction = server.takeRequest(5, TimeUnit.SECONDS)!!.body.readUtf8()
+            assertTrue(correction.contains("dont_know"))
+            assertEquals("acknowledged know must not be posted again", 1,
+                Regex("event_id").findAll(correction).count())
+            assertEquals(0, OfflineCache.pendingCount())
+        } finally {
+            releaseFirst.countDown()
+            first.cancel()
+        }
+    }
+
 }

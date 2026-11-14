@@ -50,8 +50,10 @@ import com.langbot.app.offline.OfflineEngine
 import com.langbot.app.offline.OfflineSemantics
 import com.langbot.app.offline.OutboxSync
 import com.langbot.app.offline.StoredBundle
+import com.langbot.app.offline.SessionProgress
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 class StudyActivity : AppCompatActivity() {
 
@@ -90,14 +92,22 @@ class StudyActivity : AppCompatActivity() {
     private var lastPickAnswerResult: PickOutcome? = null
 
     // ── Offline mode ──
-    // Non-null while the study loop is running from the local cache (network is down).
+    // Non-null while cached cards own navigation, including with a working connection.
     private var offline: OfflineEngine? = null
     // word_id of the currently rendered card — used to position the offline engine.
     private var lastWordId: String? = null
     // Guards against recording the current offline word's result more than once.
     private var offlineCurrentRecorded: Boolean = false
-    /** Накопленное ушло на сервер — значит, связь есть и офлайн пора закрывать. */
-    private var backOnline: Boolean = false
+    // Локальная партия остаётся источником карточек и после восстановления связи.
+    private var syncJob: Job? = null
+    private var syncOnline = false
+    private var syncFailed = false
+    private var cardRenderGeneration = 0
+    private var currentCard: Card? = null
+    private var studyGeneration = 0
+    // Результаты текущей локальной партии остаются в счётчиках после ACK.
+    private val localRatings = linkedMapOf<String, String>()
+    private var sessionProgress: SessionProgress? = null
 
     // Счётчики последней ОНЛАЙН-карточки — отсчёт для офлайна.
     //
@@ -530,6 +540,9 @@ class StudyActivity : AppCompatActivity() {
             // Новый круг — счёт с нуля, в том числе офлайновый отсчёт.
             baseCorrect = 0; baseWrong = 0; baseHistory = emptyList()
             baseWords = mutableSetOf()
+            localRatings.clear()
+            sessionProgress = null
+            offline = null
             OfflineCache.clearProgress(userId, languageId)
             loadSession()
         }
@@ -559,6 +572,7 @@ class StudyActivity : AppCompatActivity() {
     fun clearWaitingForTest() = clearConnectionStatus()
 
     private fun loadSession() {
+        val generation = ++studyGeneration
         setLoading(true)
         lifecycleScope.launch {
             try {
@@ -570,13 +584,25 @@ class StudyActivity : AppCompatActivity() {
                 if (OfflineCache.pendingCount() > 0) {
                     runCatching { OutboxSync.flush() }
                 }
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) }) { api ->
+                if (generation != studyGeneration) return@launch
+                if (OfflineCache.loadOutbox().any { it.userId == userId && it.languageId == languageId }) {
+                    if (offline != null) {
+                        syncFailed = true
+                        showOfflineBanner()
+                        return@launch
+                    }
+                    if (enterOfflineFromStore() != OfflineEntry.NO_BUNDLE) return@launch
+                }
+                val resp = NetworkRetry.call(onStatus = {
+                    if (generation == studyGeneration) showConnectionStatus(it)
+                }) { api ->
                     var r = api.getSession(userId, languageId)
                     if (!r.isSuccessful || r.body()?.session_id == null) {
                         r = api.startSession(StartSessionRequest(userId, languageId))
                     }
                     r
                 }
+                if (generation != studyGeneration) return@launch
                 clearConnectionStatus()
                 if (resp == null) {
                     // Сервер недостижим — учимся из кеша, не заставляя ждать впустую.
@@ -588,19 +614,21 @@ class StudyActivity : AppCompatActivity() {
                     return@launch
                 }
                 offline = null  // back online
+                localRatings.clear()
                 handleResponse(resp.body())
                 // Оставшееся (если что-то не подтвердилось) и свежая партия —
                 // фоном, экран их не ждёт.
                 flushOutboxInBackground()
                 prefetchBundleInBackground()
             } catch (e: Exception) {
+                if (generation != studyGeneration) return@launch
                 // Network is down — fall back to the cached bundle if we have one.
                 if (enterOfflineFromStore() == OfflineEntry.NO_BUNDLE) {
                     showError("Нет сети и нет сохранённой сессии для офлайн-работы")
                     Toast.makeText(this@StudyActivity, "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_LONG).show()
                 }
             } finally {
-                setLoading(false)
+                if (generation == studyGeneration) setLoading(false)
             }
         }
     }
@@ -620,14 +648,15 @@ class StudyActivity : AppCompatActivity() {
                 val wanted = bundleSizeOf(settings)
                 val stored = OfflineCache.loadBundle(userId, languageId)
                 if (!BundleRefresh.needed(stored, wanted, System.currentTimeMillis())) {
-                    if (settings != null && stored != null) {
+                    if (settings != null && stored != null && offline == null) {
                         OfflineCache.saveBundle(stored.copy(settings = settings))
                     }
                     return@runCatching
                 }
                 val resp = BLSClient.api.getBundle(userId, languageId)
                 val body = resp.body()
-                if (resp.isSuccessful && body != null && body.words.isNotEmpty()) {
+                if (resp.isSuccessful && body != null && body.words.isNotEmpty() &&
+                    offline == null) {
                     OfflineCache.saveBundle(
                         StoredBundle(userId, languageId, body.words, cursor = 0,
                                      settings = body.settings.ifEmpty { settings ?: emptyMap() },
@@ -736,13 +765,33 @@ class StudyActivity : AppCompatActivity() {
         val sameWord = eng.positionAtWord(lastWordId)
         if (!eng.hasCurrent()) return OfflineEntry.NO_BUNDLE
         offline = eng
+        syncOnline = false
+        syncFailed = true
         offlineCurrentRecorded = false
         offlineScoredKnow = false
         // Экран открыт заново без связи: отсчёт берём с диска, иначе счётчики
         // покажут ноль, хотя человек сегодня уже занимался.
+        val saved = OfflineCache.loadProgress(userId, languageId)
         if (baseCorrect == 0 && baseWrong == 0 && baseHistory.isEmpty()) {
-            OfflineCache.loadProgress(userId, languageId)?.let {
+            saved?.let {
                 baseCorrect = it.correct; baseWrong = it.wrong; baseHistory = it.history
+                localRatings.putAll(it.localRatings.orEmpty())
+            }
+        }
+        if (sessionProgress == null) sessionProgress = saved?.session
+        if (sessionProgress == null) {
+            eng.frontCard()?.let { card ->
+                // Совместимость со старым кешем: в нём есть серверный размер,
+                // а после офлайн-перезапуска известные слова исключены из круга.
+                val completed = localRatings.keys.count { it != eng.currentWordId() }
+                val position = if (eng.excludedCount > 0) eng.cursor + 1
+                    else maxOf(card.meta.session_pos, baseHistory.size + completed + 1)
+                sessionProgress = sessionProgressOf(card).copy(
+                    wordId = eng.currentWordId().orEmpty(), position = position,
+                    total = sessionProgressOf(card).total?.let {
+                        (it - eng.excludedCount).coerceAtLeast(0)
+                    },
+                    wordsForToday = (card.meta.words_for_today - eng.excludedCount).coerceAtLeast(0))
             }
         }
         // render=false, когда вызывающий тут же применит нажатие пользователя и
@@ -755,6 +804,47 @@ class StudyActivity : AppCompatActivity() {
         }
         Toast.makeText(this, "Нет сети — занимаемся офлайн", Toast.LENGTH_SHORT).show()
         return if (sameWord) OfflineEntry.SAME_WORD else OfflineEntry.OTHER_WORD
+    }
+
+    /** Подключить кеш только к тому слову, которое действительно видно человеку. */
+    private fun useLocalStudy(): Boolean {
+        if (offline != null) return true
+        val card = currentCard ?: return false
+        if (lastWordId.isNullOrBlank()) return false
+        val engine = OfflineEngine.fromStore(userId, languageId) ?: return false
+        if (!engine.positionAtWord(lastWordId) || !engine.hasCurrent()) return false
+        offline = engine
+        syncOnline = false
+        syncFailed = false
+        val scored = baseWords.contains(lastWordId)
+        val rating = card.meta.pending_result ?: if (card.buttons.any {
+            it.offline_effect == "advance"
+        }) "know" else "dont_know"
+        offlineCurrentRecorded = scored
+        offlineScoredKnow = scored && rating == "know"
+        if (scored) {
+            // Текущая оценка уже входит в серверный отсчёт. Переносим её в
+            // изменяемую локальную часть, чтобы последующая поправка её заменяла.
+            if (rating == "know") baseCorrect-- else if (rating == "dont_know") baseWrong--
+            baseWords.remove(lastWordId)
+            localRatings[lastWordId!!] = rating
+        }
+        clearConnectionStatus()
+        setLoading(false)
+        return true
+    }
+
+    private fun sessionProgressOf(card: Card): SessionProgress = SessionProgress(
+        wordId = card.meta.word_id,
+        position = card.meta.session_pos.takeIf { it > 0 } ?: (card.meta.result_history.size + 1),
+        total = card.meta.session_total?.takeIf { it > 0 }
+            ?: card.meta.words_for_today.takeIf { it > 0 },
+        wordsForToday = card.meta.words_for_today,
+    )
+
+    private fun saveLocalProgress() {
+        OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory,
+            localRatings.toMap(), sessionProgress)
     }
 
     /** Ответ на слово, которого нет в офлайн-партии, записывать некуда — объясняем. */
@@ -776,7 +866,10 @@ class StudyActivity : AppCompatActivity() {
         offline ?: return
         val effect = btn.offline_effect ?: OfflineSemantics.effectFor(btn.id) ?: return
         when (effect) {
-            "reveal_answer"   -> renderOfflineCurrent(showAnswer = true)
+            "reveal_answer" -> {
+                recordOffline(btn.offline_rating ?: "dont_know")
+                renderOfflineCurrent(showAnswer = true)
+            }
 
             // «Ой, все-таки не знаю»: записать поправку и ПЕРЕЙТИ ДАЛЬШЕ —
             // ровно то, что делает онлайн. Там /reconsider ставит «не знаю» и
@@ -818,7 +911,7 @@ class StudyActivity : AppCompatActivity() {
 
             "submit" -> {
                 val r = btn.offline_rating ?: OfflineSemantics.ratingFor(btn.id, btn.rating)
-                recordOffline(r)
+                recordOffline(r, correction = btn.id == "toggle_skip")
                 advanceOffline()
             }
         }
@@ -827,7 +920,8 @@ class StudyActivity : AppCompatActivity() {
     /** Apply a pick-mode answer locally against the cached bundle. */
     private fun handleOfflinePick(selectedWordId: String) {
         val eng = offline ?: return
-        val option = eng.frontCard()?.pick_options?.options?.firstOrNull { it.word_id == selectedWordId }
+        val option = (currentCard?.pick_options ?: eng.frontCard()?.pick_options)
+            ?.options?.firstOrNull { it.word_id == selectedWordId }
         // Rating is server-declared per option; fall back to is_correct for old bundles.
         val rating = when {
             selectedWordId == "dont_know" -> "dont_know"
@@ -866,61 +960,63 @@ class StudyActivity : AppCompatActivity() {
                               explicit: Boolean = false) {
         val eng = offline ?: return
         if (offlineCurrentRecorded && !correction && !explicit) return
+        val wordId = eng.currentWordId() ?: return
+        localRatings[wordId] = rating
         eng.record(rating)
-        probeNetworkInBackground()
+        saveLocalProgress()
         offlineCurrentRecorded = true
         offlineScoredKnow = rating == "know"
+        probeNetworkInBackground()
     }
 
-    /**
-     * Связь могла вернуться, пока мы занимались без неё.
-     *
-     * Жалоба владельца: «включил сеть, прошёл ещё несколько слов — плашка
-     * офлайн не пропала». Сама по себе она и не пропадёт: выход из офлайна
-     * происходит только при загрузке сессии. Поэтому после каждого ответа тихо
-     * пробуем отправить накопленное: получилось — значит, сеть есть.
-     */
+    /** Синхронизация подтверждает записи, но никогда не подменяет текущую карточку. */
     private fun probeNetworkInBackground() {
-        if (offline == null) return
-        lifecycleScope.launch {
-            // Что сейчас показано из очереди: после удачной отправки эти ответы
-            // из неё исчезнут, и счётчик просел бы на столько же. Поэтому
-            // переносим их в отсчёт — они уже у сервера.
-            val mine = OfflineCache.loadOutbox()
-                .filter { it.userId == userId && it.languageId == languageId }
-                .filterNot { offline?.isExcluded(it.word_id) == true }
-                .sortedBy { it.ts }
-                .associate { it.word_id to it.rating }
-            val ok = runCatching {
+        val engine = offline ?: return
+        if (syncJob?.isActive == true) return
+        syncJob = lifecycleScope.launch {
+            while (offline === engine) {
+                val before = OfflineCache.loadOutbox()
+                    .filter { it.userId == userId && it.languageId == languageId }
+                    .map { it.event_id }.toSet()
+                if (before.isEmpty()) return@launch
                 OutboxSync.flush()
-                OfflineCache.pendingCount() == 0
-            }.getOrDefault(false)
-            if (ok) {
-                val fresh = mine.filterKeys { it !in baseWords }
-                baseCorrect += fresh.values.count { it == "know" }
-                baseWrong += fresh.values.count { it == "dont_know" }
-                baseHistory = baseHistory + fresh.values.filter { it != "skip" }
-                baseWords.addAll(fresh.keys)
-                OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory)
-                backOnline = true
+                if (offline !== engine) return@launch
+                val after = OfflineCache.loadOutbox()
+                    .filter { it.userId == userId && it.languageId == languageId }
+                    .map { it.event_id }.toSet()
+                syncOnline = after.isEmpty()
+                if (syncOnline) {
+                    syncFailed = false
+                    binding.staleNotice.visibility = View.GONE
+                    // На границе кеша новой карточки ещё нет. Только здесь
+                    // допускается загрузка следующей партии из сети.
+                    if (engine.atEnd()) loadSession()
+                    return@launch
+                }
+                syncFailed = true
+                showOfflineBanner()
+                if (after.any { it in before }) return@launch // отказ/частичный ACK: сохранить остаток
+                // Пока ждали ACK, человек уже ответил на другие слова: отправляем их по порядку.
             }
         }
     }
 
     private fun advanceOffline() {
         val eng = offline ?: return
-        // Связь вернулась — дальше идём из сети, но не посреди карточки, а на
-        // переходе к следующему слову: так экран не дёргается под рукой.
-        if (backOnline) {
-            backOnline = false
-            offline = null
-            loadSession()
-            return
-        }
         eng.advance()
         offlineCurrentRecorded = false
         offlineScoredKnow = false
-        if (eng.atEnd()) showOfflineDone() else renderOfflineCurrent(showAnswer = false)
+        if (eng.atEnd()) {
+            if (OfflineCache.loadOutbox().none { it.userId == userId && it.languageId == languageId }) {
+                loadSession()
+            } else {
+                showAllDone(offline = true)
+                probeNetworkInBackground()
+            }
+        } else {
+            renderOfflineCurrent(showAnswer = false)
+            probeNetworkInBackground()
+        }
     }
 
     private fun renderOfflineCurrent(showAnswer: Boolean) {
@@ -946,9 +1042,9 @@ class StudyActivity : AppCompatActivity() {
      * вперёд только позицию. Внизу экрана поэтому ничего не менялось, сколько бы
      * слов человек ни прошёл офлайн.
      *
-     * Считаем по outbox: там лежат ровно ответы, данные офлайн и ещё не
-     * отправленные. Пропуски в счётчики не идут — онлайн они тоже не считаются
-     * ни правильными, ни ошибками.
+     * Локальные оценки сохраняются независимо от очереди отправки: ACK удаляет
+     * событие из outbox, но не должен менять уже показанный прогресс. Пропуски
+     * не считаются ни правильными ответами, ни ошибками.
      */
     private fun withOfflineProgress(card: Card): Card {
         val eng = offline
@@ -961,29 +1057,27 @@ class StudyActivity : AppCompatActivity() {
         // все-таки не знаю» дописывает вторую, а повторный ответ — третью.
         // Считая записи, экран показывал «в сессии: 3» на первом же слове и
         // завышал «готово».
-        val done = OfflineCache.loadOutbox()
+        val ratings = localRatings + OfflineCache.loadOutbox()
             .filter { it.userId == userId && it.languageId == languageId }
-            .filterNot { eng != null && eng.isExcluded(it.word_id) }
             .sortedBy { it.ts }
             .associate { it.word_id to it.rating }
+        val done = ratings
+            .filterKeys { eng == null || !eng.isExcluded(it) }
             .filterKeys { it !in baseWords }      // уже в отсчёте — не считать снова
             .values.toList()
         val meta = card.meta
-        // Размер круга берём у движка: в партии лежат все слова дня, а круг
-        // после перезапуска короче на уже отвеченные.
-        val total = eng?.total?.takeIf { it > 0 }
+        // Размер сессии и позиция не зависят от вместимости кеша. Кеш может
+        // содержать 300 слов при сессии из пяти или начинаться со 105-го шага.
+        val total = sessionProgress?.total ?: meta.session_total?.takeIf { it > 0 }
+            ?: meta.words_for_today.takeIf { it > 0 }
         if (done.isEmpty() && total == null) return card
-        // Счётчик «в сессии: N из M» сервер присылает уже СТРОКОЙ, и в партии
-        // он застывает на том, каким был при скачивании: у владельца висело
-        // «124 из 121» — позиция из партии, размер из круга. Офлайн считаем
-        // сами.
-        //
-        // Позицию берём у движка: его курсор — это и есть номер слова в круге,
-        // с учётом выведенных перезапуском. Прежде позиция считалась по длине
-        // очереди, и после ответов, уже ушедших на сервер, она откатывалась
-        // назад: пройдя слово онлайн и продолжив без сети, экран показывал
-        // «в сессии: 1», стоя на втором слове.
-        val pos = eng?.let { it.cursor + 1 } ?: (done.size + 1)
+        val anchor = sessionProgress
+        val anchorIndex = anchor?.let { eng?.indexOfWord(it.wordId) }
+        val pos = if (anchor != null && anchorIndex != null && eng != null) {
+            (anchor.position + eng.cursor - anchorIndex).coerceAtLeast(1)
+        } else {
+            meta.session_pos.takeIf { it > 0 } ?: (baseHistory.size + done.size + 1)
+        }
         val counter = when {
             total == null -> meta.session_counter_text
             pos >= total -> "(завершающее в текущей сессии: $pos)"
@@ -996,7 +1090,7 @@ class StudyActivity : AppCompatActivity() {
             session_pos = pos,
             session_counter_text = counter,
             session_total = total ?: meta.session_total,
-            words_for_today = total ?: meta.words_for_today,
+            words_for_today = sessionProgress?.wordsForToday ?: meta.words_for_today,
         ))
     }
 
@@ -1041,10 +1135,15 @@ class StudyActivity : AppCompatActivity() {
     }
 
     private fun showOfflineBanner() {
-        val pending = OfflineCache.pendingCount()
+        val pending = OfflineCache.loadOutbox().count { it.userId == userId && it.languageId == languageId }
+        if (!syncFailed && pending == 0) {
+            binding.staleNotice.visibility = View.GONE
+            return
+        }
         // Без ссылки вовсе: сообщение об офлайне ничего не советует перезапускать.
         showNotice(binding.staleNotice, binding.tvStaleSession, binding.linkRestartStale,
-                   "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении",
+                   if (syncFailed) "📴 Офлайн — результаты сохраняются локально ($pending) и отправятся при подключении"
+                   else "🔄 Результаты сохранены на телефоне ($pending). Синхронизация в фоне — можно продолжать.",
                    phrase = null)
     }
 
@@ -1079,6 +1178,8 @@ class StudyActivity : AppCompatActivity() {
     // ── Card rendering ─────────────────────────────────────────────────────────
 
     private fun renderCard(card: Card) {
+        val renderGeneration = ++cardRenderGeneration
+        currentCard = card
         val meta = card.meta
         if (meta.word_id.isNotEmpty()) lastWordId = meta.word_id
         // Пока мы в сети, запоминаем счётчики: с них продолжит офлайн.
@@ -1111,7 +1212,9 @@ class StudyActivity : AppCompatActivity() {
                 meta.correct_count + meta.incorrect_count > meta.result_history.size
             if (alreadyScored && meta.word_id.isNotEmpty()) baseWords.add(meta.word_id)
             // И на диск: экран могут открыть заново уже без связи.
-            OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory)
+            sessionProgress = sessionProgressOf(card)
+            OfflineCache.saveProgress(userId, languageId, baseCorrect, baseWrong, baseHistory,
+                session = sessionProgress)
         }
         val barTotal = meta.session_total?.takeIf { it > 0 }
         binding.tvBadge.visibility = View.GONE  // badge now lives inside cardContent
@@ -1385,7 +1488,9 @@ class StudyActivity : AppCompatActivity() {
                     selectBtn.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
                     selectBtn.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
                     selectBtn.strokeWidth = 2
-                    selectBtn.setOnClickListener { onPickAnswer(opt.word_id) }
+                    selectBtn.setOnClickListener {
+                        if (renderGeneration == cardRenderGeneration) onPickAnswer(opt.word_id)
+                    }
                     val selectLp = LinearLayout.LayoutParams(
                         0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     selectBtn.layoutParams = selectLp
@@ -1407,7 +1512,9 @@ class StudyActivity : AppCompatActivity() {
                     b.setTextColor(ContextCompat.getColor(this, R.color.btnPrimary))
                     b.strokeColor = ContextCompat.getColorStateList(this, R.color.btnPrimary)
                     b.strokeWidth = 2
-                    b.setOnClickListener { onPickAnswer(opt.word_id) }
+                    b.setOnClickListener {
+                        if (renderGeneration == cardRenderGeneration) onPickAnswer(opt.word_id)
+                    }
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                     lp.bottomMargin = dpToPx(4)
@@ -1772,12 +1879,14 @@ class StudyActivity : AppCompatActivity() {
     // ── Button click handler ────────────────────────────────────────────────────
 
     private fun onButtonClick(btn: CardButton) {
+        ++studyGeneration
         // «Не знаю» в пик-режиме — это pick_answer с dont_know, а не show_answer:
         // ответ засчитывается как незнание, и показывается баннер результата.
         // Путь тот же, что у выбора варианта, включая офлайн-ветку.
         if (btn.id == "pick_dont_know") { onPickAnswer("dont_know"); return }
-        if (offline != null) { handleOfflineAction(btn); return }
+        if (useLocalStudy()) { handleOfflineAction(btn); return }
         val sid = sessionId ?: return
+        val generation = studyGeneration
         val btnId = btn.id
         val rating = btn.rating
         lastPickAnswerResult = null
@@ -1791,7 +1900,7 @@ class StudyActivity : AppCompatActivity() {
                 if (btnId !in setOf("know", "show_answer", "rate", "reconsider", "toggle_skip")) {
                     return@launch
                 }
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) },
+                val resp = NetworkRetry.call(onStatus = { if (generation == studyGeneration) showConnectionStatus(it) },
                                               attempts = ANSWER_ATTEMPTS) { api ->
                     when (btnId) {
                         "know"        -> api.knowWord(sid)
@@ -1801,6 +1910,7 @@ class StudyActivity : AppCompatActivity() {
                         else          -> api.toggleSkip(sid)
                     }
                 }
+                if (generation != studyGeneration) return@launch
                 clearConnectionStatus()
 
                 if (resp == null) {
@@ -1823,6 +1933,7 @@ class StudyActivity : AppCompatActivity() {
                 if (body.batch_exhausted) {
                     val batchSid = body.session_id ?: sid
                     val batch = BLSClient.api.nextBatch(batchSid)
+                    if (generation != studyGeneration) return@launch
                     val batchBody = batch.body()
                     if (batchBody?.loaded == true || batchBody?.card != null) {
                         handleResponse(batchBody)
@@ -1842,6 +1953,7 @@ class StudyActivity : AppCompatActivity() {
                 handleResponse(body)
                 flushOutboxInBackground()
             } catch (e: Exception) {
+                if (generation != studyGeneration) return@launch
                 // Network dropped — switch to the cached bundle and apply this action locally.
                 when (enterOfflineFromStore(render = false)) {
                     OfflineEntry.SAME_WORD  -> handleOfflineAction(btn)
@@ -1854,7 +1966,7 @@ class StudyActivity : AppCompatActivity() {
                         "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             } finally {
-                setLoading(false)
+                if (generation == studyGeneration) setLoading(false)
             }
         }
     }
@@ -1934,18 +2046,21 @@ class StudyActivity : AppCompatActivity() {
     }
 
     private fun onPickAnswer(selectedWordId: String) {
-        if (offline != null) { handleOfflinePick(selectedWordId); return }
+        ++studyGeneration
+        if (useLocalStudy()) { handleOfflinePick(selectedWordId); return }
         val sid = sessionId ?: return
+        val generation = studyGeneration
         setLoading(true)
         lifecycleScope.launch {
             try {
                 // Как и в onButtonClick: короткая первая попытка с эскалацией.
                 // Общий BLSClient.api — самый терпеливый клиент, и ждать на нём
                 // 15 с, чтобы потом всё равно уйти в офлайн, пользователю незачем.
-                val resp = NetworkRetry.call(onStatus = { showConnectionStatus(it) },
+                val resp = NetworkRetry.call(onStatus = { if (generation == studyGeneration) showConnectionStatus(it) },
                                               attempts = ANSWER_ATTEMPTS) { api ->
                     api.pickAnswer(sid, mapOf("selected_word_id" to selectedWordId))
                 }
+                if (generation != studyGeneration) return@launch
                 clearConnectionStatus()
                 if (resp == null) {
                     when (enterOfflineFromStore()) {
@@ -1961,6 +2076,7 @@ class StudyActivity : AppCompatActivity() {
                     lastPickAnswerResult = null
                     val batchSid = body.session_id ?: sid
                     val batch = BLSClient.api.nextBatch(batchSid)
+                    if (generation != studyGeneration) return@launch
                     val batchBody = batch.body()
                     if (batchBody?.loaded == true || batchBody?.card != null) {
                         handleResponse(batchBody); return@launch
@@ -1977,6 +2093,7 @@ class StudyActivity : AppCompatActivity() {
                 handleResponse(body)
                 flushOutboxInBackground()
             } catch (e: Exception) {
+                if (generation != studyGeneration) return@launch
                 when (enterOfflineFromStore()) {
                     OfflineEntry.SAME_WORD  -> handleOfflinePick(selectedWordId)
                     OfflineEntry.OTHER_WORD -> warnOfflineWordMissing()
@@ -1985,7 +2102,7 @@ class StudyActivity : AppCompatActivity() {
                         "[${e.javaClass.simpleName}] ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             } finally {
-                setLoading(false)
+                if (generation == studyGeneration) setLoading(false)
             }
         }
     }
@@ -2043,7 +2160,10 @@ class StudyActivity : AppCompatActivity() {
                 b.strokeWidth = 2
             }
         }
-        b.setOnClickListener { onButtonClick(btn) }
+        val renderGeneration = cardRenderGeneration
+        b.setOnClickListener {
+            if (renderGeneration == cardRenderGeneration) onButtonClick(btn)
+        }
         return b
     }
 
@@ -2074,6 +2194,8 @@ class StudyActivity : AppCompatActivity() {
      */
     @VisibleForTesting
     internal fun showAllDone(offline: Boolean = false) {
+        ++cardRenderGeneration
+        currentCard = null
         binding.tvBadge.visibility = View.GONE
         binding.restartNotice.visibility = View.GONE
         binding.progressArea.visibility = View.GONE
@@ -2393,8 +2515,8 @@ class StudyActivity : AppCompatActivity() {
      * таблица такой строки не имела и открывалась в натуральную величину —
      * «по клику таблица не увеличивается».
      *
-     * Между строкой текста и строкой перевода горизонтальной линии нет: это
-     * одна запись, и линия разрезала бы её пополам. Вертикальные — сквозные.
+     * Между строкой текста и строкой перевода проходит горизонтальная линия,
+     * как и между остальными строками таблицы. Вертикальные — сквозные.
      *
      * Какая строка какая — по заполненному полю: сервер кладёт текст и
      * транскрипцию (ipa) в одну строку, перевод — в следующую.
@@ -2411,9 +2533,9 @@ class StudyActivity : AppCompatActivity() {
                 val перевод = rows.getOrNull(i + 1)
                     ?.takeIf { it.foreign.isBlank() }?.ru.orEmpty()
                 table.addView(readingLine(row.marker, row.foreign, "", row.ipa,
-                                          top = true, bottom = перевод.isBlank()))
+                                          top = true, bottom = true))
                 if (перевод.isNotBlank()) {
-                    table.addView(readingLine("", "", перевод, "", top = false, bottom = true))
+                    table.addView(readingLine("", "", перевод, "", top = true, bottom = true))
                     i += 2
                 } else {
                     i += 1
@@ -2488,6 +2610,7 @@ class StudyActivity : AppCompatActivity() {
         tvПеревод.textDirection = View.TEXT_DIRECTION_LTR
         tvПеревод.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         val tvТр = cell(if (ipa.isBlank()) "" else "[$ipa]", 15f, 2.5f, muted = true)
+        tvТр.text = com.langbot.app.util.wholeWords(tvТр.text.toString())
         tvТр.textDirection = View.TEXT_DIRECTION_LTR
         tvТр.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
 

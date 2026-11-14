@@ -322,6 +322,24 @@ class CardStructureTest {
             1, перевод.layout.getParagraphDirection(0))
     }
 
+    @Test
+    fun reading_transcription_wraps_only_between_words() {
+        val a = open("reading_niqqud")
+        val transcription = Screenshots.texts(extras(a))
+            .first { it.text.toString() == "[jeʃ zman]" }
+        // Узкая колонка воспроизводит разрыв слова внутри транскрипции.
+        transcription.measure(
+            View.MeasureSpec.makeMeasureSpec(70, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        transcription.layout(0, 0, 70, transcription.measuredHeight)
+        val text = transcription.text.toString()
+        for (line in 1 until transcription.layout.lineCount) {
+            val start = transcription.layout.getLineStart(line)
+            assertTrue("слово разорвано на позиции $start: $text",
+                text[start - 1].isWhitespace() || text[start].isWhitespace())
+        }
+    }
+
     /** Строки таблиц ровно из четырёх ячеек — так их ищет окно увеличения. */
     private fun строкиИзЧетырёх(root: View): List<List<TextView>> {
         val out = mutableListOf<List<TextView>>()

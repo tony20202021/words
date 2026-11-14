@@ -86,7 +86,8 @@ def test_an_unanswered_word_still_stops_the_move():
     svc._advance_session_past("u1", "l1", [("w3", "know")])
 
     assert session["current_index"] == 1, "сессия перескочила через непройденное слово"
-    assert session["result_history"] == []
+    # Результат w3 уже получен и учитывается, но курсор остаётся перед w2.
+    assert session["result_history"] == ["know"]
 
 
 def test_the_rating_of_the_carried_word_is_remembered():
@@ -109,3 +110,88 @@ def test_nothing_happens_without_offline_results():
 
     assert session["current_index"] == 2
     assert session["result_history"] == []
+
+
+def test_correction_after_ack_revises_counters_and_history_without_advancing_again():
+    session = _session(0, False)
+    _register(session)
+    svc._advance_session_past("u1", "l1", [("w1", "know")])
+    assert session["current_index"] == 1
+    svc._advance_session_past("u1", "l1", [("w1", "dont_know")])
+    assert session["current_index"] == 1
+    assert session["correct_count"] == 0
+    assert session["incorrect_count"] == 1
+    assert session["result_history"] == ["dont_know"]
+
+
+def test_skip_after_ack_removes_the_previous_rating_from_session_counts():
+    session = _session(0, False)
+    _register(session)
+    svc._advance_session_past("u1", "l1", [("w1", "know")])
+    svc._advance_session_past("u1", "l1", [("w1", "skip")])
+    assert session["correct_count"] == 0
+    assert session["incorrect_count"] == 0
+    assert session["result_history"] == ["skip"]
+    assert session["current_index"] == 1
+
+
+def test_an_acknowledged_result_ahead_of_the_cursor_survives_until_the_gap_is_filled():
+    session = _session(0, False)
+    _register(session)
+    svc._advance_session_past("u1", "l1", [("w2", "know")])
+    assert session["current_index"] == 0
+    svc._advance_session_past("u1", "l1", [("w1", "dont_know")])
+    assert session["current_index"] == 2
+    assert session["correct_count"] == 1
+    assert session["incorrect_count"] == 1
+    assert session["result_history"] == ["know", "dont_know"]
+
+
+def test_correction_to_online_answer_is_counted_once_when_local_result_arrives():
+    session = _session(0, True)
+    session["correct_count"] = 1
+    _register(session)
+    svc._advance_session_past("u1", "l1", [("w1", "dont_know")])
+    assert session["correct_count"] == 0
+    assert session["incorrect_count"] == 1
+    assert session["result_history"] == ["dont_know"]
+    assert session["current_index"] == 1
+
+
+@pytest.mark.asyncio
+async def test_large_offline_bundle_is_counted_once_and_skipped_across_online_batches(monkeypatch):
+    from unittest.mock import AsyncMock
+    session = _session(0, False)
+    session["words"] = [{"_id": f"w{i}", "word_number": i} for i in range(1, 101)]
+    session["batch_start"] = 1
+    session["next_start"] = 101
+    _register(session)
+    svc._advance_session_past("u1", "l1", [
+        (f"w{i}", "know" if i % 2 == 0 else "dont_know") for i in range(1, 501)
+    ])
+    # Backend queries omit known words, but still return previously unknown ones.
+    unknown = [{"_id": f"w{i}", "word_number": i} for i in range(101, 501, 2)]
+    load = AsyncMock(side_effect=[(unknown[:100], 301), (unknown[100:], 501),
+                                  ([{"_id": "w501", "word_number": 501}], 502)])
+    monkeypatch.setattr(svc, "_load_words", load)
+    assert await svc.load_next_batch(session, object())
+    assert svc.get_current_word(session)["_id"] == "w501"
+    assert session["correct_count"] == 250
+    assert session["incorrect_count"] == 250
+    assert len(session["result_history"]) == 500
+    assert session["total_words_processed"] == 500
+
+
+@pytest.mark.asyncio
+async def test_normal_online_advance_skips_an_ahead_of_cursor_offline_ack(monkeypatch):
+    from unittest.mock import AsyncMock
+    session = _session(0, False)
+    _register(session)
+    svc._advance_session_past("u1", "l1", [("w2", "know")])
+    monkeypatch.setattr(svc, "update_word_score", AsyncMock(return_value=(True, {})))
+    await svc.rate_word(session, "dont_know", object())
+    assert svc.get_current_word(session)["_id"] == "w3"
+    assert session["correct_count"] == 1
+    assert session["incorrect_count"] == 1
+    assert session["total_words_processed"] == 2
+    assert session["result_history"] == ["know", "dont_know"]

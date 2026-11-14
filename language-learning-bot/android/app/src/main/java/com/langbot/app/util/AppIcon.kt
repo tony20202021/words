@@ -15,21 +15,32 @@ import com.langbot.app.R
  *
  * Со стрелкой «назад» уживается: система ставит значок после неё.
  *
- * ПОЛЯ ВОКРУГ. Своей высоты у логотипа нет: панель растягивает его на всю
- * доступную высоту, и круглый значок упирался в верхнюю и нижнюю границы —
- * владелец: «она сейчас прямо касается верхней и нижней границ». Задать
- * размер напрямую нечем, setLogo берёт только drawable. Поэтому значок
- * обёрнут в InsetDrawable: рисунок тот же, но внутри своих границ он занимает
- * меньше, и вокруг остаётся воздух. Поля одинаковые со всех сторон — иначе
- * круг стал бы овалом.
+ * Иконка 40 dp в области 46 × 56 dp: справа 6 dp, без лишнего поля слева.
+ * Явная ширина нужна, иначе Toolbar резервирует ширину исходного PNG,
+ * хотя по высоте ImageView уже уменьшил его до размера панели.
+ * При меньшей высоте панели рисунок пропорционально уменьшается.
  */
-private const val ПОЛЕ_DP = 6
-
 fun AppCompatActivity.showAppIcon() {
     val значок = ContextCompat.getDrawable(this, R.drawable.app_logo) ?: return
-    val поле = (ПОЛЕ_DP * resources.displayMetrics.density + 0.5f).toInt()
+    val density = resources.displayMetrics.density
+    // Убираем дополнительный промежуток после стандартной кнопки «назад».
+    findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        ?.contentInsetStartWithNavigation = (56 * density + 0.5f).toInt()
+    val logo = object : InsetDrawable(значок, 0) {
+        override fun getIntrinsicWidth() = (46 * density + 0.5f).toInt()
+        override fun getIntrinsicHeight() = (56 * density + 0.5f).toInt()
+
+        override fun onBoundsChange(bounds: android.graphics.Rect) {
+            super.onBoundsChange(bounds)
+            val size = minOf((40 * density + 0.5f).toInt(), bounds.width(),
+                (bounds.height() * 40f / 56f).toInt())
+            val left = bounds.left
+            val top = bounds.top + (bounds.height() - size) / 2
+            значок.setBounds(left, top, left + size, top + size)
+        }
+    }
     supportActionBar?.apply {
-        setLogo(InsetDrawable(значок, поле, поле, поле, поле))
+        setLogo(logo)
         setDisplayUseLogoEnabled(true)
         setDisplayShowHomeEnabled(true)
     }
