@@ -281,6 +281,8 @@ class StudyActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityStudyBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Технические сообщения через пару секунд сворачиваются в значок в углу.
+        com.langbot.app.util.TechNotice.collapsing(this)
 
         userId = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }

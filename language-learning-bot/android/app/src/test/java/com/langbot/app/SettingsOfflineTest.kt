@@ -76,8 +76,10 @@ class SettingsOfflineTest {
             .putExtra("language_id", "lang-1")
             .putExtra("language_name", "Иврит")
         val a = Robolectric.buildActivity(SettingsActivity::class.java, intent).setup().get()
+        // Без сохранённых настроек экран пуст, а сообщение лежит в слое поверх
+        // (с 17.11.2026 технические сообщения не вставляются в список).
         Screenshots.pumpUntil("настройки отрисованы") {
-            container(a).childCount > 0
+            container(a).childCount > 0 || overlay(a).childCount > 0
         }
         return a
     }
@@ -95,8 +97,13 @@ class SettingsOfflineTest {
         return out
     }
 
+    /** Слой технических сообщений поверх экрана. */
+    private fun overlay(a: SettingsActivity): ViewGroup = a.findViewById(R.id.noticeOverlay)
+
+    /** Всё, что видит человек: и список, и сообщения поверх него. */
     private fun allText(a: SettingsActivity): String =
-        collect(container(a), TextView::class.java).joinToString("\n") { it.text.toString() }
+        (collect(container(a), TextView::class.java) + collect(overlay(a), TextView::class.java))
+            .joinToString("\n") { it.text.toString() }
 
     private fun cacheBundleWithSettings() {
         OfflineCache.saveBundle(

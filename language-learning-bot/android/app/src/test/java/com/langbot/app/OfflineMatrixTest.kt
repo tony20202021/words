@@ -169,7 +169,11 @@ class OfflineMatrixTest {
 
     private fun studyText(): String {
         val a = study ?: return ""
-        return visibleText(a.get().findViewById(R.id.swipeRefresh))
+        // Плашки совета и офлайна с 17.11.2026 лежат поверх карточки, а не в
+        // ней: читаем их отдельно, чтобы текст экрана остался прежним.
+        return visibleText(a.get().findViewById(R.id.swipeRefresh)) +
+            visibleText(a.get().findViewById(R.id.restartNotice)) +
+            visibleText(a.get().findViewById(R.id.staleNotice))
     }
 
     /**
@@ -182,12 +186,15 @@ class OfflineMatrixTest {
      */
     private fun cardText(): String {
         val a = study ?: return ""
-        return visibleText(a.get().findViewById(R.id.swipeRefresh), skip = R.id.restartNotice)
+        return visibleText(a.get().findViewById(R.id.swipeRefresh)) +
+            visibleText(a.get().findViewById(R.id.staleNotice))
     }
 
     private fun statsText(): String {
         val a = stats ?: return ""
-        return visibleText(a.get().findViewById(R.id.statsContainer))
+        // «Связи нет» — в слое поверх экрана (с 17.11.2026), не в списке.
+        return visibleText(a.get().findViewById(R.id.statsContainer)) +
+            visibleText(a.get().findViewById(R.id.noticeOverlay))
     }
 
     private fun statsImages(): List<ImageView> {

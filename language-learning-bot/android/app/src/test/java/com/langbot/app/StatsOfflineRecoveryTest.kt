@@ -121,6 +121,8 @@ class StatsOfflineRecoveryTest {
             if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
         }
         walk(container(a))
+        // Сообщения о связи — в слое поверх экрана (с 17.11.2026), не в списке.
+        walk(a.findViewById<ViewGroup>(R.id.noticeOverlay))
         return sb.toString()
     }
 

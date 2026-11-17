@@ -34,6 +34,8 @@ class HintsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityHintsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Технические сообщения через пару секунд сворачиваются в значок в углу.
+        com.langbot.app.util.TechNotice.collapsing(this)
 
         userId      = intent.getStringExtra("user_id") ?: run { finish(); return }
         wordId      = intent.getStringExtra("word_id") ?: run { finish(); return }

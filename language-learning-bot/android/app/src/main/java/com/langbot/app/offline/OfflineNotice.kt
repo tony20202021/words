@@ -1,8 +1,10 @@
 package com.langbot.app.offline
 
+import android.graphics.Color
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.TextView
+import com.langbot.app.util.TechNotice
 
 /**
  * Понятное сообщение об отсутствии сети прямо на экране.
@@ -16,6 +18,10 @@ import android.widget.TextView
  * Учебный экран так себя не ведёт: там есть баннер офлайна и работа из кеша.
  * Здесь кешировать нечего, поэтому минимум — сказать, что происходит, и
  * подсказать способ повторить.
+ *
+ * С 17.11.2026 сообщение кладут в слой поверх экрана (R.id.noticeOverlay), а не
+ * в столбец содержимого: владелец просил, чтобы технические сообщения не
+ * сдвигали экран. Поэтому у него свой фон — под ним может оказаться список.
  */
 object OfflineNotice {
 
@@ -34,8 +40,10 @@ object OfflineNotice {
             text = "📴 Нет связи с сервером\n\nНе удалось загрузить $what. " +
                     "Проверьте подключение к сети.$hint"
             gravity = Gravity.CENTER
-            textSize = 16f
-            setPadding(48, 96, 48, 96)
+            textSize = 15f
+            setBackgroundColor(Color.parseColor(TechNotice.BG))
+            setTextColor(Color.parseColor(TechNotice.FG))
+            setPadding(48, 40, 48, 40)
         }
         container.addView(tv)
     }

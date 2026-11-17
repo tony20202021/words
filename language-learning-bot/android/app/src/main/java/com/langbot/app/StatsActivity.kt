@@ -35,6 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import com.langbot.app.offline.ChartCache
 import com.langbot.app.offline.OfflineNotice
+import com.langbot.app.util.TechNotice
 
 class StatsActivity : AppCompatActivity() {
 
@@ -46,6 +47,10 @@ class StatsActivity : AppCompatActivity() {
     companion object {
         const val MENU_STUDY     = 1
         const val MENU_LANGUAGES = 2
+
+        /** Ключи сообщений в слое поверх экрана: числа не пришли / графики старые. */
+        const val NO_NUMBERS_KEY = "no_numbers"
+        const val OLD_CHARTS_KEY = "old_charts"
 
         /** Сколько больших картинок качать одновременно — не забивать канал. */
         const val ZOOM_PREFETCH_PARALLEL = 2
@@ -70,6 +75,8 @@ class StatsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityStatsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Технические сообщения через пару секунд сворачиваются в значок в углу.
+        com.langbot.app.util.TechNotice.collapsing(this)
 
         userId     = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
@@ -177,6 +184,13 @@ class StatsActivity : AppCompatActivity() {
         chartsJob?.cancel()
         statsJob?.cancel()
         binding.progress.visibility = View.VISIBLE
+        // Новая загрузка — прежние «связи нет» больше ничего не значат.
+        // Пока сообщения лежали в списке, их стирала сама перезагрузка
+        // (prepareBoxes чистит список); в слое поверх они пережили бы её и
+        // висели над новой загрузкой, будто связи по-прежнему нет.
+        TechNotice.hide(this, NO_NUMBERS_KEY)
+        TechNotice.hide(this, OLD_CHARTS_KEY)
+        OfflineNotice.clear(TechNotice.overlay(this))
         prepareBoxes()
         // Графики — сразу и независимо от сводки: они умеют начать с
         // сохранённых картинок, и ждать ради этого медленный ответ незачем.
@@ -193,7 +207,8 @@ class StatsActivity : AppCompatActivity() {
                 val statsResp = NetworkRetry.call { api -> api.getStatistics(userId, languageId) }
                 if (statsResp != null && statsResp.isSuccessful && statsResp.body() != null) {
                     lastLoadFailed = false
-                    summaryBox?.let { OfflineNotice.clear(it) }
+                    OfflineNotice.clear(TechNotice.overlay(this@StatsActivity))
+                    TechNotice.hide(this@StatsActivity, NO_NUMBERS_KEY)
                     renderStats(statsResp.body()!!)
                 } else {
                     showWithoutSummary()
@@ -216,23 +231,21 @@ class StatsActivity : AppCompatActivity() {
         }
     }
 
-    /** Числа не пришли: говорим об этом в их части экрана. Графики идут своим ходом. */
+    /**
+     * Числа не пришли: говорим об этом поверх экрана. Графики идут своим ходом.
+     *
+     * Раньше строка вставлялась в часть экрана с числами и сдвигала графики
+     * под ней; владелец просил технические сообщения поверх (17.11.2026).
+     */
     private fun showWithoutSummary() {
         lastLoadFailed = true
-        val box = summaryBox ?: return
-        box.removeAllViews()
+        summaryBox?.removeAllViews()
         // Без сохранённых графиков объяснять надо подробно: экран иначе пуст.
         // С ними хватит короткой строки — картинки человек и так видит.
         if (ChartCache.hasAny(userId, languageId)) {
-            val tv = TextView(this)
-            tv.text = "📴 Связи нет — числа не обновились"
-            tv.textSize = 13f
-            tv.setTextColor(android.graphics.Color.parseColor("#856404"))
-            tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
-            tv.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
-            box.addView(tv)
+            TechNotice.show(this, NO_NUMBERS_KEY, "📴 Связи нет — числа не обновились")
         } else {
-            OfflineNotice.show(box, "статистику")
+            OfflineNotice.show(TechNotice.overlay(this), "статистику")
         }
     }
 
@@ -474,13 +487,10 @@ class StatsActivity : AppCompatActivity() {
             // Сеть не ответила, но сохранённое показано — скажем, что оно старое.
             if (serverVersion == null && fromCache > 0 && loaded.none { it }) {
                 allSlots.forEach { markSettled(it) }
-                val tv = TextView(this@StatsActivity)
-                tv.text = "📴 Связи нет — показаны графики с прошлого раза"
-                tv.textSize = 13f
-                tv.setTextColor(android.graphics.Color.parseColor("#856404"))
-                tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
-                tv.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
-                charts.addView(tv, 0)
+                // Поверх, а не первой строкой графиков: вставка сдвигала их
+                // вниз уже показанными (владелец, 17.11.2026).
+                TechNotice.show(this@StatsActivity, OLD_CHARTS_KEY,
+                    "📴 Связи нет — показаны графики с прошлого раза")
             }
 
             // Экран заполнен лёгкими — теперь фоном большие, для увеличения.

@@ -128,6 +128,8 @@ class StatsCachedChartsTest {
             if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
         }
         walk(a.findViewById<ViewGroup>(R.id.statsContainer))
+        // Сообщения о связи — в слое поверх экрана (с 17.11.2026), не в списке.
+        walk(a.findViewById<ViewGroup>(R.id.noticeOverlay))
         return sb.toString()
     }
 

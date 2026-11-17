@@ -99,8 +99,8 @@ def setup_parser():
 # сервис, и его тесты «проходили», не существуя, шесть недель. Число поднимать
 # осознанно, вместе с новыми тестами.
 EXPECTED_MIN = {
-    "bls": 478, "telegram": 260, "web": 218, "backend": 198, "common": 208,
-    "hebrew": 73, "android": 291, "tts": 18, "eng": 34, "reading": 52,
+    "bls": 484, "telegram": 260, "web": 218, "backend": 198, "common": 208,
+    "hebrew": 73, "android": 321, "tts": 18, "eng": 34, "reading": 52,
 }
 
 

@@ -14,6 +14,7 @@ import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
 import com.langbot.app.offline.OfflineCache
 import com.langbot.app.offline.OfflineNotice
+import com.langbot.app.util.TechNotice
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -22,6 +23,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var languageId: String
 
     companion object {
+        /** Ключ сообщения «нет связи, настройки из партии» в слое поверх экрана. */
+        const val OFFLINE_KEY = "offline_settings"
+
         val TOGGLE_SETTINGS = linkedMapOf(
             "skip_marked"                   to "Пропускать исключённые слова",
             "show_skip_button"              to "Показывать кнопку Пропускать",
@@ -82,6 +86,8 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Технические сообщения через пару секунд сворачиваются в значок в углу.
+        com.langbot.app.util.TechNotice.collapsing(this)
 
         userId     = UserPrefs.getUserId(this) ?: run { finish(); return }
         languageId = intent.getStringExtra("language_id") ?: run { finish(); return }
@@ -104,7 +110,7 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val resp = BLSClient.api.getSettings(userId, languageId)
                 if (resp.isSuccessful && resp.body() != null) {
-                    OfflineNotice.clear(binding.settingsContainer)
+                    OfflineNotice.clear(TechNotice.overlay(this@SettingsActivity))
                     renderSettings(resp.body()!!)
                 } else {
                     showFromOfflineBundle()
@@ -130,7 +136,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun showFromOfflineBundle() {
         val cached = OfflineCache.loadBundle(userId, languageId)?.settings
         if (cached.isNullOrEmpty()) {
-            OfflineNotice.show(binding.settingsContainer, "настройки")
+            OfflineNotice.show(TechNotice.overlay(this), "настройки")
             return
         }
         renderSettings(cached, readOnly = true)
@@ -139,8 +145,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun renderSettings(settings: Map<String, Any>, readOnly: Boolean = false) {
         val container = binding.settingsContainer
         container.removeAllViews()
+        // Пока «нет связи» лежало в списке, его стирала та же очистка; в слое
+        // поверх оно пережило бы её и висело над показанными настройками.
+        OfflineNotice.clear(TechNotice.overlay(this))
 
-        if (readOnly) addOfflineBanner(container)
+        if (readOnly) showOfflineBanner() else TechNotice.hide(this, OFFLINE_KEY)
 
         addSectionHeader(container, "Переключатели")
 
@@ -331,22 +340,18 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** Откуда взялись значения и почему их не поменять. */
-    private fun addOfflineBanner(container: LinearLayout) {
-        val tv = TextView(this)
-        tv.text = "📴 Нет связи с сервером\n\n" +
-            "Настройки показаны из сохранённой офлайн-партии — такими они были, " +
-            "когда партия скачалась. Менять их без сети нельзя: какие слова " +
-            "показывать, решает сервер."
-        tv.textSize = 14f
-        tv.setTextColor(android.graphics.Color.parseColor("#856404"))
-        tv.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
-        tv.setPadding(24, 24, 24, 24)
-        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                                           LinearLayout.LayoutParams.WRAP_CONTENT)
-        lp.bottomMargin = 16
-        tv.layoutParams = lp
-        container.addView(tv)
+    /**
+     * Откуда взялись значения и почему их не поменять.
+     *
+     * Поверх экрана, а не первой строкой настроек: при неудачном обновлении
+     * уже показанного экрана вставка сдвигала все переключатели вниз
+     * (владелец, 17.11.2026). Текст короче прежнего: поверх лежит то, что
+     * закрывает собой верх списка.
+     */
+    private fun showOfflineBanner() {
+        TechNotice.show(this, OFFLINE_KEY,
+            "📴 Нет связи с сервером — настройки из сохранённой офлайн-партии. " +
+            "Менять без сети нельзя: какие слова показывать, решает сервер.")
     }
 
     private fun addSectionHeader(container: LinearLayout, title: String) {

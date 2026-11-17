@@ -25,6 +25,7 @@ import com.langbot.app.network.Language
 import com.langbot.app.prefs.UserPrefs
 import kotlinx.coroutines.launch
 import com.langbot.app.offline.OfflineNotice
+import com.langbot.app.util.TechNotice
 
 class LanguagesActivity : AppCompatActivity() {
 
@@ -37,6 +38,8 @@ class LanguagesActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityLanguagesBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Технические сообщения через пару секунд сворачиваются в значок в углу.
+        com.langbot.app.util.TechNotice.collapsing(this)
         setSupportActionBar(binding.toolbar)
         showAppIcon()
         supportActionBar?.title = "LangBot"
@@ -73,7 +76,7 @@ class LanguagesActivity : AppCompatActivity() {
                 val resp = BLSClient.api.getLanguages()
                 if (resp.isSuccessful) {
                     connectionFailures = 0
-                    OfflineNotice.clear(binding.root as android.view.ViewGroup)
+                    OfflineNotice.clear(TechNotice.overlay(this@LanguagesActivity))
                     adapter.items = resp.body() ?: emptyList()
                     adapter.notifyDataSetChanged()
                 }
@@ -81,7 +84,7 @@ class LanguagesActivity : AppCompatActivity() {
                 connectionFailures++
                 // Список языков офлайн взять неоткуда, но пустой экран без
                 // объяснения хуже, чем явное сообщение с подсказкой повторить.
-                OfflineNotice.show(binding.root as android.view.ViewGroup, "список языков")
+                OfflineNotice.show(TechNotice.overlay(this@LanguagesActivity), "список языков")
                 if (connectionFailures >= 2) {
                     showReloginSuggestion()
                 }
@@ -114,6 +117,8 @@ class LanguagesActivity : AppCompatActivity() {
         private const val MENU_TELEGRAM  = 4
         private const val MENU_LOGOUT    = 5
         private const val WEB_URL        = "https://77.81.226.56:8544"
+        /** Ключ полосы «доступна версия» в слое сообщений. */
+        const val UPDATE_KEY = "update"
         private const val TELEGRAM_URL   = "https://t.me/language_learning_words_bot"
     }
 
@@ -176,23 +181,19 @@ class LanguagesActivity : AppCompatActivity() {
                 val pkgInfo = packageManager.getPackageInfo(packageName, 0)
                 @Suppress("DEPRECATION")
                 val currentCode = pkgInfo.versionCode
-                val root = binding.root as android.widget.LinearLayout
-                updateBanner?.let { root.removeView(it) }
+                // Полоса — поверх списка, а не вставкой под панель: вставка
+                // сдвигала список вниз (владелец, 17.11.2026). См. TechNotice.
+                TechNotice.hide(this@LanguagesActivity, UPDATE_KEY)
                 updateBanner = null
                 if (body.version_code > currentCode) {
                     val newVer = body.version
-                    val banner = android.widget.TextView(this@LanguagesActivity)
-                    banner.text = "⬆ Доступна версия $newVer — нажмите для обновления"
-                    banner.textSize = 13f
-                    banner.setTextColor(android.graphics.Color.WHITE)
-                    banner.setBackgroundColor(android.graphics.Color.parseColor("#1565C0"))
-                    banner.setPadding(32, 16, 32, 16)
-                    banner.gravity = android.view.Gravity.CENTER
-                    banner.setOnClickListener {
+                    val banner = TechNotice.show(this@LanguagesActivity, UPDATE_KEY,
+                        "⬆ Доступна версия $newVer — нажмите для обновления",
+                        bg = "#1565C0", fg = "#FFFFFF") {
                         startActivity(Intent(Intent.ACTION_VIEW,
                             Uri.parse("$WEB_URL/download/android")))
                     }
-                    root.addView(banner, 1)
+                    banner.gravity = android.view.Gravity.CENTER
                     updateBanner = banner
                 }
             } catch (_: Exception) { /* version check is optional */ }
