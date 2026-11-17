@@ -85,6 +85,16 @@ object TechNotice {
      */
     const val COLLAPSE_MS = 2500L
 
+    /** Сколько длится сжатие плашки в угол и разворот обратно. */
+    const val COLLAPSE_ANIM_MS = 350L
+    const val EXPAND_ANIM_MS = 250L
+    const val BADGE_ANIM_MS = 150L
+
+    /** До какого размера сжимается плашка перед тем, как стать значком. */
+    const val SHRUNK = 0.12f
+    /** С какого размера вырастает значок. */
+    private const val BADGE_FROM = 0.4f
+
     /** id значка свёрнутых сообщений — для проверок. */
     val BADGE_ID = View.generateViewId()
 
@@ -132,20 +142,101 @@ object TechNotice {
             })
 
         var shown = ""                       // подпись сообщений, уже показанных целиком
-        val collapse = Runnable {
-            if (messages(stack).isEmpty()) return@Runnable
+
+        // Сворачивание и разворачивание — движением, а не подменой.
+        //
+        // Владелец (17.11.2026): «он переходит с анимацией? или просто в одном
+        // месте исчезает, в другом появляется?» — просил движение. Плашка
+        // сжимается к правому верхнему углу и гаснет, на её месте вырастает
+        // значок; по нажатию плашка разворачивается из того же угла. Видно,
+        // куда делось сообщение и откуда оно вернулось.
+        //
+        // Масштаб — свойство рисования, раскладку он не трогает: под плашкой
+        // ничего не двигается и во время движения.
+        /**
+         * Запустить движение и запомнить его (см. [motion]).
+         *
+         * ObjectAnimator, а не ViewPropertyAnimator: у запущенной анимации
+         * можно спросить, что она двигает, куда и сколько. В Robolectric кадры
+         * анимации прокручиваются разом, и по ходу движение не подсмотреть —
+         * проверка сверяет, что оно запущено и куда ведёт.
+         */
+        fun play(view: View, to: Float, alphaTo: Float, ms: Long,
+                 interpolator: android.animation.TimeInterpolator,
+                 then: (() -> Unit)? = null) {
+            val set = android.animation.AnimatorSet()
+            set.playTogether(
+                android.animation.ObjectAnimator.ofFloat(view, View.SCALE_X, to),
+                android.animation.ObjectAnimator.ofFloat(view, View.SCALE_Y, to),
+                android.animation.ObjectAnimator.ofFloat(view, View.ALPHA, alphaTo))
+            set.duration = ms
+            set.interpolator = interpolator
+            if (then != null) set.addListener(object : android.animation.AnimatorListenerAdapter() {
+                // onAnimationEnd приходит и после отмены — а отменённое
+                // движение доигрывать нельзя: его прервало новое сообщение.
+                var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!cancelled) then()
+                }
+            })
+            view.setTag(R.id.noticeOverlay, set)
+            set.start()
+        }
+        fun stop(view: View) {
+            (view.getTag(R.id.noticeOverlay) as? android.animation.Animator)?.cancel()
+        }
+        fun resetStack() {
+            stop(stack)
+            stack.scaleX = 1f; stack.scaleY = 1f; stack.alpha = 1f
+        }
+        fun pivotToCorner() {
+            stack.pivotX = stack.width.toFloat()
+            stack.pivotY = 0f
+        }
+        /** Свёрнутое состояние — сразу, без движения. */
+        val collapsed = Runnable {
+            // Сообщения успели убрать, пока плашка сжималась, — вернуть ей
+            // размер, иначе она так и осталась бы невидимой точкой.
+            if (messages(stack).isEmpty()) { resetStack(); return@Runnable }
             stack.visibility = View.GONE
-            badge.text = iconOf(messages(stack).first())
+            // Масштаб возвращаем уже невидимой плашке: иначе следующее
+            // сообщение показалось бы в виде точки в углу.
+            stack.scaleX = 1f; stack.scaleY = 1f; stack.alpha = 1f
+            val icon = iconOf(messages(stack).first())
+            if (badge.text.toString() != icon) badge.text = icon
             badge.visibility = View.VISIBLE
+        }
+        val collapse = Runnable {
+            if (messages(stack).isEmpty() || stack.visibility != View.VISIBLE) return@Runnable
+            pivotToCorner()
+            play(stack, SHRUNK, 0f, COLLAPSE_ANIM_MS,
+                 android.view.animation.AccelerateInterpolator()) {
+                collapsed.run()
+                // Значок вырастает на месте, куда сжалась плашка.
+                badge.scaleX = BADGE_FROM; badge.scaleY = BADGE_FROM; badge.alpha = 0f
+                play(badge, 1f, 1f, BADGE_ANIM_MS,
+                     android.view.animation.DecelerateInterpolator())
+            }
         }
         fun expand() {
             stack.removeCallbacks(collapse)
-            stack.visibility = View.VISIBLE
+            val fromCorner = badge.visibility == View.VISIBLE
+            stop(badge)
             badge.visibility = View.GONE
+            resetStack()
+            stack.visibility = View.VISIBLE
+            if (fromCorner) {
+                // Обратный путь: из угла, где стоял значок.
+                pivotToCorner()
+                stack.scaleX = SHRUNK; stack.scaleY = SHRUNK; stack.alpha = 0f
+                play(stack, 1f, 1f, EXPAND_ANIM_MS,
+                     android.view.animation.DecelerateInterpolator())
+            }
             stack.postDelayed(collapse, COLLAPSE_MS)
         }
         badge.setOnClickListener { expand() }
-        stack.tag = collapse                 // для collapseNow — см. ниже
+        stack.tag = collapsed                // для collapseNow — см. ниже
         stack.viewTreeObserver.addOnGlobalLayoutListener {
             val now = messages(stack)
             val signature = now.joinToString("\n") { it.replace(Regex("\\d"), "") }
@@ -153,7 +244,9 @@ object TechNotice {
                 // Сообщений нет: значок убрать, слой оставить раскрытым — так
                 // следующее сообщение сразу покажется целиком.
                 stack.removeCallbacks(collapse)
+                stop(badge)
                 badge.visibility = View.GONE
+                resetStack()
                 stack.visibility = View.VISIBLE
                 shown = ""
             } else if (signature != shown) {
@@ -173,7 +266,17 @@ object TechNotice {
     }
 
     /**
-     * Свернуть сообщения сразу, не дожидаясь паузы.
+     * Последнее запущенное движение плашки или значка — для проверок.
+     *
+     * Смотреть движение по ходу в Robolectric нельзя: кадры анимации там
+     * прокручиваются разом, а в режиме кадров по часам не идут вовсе. Зато
+     * можно спросить у запущенной анимации, что, куда и сколько она двигает.
+     */
+    fun motion(view: View): android.animation.AnimatorSet? =
+        view.getTag(R.id.noticeOverlay) as? android.animation.AnimatorSet
+
+    /**
+     * Свернуть сообщения сразу, не дожидаясь паузы и без движения.
      *
      * Для проверок: ожидание по часам в проверке, где ищут бесконечную
      * раскладку, само зависает при поломке, а не падает.

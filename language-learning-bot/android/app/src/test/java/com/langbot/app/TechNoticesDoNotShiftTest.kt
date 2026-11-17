@@ -238,6 +238,10 @@ class TechNoticesDoNotShiftTest {
     private fun later(ms: Long) = org.robolectric.shadows.ShadowLooper.idleMainLooper(
         ms, java.util.concurrent.TimeUnit.MILLISECONDS)
 
+    /** Пауза и само сжатие в угол — после этого слой свёрнут. */
+    private val свернулось = TechNotice.COLLAPSE_MS + TechNotice.COLLAPSE_ANIM_MS +
+        TechNotice.BADGE_ANIM_MS + 100
+
     /** Раскладка, как после кадра на телефоне: слой узнаёт о переменах. */
     private fun frame(a: Activity) {
         layOut(a)
@@ -265,7 +269,7 @@ class TechNoticesDoNotShiftTest {
             View.VISIBLE, stack.visibility)
         assertEquals("значок раньше времени", View.GONE, badge.visibility)
 
-        later(TechNotice.COLLAPSE_MS + 100)
+        later(свернулось)
         assertEquals("через пару секунд сообщение не свернулось", View.GONE, stack.visibility)
         assertEquals("значка в углу нет", View.VISIBLE, badge.visibility)
         assertEquals("значок не тот, что у сообщения", "📴", badge.text.toString())
@@ -282,14 +286,14 @@ class TechNoticesDoNotShiftTest {
     fun tapping_the_icon_shows_the_message_again_and_it_collapses_again() {
         val a = study()
         offline(a, 1)
-        later(TechNotice.COLLAPSE_MS + 100)
+        later(свернулось)
         val stack = TechNotice.overlay(a)
         val badge = a.findViewById<TextView>(TechNotice.BADGE_ID)
 
         badge.performClick()
         assertEquals("по нажатию на значок сообщение не развернулось", View.VISIBLE, stack.visibility)
         assertEquals(View.GONE, badge.visibility)
-        later(TechNotice.COLLAPSE_MS + 100)
+        later(свернулось)
         assertEquals("развёрнутое по нажатию не свернулось снова", View.GONE, stack.visibility)
     }
 
@@ -297,7 +301,7 @@ class TechNoticesDoNotShiftTest {
     fun a_new_count_does_not_pop_the_message_up_again_but_a_new_message_does() {
         val a = study()
         offline(a, 1)
-        later(TechNotice.COLLAPSE_MS + 100)
+        later(свернулось)
         val stack = TechNotice.overlay(a)
 
         // После каждого ответа офлайн «(1)» становится «(2)» — это не новость.
@@ -316,7 +320,7 @@ class TechNoticesDoNotShiftTest {
     fun without_messages_there_is_no_icon() {
         val a = study()
         offline(a, 1)
-        later(TechNotice.COLLAPSE_MS + 100)
+        later(свернулось)
         a.findViewById<View>(R.id.staleNotice).visibility = View.GONE
         frame(a)
         assertEquals("сообщений нет, а значок остался",
@@ -344,6 +348,86 @@ class TechNoticesDoNotShiftTest {
         frame(a)
         assertFalse("свёрнутый слой на каждом кадре просит новую раскладку — " +
             "экран будет перекладываться без конца", badge.isLayoutRequested)
+    }
+
+    /** Конечные значения движения по свойствам: scaleX, scaleY, alpha. */
+    private fun targets(m: android.animation.AnimatorSet): Map<String, Float> =
+        m.childAnimations.filterIsInstance<android.animation.ObjectAnimator>()
+            .associate { (it.propertyName ?: "") to (it.animatedValue as Float) }
+
+    @Test
+    fun the_notice_shrinks_into_the_corner_instead_of_vanishing() {
+        /*
+         * Владелец (17.11.2026): «он переходит с анимацией? или просто в одном
+         * месте исчезает, в другом появляется?» — и попросил движение.
+         *
+         * По ходу движение в Robolectric не подсмотреть: кадры анимации там
+         * прокручиваются разом. Поэтому спрашиваем у запущенной анимации, что
+         * она двигала, куда и сколько, — и проверяем, чем всё кончилось.
+         */
+        val a = study()
+        offline(a, 1)
+        val stack = TechNotice.overlay(a)
+        later(свернулось)
+
+        val m = TechNotice.motion(stack)
+        assertTrue("плашка исчезла без движения", m != null)
+        assertEquals("сжатие длится не столько", TechNotice.COLLAPSE_ANIM_MS, m!!.duration)
+        val к = targets(m)
+        assertEquals("плашка сжималась не до значка: $к", TechNotice.SHRUNK, к["scaleX"]!!, 0.01f)
+        assertEquals("плашка сжималась не до значка: $к", TechNotice.SHRUNK, к["scaleY"]!!, 0.01f)
+        assertEquals("плашка не гасла по пути: $к", 0f, к["alpha"]!!, 0.01f)
+        assertEquals("сжималась не к правому краю", stack.width.toFloat(), stack.pivotX, 1f)
+        assertEquals("сжималась не к верхнему краю", 0f, stack.pivotY, 1f)
+
+        val badge = a.findViewById<View>(TechNotice.BADGE_ID)
+        val b = TechNotice.motion(badge)
+        assertTrue("значок появился без движения", b != null)
+        assertEquals("значок не дорос до своего размера", 1f, targets(b!!)["scaleX"]!!, 0.01f)
+
+        assertEquals(View.GONE, stack.visibility)
+        assertEquals(View.VISIBLE, badge.visibility)
+        assertEquals("значок остался недоросшим", 1f, badge.scaleX, 0.01f)
+    }
+
+    @Test
+    fun tapping_the_icon_unfolds_the_notice_from_the_corner() {
+        val a = study()
+        offline(a, 1)
+        later(свернулось)
+        val stack = TechNotice.overlay(a)
+        val сжатие = TechNotice.motion(stack)
+
+        a.findViewById<View>(TechNotice.BADGE_ID).performClick()
+        val m = TechNotice.motion(stack)
+        assertTrue("плашка появилась без движения", m != null && m !== сжатие)
+        assertEquals("разворот длится не столько", TechNotice.EXPAND_ANIM_MS, m!!.duration)
+        assertEquals("разворачивалась не из правого угла", stack.width.toFloat(), stack.pivotX, 1f)
+        assertEquals("разворачивалась не из верхнего угла", 0f, stack.pivotY, 1f)
+        later(TechNotice.EXPAND_ANIM_MS + 50)
+        assertEquals("плашка не развернулась до конца", 1f, stack.scaleX, 0.01f)
+        assertEquals("плашка осталась полупрозрачной", 1f, stack.alpha, 0.01f)
+    }
+
+    @Test
+    fun after_collapsing_the_next_message_shows_at_full_size() {
+        /*
+         * Сжатие оставляет у плашки масштаб 0,12 и прозрачность 0. Не вернуть
+         * их — и следующее сообщение после пустой паузы показалось бы
+         * невидимой точкой в углу.
+         */
+        val a = study()
+        offline(a, 1)
+        later(свернулось)
+        a.findViewById<View>(R.id.staleNotice).visibility = View.GONE
+        frame(a)
+        a.findViewById<TextView>(R.id.tvRestartNotice).text = "Много ошибок — можно перезапустить сессию"
+        a.findViewById<View>(R.id.restartNotice).visibility = View.VISIBLE
+        frame(a)
+        val stack = TechNotice.overlay(a)
+        assertEquals(View.VISIBLE, stack.visibility)
+        assertEquals("новое сообщение показалось сжатым", 1f, stack.scaleX, 0.01f)
+        assertEquals("новое сообщение показалось прозрачным", 1f, stack.alpha, 0.01f)
     }
 
     @Test
