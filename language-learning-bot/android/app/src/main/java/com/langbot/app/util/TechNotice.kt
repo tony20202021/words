@@ -143,6 +143,27 @@ object TechNotice {
 
         var shown = ""                       // подпись сообщений, уже показанных целиком
 
+        // Значок — цвета плашки, которую он заменяет.
+        //
+        // Владелец (18.11.2026): «сейчас иконка всегда желто-оранжевая, можно
+        // ли её сделать тем же цветом, что окно самого уведомления?» Плашки
+        // разные: офлайн на карточке голубой, «доступна версия» синяя, связь
+        // жёлтая, — и жёлтый значок над голубой плашкой выглядел чужим.
+        // Красим только при перемене: перекраска сама экран не перекладывает,
+        // но и лишний раз её незачем звать из раскладки.
+        var painted: Pair<Int, Int>? = null
+        fun paintBadge() {
+            val first = messageViews(stack).firstOrNull() ?: return
+            val colors = colorsOf(first)
+            if (colors == painted) return
+            painted = colors
+            (badge.background as android.graphics.drawable.GradientDrawable).apply {
+                setColor(colors.first)
+                setStroke((1 * d).toInt().coerceAtLeast(1), colors.second)
+            }
+            badge.setTextColor(colors.second)
+        }
+
         // Сворачивание и разворачивание — движением, а не подменой.
         //
         // Владелец (17.11.2026): «он переходит с анимацией? или просто в одном
@@ -205,6 +226,7 @@ object TechNotice {
             stack.scaleX = 1f; stack.scaleY = 1f; stack.alpha = 1f
             val icon = iconOf(messages(stack).first())
             if (badge.text.toString() != icon) badge.text = icon
+            paintBadge()
             badge.visibility = View.VISIBLE
         }
         val collapse = Runnable {
@@ -261,8 +283,30 @@ object TechNotice {
                 // прогоне проверки зависли, на телефоне это жгло бы батарею.
                 val icon = iconOf(now.first())
                 if (badge.text.toString() != icon) badge.text = icon
+                paintBadge()
             }
         }
+    }
+
+    /**
+     * Фон и цвет текста плашки [v] — их берёт значок, в который она свернулась.
+     * Фон — заливка самой плашки, текст — её первой надписи; чего не узнать,
+     * то по умолчанию, цветами предупреждения.
+     */
+    fun colorsOf(v: View): Pair<Int, Int> {
+        val bg = when (val b = v.background) {
+            is android.graphics.drawable.ColorDrawable -> b.color
+            is android.graphics.drawable.GradientDrawable -> b.color?.defaultColor
+            else -> null
+        } ?: Color.parseColor(BG)
+        fun firstText(x: View): TextView? = when {
+            x.visibility != View.VISIBLE -> null
+            x is TextView -> x.takeIf { it.text.isNotBlank() }
+            x is ViewGroup -> (0 until x.childCount).firstNotNullOfOrNull { firstText(x.getChildAt(it)) }
+            else -> null
+        }
+        val fg = firstText(v)?.currentTextColor ?: Color.parseColor(FG)
+        return bg to fg
     }
 
     /**
@@ -286,16 +330,19 @@ object TechNotice {
     }
 
     /** Тексты показанных сообщений слоя — сверху вниз. */
-    fun messages(stack: ViewGroup): List<String> {
-        fun texts(v: View): List<String> = when {
-            v.visibility != View.VISIBLE -> emptyList()
-            v is TextView -> if (v.text.isNotBlank()) listOf(v.text.toString()) else emptyList()
-            v is ViewGroup -> (0 until v.childCount).flatMap { texts(v.getChildAt(it)) }
-            else -> emptyList()
-        }
+    fun messages(stack: ViewGroup): List<String> =
         // Одна плашка — одно сообщение, даже если в ней текст и ссылка.
-        return (0 until stack.childCount).map { texts(stack.getChildAt(it)).joinToString(" ") }
-            .filter { it.isNotEmpty() }
+        messageViews(stack).map { texts(it).joinToString(" ") }
+
+    /** Плашки слоя, в которых сейчас есть что прочесть, — сверху вниз. */
+    fun messageViews(stack: ViewGroup): List<View> =
+        (0 until stack.childCount).map { stack.getChildAt(it) }.filter { texts(it).isNotEmpty() }
+
+    private fun texts(v: View): List<String> = when {
+        v.visibility != View.VISIBLE -> emptyList()
+        v is TextView -> if (v.text.isNotBlank()) listOf(v.text.toString()) else emptyList()
+        v is ViewGroup -> (0 until v.childCount).flatMap { texts(v.getChildAt(it)) }
+        else -> emptyList()
     }
 
     /** Значок сообщения: его первый символ-картинка, иначе «ℹ️». */

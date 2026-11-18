@@ -438,4 +438,51 @@ class TechNoticesDoNotShiftTest {
         assertEquals("⚠️", TechNotice.iconOf("⚠️ Внимание"))
         assertEquals("ℹ️", TechNotice.iconOf("Много ошибок подряд"))
     }
+
+    // ── Цвет значка ───────────────────────────────────────────────────────
+    //
+    // Владелец (18.11.2026): «сейчас иконка всегда желто-оранжевая — можно ли
+    // её сделать тем же цветом, что окно самого уведомления?» Плашки разные:
+    // офлайн на карточке голубой, «доступна версия» синяя, связь жёлтая.
+
+    private fun fill(badge: View): Int =
+        (badge.background as android.graphics.drawable.GradientDrawable).color!!.defaultColor
+
+    private fun color(hex: String) = android.graphics.Color.parseColor(hex)
+
+    @Test
+    fun the_icon_takes_the_colours_of_its_notice_and_follows_a_new_one() {
+        val a = study()
+        val badge = a.findViewById<TextView>(TechNotice.BADGE_ID)
+
+        offline(a, 1)                              // голубая плашка офлайна
+        later(свернулось)
+        assertEquals("значок не цвета плашки офлайна", color("#CCE5FF"), fill(badge))
+        assertEquals("знак на значке не цвета текста плашки", color("#004085"), badge.currentTextColor)
+
+        // На её место пришла жёлтая плашка связи — значок перекрашивается.
+        a.findViewById<View>(R.id.staleNotice).visibility = View.GONE
+        a.findViewById<TextView>(R.id.tvConnection).apply {
+            text = "⚠️ Сервер не отвечает"
+            visibility = View.VISIBLE
+        }
+        frame(a)
+        later(свернулось)
+        assertEquals("значок остался цвета прежней плашки", color("#FFF3CD"), fill(badge))
+        assertEquals(color("#856404"), badge.currentTextColor)
+    }
+
+    @Test
+    fun the_icon_of_the_update_banner_is_blue_like_the_banner() {
+        val a = Robolectric.buildActivity(LanguagesActivity::class.java).setup().get()
+        Screenshots.pumpUntil("полоса «доступна версия» появилась") {
+            TechNotice.find(TechNotice.overlay(a), LanguagesActivity.UPDATE_KEY) != null
+        }
+        frame(a)
+        later(свернулось)
+        val badge = a.findViewById<TextView>(TechNotice.BADGE_ID)
+        assertEquals("не свернулось", View.VISIBLE, badge.visibility)
+        assertEquals("значок полосы обновления не синий", color("#1565C0"), fill(badge))
+        assertEquals("стрелка на синем не белая", color("#FFFFFF"), badge.currentTextColor)
+    }
 }

@@ -294,9 +294,7 @@ class StudyActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
 
-        binding.swipeRefresh.setOnRefreshListener {
-            loadSession()
-        }
+        binding.swipeRefresh.setOnRefreshListener { refresh() }
 
         // Запасные ссылки отдельной строкой: нужны, только если в тексте
         // плашки не нашлось слов, на которые ссылку вешать. См. showNotice.
@@ -552,9 +550,9 @@ class StudyActivity : AppCompatActivity() {
 
     // ── Session loading ────────────────────────────────────────────────────────
 
-    /** Перезагрузить сессию (для проверок — то же, что «потянуть вниз»). */
+    /** «Потянуть вниз» — для проверок. */
     @VisibleForTesting
-    fun refreshForTest() = loadSession()
+    fun refreshForTest() = refresh()
 
     /**
      * Поставить отметку «звучит сейчас» на вариант (для проверок).
@@ -572,6 +570,30 @@ class StudyActivity : AppCompatActivity() {
 
     @VisibleForTesting
     fun clearWaitingForTest() = clearConnectionStatus()
+
+    /**
+     * «Потянуть вниз» — обновить то, что на экране, не уходя с этого слова.
+     *
+     * Владелец (18.11.2026): «на карточке вопроса — нормально, просто обновляет
+     * экран; на карточке ответа — переходит на следующее слово». Обновление
+     * спрашивало у сервера текущую карточку. Но ответы идут через партию на
+     * телефоне и уходят на сервер пачкой, а пачка двигает серверную сессию
+     * дальше: на вопросе сервер ещё стоит на этом слове, на ответе — уже на
+     * следующем. Обновление и показывало следующее слово, проскакивая ответ
+     * вместе с «ой, все-таки не знаю».
+     *
+     * На стороне ответа слово уже отвечено, спрашивать сервер не о чем:
+     * дорисовываем ту же карточку и отправляем накопленное. Следующее слово —
+     * по кнопке, как и было.
+     */
+    private fun refresh() {
+        val card = currentCard
+        if (card == null || !card.show_answer) { loadSession(); return }
+        ++studyGeneration                    // запоздалый ответ сервера экран не трогает
+        renderCard(card)
+        flushOutboxInBackground()
+        setLoading(false)
+    }
 
     private fun loadSession() {
         val generation = ++studyGeneration

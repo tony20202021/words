@@ -163,6 +163,41 @@ class LocalStudyTransitionsTest {
         assertTrue("known count did not decrease: $all", Regex("0 правильн").containsMatchIn(all))
         assertTrue("unknown count did not increase: $all", all.contains("1 ошиб"))
     }
+    // Владелец (18.11.2026): «на карточке вопроса — просто обновляет экран, на
+    // карточке ответа — переходит на следующее слово». Ответ уходит на сервер
+    // пачкой, и пачка двигает серверную сессию дальше: спроси обновление
+    // сервер — он отвечает уже следующим словом.
+    private fun pullDown() {
+        activity!!.refreshForTest()
+        Screenshots.pumpUntil("обновление закончилось") {
+            activity!!.findViewById<android.view.View>(R.id.loadingBar).visibility != android.view.View.VISIBLE
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test fun pulling_down_on_the_answer_keeps_the_answer_instead_of_moving_on() {
+        open(); tap("Know"); release.countDown()
+        Screenshots.pumpUntil("ответ отправлен") { OfflineCache.pendingCount() == 0 }
+        serverQuestionId = "w2"                    // пачка сдвинула серверную сессию
+        pullDown()
+        assertTrue("обновление на ответе перешло к другому слову: ${texts()}",
+            texts().contains("answer-w1"))
+        // Отмена «ой, все-таки не знаю» на месте: ответ тот же, не урезанный.
+        failSync = true                            // поправку оставить в очереди
+        tap("Correct")
+        assertTrue(texts().contains("question-w2"))
+        assertEquals("dont_know", OfflineCache.loadOutbox().last().rating)
+    }
+
+    @Test fun pulling_down_on_the_question_still_asks_the_server() {
+        open()
+        val asked = paths.count { it.contains("/session/") }
+        pullDown()
+        assertTrue("обновление на вопросе не спросило сервер",
+            paths.count { it.contains("/session/") } > asked)
+        assertTrue(texts().contains("question-w1"))
+    }
+
     @Test fun a_stale_button_cannot_record_the_same_answer_twice() {
         open()
         val oldButton = Screenshots.texts(activity!!.findViewById<ViewGroup>(R.id.buttonRow))
