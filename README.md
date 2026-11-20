@@ -5,3 +5,5 @@
 ## translation_summary
 ## generate picture by hieroglyph
 ## parse transcription
+
+Источники данных и их лицензии — [DATA_SOURCES.md](DATA_SOURCES.md).

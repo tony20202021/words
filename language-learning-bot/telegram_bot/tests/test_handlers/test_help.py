@@ -14,7 +14,25 @@ async def test_cmd_help_sends_text():
     with patch("app.bot.handlers.help.get_bls_client", return_value=mock_bls):
         await cmd_help(msg)
     expected = "Текст справки" + _BOT_COMMANDS
-    msg.answer.assert_called_once_with(expected, parse_mode="HTML")
+    msg.answer.assert_called_once_with(expected, parse_mode="HTML",
+                                       disable_web_page_preview=True)
+
+
+@pytest.mark.asyncio
+async def test_cmd_help_shows_the_sources_link_without_a_preview_card():
+    """В справке ссылка на источники данных; карточка-превью GitHub под
+    справкой была бы крупнее самой справки."""
+    from app.bot.handlers.help import cmd_help
+    from common.help_text import HELP_TEXT, DATA_SOURCES_URL
+    mock_bls = MagicMock()
+    mock_bls.get_help = AsyncMock(return_value={"text": HELP_TEXT})
+    msg = MagicMock()
+    msg.answer = AsyncMock()
+    with patch("app.bot.handlers.help.get_bls_client", return_value=mock_bls):
+        await cmd_help(msg)
+    args, kwargs = msg.answer.call_args
+    assert DATA_SOURCES_URL in args[0]
+    assert kwargs.get("disable_web_page_preview") is True
 
 
 @pytest.mark.asyncio

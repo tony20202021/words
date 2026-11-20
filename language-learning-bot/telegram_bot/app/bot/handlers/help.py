@@ -22,4 +22,6 @@ async def cmd_help(message: Message) -> None:
     bls = get_bls_client()
     data = await bls.get_help()
     text = data.get("text", "Справка недоступна.") + _BOT_COMMANDS
-    await message.answer(text, parse_mode="HTML")
+    # В справке ссылка на источники данных; карточка-превью GitHub под ней
+    # была бы крупнее самой справки.
+    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)

@@ -8,7 +8,7 @@
 
 <div class="card shadow-sm">
   <div class="card-body">
-    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem;">{{ help_text }}</pre>
+    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem;">{{ help_text | urlize(target="_blank") }}</pre>
   </div>
 </div>
 {% endblock %}
