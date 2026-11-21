@@ -136,6 +136,13 @@ CASES = {
     "question_transcription": (session(show_mode="transcription"), word(), False),
     "question_sound":         (session(show_mode="sound"), word(sounds=SOUNDS), False),
     "answer_hebrew":       (session(show_answer=True, word_processed=True), word(), True),
+    # Четыре голоса у слова (владелец, 21.11.2026: четвёртый — Piper noa).
+    # Кнопки звука стоят в один ряд вместе с «▶ Все» — пятая не должна
+    # уехать за край экрана.
+    "answer_four_voices":  (session(show_answer=True, word_processed=True),
+                            word(sounds=json.dumps({f"sound_{i}": f"sounds/he/{г}/4.mp3"
+                                                    for i, г in enumerate(("gtts", "hila", "avri", "noa"), 1)})),
+                            True),
     "pick_mode":           (pick_session(), word(), False),
     "pick_after_answer":   (session(show_answer=True, word_processed=True,
                                     pick_mode_active=True,
@@ -186,6 +193,22 @@ CASES = {
                                  word_number=87, part_of_speech="сущ", lemma="זמן",
                                  tones="", references="",
                                  reading_sentences=READING), True),
+    # Озвучка примеров (владелец, 21.11.2026): 🔊 в ячейке номера, нажатие —
+    # звучит эта строка. У каждого предложения здесь по одному файлу: карточка
+    # берёт один из готовых наугад, а снимку нужна неизменная фикстура.
+    "reading_sound":       (session(show_answer=True, word_processed=True,
+                                    settings={"show_sounds": False, "show_tones": False,
+                                              "show_references": False,
+                                              "show_skip_button": True,
+                                              "show_reading": True,
+                                              "show_simplified": True}),
+                            word(word_foreign="זְמַן", word_foreign_simple="זמן",
+                                 translation="время", transcription="zman",
+                                 word_number=87, part_of_speech="сущ", lemma="זמן",
+                                 tones="", references="",
+                                 reading_sentences=[
+                                     dict(п, sounds=[f"sounds/he/reading/hila/{i}.mp3"])
+                                     for i, п in enumerate(READING, 1)]), True),
     # Лицевая сторона с переключателем огласовки. Снимок обратной стороны этот
     # случай не ловил: там содержимое длиннее экрана. На лицевой оно короткое,
     # прокрутка с fillViewport растягивает колонку до высоты экрана, и строка

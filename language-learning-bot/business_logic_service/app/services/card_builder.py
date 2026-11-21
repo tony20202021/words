@@ -480,9 +480,13 @@ def _add_reading(word: dict, extra: list, settings: dict) -> None:
         предложения = random.sample(предложения, ЧТЕНИЕ_ПОКАЗЫВАТЬ)
     rows = []
     for i, п in enumerate(предложения, 1):
+        # Озвучка: в базе файлы всеми голосами, на карточку — один наугад
+        # (владелец, 21.11.2026). Пустая строка — 🔊 у строки не будет.
+        звуки = [з for з in (п.get("sounds") or []) if з]
         rows.append({"marker": str(i), "rank": i,
                      "foreign": п.get("text", ""), "ru": "",
-                     "ipa": п.get("tr", "") or ""})
+                     "ipa": п.get("tr", "") or "",
+                     "sound": random.choice(звуки) if звуки else ""})
         # Перевод отдельной строкой и без номера: номер связывает её с
         # предложением выше, а повтор номера читался бы как шестой пример.
         rows.append({"marker": "", "rank": None,

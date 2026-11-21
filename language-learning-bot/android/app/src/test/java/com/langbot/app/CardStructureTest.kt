@@ -16,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -54,6 +55,11 @@ class CardStructureTest {
 
     @Before
     fun setUp() {
+        // Карточке со звуками слова заглушка MediaPlayer должна знать файлы,
+        // иначе подготовка звука не удаётся (см. ScreenshotTest).
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(1000, 0)
+        }
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         OfflineCache.init(ctx)
         UserPrefs.saveUserId(ctx, "user-1")
@@ -395,6 +401,51 @@ class CardStructureTest {
             иврит.layout.getLineRight(0) >= ширинаИврита - 1)
         assertEquals("русский должен прижиматься к левому краю своей колонки",
             0f, русский.layout.getLineLeft(0), 1f)
+    }
+
+    @Test
+    fun every_sound_button_fits_the_row_and_is_wide_enough_to_tap() {
+        /*
+         * Четвёртый голос у слова (Piper noa, владелец 21.11.2026). Кнопки
+         * звука стоят в один ряд с «▶ Все»; при четырёх голосах кнопки взяли
+         * свою стандартную ширину, и «▶ Все» сплющилась в полоску у края —
+         * видно на первом снимке answer_four_voices.
+         */
+        val a = open("answer_four_voices")
+        val ряд = a.findViewById<ViewGroup>(R.id.soundsRow)
+        assertEquals("кнопок звука: четыре голоса и «▶ Все»", 5, ряд.childCount)
+        val мин = (48 * a.resources.displayMetrics.density).toInt()
+        for (i in 0 until ряд.childCount) {
+            val b = ряд.getChildAt(i) as TextView
+            assertTrue("кнопка «${b.text}» шириной ${b.width} — пальцем не попасть", b.width >= мин)
+            assertTrue("кнопка «${b.text}» уехала за край ряда", b.right <= ряд.width)
+        }
+    }
+
+    @Test
+    fun a_voiced_example_plays_from_the_speaker_in_its_number_cell() {
+        /*
+         * Владелец (21.11.2026) об озвучке примеров: «нажатие на таблицу
+         * открывает увеличение, поэтому нужен отдельный маленький 🔊 в ячейке
+         * с номером. Нажал — звучит эта строка» — «да». Значок — в той же
+         * ячейке номера, а не отдельной: окно увеличения ищет строку ровно из
+         * четырёх ячеек.
+         */
+        val a = open("reading_sound")
+        val первая = строкиИзЧетырёх(extras(a)).first { r -> r.any { it.text.toString() == "יש זמן" } }
+        val номер = первая[0]
+        assertTrue("в ячейке номера нет 🔊: «${номер.text}»",
+            номер.text.contains("🔊") && номер.text.contains("1"))
+        номер.performClick()
+        assertEquals("звучит не эта строка", "sounds/he/reading/hila/1.mp3", a.lastSentenceSoundForTest)
+        assertNull("нажатие на 🔊 открыло увеличение вместо звука", a.cardZoomDialog)
+    }
+
+    @Test
+    fun an_example_without_a_voice_has_no_speaker() {
+        val a = open("reading_niqqud")
+        val значки = строкиИзЧетырёх(extras(a)).flatten().filter { it.text.contains("🔊") }
+        assertTrue("🔊 у примера без озвучки — нажатие ничего бы не сыграло", значки.isEmpty())
     }
 
     @Test

@@ -31,12 +31,30 @@ from pathlib import Path
 sys.path.insert(0, str(ТУТ))
 
 from check import проверить                                  # noqa: E402
+from sounds import КОРЕНЬ, готовые                           # noqa: E402
 from vocabulary import собрать                               # noqa: E402
 
 ДАННЫЕ = ТУТ.parents[0] / "data" / "reading"
 ЯЗЫКИ = {"en": "Английский", "he": "Иврит"}
 URL = os.getenv("MONGODB_URL", "mongodb://localhost:8527")
 DB_NAME = os.getenv("MONGODB_DB_NAME", "language_learning_bot")
+
+
+def запись(п: dict, язык: str, корень: Path = КОРЕНЬ) -> dict:
+    """Предложение, каким оно ляжет в слово.
+
+    Транскрипция едет вместе с текстом: на карточке это четвёртая колонка
+    таблицы (владелец, 09.11.2026). Собирает её reading/transcribe.py, у
+    иврита — со сверкой глазами.
+
+    sounds — все готовые файлы озвучки этого предложения, по одному на голос
+    (reading/gen_reading_sounds.py). Карточка берёт из них один наугад:
+    владелец (21.11.2026) — «в базе сгенерированы все, на телефон передаётся
+    рандомно выбранный один». Пока файлов нет — пустой список, и 🔊 у строки
+    не появится.
+    """
+    return {"text": п["text"], "ru": п["ru"], "tr": п.get("tr", ""),
+            "sounds": готовые(язык, п["text"], корень=корень)}
 
 
 def main() -> int:
@@ -81,11 +99,7 @@ def main() -> int:
         for п in данные[ключ]:
             итог = проверить(п["text"], слово["word_foreign"], словарь)
             if итог.годится:
-                # Транскрипция едет вместе с текстом: на карточке это четвёртая
-                # колонка таблицы (владелец, 09.11.2026). Собирает её
-                # reading/transcribe.py, у иврита — со сверкой глазами.
-                годные.append({"text": п["text"], "ru": п["ru"],
-                               "tr": п.get("tr", "")})
+                годные.append(запись(п, a.language))
             else:
                 плохие.append((п["text"], итог.объясни()))
         if плохие:

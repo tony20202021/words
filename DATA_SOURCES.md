@@ -97,6 +97,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Голос noa для иврита (Piper)
+
+Источник: модель синтеза речи
+[piper-he-noa](https://huggingface.co/thewh1teagle/piper-he-noa) (he_IL-noa-medium,
+автор — thewh1teagle), лицензия
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). По описанию модели,
+она обучена на синтетической речи (Chatterbox) по предложениям из протоколов
+Кнессета. Синтез — [Piper](https://github.com/OHF-Voice/piper1-gpl).
+
+Получено из неё: четвёртый голос иврита, noa, — озвучка слов
+(`backend/data/sounds/he/noa/`) и примеров для чтения
+(`backend/data/sounds/he/reading/noa/`). Модель использована без изменений;
+произношение подаётся ей нашей транскрипцией (`words/tts/piper_ipa.py`).
+Сами звуковые файлы в репозиторий не входят — приложение получает их по сети.
+
 ## Списки имён
 
 `words/data/eng_freq/names.txt` — подсказка «возможно, это имя», собрана из двух

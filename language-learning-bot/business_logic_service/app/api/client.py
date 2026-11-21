@@ -4,6 +4,7 @@ This client is used by the frontend to communicate with the backend API,
 not directly with the database.
 """
 
+import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from urllib.parse import quote
@@ -124,11 +125,26 @@ class APIClient:
                 error_message = f"API request failed: {e}"
                 logger.error(error_message)
                 response_dict["error"] = error_message
-                
+
                 if attempt < self.retry_count - 1:
                     logger.warning(f"Retrying request (attempt {attempt+1}/{self.retry_count})...")
                     continue
-        
+            except asyncio.TimeoutError:
+                # Превышение общего ожидания — не ClientError, и прежде оно
+                # проскакивало мимо повторов: служба отвечала 500. Так падал
+                # первый за день подбор слов (17–20.11.2026), хотя повтор шёл
+                # бы по уже поднятым из подкачки данным и занял бы доли
+                # секунды. Повторяем только чтение: запись, не дождавшись
+                # ответа, могла уже примениться.
+                if method.upper() != "GET":
+                    raise
+                error_message = f"API request timed out after {self.timeout}s"
+                logger.error(f"{error_message}: {method} {endpoint}")
+                response_dict["error"] = error_message
+                if attempt < self.retry_count - 1:
+                    logger.warning(f"Retrying request (attempt {attempt+1}/{self.retry_count})...")
+                    continue
+
         # Если все попытки провалились
         logger.error(f"All {self.retry_count} attempts to make a request failed")
         return response_dict

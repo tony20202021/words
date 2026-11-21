@@ -177,7 +177,15 @@ class DatabaseIndexOptimizer:
                 "name": "lang_word_number_idx",
                 "background": True
             },
-            
+
+            # 1а. Просмотр номеров при подборе слов — по одному индексу, без
+            # записей слов (с _id; создаётся и бэкендом при запуске).
+            {
+                "keys": [("language_id", 1), ("word_number", 1), ("_id", 1)],
+                "name": "lang_word_number_id_idx",
+                "background": True
+            },
+
             # 2. Индекс для поиска по иностранному слову (уникальность в рамках языка)
             {
                 "keys": [("language_id", 1), ("word_foreign", 1)],

@@ -137,6 +137,12 @@ class StudyActivity : AppCompatActivity() {
     var cardZoomDialog: Dialog? = null
         private set
 
+    // Последний запущенный звук примера для чтения — для проверок: сам звук в
+    // них не играет, MediaPlayer там заглушка.
+    @VisibleForTesting
+    var lastSentenceSoundForTest: String? = null
+        private set
+
     companion object {
         /** Сколько слов в офлайн-партии, если настройка не задана. */
         const val DEFAULT_BUNDLE_SIZE = 100
@@ -585,17 +591,26 @@ class StudyActivity : AppCompatActivity() {
      * На стороне ответа слово уже отвечено, спрашивать сервер не о чем:
      * дорисовываем ту же карточку и отправляем накопленное. Следующее слово —
      * по кнопке, как и было.
+     *
+     * На стороне вопроса сервер спрашиваем — прогресс общий для всех платформ,
+     * и если там уже другое слово, показываем его. Но если то же самое,
+     * оставляем показанную карточку. Владелец (21.11.2026): «„потянуть вниз“ на
+     * карточке вопроса иногда меняет тип вопроса». Вопрос из партии на телефоне,
+     * а тип вопроса (что показать до ответа, выбор из вариантов) партия и
+     * серверная сессия выбирают каждая своим жребием; серверный вариант того же
+     * слова и подменял показанный.
      */
     private fun refresh() {
         val card = currentCard
-        if (card == null || !card.show_answer) { loadSession(); return }
+        if (card == null || !card.show_answer) { loadSession(keep = card); return }
         ++studyGeneration                    // запоздалый ответ сервера экран не трогает
         renderCard(card)
         flushOutboxInBackground()
         setLoading(false)
     }
 
-    private fun loadSession() {
+    /** @param keep вопрос на экране: остаётся, если сервер стоит на том же слове (см. refresh). */
+    private fun loadSession(keep: Card? = null) {
         val generation = ++studyGeneration
         setLoading(true)
         lifecycleScope.launch {
@@ -639,7 +654,7 @@ class StudyActivity : AppCompatActivity() {
                 }
                 offline = null  // back online
                 localRatings.clear()
-                handleResponse(resp.body())
+                handleResponse(resp.body(), keep)
                 // Оставшееся (если что-то не подтвердилось) и свежая партия —
                 // фоном, экран их не ждёт.
                 flushOutboxInBackground()
@@ -1179,7 +1194,7 @@ class StudyActivity : AppCompatActivity() {
         binding.staleNotice.visibility = View.GONE
     }
 
-    private fun handleResponse(resp: SessionResponse?) {
+    private fun handleResponse(resp: SessionResponse?, keep: Card? = null) {
         if (resp == null) { showError("Нет ответа от сервера"); return }
         sessionId = resp.session_id
         if (resp.session_stale) {
@@ -1194,6 +1209,9 @@ class StudyActivity : AppCompatActivity() {
         val card = resp.card
         if (card == null) {
             showAllDone()
+        } else if (keep != null && !keep.show_answer && !card.show_answer &&
+                   keep.meta.word_id.isNotEmpty() && keep.meta.word_id == card.meta.word_id) {
+            renderCard(keep)                 // то же слово — тот же вопрос (см. refresh)
         } else {
             renderCard(card)
         }
@@ -1420,10 +1438,8 @@ class StudyActivity : AppCompatActivity() {
                         Toast.makeText(this, "Звук недоступен", Toast.LENGTH_SHORT).show()
                     }
                 }
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.marginEnd = 8
-                btn.layoutParams = lp
+                btn.layoutParams = soundButtonParams()
+                compactSoundButton(btn)
                 binding.soundsRow.addView(btn)
             }
 
@@ -1449,8 +1465,8 @@ class StudyActivity : AppCompatActivity() {
                     }
                     playAt(0)
                 }
-                allBtn.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                allBtn.layoutParams = soundButtonParams()
+                compactSoundButton(allBtn)
                 binding.soundsRow.addView(allBtn)
             }
 
@@ -2024,6 +2040,59 @@ class StudyActivity : AppCompatActivity() {
         playGroups(listOf(SoundGroup(null, paths)))
 
     /**
+     * Кнопки ряда звуков делят его поровну.
+     *
+     * С четвёртым голосом (Piper noa, 21.11.2026) кнопки по своей ширине —
+     * у MaterialButton она не меньше 88dp — уже не помещались: «▶ Все»
+     * сплющивалась у края в полоску в 22 пикселя.
+     */
+    private fun soundButtonParams() = LinearLayout.LayoutParams(
+        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+        marginStart = dpToPx(2)
+        marginEnd = dpToPx(2)
+    }
+
+    private fun compactSoundButton(btn: MaterialButton) {
+        btn.minWidth = 0
+        btn.minimumWidth = 0
+        btn.maxLines = 1
+        btn.setPadding(dpToPx(4), btn.paddingTop, dpToPx(4), btn.paddingBottom)
+    }
+
+    /**
+     * Озвучка примера для чтения — только при связи.
+     *
+     * Владелец (21.11.2026): «только при связи». В партию для офлайна эти
+     * файлы не качаются (их по пять на слово), поэтому без сети звучать
+     * нечему — и вместо тишины говорим об этом прямо.
+     */
+    private fun playSentence(path: String) {
+        stopPlayback()
+        lastSentenceSoundForTest = path
+        val mine = playbackGen
+        val mp = MediaPlayer()
+        fun нетСвязи() {
+            if (activePlayer === mp) activePlayer = null
+            if (mine == playbackGen) Toast.makeText(this,
+                "Озвучка примеров — только при связи", Toast.LENGTH_SHORT).show()
+        }
+        try {
+            mp.setDataSource(AudioCache.sourceFor(path))
+            mp.setOnPreparedListener { if (mine != playbackGen) it.release() else it.start() }
+            mp.setOnCompletionListener {
+                it.release()
+                if (activePlayer === it) activePlayer = null
+            }
+            mp.setOnErrorListener { p, _, _ -> p.release(); нетСвязи(); true }
+            activePlayer = mp
+            mp.prepareAsync()
+        } catch (_: Exception) {
+            mp.release()
+            нетСвязи()
+        }
+    }
+
+    /**
      * Проиграть подряд несколько вариантов, подсвечивая звучащий.
      *
      * Кнопки прослушивания в пик-режиме неразличимы на вид — «▶ 1», «▶ 2»,
@@ -2557,7 +2626,7 @@ class StudyActivity : AppCompatActivity() {
                 val перевод = rows.getOrNull(i + 1)
                     ?.takeIf { it.foreign.isBlank() }?.ru.orEmpty()
                 table.addView(readingLine(row.marker, row.foreign, "", row.ipa,
-                                          top = true, bottom = true))
+                                          top = true, bottom = true, звук = row.sound))
                 if (перевод.isNotBlank()) {
                     table.addView(readingLine("", "", перевод, "", top = true, bottom = true))
                     i += 2
@@ -2585,9 +2654,10 @@ class StudyActivity : AppCompatActivity() {
      *
      * @param top    рисовать ли линию сверху (начало записи)
      * @param bottom рисовать ли линию снизу (конец записи)
+     * @param звук   озвучка примера; есть — под номером 🔊, нажатие звучит строкой
      */
     private fun readingLine(номер: String, текст: String, перевод: String, ipa: String,
-                            top: Boolean, bottom: Boolean): LinearLayout {
+                            top: Boolean, bottom: Boolean, звук: String = ""): LinearLayout {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -2623,7 +2693,16 @@ class StudyActivity : AppCompatActivity() {
             return tv
         }
 
-        val tvНомер = cell(номер, 15f, 1.5f, muted = true, single = true)
+        val tvНомер = if (звук.isBlank()) cell(номер, 15f, 1.5f, muted = true, single = true)
+        else cell("$номер\n🔊", 15f, 1.5f, muted = true).apply {
+            // Владелец (21.11.2026): нажатие на таблицу открывает увеличение,
+            // поэтому звук — отдельным 🔊 в ячейке номера. Ячейка остаётся
+            // одной TextView: окно увеличения ищет строку ровно из четырёх.
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            contentDescription = "Озвучить пример $номер"
+            isClickable = true
+            setOnClickListener { playSentence(звук) }
+        }
         // Текст: направление по первой сильной букве. Жёсткое RTL, как у
         // таблицы огласовок, для английского предложения унесло бы точку в
         // начало строки; здесь текст бывает и ивритский, и английский.

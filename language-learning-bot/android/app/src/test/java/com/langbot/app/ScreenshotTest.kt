@@ -57,6 +57,13 @@ class ScreenshotTest {
         OfflineCache.init(ctx)
         UserPrefs.saveUserId(ctx, "user-1")
         Screenshots.outDir.mkdirs()
+        // Карточка со звуками слова готовит MediaPlayer на каждый файл. Заглушке
+        // Robolectric без описания файла подготовка не удаётся, и карточка
+        // падала целиком — «нет сети». Звук в снимке не нужен, нужна вёрстка
+        // ряда кнопок (четыре голоса и «▶ Все», 21.11.2026).
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider {
+            org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(1000, 0)
+        }
 
         server = MockWebServer()
         server.dispatcher = object : Dispatcher() {

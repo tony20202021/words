@@ -11,13 +11,14 @@ from pathlib import Path
 from common.help_text import DATA_SOURCES_URL, HELP_TEXT
 
 REPO = Path(__file__).resolve().parents[3]
-SOURCES = ("Викисловар", "wordfreq", "FrequencyWords", "ipa-dict")
+SOURCES = ("Викисловар", "wordfreq", "FrequencyWords", "ipa-dict", "piper-he-noa")
 
 
 def test_help_names_every_source_and_its_license():
     for name in SOURCES:
         assert name in HELP_TEXT, f"в справке не назван источник {name}"
     assert "CC BY-SA 4.0" in HELP_TEXT
+    assert "CC BY 4.0" in HELP_TEXT          # голос noa (Piper)
     assert "MIT" in HELP_TEXT
 
 

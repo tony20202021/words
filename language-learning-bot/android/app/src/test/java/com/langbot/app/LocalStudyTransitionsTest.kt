@@ -189,6 +189,37 @@ class LocalStudyTransitionsTest {
         assertEquals("dont_know", OfflineCache.loadOutbox().last().rating)
     }
 
+    // Владелец (21.11.2026): «„потянуть вниз“ на карточке вопроса иногда меняет
+    // тип вопроса». Вопрос показан из партии на телефоне, а тип вопроса для
+    // слова партия и серверная сессия выбирают каждая своим жребием. Обновление
+    // рисовало серверный вариант — и когда жребии расходились, тот же вопрос
+    // превращался, например, в выбор из вариантов.
+    @Test fun pulling_down_on_a_question_keeps_its_kind_when_the_server_is_on_the_same_word() {
+        open(); tap("Know"); tap("Next"); release.countDown()
+        Screenshots.pumpUntil("ответ отправлен") { OfflineCache.pendingCount() == 0 }
+        assertTrue(texts().contains("question-w2"))
+        serverQuestionId = "w2"                    // сервер на том же слове,
+        shownQuiz = PickOptions("translation", listOf(   // но у него жребий — выбор
+            PickOption("x", "Correct shown option", true), PickOption("y", "Wrong shown option", false)))
+        pullDown()
+        val labels = Screenshots.texts(activity!!.findViewById<ViewGroup>(R.id.buttonRow))
+            .filterIsInstance<MaterialButton>().map { it.text.toString() }
+        assertTrue("обновление сменило слово: ${texts()}", texts().contains("question-w2"))
+        assertFalse("обновление сменило тип вопроса: $labels", labels.any { it.contains("shown option") })
+        tap("Know")                                // и ответ идёт как раньше, на месте
+        assertTrue(texts().contains("answer-w2"))
+    }
+
+    @Test fun pulling_down_on_a_question_follows_the_server_to_another_word() {
+        // Прогресс общий для всех платформ: если на сервере уже другое слово
+        // (занимались в боте или вебе), обновление его и показывает.
+        open(); tap("Know"); tap("Next"); release.countDown()
+        Screenshots.pumpUntil("ответ отправлен") { OfflineCache.pendingCount() == 0 }
+        serverQuestionId = "w3"
+        pullDown()
+        assertTrue(texts().contains("question-w3"))
+    }
+
     @Test fun pulling_down_on_the_question_still_asks_the_server() {
         open()
         val asked = paths.count { it.contains("/session/") }

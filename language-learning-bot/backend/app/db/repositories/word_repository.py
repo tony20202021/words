@@ -588,7 +588,17 @@ class WordRepository:
             return []
 
     async def ensure_indexes(self):
-        """Create indexes for unit count queries."""
+        """Create indexes for unit count queries and the study number scan."""
+        # Просмотр номеров при подборе слов (get_words_for_study) — по одному
+        # индексу, без записей слов. Он возвращает номер и _id, а в
+        # lang_word_number_idx нет _id: база доставала каждую просмотренную
+        # запись. Утром, когда память базы в подкачке, это 4–6 с вместо 0,07 —
+        # первый подбор дня падал по пятисекундному ожиданию (17–20.11.2026).
+        await self.collection.create_index(
+            [("language_id", 1), ("word_number", 1), ("_id", 1)],
+            name="lang_word_number_id_idx",
+            background=True,
+        )
         await self.collection.create_index(
             [("language_id", 1), ("word_foreign_unit_count", 1), ("word_number", 1)],
             name="lang_foreign_unit_count_idx",
