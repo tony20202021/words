@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.android.material.button.MaterialButton
 import com.google.gson.Gson
 import com.langbot.app.network.*
+import com.langbot.app.offline.BundleRefresh
 import com.langbot.app.offline.OfflineCache
 import com.langbot.app.offline.StoredBundle
 import com.langbot.app.prefs.UserPrefs
@@ -38,6 +39,9 @@ class LocalStudyTransitionsTest {
     @Volatile private var serverQuestionId = "w1"
     private var serverSessionTotal = 4
     private var serverSessionPosition = 1
+    // Партия, которую сервер отдаёт по запросу; null — запрос партии не обслуживается.
+    @Volatile private var freshBundle: List<BundleWord>? = null
+    private val bundleGate = CountDownLatch(1)
 
     private fun card(id: String, answer: Boolean = false, known: Boolean = false): Card = Card(
         show_answer = answer,
@@ -80,6 +84,10 @@ class LocalStudyTransitionsTest {
                             show_session_counter = true,
                             session_counter_text = "(в сессии: $serverSessionPosition из $serverSessionTotal)")))))
                 }
+                if (path.endsWith("/bundle") && freshBundle != null) {
+                    bundleGate.await(10, TimeUnit.SECONDS)
+                    return MockResponse().setBody(gson.toJson(BundleResponse(session_id = "sid", words = freshBundle!!)))
+                }
                 if (path.endsWith("/know") || path.endsWith("/show_answer")) {
                     release.await(10, TimeUnit.SECONDS)
                     return MockResponse().setBody(gson.toJson(SessionResponse(session_id = "sid", card = card("w1", true, true))))
@@ -92,6 +100,7 @@ class LocalStudyTransitionsTest {
     }
     @After fun cleanup() {
         release.countDown()
+        bundleGate.countDown()
         controller?.pause()?.stop()?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
         server.shutdown()
@@ -227,6 +236,46 @@ class LocalStudyTransitionsTest {
         assertTrue("обновление на вопросе не спросило сервер",
             paths.count { it.contains("/session/") } > asked)
         assertTrue(texts().contains("question-w1"))
+    }
+
+    // Владелец (21.11.2026): «на иврите нет звука на предложениях». Сервер
+    // давно отдавал звук, а телефон показывал ответ из партии, скачанной утром —
+    // до того, как звук появился. Первая карточка приходит с сервера, но первое
+    // же нажатие переводило занятие на партию с телефона, какой бы старой она ни
+    // была. Свежая партия собирается на сервере секунд двадцать, приходила уже
+    // после нажатия — и выбрасывалась: занятие шло по старой.
+    private fun makeCacheStale() {
+        val stored = OfflineCache.loadBundle("u", "l")!!
+        OfflineCache.saveBundle(stored.copy(
+            savedAt = System.currentTimeMillis() - BundleRefresh.MAX_AGE_MS - 60_000))
+    }
+    private fun fresh(c: Card): Card = c.copy(content = c.content.map { it.copy(text = "fresh-" + it.text) })
+
+    @Test fun a_stale_cache_does_not_answer_instead_of_the_server() {
+        makeCacheStale()
+        open(); tap("Know")
+        assertTrue("ответ взят из устаревшей партии, а не с сервера",
+            OfflineCache.loadOutbox().isEmpty())
+        release.countDown()
+        Screenshots.pumpUntil("ответ сервера") { texts().contains("answer-w1") }
+        assertTrue(paths.any { it.endsWith("/know") })
+    }
+
+    @Test fun a_fresh_cache_arriving_after_the_first_press_is_kept_and_used() {
+        makeCacheStale()
+        freshBundle = (1..4).map { n -> BundleWord(word_id = "w$n", word_number = n,
+            card_front = fresh(card("w$n")), card_answer = fresh(card("w$n", true)),
+            card_known = fresh(card("w$n", true, true))) }
+        open(); tap("Know")                        // свежая партия ещё в пути
+        release.countDown()
+        Screenshots.pumpUntil("ответ сервера") { texts().contains("answer-w1") }
+        bundleGate.countDown()
+        Screenshots.pumpUntil("свежая партия сохранена") {
+            OfflineCache.loadBundle("u", "l")?.words?.first()?.card_front?.content?.first()?.text == "fresh-question-w1"
+        }
+        tap("Next")
+        assertTrue("следующее слово взято из устаревшей партии: ${texts()}",
+            texts().contains("fresh-question-w2"))
     }
 
     @Test fun a_stale_button_cannot_record_the_same_answer_twice() {

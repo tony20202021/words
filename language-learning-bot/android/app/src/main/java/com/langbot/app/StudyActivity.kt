@@ -850,7 +850,10 @@ class StudyActivity : AppCompatActivity() {
         if (offline != null) return true
         val card = currentCard ?: return false
         if (lastWordId.isNullOrBlank()) return false
-        val engine = OfflineEngine.fromStore(userId, languageId) ?: return false
+        val stored = OfflineCache.loadBundle(userId, languageId) ?: return false
+        // Устаревшую партию при связи не подключаем — см. BundleRefresh.usableOnline.
+        if (!BundleRefresh.usableOnline(stored, System.currentTimeMillis())) return false
+        val engine = OfflineEngine(stored)
         if (!engine.positionAtWord(lastWordId) || !engine.hasCurrent()) return false
         offline = engine
         syncOnline = false
